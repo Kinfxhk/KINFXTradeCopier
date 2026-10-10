@@ -17,6 +17,13 @@ Synthetic reproduction:
 
 `FreshPositionAheadDoesNotUndersize` and `FreshLateWorkingBeforePartialCannotUndersize` both failed, each repeated five times on two copies with the same baseline hash. A later clone's core16 passes those controls; that does not certify existing broker coverage, final public bytes or all ACK interleavings.
 
+**Public repo status (source `b13bda04…`):** a narrow **quantity freeze**, not the frontier design. While Position reads lower than captured owned fills, the engine will not shrink any acknowledged exit quantity; price moves still go through; it does **not** latch, lock or cancel anything. A real leader reduction is applied once Position agrees with the owned ledger again.
+- Before: with a stop acknowledged at 4, owned fills 4 and Position reading 1, the engine sent `Change(total 1)` (RED, `F01PositionBehindOwnedNeverShrinksProtection`).
+- An independent reviewer found my first version (lock + no change) was wrong in three ways, all reproduced here and now covered by tests: two independent stops 2+2 with Position 3 still shrank one stop to 1 (`F01TwoIndependentExitsNeverShrinkOnPositionLag`, base and first version both failed); a price-only leader move was dropped (`F01PriceMoveStillForwardedDuringPositionLag`); a transient lag permanently latched the account (`F01PositionLagDoesNotLockOrCancel`). `F01ReductionAppliedAfterPositionCatchesUp` checks the freeze is not permanent.
+- **Accepted trade-off, not solved:** during a lag the exit can be larger than the real position. If the cause is a genuine external reduction, a triggered exit can reverse the account. Quantity freeze favours "never under-protect" over "never over-protect". See `docs/DO-NOT-DO.md`.
+- **Not a policy the reviewer settled:** with no lag at all, the follower mirrors a leader reduction from 4 to 1 (reviewer R10). That is existing design, not covered by this guard; whether it should be limited to owned exposure is an open decision.
+- Scenario 2 (older Working0 queued before PartFilled2) already passed on this baseline in the public fake (`F01QueuedStaleWorkingNeverUndersizes`); this does not prove it either way. No captured/applied frontier, no one-unresolved-command rule, ACK interleavings untested.
+
 **Task:** preserve captured/applied account frontiers, requested/acknowledged/reserved totals and one unresolved command; assert every request under delayed/no ACK and accepted-then-throw. [Issue #2](https://github.com/Kinfxhk/KINFXTradeCopier/issues/2)
 
 ### OCO — completed group versus account-wide remaining exposure
@@ -69,6 +76,9 @@ Custom-crypto/internal-verifier probes do not prove default production reachabil
 
 ### Per-account TP / SL after hand-tuning (not implemented)
 Follower TP / SL are mirrors of the leader's non-market exits. With ATM off a follower has no TP / SL of its own yet still copies a leader **market** exit, so a hand-tuned account is dragged out when the leader flattens. There is no self-managed exit mode or per-account TP / SL distance. Depends on #2, #3 and #9; do not add follower-owned protective orders first. [Issue #10](https://github.com/Kinfxhk/KINFXTradeCopier/issues/10)
+
+### Related user-facing gaps (not implemented)
+Adopting an existing position on a new follower: [#11](https://github.com/Kinfxhk/KINFXTradeCopier/issues/11). Per-account notify-only versus flatten-once on divergence: [#12](https://github.com/Kinfxhk/KINFXTradeCopier/issues/12). Actions the software cannot recover from: [DO-NOT-DO](DO-NOT-DO.md).
 
 ## Keep non-product failures visible
 

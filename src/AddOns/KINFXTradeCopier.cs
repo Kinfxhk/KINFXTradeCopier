@@ -710,9 +710,22 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             // Risk latch/pause must never cancel protection or prohibit price changes / reductions.
             int p=link.Exit?ExitPosition(f):EntryPosition(f);
             if(link.Exit&&p==0&&OwnedPosition(f)!=0) { Lock(f,"Ambiguous flat Position conflicts with owned executions — existing exit left unchanged; manual reconciliation required, coverage unverified");return; }
+            // F01: Position can lag behind captured owned fills (or a legitimate external reduction may not be captured yet).
+            // While Position is behind owned evidence, never SHRINK any acknowledged exit quantity; price moves still go through.
+            // This is a quantity freeze, not a lock: no latch, no cancellation, no shrink. A real reduction is applied once
+            // Position and owned evidence agree again; until then the exit may be larger than the position (reversal risk the
+            // user must reconcile by hand, see docs/DO-NOT-DO.md).
+            bool positionBehindOwned=false;
+            if(link.Exit)
+            {
+                int ownedClosable=s.Action==OrderAction.Sell?Math.Max(0,OwnedPosition(f)):Math.Max(0,-OwnedPosition(f));
+                int positionClosable=s.Action==OrderAction.Sell?Math.Max(0,p):Math.Max(0,-p);
+                positionBehindOwned=p!=0&&positionClosable<ownedClosable;
+            }
             int closable=link.Exit?(s.Action==OrderAction.Sell?Math.Max(0,p):Math.Max(0,-p)):Math.Abs(p);
             int filled=link.ObservedFilled;
             int qty=RiskPolicy.ChangeTotal(link.ReservedQuantity,filled,link.Desired,link.Exit,closable,link.Exit?ExitReserved(link):PendingEntries(f,order),f.Settings.MaxContracts,entries&&f.Following&&!f.Paused&&!f.Latch.Locked);
+            if(positionBehindOwned&&link.Exit&&qty<order.Quantity)qty=order.Quantity; // freeze quantity, keep price updates
             if(qty<=filled)
             {
                 link.Cancelled=true; link.Waiting=false; f.Account.Cancel(new[]{order});

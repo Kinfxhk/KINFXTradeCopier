@@ -19,7 +19,7 @@ namespace NinjaTrader.Cbi {
   public double Get(AccountItem i,Currency c){return i==AccountItem.RealizedProfitLoss?Pnl:i==AccountItem.UnrealizedProfitLoss?0:Equity;}
   public Order CreateOrder(Instrument i,OrderAction a,OrderType t,OrderEntry e,TimeInForce tif,int q,double l,double s,string oco,string n,DateTime g,object ignored){if(CreateEntered!=null){CreateEntered.Set();CreateRelease.WaitOne();}return new Order {Account=this,Instrument=i,OrderAction=a,OrderType=t,OrderEntry=e,TimeInForce=tif,Quantity=q,LimitPrice=l,StopPrice=s,Oco=oco,Name=n,Gtd=g};}
   public void Submit(Order[] orders){if(SubmitEntered!=null){SubmitEntered.Set();SubmitRelease.WaitOne();}if(ThrowSubmit)throw new InvalidOperationException("Synthetic submit error");foreach(var o in orders){lock(Orders)Orders.Add(o);o.OrderState=OrderState.Working;Interlocked.Increment(ref Submits);Emit(o);}}
-  public void Change(Order[] orders){foreach(var o in orders){o.Quantity=o.QuantityChanged;o.LimitPrice=o.LimitPriceChanged;o.StopPrice=o.StopPriceChanged;Interlocked.Increment(ref Changes);Emit(o);}}
+  public System.Collections.Generic.List<int> ChangeQuantities=new System.Collections.Generic.List<int>();public void Change(Order[] orders){foreach(var o in orders){lock(ChangeQuantities)ChangeQuantities.Add(o.QuantityChanged);o.Quantity=o.QuantityChanged;o.LimitPrice=o.LimitPriceChanged;o.StopPrice=o.StopPriceChanged;Interlocked.Increment(ref Changes);Emit(o);}}
   public void Cancel(Order[] orders){if(AsyncCancel){Interlocked.Add(ref Cancels,orders.Length);return;}if(ThrowCancel)throw new InvalidOperationException("Synthetic cancel error");foreach(var o in orders){o.OrderState=OrderState.Cancelled;Interlocked.Increment(ref Cancels);Emit(o);}}
   public void Flatten(Instrument[] inst){if(NoopFlatten){Interlocked.Increment(ref Flattens);return;}if(ThrowFlatten){if(FlattenWorkingBeforeThrow){var pending=CreateOrder(inst[0],OrderAction.Sell,OrderType.Market,OrderEntry.Manual,TimeInForce.Day,2,0,0,"","SyntheticPendingFlatten",DateTime.MaxValue,null);pending.OrderState=OrderState.Working;Orders.Add(pending);Emit(pending);}throw new InvalidOperationException("Synthetic flatten error");}Interlocked.Increment(ref Flattens);foreach(var o in Orders.ToArray())Cancel(new[]{o});lock(Positions)Positions.Clear();var fake=CreateOrder(inst[0],OrderAction.Sell,OrderType.Market,OrderEntry.Manual,TimeInForce.Day,1,0,0,"","SyntheticFlatten",DateTime.MaxValue,null);fake.OrderState=OrderState.Submitted;Emit(fake);}
   public void Emit(Order o){var h=OrderUpdate;if(h!=null)h(this,new OrderEventArgs {Order=o,OrderId=o.OrderId,OrderState=o.OrderState,Quantity=o.Quantity,Filled=o.Filled,LimitPrice=o.LimitPrice,StopPrice=o.StopPrice});}
@@ -284,6 +284,109 @@ class EngineSafetyTests {
  static CopierEngine Arm(NinjaTrader.Cbi.Account l,NinjaTrader.Cbi.Account a,Action<AccountTelemetry> tele=null,Action<string,string> persist=null){var e=new CopierEngine(s=>{},tele??(t=>{}),(attached,s)=>{},persist??((n,r)=>{}));e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10,Target=100},new RiskLatch())});Wait(()=>e.EntriesArmed,"arm");return e;}
  static void Drain(CopierEngine e){var f=typeof(CopierEngine).GetField("worker",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic);var w=(SerialWorker)f.GetValue(e);var done=new ManualResetEvent(false);w.Post(()=>done.Set());Check(done.WaitOne(3000),"drain");}
  static void Fill(NinjaTrader.Cbi.Account a,int qty,bool position=true){var o=a.Orders[0];o.Filled=qty;o.OrderState=o.Quantity==qty?NinjaTrader.Cbi.OrderState.Filled:NinjaTrader.Cbi.OrderState.PartFilled;if(position)a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=qty,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});a.Emit(o);}
+ // User misuse: the leader account must never also be a follower, by identity or by name.
+ static void LeaderAlsoFollowerIsRefused(){
+  var l=Acc("misuse lead");var other=Acc("misuse other");var sameName=Acc("misuse lead");
+  foreach(var follower in new[]{l,sameName}){
+   using(var e=new CopierEngine(s=>{},t=>{},(attached,s)=>{},(n,r)=>{})){
+    e.Start(l,inst,new[]{Tuple.Create(follower,new RiskSettings{MaxContracts=10},new RiskLatch()),Tuple.Create(other,new RiskSettings{MaxContracts=10},new RiskLatch())});
+    Drain(e);Thread.Sleep(150);
+    Check(!e.Attached&&!e.EntriesArmed,"Start must be refused when the leader is also a follower (identity or same name)");
+    Check(l.Submits==0&&other.Submits==0,"nothing may be submitted");
+   }
+  }
+  using(var e=new CopierEngine(s=>{},t=>{},(attached,s)=>{},(n,r)=>{})){
+   e.Start(l,inst,new[]{Tuple.Create(other,new RiskSettings{MaxContracts=10},new RiskLatch())});Wait(()=>e.EntriesArmed,"valid control must still start");
+  }
+ }
+ // User misuse: the same follower listed twice must be refused as a whole.
+ static void DuplicateFollowerListIsRefused(){
+  var l=Acc("dup lead");var a=Acc("dup follow");
+  using(var e=new CopierEngine(s=>{},t=>{},(attached,s)=>{},(n,r)=>{})){
+   e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10},new RiskLatch()),Tuple.Create(a,new RiskSettings{MaxContracts=10},new RiskLatch())});
+   Drain(e);Thread.Sleep(150);Check(!e.Attached&&!e.EntriesArmed,"duplicate follower must refuse Start");
+  }
+ }
+ static void SetPos(NinjaTrader.Cbi.Account a,int q){lock(a.Positions){a.Positions[0].Quantity=q;}}
+ static string Sent(NinjaTrader.Cbi.Account a){int[] s;lock(a.ChangeQuantities)s=a.ChangeQuantities.ToArray();return "["+string.Join(",",s)+"]";}
+ // F01 reviewer counterexample R7: two independent (non-OCO) stops 2+2, owned 4, Position lags to 3. Neither stop may shrink.
+ static void F01TwoIndependentExitsNeverShrinkOnPositionLag(){
+  var l=Acc("f01c lead");var a=Acc("f01c follow");
+  using(var e=Arm(l,a)){
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",4));Wait(()=>a.Submits==1,"entry");Fill(a,4);Drain(e);
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"f01c A",2));Wait(()=>a.Submits==2,"A");l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"f01c B",2));Wait(()=>a.Submits==3,"B");Drain(e);
+   Check(a.Orders[1].Quantity==2&&a.Orders[2].Quantity==2,"A,B acknowledged at 2+2");
+   SetPos(a,3);e.Poll();Drain(e);e.Poll();Drain(e);
+   int[] s;lock(a.ChangeQuantities)s=a.ChangeQuantities.ToArray();
+   Check(s.All(q=>q>=2)&&a.Orders[1].Quantity>=2&&a.Orders[2].Quantity>=2,"no stop below its acknowledged 2 while owned=4; sent="+Sent(a)+" A="+a.Orders[1].Quantity+" B="+a.Orders[2].Quantity);
+  }
+ }
+ // F01 reviewer finding R2: during a Position lag a leader PRICE-only move must still reach the follower, without shrinking quantity.
+ static void F01PriceMoveStillForwardedDuringPositionLag(){
+  var l=Acc("f01d lead");var a=Acc("f01d follow");
+  using(var e=Arm(l,a)){
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",4));Wait(()=>a.Submits==1,"entry");Fill(a,4);Drain(e);
+   var ls=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"f01d br",4);l.Emit(ls);Wait(()=>a.Submits==2,"stop");Drain(e);var stop=a.Orders[1];
+   SetPos(a,1);ls.LimitPrice=99;ls.OrderState=NinjaTrader.Cbi.OrderState.Working;l.Emit(ls);Drain(e);e.Poll();Drain(e);
+   Check(stop.LimitPrice==99&&stop.Quantity>=4,"price move forwarded while quantity stays >=4; price="+stop.LimitPrice+" qty="+stop.Quantity+" sent="+Sent(a));
+  }
+ }
+ // Reviewer R1/R11: a lagging Position must NOT latch the account (availability) and must NOT cancel protection.
+ static void F01PositionLagDoesNotLockOrCancel(){
+  var l=Acc("f01e lead");var a=Acc("f01e follow");AccountTelemetry t=null;int locks=0;
+  using(var e=Arm(l,a,x=>t=x,(n,r)=>locks++)){
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",4));Wait(()=>a.Submits==1,"entry");Fill(a,4);Drain(e);
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"f01e br",4));Wait(()=>a.Submits==2,"stop");Drain(e);var stop=a.Orders[1];
+   SetPos(a,2);e.Poll();Drain(e);e.Poll();Drain(e);
+   Check(locks==0,"a transient Position lag must not write a durable latch; locks="+locks);
+   Check(stop.OrderState==NinjaTrader.Cbi.OrderState.Working&&stop.Quantity==4&&a.Cancels==0,"protection untouched: state="+stop.OrderState+" qty="+stop.Quantity+" cancels="+a.Cancels);
+  }
+ }
+ // Once Position catches up with owned evidence, a legitimate leader reduction is applied again (no permanent freeze).
+ static void F01ReductionAppliedAfterPositionCatchesUp(){
+  var l=Acc("f01f lead");var a=Acc("f01f follow");
+  using(var e=Arm(l,a)){
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",4));Wait(()=>a.Submits==1,"entry");Fill(a,4);Drain(e);
+   var ls=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"f01f br",4);l.Emit(ls);Wait(()=>a.Submits==2,"stop");Drain(e);var stop=a.Orders[1];
+   SetPos(a,2);ls.Quantity=2;ls.OrderState=NinjaTrader.Cbi.OrderState.Working;l.Emit(ls);Drain(e);e.Poll();Drain(e);
+   Check(stop.Quantity==4,"while Position lags the exit is not shrunk; qty="+stop.Quantity);
+   SetPos(a,4);e.Poll();Drain(e);
+   Check(stop.Quantity==2,"after Position agrees with owned the leader's reduction to 2 is applied; qty="+stop.Quantity+" sent="+Sent(a));
+  }
+ }
+ // F01 (Issue #2), scenario A: leader stop total 4; follower owned fill 2, wrapper already shows 4, Position reads 1.
+ // Safety invariant: NO outbound Change may ever request a total below the 4 the stop was acknowledged at.
+ static void F01PositionBehindOwnedNeverShrinksProtection(){
+  var l=Acc("f01a lead");var a=Acc("f01a follow");int locks=0;
+  using(var e=Arm(l,a,null,(n,r)=>locks++)){
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",4));Wait(()=>a.Submits==1,"entry");
+   Fill(a,4);Drain(e);
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"f01a bracket",4));Wait(()=>a.Submits==2,"stop submitted");Drain(e);
+   var stop=a.Orders[1];Check(stop.Quantity==4,"stop acknowledged at 4");
+   a.Positions.Clear();a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=1,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});
+   e.Poll();Drain(e);e.Poll();Drain(e);
+   int[] sent;lock(a.ChangeQuantities)sent=a.ChangeQuantities.ToArray();
+   Check(sent.All(q=>q>=4),"every outbound Change must keep total>=4 while owned fills are 4; sent: ["+string.Join(",",sent)+"]");
+   Check(stop.Quantity>=4,"working stop must never be shrunk below 4; is "+stop.Quantity);
+  }
+ }
+ // scenario B: queued Working0 then PartFilled2 must not make an intermediate request smaller than captured fill 2 (and never re-expand later).
+ static void F01QueuedStaleWorkingNeverUndersizes(){
+  var l=Acc("f01b lead");var a=Acc("f01b follow");
+  using(var e=Arm(l,a)){
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",4));Wait(()=>a.Submits==1,"entry");
+   Fill(a,2);Drain(e);
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"f01b bracket",4));Wait(()=>a.Submits==2,"stop");Drain(e);
+   var entry=a.Orders[0];var worker=(SerialWorker)typeof(CopierEngine).GetField("worker",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(e);
+   var entered=new ManualResetEvent(false);var release=new ManualResetEvent(false);worker.Post(()=>{entered.Set();release.WaitOne();});Check(entered.WaitOne(3000),"queue barrier");
+   // older Working(fill 0) is queued first, then the real PartFilled(2); Position already reads 2 while the engine has not applied either yet
+   entry.Filled=0;entry.OrderState=NinjaTrader.Cbi.OrderState.Working;a.Emit(entry);
+   entry.Filled=2;entry.OrderState=NinjaTrader.Cbi.OrderState.PartFilled;a.Emit(entry);
+   release.Set();Drain(e);e.Poll();Drain(e);
+   int[] sent;lock(a.ChangeQuantities)sent=a.ChangeQuantities.ToArray();
+   Check(sent.All(q=>q>=2),"no outbound Change may request a total below captured fill 2; sent: ["+string.Join(",",sent)+"]");
+  }
+ }
  static void ImmutableLateFillSafety(){var l=Acc("mutable fill lead");var a=Acc("mutable fill follow");int locks=0;using(var e=Arm(l,a,null,(n,r)=>locks++)){l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",4));Wait(()=>a.Submits==1,"entry");Fill(a,2);Drain(e);l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"completed",2));Wait(()=>a.Submits==2,"exit");Drain(e);var entry=a.Orders[0];var stop=a.Orders[1];var worker=(SerialWorker)typeof(CopierEngine).GetField("worker",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(e);var entered=new ManualResetEvent(false);var release=new ManualResetEvent(false);worker.Post(()=>{entered.Set();release.WaitOne();});Check(entered.WaitOne(3000),"queue barrier");l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",1));stop.Filled=2;stop.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Clear();a.Emit(stop);entry.Filled=4;entry.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});a.Emit(entry);release.Set();Drain(e);e.Poll();Drain(e);Check(locks==1,"immutable callback ledger detects uncovered late fill");}}
  static void OffDelayedExitSafety(){var l=Acc("off delayed lead");var a=Acc("off delayed follow");using(var e=Arm(l,a)){l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Wait(()=>a.Submits==1,"entry");Fill(a,2,false);Drain(e);e.SetFollowing(a.Name,false);Drain(e);l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"lag protection"));Drain(e);a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});e.Poll();Drain(e);Check(a.Submits==2,"OFF retains delayed protection for observed owned fills");}}
  static void FlatLagProtectionSafety(){var l=Acc("flat lag lead");var a=Acc("flat lag follow");using(var e=Arm(l,a)){l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Wait(()=>a.Submits==1,"entry");Fill(a,2);Drain(e);l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"protect"));Wait(()=>a.Submits==2,"stop");Drain(e);a.Positions.Clear();e.Poll();Drain(e);Check(a.Orders[1].OrderState==NinjaTrader.Cbi.OrderState.Working,"ambiguous flat preserves sole protection");a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});e.Poll();Drain(e);Check(a.Submits==2&&a.Orders[1].OrderState==NinjaTrader.Cbi.OrderState.Working,"protection still working when Position catches up");}}
