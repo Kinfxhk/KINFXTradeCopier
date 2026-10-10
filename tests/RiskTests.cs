@@ -2,7 +2,7 @@ using System;
 using NinjaTrader.NinjaScript.AddOns.Kinfx;
 class RiskTests {
  static int Main(string[] args) {
-  try { Eq(false,DashboardSafety.CanExecute("start")); Eq(false,DashboardSafety.CanExecute("flattenSelected")); Eq(false,DashboardSafety.CanExecute("flattenAll")); Eq(false,DashboardSafety.CanExecute("batch")); Eq(true,DashboardSafety.CanExecute("refresh")); BulkAmount(); Console.WriteLine("PASS bulk amount grammar"); Quantity(); Console.WriteLine("PASS quantity"); Risk(); Console.WriteLine("PASS risk latch / exits / finite / DST"); Persistence(); Console.WriteLine("PASS XML atomic roundtrip"); Worker(); Console.WriteLine("PASS serial reentrancy + ownership"); Ledger(); Console.WriteLine("PASS lifecycle decisions / dedupe / reservation"); Presets(); Console.WriteLine("PASS sourced editable presets"); ChangePolicy(); Console.WriteLine("PASS locked reductions / partial exit totals"); DurableLock(); Console.WriteLine("PASS durable global latches / unlock recheck / advisory"); return 0; }
+  try { Eq(false,DashboardSafety.CanExecute("start")); Eq(false,DashboardSafety.CanExecute("flattenSelected")); Eq(false,DashboardSafety.CanExecute("flattenAll")); Eq(false,DashboardSafety.CanExecute("batch")); Eq(true,DashboardSafety.CanExecute("refresh")); BulkAmount(); Console.WriteLine("PASS bulk amount grammar"); SettingsWarnings(); Console.WriteLine("PASS settings warnings"); Quantity(); Console.WriteLine("PASS quantity"); Risk(); Console.WriteLine("PASS risk latch / exits / finite / DST"); Persistence(); Console.WriteLine("PASS XML atomic roundtrip"); Worker(); Console.WriteLine("PASS serial reentrancy + ownership"); Ledger(); Console.WriteLine("PASS lifecycle decisions / dedupe / reservation"); Presets(); Console.WriteLine("PASS sourced editable presets"); ChangePolicy(); Console.WriteLine("PASS locked reductions / partial exit totals"); DurableLock(); Console.WriteLine("PASS durable global latches / unlock recheck / advisory"); return 0; }
   catch(Exception ex) { Console.WriteLine("FAIL "+ex.Message); return 1; }
  }
  static void Eq(object want,object got) { if(!want.Equals(got)) throw new Exception("expected "+want+" got "+got); }
@@ -14,6 +14,28 @@ class RiskTests {
   Eq(true,BulkEdit.TryParseAmount("-0",out v)); Eq(true,double.IsPositiveInfinity(1.0/v));
   foreach(string bad in new[]{"","  ","abc","-1","NaN","Infinity","1e400","1,000","0,125","1 000","12abc","--5"}) Eq(false,BulkEdit.TryParseAmount(bad,out v));
   Eq(false,BulkEdit.TryParseAmount(null,out v));
+ }
+ static void SettingsWarnings() {
+  var ok=new RiskSettings{Ratio=1,Target=1000,Loss=500,MaxContracts=4};
+  Eq("",SettingsAdvice.For(ok,"Follower",2));
+  Eq("",SettingsAdvice.For(ok,"Leader",2));
+  var noLimits=new RiskSettings{Ratio=1,Target=0,Loss=0,MaxContracts=4};
+  Eq(true,SettingsAdvice.For(noLimits,"Follower",2).Contains("no daily"));
+  var noLoss=new RiskSettings{Ratio=1,Target=1000,Loss=0,MaxContracts=4};
+  Eq(true,SettingsAdvice.For(noLoss,"Follower",2).Contains("no daily loss"));
+  var noTgt=new RiskSettings{Ratio=1,Target=0,Loss=500,MaxContracts=4};
+  Eq(true,SettingsAdvice.For(noTgt,"Follower",2).Contains("no daily target"));
+  var tiny=new RiskSettings{Ratio=0.2,Target=1000,Loss=500,MaxContracts=4};
+  Eq(true,SettingsAdvice.For(tiny,"Follower",2).Contains("0 lots"));
+  Eq(true,SettingsAdvice.For(tiny,"Follower",5).Equals(""));
+  var cap=new RiskSettings{Ratio=3,Target=1000,Loss=500,MaxContracts=4};
+  Eq(true,SettingsAdvice.For(cap,"Follower",2).Contains("capped"));
+  Eq(true,SettingsAdvice.For(new RiskSettings{Ratio=double.NaN,Target=1,Loss=1,MaxContracts=4},"Follower",2).Contains("Ratio"));
+  Eq("",SettingsAdvice.For(null,"Follower",2));
+  // leader rows never get follower advice
+  Eq("",SettingsAdvice.For(noLimits,"Leader",2));
+  // reference lot size must be positive: unknown reference gives no lot warning
+  Eq("",SettingsAdvice.For(tiny,"Follower",0));
  }
  static void Risk() {
   var s = new RiskSettings { Target=100, Loss=50, MaxContracts=4 };

@@ -92,10 +92,62 @@ public static class BulkUiTests {
   var v=Fresh();int follow=0;v.FollowRow=(r,on)=>follow++;SetLeader(v,2000,800,true);Select(v,1,2);v.BulkFromLeader();
   Check(follow==0,"must not call follow/engine path");Check(!v.StartButton.IsEnabled,"Start stays held");
  }
+ static void AdviceShownPerRowAndCounted(){
+  var v=Fresh();
+  Check(v.AdviceCount==0,"fixture rows all have Tgt/DLL so no warnings; count="+v.AdviceCount);
+  v.Rows[1].Target=0;v.Rows[1].Loss=0;v.Rows[1].Changed();v.UpdateCards();
+  Check(v.Rows[1].Advice.Contains("no daily"),"row shows advice: "+v.Rows[1].Advice);
+  Check(v.AdviceCount==1,"count=1 after one risky row; got "+v.AdviceCount);
+  Check(v.SelectionSummary.Length>0,"footer present");
+  Check(v.AdviceText.Contains("1"),"footer advice text mentions the count: "+v.AdviceText);
+  v.Rows[1].Target=1000;v.Rows[1].Loss=500;v.Rows[1].Changed();v.UpdateCards();
+  Check(v.Rows[1].Advice==""&&v.AdviceCount==0,"advice clears when fixed");
+ }
+ static void AdviceUpdatesAfterBulkApply(){
+  var v=Fresh();v.AccountGrid.UnselectAll();v.AccountGrid.SelectedItems.Add(v.Rows[2]);v.AccountGrid.SelectedItems.Add(v.Rows[3]);
+  Check(v.BulkApply("DLL","0")==null,"apply");
+  Check(v.AdviceCount==2,"two rows lost their loss limit; count="+v.AdviceCount);
+  Check(v.Rows[2].Advice.Contains("no daily loss"),"row2 advice: "+v.Rows[2].Advice);
+ }
+ static void AdviceNeverBlocksOrChangesSettings(){
+  var v=Fresh();v.Rows[1].Target=0;v.Rows[1].Loss=0;v.Rows[1].Changed();v.UpdateCards();
+  Check(v.Rows[1].Target==0&&v.Rows[1].Loss==0,"advice must not alter the values");
+  Check(!v.StartButton.IsEnabled,"Start stays held regardless of advice");
+  Check(v.Rows[0].Advice=="","leader row never gets follower advice");
+ }
+ static System.Collections.Generic.IEnumerable<T> Visual<T>(DependencyObject d) where T:DependencyObject{for(int i=0;i<System.Windows.Media.VisualTreeHelper.GetChildrenCount(d);i++){var c=System.Windows.Media.VisualTreeHelper.GetChild(d,i);if(c is T)yield return (T)c;foreach(var n in Visual<T>(c))yield return n;}}
+ static void RatioCellFitsCommonValuesAt1160(){
+  var v=Fresh();
+  var host=new System.Windows.Controls.Border{Child=v};host.Measure(new Size(1160,720));host.Arrange(new Rect(0,0,1160,720));host.UpdateLayout();System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(System.Windows.Threading.DispatcherPriority.ContextIdle,new Action(()=>{}));host.UpdateLayout();
+  var col=v.AccountGrid.Columns.Single(c=>(string)c.Header=="Ratio");
+  v.Rows[1].Ratio=0.125;v.Rows[2].Ratio=12.5;v.Rows[3].Ratio=100;host.UpdateLayout();
+  foreach(int i in new[]{1,2,3}){
+   var cell=col.GetCellContent(v.Rows[i]);if(cell==null){v.AccountGrid.ScrollIntoView(v.Rows[i]);host.UpdateLayout();cell=col.GetCellContent(v.Rows[i]);}
+   Check(cell!=null,"Ratio cell realized for row "+i);
+   var tb=Visual<TextBox>(cell).FirstOrDefault()??cell as TextBox;Check(tb!=null,"Ratio TextBox found");
+   var ft=new System.Windows.Media.FormattedText(tb.Text,System.Globalization.CultureInfo.InvariantCulture,FlowDirection.LeftToRight,new System.Windows.Media.Typeface(tb.FontFamily,tb.FontStyle,tb.FontWeight,tb.FontStretch),tb.FontSize,System.Windows.Media.Brushes.White);
+   double need=ft.Width+tb.Padding.Left+tb.Padding.Right+tb.BorderThickness.Left+tb.BorderThickness.Right+2;
+   Check(tb.ActualWidth+0.5>=need,"Ratio text '"+tb.Text+"' needs "+need.ToString("0.0")+"px but the box is "+tb.ActualWidth.ToString("0.0")+"px (column "+col.ActualWidth.ToString("0.0")+")");
+  }
+ }
+ static void LogsReadableAndTopAligned(){
+  var v=Fresh();
+  var fg=v.LogBox.Foreground as System.Windows.Media.SolidColorBrush;Check(fg!=null,"log text uses a solid brush");
+  double lum=(0.2126*fg.Color.R+0.7152*fg.Color.G+0.0722*fg.Color.B)/255.0;
+  Check(lum>=0.80,"log text must be bright enough to read on the dark panel; luminance="+lum.ToString("0.00"));
+  Check(v.LogBox.VerticalContentAlignment==VerticalAlignment.Top,"log text starts at the top, not the bottom; is "+v.LogBox.VerticalContentAlignment);
+  Check(v.LogBox.IsReadOnly,"log stays read-only");
+ }
+ static void LogClearWorksAndIsEditableIndependent(){
+  var v=Fresh();v.LogBox.Text="a"+Environment.NewLine+"b";v.ClearLog();
+  Check(v.LogBox.Text=="","clear empties the log");
+  v.Editable(false);v.LogBox.Text="x";v.ClearLog();Check(v.LogBox.Text=="","clearing the log is allowed while attached/held (it is not a setting)");
+  Check(!v.StartButton.IsEnabled,"Start stays held");
+ }
  [STAThread] public static int Main(string[] args){
   try{
    AppDomain.CurrentDomain.AssemblyResolve+=(s,e)=>{string n=e.Name.Split(',')[0];if(n.EndsWith(".resources"))return null;var loaded=AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a=>a.GetName().Name==n);if(loaded!=null)return loaded;string p=System.IO.Path.Combine("C:/Program Files/NinjaTrader 8/bin",n+".dll");return System.IO.File.Exists(p)?System.Reflection.Assembly.LoadFrom(p):null;};
-   var all=new Action[]{TargetAndLossApplyToSelectedOnly,ZeroTurnsLimitOff,RatioStaysIndependent,InvalidInputChangesNothing,NoSelectionIsRefused,LeaderIsNotEdited,AtmToggleBulk,LockedWhenNotEditable,NeverTouchesFollowOrTrading,BarIsOnCopyTabAndKeepsHolds,FromLeaderCopiesToHighlighted,FromLeaderWithoutHighlightHitsAllVisibleFollowers,FromLeaderRespectsSearchFilter,FromLeaderKeepsRatioTickAndOtherFields,ManualEditAfterwardsSticksAndNoLiveLink,FromLeaderRefusedWhenLockedOrNoLeader,FromLeaderNeverTouchesFollowOrTrading};
+   var all=new Action[]{TargetAndLossApplyToSelectedOnly,ZeroTurnsLimitOff,RatioStaysIndependent,InvalidInputChangesNothing,NoSelectionIsRefused,LeaderIsNotEdited,AtmToggleBulk,LockedWhenNotEditable,NeverTouchesFollowOrTrading,BarIsOnCopyTabAndKeepsHolds,FromLeaderCopiesToHighlighted,FromLeaderWithoutHighlightHitsAllVisibleFollowers,FromLeaderRespectsSearchFilter,FromLeaderKeepsRatioTickAndOtherFields,ManualEditAfterwardsSticksAndNoLiveLink,FromLeaderRefusedWhenLockedOrNoLeader,FromLeaderNeverTouchesFollowOrTrading,AdviceShownPerRowAndCounted,AdviceUpdatesAfterBulkApply,AdviceNeverBlocksOrChangesSettings,RatioCellFitsCommonValuesAt1160,LogsReadableAndTopAligned,LogClearWorksAndIsEditableIndependent};
    int failed=0;foreach(var a in all){try{a();Console.WriteLine("PASS "+a.Method.Name);}catch(Exception ex){failed++;Console.WriteLine("FAIL "+a.Method.Name+" :: "+ex.Message);}}
    return failed==0?0:1;
   }catch(Exception ex){Console.WriteLine("HARNESS "+ex);return 2;}

@@ -70,7 +70,7 @@ class RunnerTests(unittest.TestCase):
         text = 'class X { static void Main(string[] args) {} static void Eq(bool x) {} static void First() {} static void Second() {} }'
         self.assertEqual(['First', 'Second'], m.case_names(text))
         risk = (ROOT / 'tests/RiskTests.cs').read_text(encoding='utf-8')
-        self.assertEqual(9, len(m.case_names(risk)))
+        self.assertEqual(10, len(m.case_names(risk)))
         self.assertTrue(hasattr(m, 'pure_extra_source'), 'original risk Main UI hold assertions need an independent case')
         self.assertIn('DashboardCommandsRemainHeld', m.pure_extra_source())
         independent = (ROOT / 'tests/EngineIndependentReview.cs').read_text(encoding='utf-8')

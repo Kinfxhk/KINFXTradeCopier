@@ -27,6 +27,26 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public static bool CanExecute(string command)
         { return command!="start" && command!="flattenSelected" && command!="flattenAll" && command!="batch"; }
     }
+    // Advisory text for settings that are legal but easy to misread. Pure: no account, engine or dispatch access.
+    // Returns "" when there is nothing to say. Never blocks anything; it only informs.
+    public static class SettingsAdvice
+    {
+        public static string For(RiskSettings s,string role,int referenceLots)
+        {
+            if(s==null||role=="Leader")return "";
+            if(!RiskPolicy.Finite(s.Ratio)||s.Ratio<=0)return "Ratio is not a positive number";
+            var notes=new System.Collections.Generic.List<string>();
+            if(s.Target<=0&&s.Loss<=0)notes.Add("no daily target and no daily loss limit (0 = off)");
+            else if(s.Loss<=0)notes.Add("no daily loss limit (0 = off)");
+            else if(s.Target<=0)notes.Add("no daily target (0 = off)");
+            if(referenceLots>0)
+            {
+                if(RiskPolicy.Quantity(referenceLots,s.Ratio)==0)notes.Add("Ratio gives 0 lots for a "+referenceLots+"-lot leader order");
+                else if(s.MaxContracts>0&&RiskPolicy.Quantity(referenceLots,s.Ratio)>s.MaxContracts)notes.Add("size capped by Max "+s.MaxContracts);
+            }
+            return string.Join("; ",notes);
+        }
+    }
     // Bulk-edit helpers: pure input grammar only. No account, engine or dispatch access.
     public static class BulkEdit
     {
@@ -1037,7 +1057,10 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public string AccountSuffix {get{string n=Name??"";return n.Length>12?n.Substring(n.Length-4):"";}}
         public string StateLabel {get{return DisablePending?"Cancelling":FollowPending?"Rechecking":Latch.Locked?"Locked":Status=="Telemetry error"?"Error":Paused?"Paused":Role=="Leader"?"Leader":Status=="Active"&&Enabled?"Copying":Connection=="Disconnected"?"Offline":Status=="Demo only"?"Demo":Enabled?"Selected":"Off";}}
         public Brush StateInk {get{return DisablePending?DashboardView.Warn:Latch.Locked||Status=="Telemetry error"?DashboardView.Bad:StateLabel=="Copying"?DashboardView.Good:Paused?DashboardView.Warn:DashboardView.Muted;}}
-        public string StateDetail {get{return Name+" · "+Role+" · "+Status+(DisablePending?" · cancellation not confirmed":"")+(Latch.Locked?" · "+Latch.Reason:"")+" · "+Currency;}}
+        // Advisory only (never blocks). Reference lot size is the dashboard's current reference; see SettingsAdvice.
+        internal static int AdviceReferenceLots=2;
+        public string Advice {get{return SettingsAdvice.For(Settings,Role,AdviceReferenceLots);}}
+        public string StateDetail {get{return Name+" · "+Role+" · "+Status+(DisablePending?" · cancellation not confirmed":"")+(Latch.Locked?" · "+Latch.Reason:"")+(Advice.Length>0?" · NOTE: "+Advice:"")+" · "+Currency;}}
         public string Alias { get {return Settings.Alias;} set {Settings.Alias=value ?? "";} }
         public string Group { get {return Settings.Group;} set {Settings.Group=value ?? "";} }
         public double Ratio { get {return Settings.Ratio;} set {if(!RiskPolicy.Finite(value)||value<=0)throw new ArgumentException("This account Ratio must be finite and > 0");Settings.Ratio=value;Changed();} }
@@ -1068,12 +1091,14 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         readonly ICollectionView view;
         readonly TextBox search;
         readonly ComboBox filter;
-        readonly TextBlock summary,selection;
+        readonly TextBlock summary,selection;TextBlock adviceLine;
         readonly bool demo;
         readonly List<Button> editButtons=new List<Button>(); StackPanel bulkBar;
         bool editable=true;
         public string SearchText {get{return search.Text;}set{search.Text=value;}}
         public int VisibleCount {get{return view.Cast<AccountRow>().Count();}}
+        public int AdviceCount {get{return Rows.Count(r=>r.Role!="Leader"&&r.Advice.Length>0);}}
+        public string AdviceText {get{int n=AdviceCount;return n==0?"":"⚠ "+n+" account(s) with a settings note · hover State";}}
         static Brush Brush(string c){var b=(Brush)new BrushConverter().ConvertFromString(c);b.Freeze();return b;}
         public static readonly Brush Ink=Brush("#ECEAF1"),Muted=Brush("#AAA4B5"),Panel=Brush("#201E29"),Line=Brush("#35313F"),Accent=Brush("#D8C1A1"),Canvas=Brush("#17161F"),Good=Brush("#83C7A3"),Warn=Brush("#D8B87C"),Bad=Brush("#D98792"),Off=Brush("#00514C5C");
         static TextBlock Text(string s,double size=12,Brush color=null){return new TextBlock{Text=s,FontSize=size,Foreground=color??Ink,VerticalAlignment=VerticalAlignment.Center};}
@@ -1219,8 +1244,8 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             RiskGrid=GridTable();Column(RiskGrid,"Acct","Name",155,true,"Broker account");Column(RiskGrid,"Alias","Alias",115,false,"Display alias");Column(RiskGrid,"Grp","Group",90,false,"Account group");Column(RiskGrid,"Tgt","Target",85,false,"Daily local profit target · 0 = off",null,true);Column(RiskGrid,"DLL","Loss",85,false,"Daily loss limit · positive value / 0 = off",null,true);Column(RiskGrid,"Max","MaxContracts",60,false,"Maximum exact-instrument contracts",null,true);RatioColumn(RiskGrid);Column(RiskGrid,"P/L","Pnl",95,true,"Observed session P/L","N2",true);Column(RiskGrid,"CCY","Currency",55,true,"Account currency");Column(RiskGrid,"Tgt Δ","TargetRemaining",80,true,"Amount remaining to daily target",null,true);Column(RiskGrid,"DLL Δ","LossRemaining",80,true,"Loss headroom",null,true);Column(RiskGrid,"Qty","Position",50,true,"Signed position",null,true);Column(RiskGrid,"Conn","Connection",100,true,"Connection status");Column(RiskGrid,"St","Status",160,true,"Copier / risk state");Column(RiskGrid,"Preset","Preset",200,true,"Editable firm template");Column(RiskGrid,"Cons","ConsistencyAdvice",160,true,"Consistency advisory · not a broker guarantee");
             var action=new FrameworkElementFactory(typeof(Button));CompactCellButton(action,28);action.SetValue(Control.TemplateProperty,OffTemplate());action.SetValue(ContentControl.ContentProperty,"\uE713");action.SetValue(Control.FontFamilyProperty,new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"));action.SetValue(Control.BackgroundProperty,Panel);action.SetValue(Control.ForegroundProperty,Ink);action.SetValue(Control.BorderBrushProperty,Line);action.SetValue(Control.PaddingProperty,new Thickness(4,1,4,1));action.SetValue(FrameworkElement.ToolTipProperty,"Account risk / template / history");var gearStyle=new Style(typeof(Button));var gearLocked=new DataTrigger{Binding=new Binding("IsReadOnly"){RelativeSource=new RelativeSource(RelativeSourceMode.FindAncestor,typeof(DataGrid),1)},Value=true};gearLocked.Setters.Add(new Setter(UIElement.IsEnabledProperty,false));gearStyle.Triggers.Add(gearLocked);action.SetValue(FrameworkElement.StyleProperty,gearStyle);action.AddHandler(ButtonBase.ClickEvent,new RoutedEventHandler((s,e)=>{if(!editable){e.Handled=true;return;}var r=(s as FrameworkElement).DataContext as AccountRow;if(r!=null&&RowSettings!=null)RowSettings(r);}));RiskGrid.Columns.Add(new DataGridTemplateColumn{Header="⚙",Width=40,CellTemplate=new DataTemplate{VisualTree=action}});AddRow(risk,RiskGrid,1);
             AddRow(risk,new TextBlock{Text="OFF cancels owned entries, retains exits · Re-follow explicit / only when clean · ATM OFF may be unprotected · Local guards only",Foreground=Muted,FontSize=11,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,10,0,0)},2);Sections.Items.Add(new TabItem{Header="Risk",Content=risk});
-            var logPanel=new Grid();logPanel.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});logPanel.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});AddRow(logPanel,new TextBlock{Text="REVIEW HOLD: Start / Flatten / bulk risk disabled. ATM means order mirroring, not a follower native ATM. No real or simulation orders were submitted by this build verification.",Foreground=Warn,FontSize=12,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,10)},0);LogBox=Input("",double.NaN);LogBox.IsReadOnly=true;LogBox.FontFamily=new FontFamily("Consolas");LogBox.FontSize=12;LogBox.VerticalScrollBarVisibility=ScrollBarVisibility.Auto;LogBox.HorizontalScrollBarVisibility=ScrollBarVisibility.Auto;AddRow(logPanel,LogBox,1);Sections.Items.Add(new TabItem{Header="Logs",Content=logPanel});Sections.SelectedIndex=0;
-            var footer=new DockPanel{Margin=new Thickness(0,10,0,0)};selection=Text("",12,Muted);DockPanel.SetDock(selection,Dock.Right);footer.Children.Add(selection);SessionText=Text("Disarmed",11,Muted);SessionText.Margin=new Thickness(12,0,12,0);DockPanel.SetDock(SessionText,Dock.Right);footer.Children.Add(SessionText);summary=Text("",12,Muted);footer.Children.Add(summary);AddRow(this,footer,3);
+            var logPanel=new Grid();logPanel.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});logPanel.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});logPanel.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});AddRow(logPanel,new TextBlock{Text="REVIEW HOLD: Start / Flatten / bulk risk disabled. ATM means order mirroring, not a follower native ATM. No real or simulation orders were submitted by this build verification.",Foreground=Warn,FontSize=12,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,10)},0);LogBox=Input("",double.NaN);LogBox.IsReadOnly=true;LogBox.FontFamily=new FontFamily("Consolas");LogBox.FontSize=12;LogBox.Foreground=Brush("#E4E1EC");LogBox.VerticalContentAlignment=VerticalAlignment.Top;LogBox.VerticalScrollBarVisibility=ScrollBarVisibility.Auto;LogBox.HorizontalScrollBarVisibility=ScrollBarVisibility.Auto;var logTools=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,0,0,6)};logTools.Children.Add(TextTool("Clear log","Clear this log view (does not affect settings, orders or saved latches)","logClear",()=>ClearLog()));AddRow(logPanel,logTools,1);AddRow(logPanel,LogBox,2);Sections.Items.Add(new TabItem{Header="Logs",Content=logPanel});Sections.SelectedIndex=0;
+            var footer=new DockPanel{Margin=new Thickness(0,10,0,0)};adviceLine=Text("",12,Warn);adviceLine.Margin=new Thickness(12,0,12,0);DockPanel.SetDock(adviceLine,Dock.Right);footer.Children.Add(adviceLine);selection=Text("",12,Muted);DockPanel.SetDock(selection,Dock.Right);footer.Children.Add(selection);SessionText=Text("Disarmed",11,Muted);SessionText.Margin=new Thickness(12,0,12,0);DockPanel.SetDock(SessionText,Dock.Right);footer.Children.Add(SessionText);summary=Text("",12,Muted);footer.Children.Add(summary);AddRow(this,footer,3);
             Rows.CollectionChanged+=(s,e)=>{if(e.OldItems!=null)foreach(AccountRow r in e.OldItems)r.FollowRequested-=OnFollowRequested;if(e.NewItems!=null)foreach(AccountRow r in e.NewItems)r.FollowRequested+=OnFollowRequested;};view=CollectionViewSource.GetDefaultView(Rows);view.Filter=Matches;AccountGrid.ItemsSource=view;RiskGrid.ItemsSource=view;
             PreviewKeyDown+=(s,e)=>{if(e.Key==System.Windows.Input.Key.F&&System.Windows.Input.Keyboard.Modifiers==System.Windows.Input.ModifierKeys.Control){FocusSearch();e.Handled=true;}else if(e.Key==System.Windows.Input.Key.Escape&&search.IsKeyboardFocusWithin){SearchText="";e.Handled=true;}};search.TextChanged+=(s,e)=>{view.Refresh();UpdateCards();};filter.SelectionChanged+=(s,e)=>{view.Refresh();UpdateCards();};group.Checked+=(s,e)=>GroupByAccount=true;group.Unchecked+=(s,e)=>GroupByAccount=false;ShowLive.Checked+=(s,e)=>Send("refresh");ShowLive.Unchecked+=(s,e)=>Send("refresh");AccountGrid.SelectionChanged+=(s,e)=>UpdateCards();RiskGrid.SelectionChanged+=(s,e)=>UpdateCards();Sections.SelectionChanged+=(s,e)=>{if(summary!=null)UpdateCards();};
             if(demo){for(int i=1;i<=30;i++)Rows.Add(new AccountRow{Name="Demo "+i.ToString("00"),Alias="Eval "+i,Group=i<=10?"Tradeify":i<=20?"Lucid":"Topstep",Role=i==1?"Leader":"Follower",Connection="Synthetic",Enabled=i>1,Currency="USD",Status=i%7==0?"Target hit":i%4==0?"Paused":"Demo only",Paused=i%4==0,Pnl=i%4==0?-120:i*24.5,Settings=new RiskSettings{Alias="Eval "+i,Group=i<=10?"Tradeify":i<=20?"Lucid":"Topstep",Target=1000,Loss=500,Ratio=1,MaxContracts=4,Preset="Demo / not broker data"}});LeaderBox.ItemsSource=new[]{"Demo 01"};LeaderBox.SelectedIndex=0;ShowLive.IsEnabled=false;}UpdateCards();
@@ -1276,13 +1301,14 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             foreach(var r in targets){r.Target=tgt;r.Loss=dll;r.CopyAtm=atm;r.Changed();}
             UpdateCards();return null;
         }
+        public void ClearLog(){LogBox.Text="";}
         public bool BulkBarPresent{get{return bulkBar!=null&&AccountGrid.Parent!=null;}}
         internal Action<string> BulkNotice;
         void BulkLeaderClick(){var reason=BulkFromLeader();var n=BulkNotice;if(n!=null)n(reason==null?"Copied leader Tgt / DLL / ATM to followers (one-time); Ratio and ticks unchanged. Edit any row to fine-tune.":"From Leader refused: "+reason);}
         void BulkClick(string field,string text){var reason=BulkApply(field,text);var n=BulkNotice;if(n!=null)n(reason==null?"Bulk "+field+" applied to highlighted followers; Ratio and ticks unchanged.":"Bulk "+field+" refused: "+reason);}
         public void SetSelectedPause(bool paused){foreach(var r in SelectedRows().Where(r=>r.CanFollow)){if(!demo&&PauseRow!=null)PauseRow(r,paused);else{r.Paused=paused;r.Changed();}}UpdateCards();}
         public AccountRow[] SelectedRows(){return (Sections.SelectedIndex==1?RiskGrid:AccountGrid).SelectedItems.Cast<AccountRow>().ToArray();}
-        public void UpdateCards(){if(summary==null)return;FollowCountText.Text="→  "+Rows.Count(r=>r.Enabled&&r.Role!="Leader")+" followers  ";var ccy=Rows.Select(r=>r.Currency).Where(s=>!string.IsNullOrEmpty(s)).Distinct().ToArray();summary.Text=Rows.Count(r=>r.Enabled&&r.Role!="Leader")+" TICKED  /  "+Rows.Count+" ACCTS     ·     P/L  "+(ccy.Length<=1?Rows.Sum(r=>RiskPolicy.Finite(r.Pnl)?r.Pnl:0).ToString("N2")+" "+ccy.FirstOrDefault():"Mixed CCY")+"";selection.Text=SelectedRows().Length+" sel / "+VisibleCount+" rows";}
+        public void UpdateCards(){if(summary==null)return;FollowCountText.Text="→  "+Rows.Count(r=>r.Enabled&&r.Role!="Leader")+" followers  ";var ccy=Rows.Select(r=>r.Currency).Where(s=>!string.IsNullOrEmpty(s)).Distinct().ToArray();summary.Text=Rows.Count(r=>r.Enabled&&r.Role!="Leader")+" TICKED  /  "+Rows.Count+" ACCTS     ·     P/L  "+(ccy.Length<=1?Rows.Sum(r=>RiskPolicy.Finite(r.Pnl)?r.Pnl:0).ToString("N2")+" "+ccy.FirstOrDefault():"Mixed CCY")+"";selection.Text=SelectedRows().Length+" sel / "+VisibleCount+" rows";if(adviceLine!=null)adviceLine.Text=AdviceText;}
         internal bool TrySetSessionState(bool attached,string status,int callbackSession,int currentSession,bool currentAttached){if(callbackSession!=currentSession||attached!=currentAttached)return false;SetSessionState(attached,status);return true;}
         internal void SetSessionState(bool attached,string status){if(!attached)foreach(var row in Rows)row.InvalidateSessionActivity();SessionText.Text=DashboardSafety.CanExecute("start")?status:(attached?"REVIEW HOLD · unexpected attachment":"Disarmed");SessionText.ToolTip=status;Editable(!attached);UpdateCards();}
         internal void Editable(bool canEdit){editable=canEdit;LeaderBox.IsEnabled=canEdit;InstrumentBox.IsEnabled=canEdit;ShowLive.IsEnabled=canEdit&&!demo;AccountGrid.IsReadOnly=!canEdit;RiskGrid.IsReadOnly=!canEdit;foreach(var b in editButtons)b.IsEnabled=canEdit;StartButton.IsEnabled=canEdit&&!demo&&DashboardSafety.CanExecute("start");}
