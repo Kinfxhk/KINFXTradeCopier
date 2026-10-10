@@ -15,12 +15,12 @@ namespace NinjaTrader.Cbi {
  public class Account {
   public string Name;public Provider Provider=Provider.Simulator;public Connection Connection=new Connection();public Currency Denomination=Currency.Usd;
   public List<Position> Positions=new List<Position>();public List<Order> Orders=new List<Order>();public event EventHandler<OrderEventArgs> OrderUpdate;
-  public double Pnl,Equity=50000;public int Submits,Changes,Cancels,Flattens;public bool ThrowSubmit,ThrowCancel,ThrowFlatten;public ManualResetEvent CreateEntered,CreateRelease,SubmitEntered,SubmitRelease;public bool AsyncCancel,NoopFlatten,FlattenWorkingBeforeThrow;
+  public double Pnl,Equity=50000;public int Submits,Changes,Cancels,Flattens;public bool ThrowSubmit,ThrowCancel,ThrowFlatten;public ManualResetEvent CreateEntered,CreateRelease,SubmitEntered,SubmitRelease,CancelEntered,CancelRelease;public bool AsyncCancel,NoopFlatten,FlattenWorkingBeforeThrow;
   public double Get(AccountItem i,Currency c){return i==AccountItem.RealizedProfitLoss?Pnl:i==AccountItem.UnrealizedProfitLoss?0:Equity;}
   public Order CreateOrder(Instrument i,OrderAction a,OrderType t,OrderEntry e,TimeInForce tif,int q,double l,double s,string oco,string n,DateTime g,object ignored){if(CreateEntered!=null){CreateEntered.Set();CreateRelease.WaitOne();}return new Order {Account=this,Instrument=i,OrderAction=a,OrderType=t,OrderEntry=e,TimeInForce=tif,Quantity=q,LimitPrice=l,StopPrice=s,Oco=oco,Name=n,Gtd=g};}
-  public void Submit(Order[] orders){if(SubmitEntered!=null){SubmitEntered.Set();SubmitRelease.WaitOne();}if(ThrowSubmit)throw new InvalidOperationException("Synthetic submit error");foreach(var o in orders){lock(Orders)Orders.Add(o);o.OrderState=OrderState.Working;Interlocked.Increment(ref Submits);Emit(o);}}
-  public System.Collections.Generic.List<int> ChangeQuantities=new System.Collections.Generic.List<int>();public void Change(Order[] orders){foreach(var o in orders){lock(ChangeQuantities)ChangeQuantities.Add(o.QuantityChanged);o.Quantity=o.QuantityChanged;o.LimitPrice=o.LimitPriceChanged;o.StopPrice=o.StopPriceChanged;Interlocked.Increment(ref Changes);Emit(o);}}
-  public void Cancel(Order[] orders){if(AsyncCancel){Interlocked.Add(ref Cancels,orders.Length);return;}if(ThrowCancel)throw new InvalidOperationException("Synthetic cancel error");foreach(var o in orders){o.OrderState=OrderState.Cancelled;Interlocked.Increment(ref Cancels);Emit(o);}}
+  public int SubmitAttempts;public ManualResetEvent ChangeEntered,ChangeRelease;public void Submit(Order[] orders){Interlocked.Increment(ref SubmitAttempts);if(SubmitEntered!=null){SubmitEntered.Set();SubmitRelease.WaitOne();}if(ThrowSubmit)throw new InvalidOperationException("Synthetic submit error");foreach(var o in orders){lock(Orders)Orders.Add(o);o.OrderState=OrderState.Working;Interlocked.Increment(ref Submits);Emit(o);}}
+  public System.Collections.Generic.List<int> ChangeQuantities=new System.Collections.Generic.List<int>();public System.Collections.Generic.List<int> ChangePrices=new System.Collections.Generic.List<int>();public void Change(Order[] orders){if(ChangeEntered!=null){ChangeEntered.Set();ChangeRelease.WaitOne();}foreach(var o in orders){Thread.Sleep(1);lock(ChangePrices)ChangePrices.Add((int)o.LimitPriceChanged);lock(ChangeQuantities)ChangeQuantities.Add(o.QuantityChanged);o.Quantity=o.QuantityChanged;o.LimitPrice=o.LimitPriceChanged;o.StopPrice=o.StopPriceChanged;Interlocked.Increment(ref Changes);Emit(o);}}
+  public void Cancel(Order[] orders){if(CancelEntered!=null){CancelEntered.Set();CancelRelease.WaitOne();}if(AsyncCancel){Interlocked.Add(ref Cancels,orders.Length);return;}if(ThrowCancel)throw new InvalidOperationException("Synthetic cancel error");foreach(var o in orders){o.OrderState=OrderState.Cancelled;Interlocked.Increment(ref Cancels);Emit(o);}}
   public void Flatten(Instrument[] inst){if(NoopFlatten){Interlocked.Increment(ref Flattens);return;}if(ThrowFlatten){if(FlattenWorkingBeforeThrow){var pending=CreateOrder(inst[0],OrderAction.Sell,OrderType.Market,OrderEntry.Manual,TimeInForce.Day,2,0,0,"","SyntheticPendingFlatten",DateTime.MaxValue,null);pending.OrderState=OrderState.Working;Orders.Add(pending);Emit(pending);}throw new InvalidOperationException("Synthetic flatten error");}Interlocked.Increment(ref Flattens);foreach(var o in Orders.ToArray())Cancel(new[]{o});lock(Positions)Positions.Clear();var fake=CreateOrder(inst[0],OrderAction.Sell,OrderType.Market,OrderEntry.Manual,TimeInForce.Day,1,0,0,"","SyntheticFlatten",DateTime.MaxValue,null);fake.OrderState=OrderState.Submitted;Emit(fake);}
   public void Emit(Order o){var h=OrderUpdate;if(h!=null)h(this,new OrderEventArgs {Order=o,OrderId=o.OrderId,OrderState=o.OrderState,Quantity=o.Quantity,Filled=o.Filled,LimitPrice=o.LimitPrice,StopPrice=o.StopPrice});}
  }
@@ -282,7 +282,9 @@ class EngineSafetyTests {
  }
  static NinjaTrader.Cbi.Account Acc(string name){return new NinjaTrader.Cbi.Account{Name=name};}
  static CopierEngine Arm(NinjaTrader.Cbi.Account l,NinjaTrader.Cbi.Account a,Action<AccountTelemetry> tele=null,Action<string,string> persist=null){var e=new CopierEngine(s=>{},tele??(t=>{}),(attached,s)=>{},persist??((n,r)=>{}));e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10,Target=100},new RiskLatch())});Wait(()=>e.EntriesArmed,"arm");return e;}
- static void Drain(CopierEngine e){var f=typeof(CopierEngine).GetField("worker",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic);var w=(SerialWorker)f.GetValue(e);var done=new ManualResetEvent(false);w.Post(()=>done.Set());Check(done.WaitOne(3000),"drain");}
+ static void Drain(CopierEngine e){var f=typeof(CopierEngine).GetField("worker",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic);var w=(SerialWorker)f.GetValue(e);Action pump=()=>{var done=new ManualResetEvent(false);w.Post(()=>done.Set());Check(done.WaitOne(3000),"drain");};
+  // Provider calls run on per-account threads and complete back on the engine worker: settle both.
+  for(int i=0;i<300;i++){pump();if(e.ProviderCallsInFlight==0){pump();if(e.ProviderCallsInFlight==0)return;}else Thread.Sleep(3);}}
  static void Fill(NinjaTrader.Cbi.Account a,int qty,bool position=true){var o=a.Orders[0];o.Filled=qty;o.OrderState=o.Quantity==qty?NinjaTrader.Cbi.OrderState.Filled:NinjaTrader.Cbi.OrderState.PartFilled;if(position)a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=qty,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});a.Emit(o);}
  // User misuse: the leader account must never also be a follower, by identity or by name.
  static void LeaderAlsoFollowerIsRefused(){
@@ -410,7 +412,8 @@ class EngineSafetyTests {
   Check(a.Flattens==0,"a refused Flatten must not have reached the account; flattens="+a.Flattens);
  }
  static NinjaTrader.Cbi.Order LeaderLimit(NinjaTrader.Cbi.Account l,NinjaTrader.Cbi.OrderAction act,string oco,int qty,double price){var o=LeaderOrder(l,act,oco,qty);o.LimitPrice=price;return o;}
- static string Probe(NinjaTrader.Cbi.Account a){return "submits="+a.Submits+" cancels="+a.Cancels+" orders=["+string.Join(";",a.Orders.Select(o=>o.Name+" q="+o.Quantity+" f="+o.Filled+" "+o.OrderState))+"]";}
+ static NinjaTrader.Cbi.Order[] Snap(NinjaTrader.Cbi.Account a){lock(a.Orders)return a.Orders.ToArray();}
+ static string Probe(NinjaTrader.Cbi.Account a){return "submits="+a.Submits+" cancels="+a.Cancels+" orders=["+string.Join(";",Snap(a).Select(o=>o.Name+" q="+o.Quantity+" f="+o.Filled+" "+o.OrderState))+"]";}
  // Issue #3 scenario 1: entry 4 split into groups A (2) and B (2), both groups already protected. Fill A's target fully.
  // A's stop must go; B's stop and target must stay working.
  static void OcoCompletedGroupDoesNotCancelOtherProtectedGroup(){
@@ -454,7 +457,7 @@ class EngineSafetyTests {
  }
  // Issue #3 guard (review-driven): a leader-cancelled exit whose follower cancel is NOT acknowledged is still a working order and must keep
  // reserving capacity, whatever OCO id the NEW exit carries. Only a sibling the ENGINE retired because its OCO group completed is exempt.
- static int WorkingSell(NinjaTrader.Cbi.Account a){return a.Orders.Where(o=>o.OrderAction==NinjaTrader.Cbi.OrderAction.Sell&&!NinjaTrader.Cbi.Order.IsTerminalState(o.OrderState)).Sum(o=>o.Quantity-o.Filled);}
+ static int WorkingSell(NinjaTrader.Cbi.Account a){return Snap(a).Where(o=>o.OrderAction==NinjaTrader.Cbi.OrderAction.Sell&&!NinjaTrader.Cbi.Order.IsTerminalState(o.OrderState)).Sum(o=>o.Quantity-o.Filled);}
  static void LeaderCancelledUnackedExit(string xOco,string yOco,int held,bool partialFirst,int polls,string why){
   var l=Acc("ocg lead "+why);var a=Acc("ocg follow "+why);a.AsyncCancel=true;
   using(var e=Arm(l,a)){
@@ -496,7 +499,7 @@ class EngineSafetyTests {
    a.Positions.Clear();if(p>0)a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=p,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});
    stopL.Quantity=s2;stopL.LimitPrice=98;l.Emit(stopL);
    var bad=new List<string>();
-   Func<string,int> working=where=>{int w=a.Orders.Where(o=>o.OrderAction==NinjaTrader.Cbi.OrderAction.Sell&&!NinjaTrader.Cbi.Order.IsTerminalState(o.OrderState)).Sum(o=>o.Quantity-o.Filled);if(w>trueFilled)bad.Add("I2("+where+") working "+w+" > true filled "+trueFilled);return w;};
+   Func<string,int> working=where=>{int w=Snap(a).Where(o=>o.OrderAction==NinjaTrader.Cbi.OrderAction.Sell&&!NinjaTrader.Cbi.Order.IsTerminalState(o.OrderState)).Sum(o=>o.Quantity-o.Filled);if(w>trueFilled)bad.Add("I2("+where+") working "+w+" > true filled "+trueFilled);return w;};
    working("before release");
    if(queued)release.Set();
    Drain(e);working("after drain");e.Poll();Drain(e);working("after poll");
@@ -537,6 +540,182 @@ class EngineSafetyTests {
     Check(WorkingSell(a)<=4,"total working exit quantity must never exceed the 4 lots held (position reads "+p+"); working="+WorkingSell(a)+" "+Probe(a));
    }
   }
+ }
+ // Issue #4: one stalled follower must not delay healthy ones. N followers; follower #1 blocks inside Submit. Healthy followers must be
+ // submitted without waiting for the stalled one, at 10 / 20 / 30 accounts, and the stalled one must still receive its order afterwards.
+ static void StalledFollowerDoesNotBlockHealthyOnes(){
+  foreach(int n in new[]{10,20,30}){
+   var l=Acc("hol lead "+n);var fs=new List<NinjaTrader.Cbi.Account>();
+   for(int i=0;i<n;i++)fs.Add(Acc("hol f"+n+"_"+i));
+   var stalled=fs[0];stalled.SubmitEntered=new ManualResetEvent(false);stalled.SubmitRelease=new ManualResetEvent(false);
+   var rows=fs.Select(x=>Tuple.Create(x,new RiskSettings{MaxContracts=10,Target=100},new RiskLatch())).ToArray();
+   var e=new CopierEngine(s=>{},t=>{},(att,s)=>{},(nm,r)=>{});
+   try{
+    e.Start(l,inst,rows);Wait(()=>e.EntriesArmed,"arm "+n);
+    l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",1));
+    Check(stalled.SubmitEntered.WaitOne(3000),"stalled follower reached Submit ("+n+")");
+    var sw=System.Diagnostics.Stopwatch.StartNew();
+    bool healthyDone=false;
+    while(sw.ElapsedMilliseconds<1500){if(fs.Skip(1).All(x=>x.Submits==1)){healthyDone=true;break;}Thread.Sleep(10);}
+    int done=fs.Skip(1).Count(x=>x.Submits==1);
+    Check(healthyDone,"while ONE follower is stalled inside Submit, the other "+(n-1)+" must still be served within 1.5s; served "+done+"/"+(n-1)+" ("+sw.ElapsedMilliseconds+"ms)");
+    stalled.SubmitRelease.Set();
+    Wait(()=>stalled.Submits==1,"the stalled follower still receives its order once released ("+n+")");
+   }finally{stalled.SubmitRelease.Set();e.Dispose();}
+  }
+ }
+ // Issue #4 hazards of per-account dispatch. Every one of these must hold with a stalled provider call in flight.
+ static CopierEngine ArmMany(NinjaTrader.Cbi.Account l,List<NinjaTrader.Cbi.Account> fs,Action<string,string> persist=null){
+  var rows=fs.Select(x=>Tuple.Create(x,new RiskSettings{MaxContracts=10,Target=100},new RiskLatch())).ToArray();
+  var e=new CopierEngine(s=>{},t=>{},(att,s)=>{},persist??((nm,r)=>{}));e.Start(l,inst,rows);Wait(()=>e.EntriesArmed,"arm many");return e;
+ }
+ // (a) the engine must refuse to close while a provider call is still unresolved, then close cleanly once it returns.
+ static void StalledProviderCallBlocksCloseUntilResolved(){
+  var l=Acc("hol close lead");var a=Acc("hol close a");var b=Acc("hol close b");
+  a.SubmitEntered=new ManualResetEvent(false);a.SubmitRelease=new ManualResetEvent(false);
+  var e=ArmMany(l,new List<NinjaTrader.Cbi.Account>{a,b});
+  try{
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",1));Check(a.SubmitEntered.WaitOne(3000),"a stalled");Wait(()=>b.Submits==1,"b served");
+   Check(!e.CanClose(),"CanClose must be false while a provider call is in flight");
+   e.Dispose();Check(e.Attached,"Dispose must refuse while a provider call is unresolved (still attached)");
+   a.SubmitRelease.Set();Wait(()=>a.Submits==1,"a released");Drain(e);
+   Check(e.ProviderCallsInFlight==0,"no provider call left in flight; "+e.ProviderCallsInFlight);
+  }finally{a.SubmitRelease.Set();}
+ }
+ // (b) a Submit that THROWS on one follower locks only that follower; healthy followers are untouched and still served.
+ static void ThrowingFollowerLocksOnlyItself(){
+  var l=Acc("hol throw lead");var fs=Enumerable.Range(0,10).Select(i=>Acc("hol throw f"+i)).ToList();fs[3].ThrowSubmit=true;
+  var locked=new List<string>();var e=ArmMany(l,fs,(n,r)=>{lock(locked)locked.Add(n);});
+  try{
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",1));Wait(()=>fs.Where((x,i)=>i!=3).All(x=>x.Submits==1),"healthy served");Drain(e);
+   Check(fs[3].Submits==0,"throwing follower sent nothing");
+   string[] lk;lock(locked)lk=locked.ToArray();
+   Check(lk.Length==1&&lk[0]==fs[3].Name,"exactly the throwing follower is locked; locked=["+string.Join(",",lk)+"]");
+  }finally{e.Dispose();}
+ }
+ // (c) per-account ORDER is preserved: Submit then Change then Cancel for ONE follower reach the provider in that order.
+ static void PerAccountCommandOrderIsPreserved(){
+  var l=Acc("hol order lead");var a=Acc("hol order a");var log=new List<string>();
+  var e=ArmMany(l,new List<NinjaTrader.Cbi.Account>{a});
+  try{
+   var x=LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Buy,"",4,95);l.Emit(x);Wait(()=>a.Submits==1,"submit");Drain(e);
+   x.LimitPrice=94;l.Emit(x);Drain(e);x.LimitPrice=93;l.Emit(x);Drain(e);
+   x.OrderState=NinjaTrader.Cbi.OrderState.Cancelled;l.Emit(x);Drain(e);
+   Check(a.Changes>=1&&a.Cancels==1,"changes then cancel arrived; changes="+a.Changes+" cancels="+a.Cancels);
+   Check(a.Orders[0].LimitPrice==93,"the LAST price (93) won, not a reordered earlier one; price="+a.Orders[0].LimitPrice);
+   Check(a.Orders[0].OrderState==NinjaTrader.Cbi.OrderState.Cancelled,"cancel applied last; "+a.Orders[0].OrderState);
+  }finally{e.Dispose();}
+ }
+ // (d) a cancel for a follower whose provider is stalled does not block cancelling the others (OFF on many accounts).
+ static void StalledFollowerDoesNotBlockCancelOfOthers(){
+  var l=Acc("hol cancel lead");var fs=Enumerable.Range(0,10).Select(i=>Acc("hol cancel f"+i)).ToList();
+  var e=ArmMany(l,fs);
+  try{
+   var x=LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Buy,"",2,95);l.Emit(x);Wait(()=>fs.All(y=>y.Submits==1),"all submitted");Drain(e);
+   var lead=fs[0];lead.CancelEntered=new ManualResetEvent(false);lead.CancelRelease=new ManualResetEvent(false);
+   x.OrderState=NinjaTrader.Cbi.OrderState.Cancelled;l.Emit(x);
+   Check(lead.CancelEntered.WaitOne(3000),"first follower's cancel is stalled inside the provider");
+   var sw=System.Diagnostics.Stopwatch.StartNew();bool ok=false;while(sw.ElapsedMilliseconds<1500){if(fs.Skip(1).All(y=>y.Cancels==1)){ok=true;break;}Thread.Sleep(10);}
+   Check(ok,"the other 9 cancels must go through while one is stalled; done "+fs.Skip(1).Count(y=>y.Cancels==1)+"/9");
+   lead.CancelRelease.Set();Wait(()=>lead.Cancels==1,"stalled cancel completes");
+  }finally{fs[0].CancelRelease?.Set();e.Dispose();}
+ }
+ // (a2) A stalled CANCEL has no ledger flag of its own: only the in-flight provider-call count keeps a close from detaching under it.
+ static void StalledCancelBlocksCloseUntilResolved(){
+  var l=Acc("hol cclose lead");var a=Acc("hol cclose a");
+  var e=ArmMany(l,new List<NinjaTrader.Cbi.Account>{a});
+  try{
+   var x=LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Buy,"",2,95);l.Emit(x);Wait(()=>a.Submits==1,"submitted");Drain(e);
+   // the entry is cancelled by the provider-visible path, but its terminal ack arrives so nothing else keeps the ledger open:
+   a.Orders[0].OrderState=NinjaTrader.Cbi.OrderState.Cancelled;a.Emit(a.Orders[0]);Drain(e);
+   // now a second leader order whose cancel stalls
+   var y=LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Buy,"",2,94);l.Emit(y);Wait(()=>a.Submits==2,"second submitted");Drain(e);
+   a.CancelEntered=new ManualResetEvent(false);a.CancelRelease=new ManualResetEvent(false);
+   y.OrderState=NinjaTrader.Cbi.OrderState.Cancelled;l.Emit(y);Check(a.CancelEntered.WaitOne(3000),"cancel stalled inside provider");
+   // make every OTHER ledger condition clean so ONLY the in-flight call can block the close
+   a.Orders[1].OrderState=NinjaTrader.Cbi.OrderState.Cancelled;
+   Check(e.ProviderCallsInFlight==1,"one provider call in flight; "+e.ProviderCallsInFlight);
+   // Isolate the in-flight counter: clear the engine's separate ledger flag by reflection, as it would be once evidence settles.
+   typeof(CopierEngine).GetField("ledgerUnresolved",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).SetValue(e,false);
+   Check(!e.CanClose(),"with every other condition clean, ONLY the unresolved provider call may keep CanClose false");
+   a.CancelRelease.Set();Drain(e);Check(e.ProviderCallsInFlight==0,"in flight returns to 0; "+e.ProviderCallsInFlight);
+   Check(e.CanClose(),"CanClose becomes true once the provider call returns and evidence is clean");
+  }finally{a.CancelRelease?.Set();}
+ }
+ // (c2) ordering under pressure: many price changes in a row for ONE follower must reach the provider strictly in order.
+ static void PerAccountOrderUnderBurst(){
+  var l=Acc("hol burst lead");var a=Acc("hol burst a");
+  var e=ArmMany(l,new List<NinjaTrader.Cbi.Account>{a});
+  try{
+   var x=LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Buy,"",2,100);l.Emit(x);Wait(()=>a.Submits==1,"submit");Drain(e);
+   for(int p=99;p>=60;p--){x.LimitPrice=p;l.Emit(x);}
+   Drain(e);
+   Check(a.Orders[0].LimitPrice==60,"final price must be the LAST one sent (60), a reordered earlier command must never win; got "+a.Orders[0].LimitPrice);
+   int[] seen;lock(a.ChangePrices)seen=a.ChangePrices.ToArray();
+   for(int i=1;i<seen.Length;i++)Check(seen[i]<seen[i-1],"provider saw prices out of order at "+i+": ["+string.Join(",",seen)+"]");
+  }finally{e.Dispose();}
+ }
+ // Issue #4 review counterexamples (independent reviewer, reproduced here). Commands now reach the provider LATER than the engine decided them,
+ // so every decision that used to read "already applied" state must account for queued commands.
+ // R1: a Flatten must not overtake a Submit already queued/in flight for the same account.
+ static void FlattenDoesNotOvertakeQueuedSubmit(){
+  var l=Acc("hol r1 lead");var a=Acc("hol r1 a");
+  var e=ArmMany(l,new List<NinjaTrader.Cbi.Account>{a});
+  try{
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",2));Wait(()=>a.Submits==1,"entry");Fill(a,2);Drain(e);
+   a.SubmitEntered=new ManualResetEvent(false);a.SubmitRelease=new ManualResetEvent(false);
+   l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"",2,90));Check(a.SubmitEntered.WaitOne(3000),"exit submit is in flight inside the provider");
+   e.Flatten(new[]{a},inst);Thread.Sleep(150);
+   Check(a.Flattens==0,"Flatten must wait behind the in-flight Submit for the SAME account; flattens="+a.Flattens);
+   a.SubmitRelease.Set();Wait(()=>a.Flattens==1,"flatten reaches provider after the submit");Drain(e);
+   Check(WorkingSell(a)==0,"a flat account must not end with a working Sell; "+Probe(a));
+  }finally{a.SubmitRelease.Set();e.Dispose();}
+ }
+ // R2: after one provider call for an account throws, a later ENTRY for that account must not be sent, even if it was decided before
+ // the failure completion reached the engine thread.
+ static void SubmitThrowStillSendsNoSecondEntry(){
+  var l=Acc("hol r2 lead");var a=Acc("hol r2 a");a.ThrowSubmit=true;
+  a.SubmitEntered=new ManualResetEvent(false);a.SubmitRelease=new ManualResetEvent(false);
+  var e=ArmMany(l,new List<NinjaTrader.Cbi.Account>{a});
+  try{
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",1));Check(a.SubmitEntered.WaitOne(3000),"first submit in flight");
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",1));Thread.Sleep(200);   // engine thread is free: second entry decided while first is unresolved
+   a.SubmitRelease.Set();Drain(e);Thread.Sleep(100);Drain(e);
+   Check(a.SubmitAttempts==1,"after the first Submit threw, no further entry may be attempted on that account; attempts="+a.SubmitAttempts);
+  }finally{a.SubmitRelease.Set();e.Dispose();}
+ }
+ // R3: a Change still queued (stalled) must not make a later REVERT look like "no change".
+ static void RevertAfterQueuedChangeIsStillSent(){
+  var l=Acc("hol r3 lead");var a=Acc("hol r3 a");
+  var e=ArmMany(l,new List<NinjaTrader.Cbi.Account>{a});
+  try{
+   var x=LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Buy,"",2,95);l.Emit(x);Wait(()=>a.Submits==1,"submit");Drain(e);
+   a.ChangeEntered=new ManualResetEvent(false);a.ChangeRelease=new ManualResetEvent(false);
+   x.LimitPrice=99;l.Emit(x);Check(a.ChangeEntered.WaitOne(3000),"change to 99 stalled inside provider");
+   x.LimitPrice=95;l.Emit(x);Thread.Sleep(200);
+   a.ChangeRelease.Set();Wait(()=>a.Changes>=2||a.Orders[0].LimitPrice==95,"changes applied");Drain(e);
+   Check(a.Orders[0].LimitPrice==95,"follower must track the leader's LAST price 95; got "+a.Orders[0].LimitPrice+" changes="+a.Changes);
+  }finally{a.ChangeRelease?.Set();e.Dispose();}
+ }
+ // Issue #4 (self-inflicted regression found while fixing the review findings): once the follower exit has been amended and nothing else
+ // changes, repeated polls must NOT keep sending Change commands. The inline engine sent 2; a stale "already sent" comparison made the new
+ // dispatcher oscillate between two quantities forever (about 600 Change calls, 47 s). This is the exact sweep combination that exposed it:
+ // captured fill 2, a further 2 lots filled, Position reading 3, leader amends the exit to 2.
+ static void AmendedExitDoesNotOscillateOnPoll(){
+  var l=Acc("hol osc lead");var a=Acc("hol osc a");
+  var e=ArmMany(l,new List<NinjaTrader.Cbi.Account>{a});
+  try{
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",4));Wait(()=>a.Submits==1,"entry");
+   var entry=a.Orders[0];entry.Filled=2;entry.OrderState=NinjaTrader.Cbi.OrderState.PartFilled;a.Positions.Clear();a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});a.Emit(entry);Drain(e);
+   var st=LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"hol osc bracket",4,99);l.Emit(st);Wait(()=>a.Submits==2,"stop");Drain(e);
+   entry.Filled=4;entry.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Emit(entry);
+   a.Positions.Clear();a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=3,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});
+   st.Quantity=2;st.LimitPrice=98;l.Emit(st);Drain(e);
+   var sw=System.Diagnostics.Stopwatch.StartNew();
+   for(int i=0;i<20;i++){e.Poll();Drain(e);}
+   int sent;lock(a.ChangeQuantities)sent=a.ChangeQuantities.Count;
+   Check(sent<=4,"20 polls with nothing changing must not cause a stream of Change commands; sent="+sent+" in "+sw.ElapsedMilliseconds+"ms");
+  }finally{e.Dispose();}
  }
  // F01 (Issue #2), scenario A: leader stop total 4; follower owned fill 2, wrapper already shows 4, Position reads 1.
  // Safety invariant: NO outbound Change may ever request a total below the 4 the stop was acknowledged at.

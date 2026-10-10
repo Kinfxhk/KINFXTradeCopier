@@ -69,7 +69,9 @@ class EngineSafetyTests {
 
  static CopierEngine Arm(NinjaTrader.Cbi.Account l,NinjaTrader.Cbi.Account a,Action<AccountTelemetry> tele=null,Action<string,string> persist=null){var e=new CopierEngine(s=>{},tele??(t=>{}),(attached,s)=>{},persist??((n,r)=>{}));e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10,Target=100},new RiskLatch())});Wait(()=>e.EntriesArmed,"arm");return e;}
 
- static void Drain(CopierEngine e){var f=typeof(CopierEngine).GetField("worker",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic);var w=(SerialWorker)f.GetValue(e);var done=new ManualResetEvent(false);w.Post(()=>done.Set());Check(done.WaitOne(3000),"drain");}
+ static void Drain(CopierEngine e){var f=typeof(CopierEngine).GetField("worker",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic);var w=(SerialWorker)f.GetValue(e);Action pump=()=>{var done=new ManualResetEvent(false);w.Post(()=>done.Set());Check(done.WaitOne(3000),"drain");};
+  // Provider calls run on per-account threads and complete back on the engine worker: settle both.
+  for(int i=0;i<300;i++){pump();if(e.ProviderCallsInFlight==0){pump();if(e.ProviderCallsInFlight==0)return;}else Thread.Sleep(3);}}
 
  static void Fill(NinjaTrader.Cbi.Account a,int qty,bool position=true){var o=a.Orders[0];o.Filled=qty;o.OrderState=o.Quantity==qty?NinjaTrader.Cbi.OrderState.Filled:NinjaTrader.Cbi.OrderState.PartFilled;if(position)a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=qty,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});a.Emit(o);}
 

@@ -27,7 +27,7 @@ Leader → 勾選 follower → 每戶設定 Ratio → Start。可選擇一併跟
 - Mailbox 修正（[#4](https://github.com/Kinfxhk/KINFXTradeCopier/issues/4)，部分）：worker 停止後被拒絕嘅回報、輪詢、跟單請求、平倉請求，唔再令計數或旗標卡死。已獨立覆核。
 - 所有 provider 交易封鎖；可重現測試工具、CI、12 個 Issue、截圖、中英安全說明。
 
-最新已發佈離線結果：C# engine **113 PASS／0 FAIL**；pure 12／12；獨立覆核套件 24 PASS／1 已知 FAIL（[#6](https://github.com/Kinfxhk/KINFXTradeCopier/issues/6)）；Dashboard UI 32／32；Python 450 OK；完整 AddOn 只編譯成功（從未載入執行）。詳情同限制見 [TEST-MATRIX](docs/TEST-MATRIX.md)。
+最新已發佈離線結果：C# engine **124 PASS／0 FAIL**；pure 12／12；獨立覆核套件 24 PASS／1 已知 FAIL（[#6](https://github.com/Kinfxhk/KINFXTradeCopier/issues/6)）；Dashboard UI 32／32；Python 450 OK；完整 AddOn 只編譯成功（從未載入執行）。詳情同限制見 [TEST-MATRIX](docs/TEST-MATRIX.md)。
 
 ### 未完成
 
@@ -35,7 +35,7 @@ Leader → 勾選 follower → 每戶設定 Ratio → Start。可選擇一併跟
 - **Start 同 Flatten 全部封鎖**：所以冇任何跟單，亦冇一鍵全平。
 - 保護單改量前，成交資料一致性（[#2](https://github.com/Kinfxhk/KINFXTradeCopier/issues/2)）。
 - 多組 OCO（[#3](https://github.com/Kinfxhk/KINFXTradeCopier/issues/3)）：一組完成唔再取消另一組仍開放嘅保護，窄範圍修正**已合併**。**仍未完成：**入場未全部成交時一組完成，帳戶會鎖定，另一組等待中嘅出場單唔會送出（倉位冇保護，要人手處理）；出場分配。
-- 一個卡住嘅 follower 仍可能阻住其他戶；Dispose 跨多輪排乾（[#4](https://github.com/Kinfxhk/KINFXTradeCopier/issues/4)）。
+- 一個卡住嘅 follower 唔再凍結其他戶（[#4](https://github.com/Kinfxhk/KINFXTradeCopier/issues/4)，已合併，只喺離線假環境驗證）。**仍未完成：**真 NinjaTrader 對呢啲呼叫嘅線程規則未驗證；Dispose 最多等 3 秒。
 - 全部數值草稿同設定發佈（[#5](https://github.com/Kinfxhk/KINFXTradeCopier/issues/5)）。
 - Journal 同重啟後可驗證恢復（[#6](https://github.com/Kinfxhk/KINFXTradeCopier/issues/6)）：**維護者暫時擱置**。
 - 每戶自管 TP／SL、唔跟 Leader 平倉（[#10](https://github.com/Kinfxhk/KINFXTradeCopier/issues/10)）：未開始。

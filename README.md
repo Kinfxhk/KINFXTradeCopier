@@ -22,7 +22,7 @@ All numbers below are **offline, synthetic** (fake accounts, no NinjaTrader orde
 | Mailbox fix: a callback or poll refused by a stopped worker can no longer leave counters stuck ([#4](https://github.com/Kinfxhk/KINFXTradeCopier/issues/4), partial; independently reviewed) | Mailbox 修正：worker 停止後被拒絕嘅回報／輪詢唔再令計數卡死（[#4](https://github.com/Kinfxhk/KINFXTradeCopier/issues/4)，部分；已獨立覆核） |
 | Trading hold on every provider; reproducible test runner, CI, 12 tracked issues, screenshots, bilingual safety notes | 所有 provider 交易封鎖；可重現測試工具、CI、12 個 Issue、截圖、中英安全說明 |
 
-Latest published offline results / 最新已發佈離線結果: C# engine **113 PASS / 0 FAIL**, pure 12/12, independent review suite 24 PASS / 1 known FAIL ([#6](https://github.com/Kinfxhk/KINFXTradeCopier/issues/6)), dashboard UI 32/32, Python 450 OK, full AddOn compile-only OK. Details and caveats: [TEST-MATRIX](docs/TEST-MATRIX.md).
+Latest published offline results / 最新已發佈離線結果: C# engine **124 PASS / 0 FAIL**, pure 12/12, independent review suite 24 PASS / 1 known FAIL ([#6](https://github.com/Kinfxhk/KINFXTradeCopier/issues/6)), dashboard UI 32/32, Python 450 OK, full AddOn compile-only OK. Details and caveats: [TEST-MATRIX](docs/TEST-MATRIX.md).
 
 ### Not done / 未完成
 
@@ -32,7 +32,7 @@ Latest published offline results / 最新已發佈離線結果: C# engine **113 
 | **Start and Flatten are disabled** for every account, so nothing is copied and there is no flatten-all | **Start 同 Flatten 全部封鎖**，所以冇任何跟單，亦冇一鍵全平 |
 | Coherent fill frontier before protective resize ([#2](https://github.com/Kinfxhk/KINFXTradeCopier/issues/2)) | 保護單改量前，成交資料一致性（[#2](https://github.com/Kinfxhk/KINFXTradeCopier/issues/2)） |
 | Group OCO: a still-open group's protection is no longer cancelled when another group completes ([#3](https://github.com/Kinfxhk/KINFXTradeCopier/issues/3), narrow fix **merged**). **Still open:** if a group completes before the entry is fully filled, the account locks and the other group's waiting exit is never sent (lots unprotected until you act); fractional allocation | 多組 OCO：一組完成唔再取消另一組仍開放嘅保護（[#3](https://github.com/Kinfxhk/KINFXTradeCopier/issues/3)，窄範圍修正**已合併**）。**仍未完成：**入場未全部成交時一組完成，帳戶會鎖定，另一組等待中嘅出場單唔會送出（倉位冇保護，要人手處理）；出場分配 |
-| One stalled follower can still block healthy ones; Dispose across several drain turns ([#4](https://github.com/Kinfxhk/KINFXTradeCopier/issues/4)) | 一個卡住嘅 follower 仍可能阻住其他戶；Dispose 跨多輪排乾（[#4](https://github.com/Kinfxhk/KINFXTradeCopier/issues/4)） |
+| One stalled follower no longer freezes the others: each account has its own provider-call thread ([#4](https://github.com/Kinfxhk/KINFXTradeCopier/issues/4), merged, offline fake only). **Still open:** real NinjaTrader thread rules for these calls are unverified; Dispose waits at most 3 s | 一個卡住嘅 follower 唔再凍結其他戶：每戶有自己嘅 provider 呼叫線程（[#4](https://github.com/Kinfxhk/KINFXTradeCopier/issues/4)，已合併，只喺離線假環境驗證）。**仍未完成：**真 NinjaTrader 對呢啲呼叫嘅線程規則未驗證；Dispose 最多等 3 秒 |
 | All numeric drafts / settings publication ([#5](https://github.com/Kinfxhk/KINFXTradeCopier/issues/5)) | 全部數值草稿及設定發佈（[#5](https://github.com/Kinfxhk/KINFXTradeCopier/issues/5)） |
 | Journal and verified restart recovery ([#6](https://github.com/Kinfxhk/KINFXTradeCopier/issues/6)): **shelved by the maintainer**, not worked on now | Journal 及重啟後可驗證恢復（[#6](https://github.com/Kinfxhk/KINFXTradeCopier/issues/6)）：**維護者暫時擱置** |
 | Per-account self-managed TP/SL that does not follow the leader's exit ([#10](https://github.com/Kinfxhk/KINFXTradeCopier/issues/10)): not started | 每戶自管 TP／SL、唔跟 Leader 平倉（[#10](https://github.com/Kinfxhk/KINFXTradeCopier/issues/10)）：未開始 |

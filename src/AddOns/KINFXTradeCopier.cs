@@ -385,6 +385,12 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public volatile bool Following=true;
         public int FollowGeneration, ProcessedFollowGeneration;
         public bool DisablePending, ExitCompleted, Cancelling, EvidenceUnresolved;
+        // Issue #4: provider calls for THIS account run on its own serial thread, so one stalled provider call cannot delay other accounts.
+        // Engine state is still mutated only on the engine worker; completions are posted back to it.
+        public SerialWorker Dispatcher;
+        // Set on the ACCOUNT thread the moment any provider call for this account throws. Entry commands still queued behind it are not sent
+        // (the engine-thread Lock arrives later), which preserves the old "after a failure no further entry is attempted" behaviour.
+        public volatile bool ProviderFaulted;
         public string EvidenceReason;
         public readonly HashSet<string> Ignored=new HashSet<string>();
         public double HighWater;
@@ -422,6 +428,10 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public OrderAction SubmittedAction;
         public OrderState ObservedState;
         public bool CancellationRequested, SubmissionInFlight, AcceptanceConfirmed;
+        // Change commands dispatched but not yet returned from the provider, and the values the LAST one requested. While any is in flight the
+        // "nothing to change" comparison must use these, not the order's applied values, or a revert to the old price is silently dropped.
+        public int ChangesInFlight;
+        public double SentLimit, SentStop; public int SentQty;
         public readonly HashSet<Order> Wrappers=new HashSet<Order>();
         public readonly List<FollowerSnapshot> ExecutionEvidence=new List<FollowerSnapshot>();
     }
@@ -470,6 +480,9 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         volatile bool entries, attached, disposed, suppressNew, ledgerUnresolved;
         int pollPending, controlGeneration, sessionGeneration;
         int pendingFollowerCallbacks;
+        int providerCallsInFlight;
+        readonly List<SerialWorker> dispatchers=new List<SerialWorker>();
+        internal int ProviderCallsInFlight { get { return Volatile.Read(ref providerCallsInFlight); } }
         readonly object controlGate=new object();
         bool mirrorAtm=true;
         public bool Attached { get { return attached; } }
@@ -516,9 +529,9 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 {
                     if(accounts.Any(a=>!Clean(a,inst))) throw new InvalidOperationException("Selected instrument already has a position / working order. No adoption or catch-up.");
                     Interlocked.Increment(ref sessionGeneration);
-                    leader=selected; instrument=inst;mirrorAtm=copyAtm;sessionAccounts=accounts; followers.Clear(); links.Clear(); tombstones.Clear();
+                    leader=selected; instrument=inst;mirrorAtm=copyAtm;sessionAccounts=accounts; DisposeDispatchers(); followers.Clear(); links.Clear(); tombstones.Clear();
                     lock(identityGate) { identities.Clear(); providerIdentities.Clear(); wrapperProviderIds.Clear(); }
-                    foreach(var item in list) followers.Add(new EngineAccount { Account=item.Item1,Settings=item.Item2.Clone(),Latch=new RiskLatch {Locked=item.Item3.Locked,Reason=item.Item3.Reason},HighWater=item.Item2.HighWater });
+                    foreach(var item in list) followers.Add(new EngineAccount { Dispatcher=NewDispatcher(),Account=item.Item1,Settings=item.Item2.Clone(),Latch=new RiskLatch {Locked=item.Item3.Locked,Reason=item.Item3.Reason},HighWater=item.Item2.HighWater });
                     foreach(var f in followers.Where(x=>!x.Settings.CopyAtm||!copyAtm))log(f.Account.Name+": ATM exit mirroring OFF — nonmarket exits skipped; market closes only. No native ATM clone / autonomous protection.");
                     followerView=followers.ToArray();
                     attached=true; entries=false;suppressNew=false;
@@ -624,7 +637,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                     if(s.State==OrderState.Cancelled || s.State==OrderState.Rejected)
                     {
                         link.Cancelled=true; link.Waiting=false;
-                        if(link.Order!=null && !Order.IsTerminalState(link.Order.OrderState)) link.Follower.Account.Cancel(new[]{link.Order});
+                        if(link.Order!=null && !Order.IsTerminalState(link.Order.OrderState)) { var cf=link.Follower; var co=link.Order; Dispatch(cf,()=>cf.Account.Cancel(new[]{co}),err=>{ if(err!=null)Lock(cf,"Manage error: "+err.Message); }); }
                         continue;
                     }
                     if(Alive(s.State))
@@ -714,7 +727,32 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             int remaining=link.Desired-link.ObservedFilled;
             return RiskPolicy.CanEnter(link.Follower.Settings,link.Follower.Latch,p,PendingEntries(link.Follower,link.Order),remaining) ? remaining : 0;
         }
-        void Submit(CopyLink link)
+        SerialWorker NewDispatcher()
+        {
+            var d=new SerialWorker(ex=>log("PROVIDER DISPATCH ERROR: "+ex.Message));
+            lock(dispatchers)dispatchers.Add(d);
+            return d;
+        }
+        void DisposeDispatchers()
+        {
+            SerialWorker[] all; lock(dispatchers){all=dispatchers.ToArray();dispatchers.Clear();}
+            foreach(var d in all)d.Dispose();
+        }
+        // Runs ONE provider call on the account's own thread. `done` runs on the ENGINE worker with null on success or the exception.
+        // The call counts as in flight until `done` has run, so CanClose / Dispose refuse while any provider call is unresolved.
+        // A refused post (engine stopping) never leaks the counter and is never reported as a successful send.
+        void Dispatch(EngineAccount f,Action call,Action<Exception> done)
+        {
+            Interlocked.Increment(ref providerCallsInFlight);
+            Action<Exception> finish=err=>
+            {
+                Action fin=()=>{ try { done(err); } catch(Exception ex) { log("PROVIDER COMPLETION ERROR: "+ex.Message); } finally { Interlocked.Decrement(ref providerCallsInFlight); } };
+                if(!worker.Post(fin)) { Interlocked.Decrement(ref providerCallsInFlight); if(err!=null)log(f.Account.Name+": provider call failed while engine stopping: "+err.Message); }
+            };
+            if(!f.Dispatcher.Post(()=>{ Exception err=null; try { call(); } catch(Exception ex) { err=ex; f.ProviderFaulted=true; } finish(err); }))
+                finish(new InvalidOperationException("provider dispatcher stopped; call was NOT sent"));
+        }
+        void Submit(CopyLink link,string errPrefix="Order error: ")
         {
             var f=link.Follower;
             if(!Connected(f.Account)) { link.Waiting=false; Lock(f,"Disconnected — no catch-up"); return; }
@@ -737,10 +775,13 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 if(!link.Exit&&(!entries||!f.Following||f.Paused||f.Latch.Locked||link.Cancelled)) { link.Cancelled=true; link.Waiting=false; return; }
                 link.Order=order;link.Wrappers.Add(order); link.SubmittedAction=s.Action; link.RequestedQuantity=qty; link.ReservedQuantity=qty; link.ObservedState=OrderState.Submitted; link.Waiting=false; link.SubmissionInFlight=true; ledgerUnresolved=true;
             }
-            try { f.Account.Submit(new[]{order});log("COPY "+f.Account.Name+" "+s.Action+" "+qty+" "+s.Type); }
-            finally { lock(controlGate)link.SubmissionInFlight=false; RecomputeDisablePending(f); }
+            Dispatch(f,()=>{ if(!link.Exit&&f.ProviderFaulted)throw new InvalidOperationException("entry not sent: an earlier provider call for this account failed"); f.Account.Submit(new[]{order}); },err=>
+            {
+                try { if(err==null)log("COPY "+f.Account.Name+" "+s.Action+" "+qty+" "+s.Type); else Lock(f,errPrefix+err.Message); }
+                finally { lock(controlGate)link.SubmissionInFlight=false; RecomputeDisablePending(f); }
+            });
         }
-        void Change(CopyLink link)
+        void Change(CopyLink link,string errPrefix="Manage error: ")
         {
             var f=link.Follower; var order=link.Order; var s=link.Latest;
             if(order==null||Order.IsTerminalState(link.ObservedState)||Order.IsTerminalState(order.OrderState)||f.Flattening||!link.AcceptanceConfirmed)return;
@@ -766,17 +807,24 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             int closable=link.Exit?(s.Action==OrderAction.Sell?Math.Max(0,p):Math.Max(0,-p)):Math.Abs(p);
             int filled=link.ObservedFilled;
             int qty=RiskPolicy.ChangeTotal(link.ReservedQuantity,filled,link.Desired,link.Exit,closable,link.Exit?ExitReserved(link):PendingEntries(f,order),f.Settings.MaxContracts,entries&&f.Following&&!f.Paused&&!f.Latch.Locked);
-            if(positionBehindOwned&&link.Exit&&qty<order.Quantity)qty=order.Quantity; // freeze quantity, keep price updates
+            // Effective quantity the provider holds or is about to hold: a Change still in flight counts, not the stale applied value.
+            bool changePending=Volatile.Read(ref link.ChangesInFlight)>0;
+            int effectiveQty=changePending?link.SentQty:order.Quantity;
+            if(positionBehindOwned&&link.Exit&&qty<effectiveQty)qty=effectiveQty; // freeze quantity, keep price updates
             if(qty<=filled)
             {
-                link.Cancelled=true; link.Waiting=false; f.Account.Cancel(new[]{order});
+                link.Cancelled=true; link.Waiting=false; Dispatch(f,()=>f.Account.Cancel(new[]{order}),err=>{ if(err!=null)Lock(f,errPrefix+err.Message); });
                 if(link.Exit&&p==0&&OwnedPosition(f)!=0)Lock(f,"Flat Position conflicts with owned executions — exits cancelled to prevent reversal; review protection");
                 return;
             }
-            if(order.Quantity==qty && Math.Abs(order.LimitPrice-s.Limit)<1e-9 && Math.Abs(order.StopPrice-s.Stop)<1e-9)return;
-            order.QuantityChanged=qty; order.LimitPriceChanged=s.Limit; order.StopPriceChanged=s.Stop;
+            int curQty=effectiveQty; double curLimit=changePending?link.SentLimit:order.LimitPrice, curStop=changePending?link.SentStop:order.StopPrice;
+            if(curQty==qty && Math.Abs(curLimit-s.Limit)<1e-9 && Math.Abs(curStop-s.Stop)<1e-9)return;
             link.RequestedQuantity=qty; link.ReservedQuantity=Math.Max(link.ReservedQuantity,qty);
-            f.Account.Change(new[]{order});
+            // The requested values are captured NOW, in a command applied on the account's own thread. Writing them to the shared
+            // Order object here and sending later would let a newer Change overwrite an older, still-queued one.
+            double wantLimit=s.Limit,wantStop=s.Stop; int wantQty=qty;
+            link.SentQty=wantQty; link.SentLimit=wantLimit; link.SentStop=wantStop; Interlocked.Increment(ref link.ChangesInFlight);
+            Dispatch(f,()=>{ try { order.QuantityChanged=wantQty; order.LimitPriceChanged=wantLimit; order.StopPriceChanged=wantStop; f.Account.Change(new[]{order}); } finally { Interlocked.Decrement(ref link.ChangesInFlight); } },err=>{ if(err!=null)Lock(f,errPrefix+err.Message); });
         }
         void FollowerUpdate(object sender,OrderEventArgs e,int generation,string subscribedInstrument)
         {
@@ -824,7 +872,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                         foreach(var sibling in links.Values.SelectMany(v=>v).Where(x=>x.Follower==f&&x.Exit&&x!=link&&!string.IsNullOrEmpty(link.Oco)&&x.Oco==link.Oco).ToArray())
                         {
                             sibling.Cancelled=true; sibling.Waiting=false; sibling.OcoRetired=true;
-                            if(sibling.Order!=null&&!Order.IsTerminalState(sibling.Order.OrderState))try { f.Account.Cancel(new[]{sibling.Order}); }catch(Exception ex){Lock(f,"OCO cancellation unresolved: "+ex.Message);}
+                            if(sibling.Order!=null&&!Order.IsTerminalState(sibling.Order.OrderState)) { var so=sibling.Order; Dispatch(f,()=>f.Account.Cancel(new[]{so}),err=>{ if(err!=null)Lock(f,"OCO cancellation unresolved: "+err.Message); }); }
                         }
                     }
                     if(link.Exit&&(eventState==OrderState.Cancelled||eventState==OrderState.Rejected))
@@ -858,9 +906,9 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         {
             if(suppressNew||f.Flattening)return;
             foreach(var link in links.Values.SelectMany(x=>x).Where(x=>x.Follower==f && x.Waiting && !x.Cancelled).ToArray())
-            {try{Submit(link);}catch(Exception ex){link.Waiting=false;Lock(f,"Delayed exit error: "+ex.Message);}}
+            {try{Submit(link,"Delayed exit error: ");}catch(Exception ex){link.Waiting=false;Lock(f,"Delayed exit error: "+ex.Message);}}
             foreach(var link in links.Values.SelectMany(x=>x).Where(x=>x.Follower==f && x.Exit && x.Order!=null && !x.Cancelled && !Order.IsTerminalState(x.Order.OrderState)).ToArray())
-            {try{Change(link);}catch(Exception ex){Lock(f,"Protection resize error: "+ex.Message);}}
+            {try{Change(link,"Protection resize error: ");}catch(Exception ex){Lock(f,"Protection resize error: "+ex.Message);}}
         }
         void Lock(EngineAccount f,string reason)
         {
@@ -927,7 +975,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             {
                 link.Cancelled=true; link.Waiting=false;
                 if(link.Order!=null&&!Order.IsTerminalState(link.ObservedState)&&!Order.IsTerminalState(link.Order.OrderState)&&!link.CancellationRequested)
-                    try { link.CancellationRequested=true; f.Account.Cancel(new[]{link.Order}); } catch(Exception ex) { link.CancellationRequested=false; f.DisablePending=true; Lock(f,"Entry cancellation unresolved: "+ex.Message); }
+                    { link.CancellationRequested=true; var eo=link.Order; Dispatch(f,()=>f.Account.Cancel(new[]{eo}),err=>{ if(err!=null) { link.CancellationRequested=false; f.DisablePending=true; Lock(f,"Entry cancellation unresolved: "+err.Message); } }); }
             }
             RecomputeDisablePending(f);
             } finally { f.Cancelling=false; }
@@ -996,8 +1044,17 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 stateChanged(attached,"FLATTEN requested — new entries blocked; verify flat status");
                 foreach(var account in targets)
                 {
-                    try { if(!Sim(account)) {log("LIVE FLATTEN BLOCKED "+account.Name);continue;} account.Flatten(new[]{inst});log("Flatten request: "+account.Name+" / "+inst.FullName+" — verify flat, retry manually if error"); }
-                    catch(Exception ex) {var f=followers.FirstOrDefault(x=>x.Account==account);if(f!=null) { flattenConfirmations[f]="Request threw — provider acceptance unknown"; Lock(f,"Flatten acceptance uncertain — existing protection retained; duplicate reductions blocked until explicit provider reconciliation: "+ex.Message); }log("FLATTEN FAILED "+account.Name+": "+ex.Message);}
+                    if(!Sim(account)) {log("LIVE FLATTEN BLOCKED "+account.Name);continue;}
+                    var target=account; var tf=followers.FirstOrDefault(x=>x.Account==target);
+                    Action<Exception> flattenDone=ex=>
+                    {
+                        if(ex==null){log("Flatten request: "+target.Name+" / "+inst.FullName+" — verify flat, retry manually if error");return;}
+                        if(tf!=null) { flattenConfirmations[tf]="Request threw — provider acceptance unknown"; Lock(tf,"Flatten acceptance uncertain — existing protection retained; duplicate reductions blocked until explicit provider reconciliation: "+ex.Message); }
+                        log("FLATTEN FAILED "+target.Name+": "+ex.Message);
+                    };
+                    // A follower's Flatten goes through ITS dispatcher so it can never overtake a Submit/Change/Cancel already queued for the same account.
+                    if(tf!=null)Dispatch(tf,()=>target.Flatten(new[]{inst}),flattenDone);
+                    else { try { target.Flatten(new[]{inst}); flattenDone(null); } catch(Exception ex) { flattenDone(ex); } }
                 }
                 if(attached)suppressNew=false; // selected followers excluded; unflattened followers still need new protective exits.
                 if(!attached)SessionOwnership.Release(this);
@@ -1023,8 +1080,8 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 f.Flattening=false; Lock(f,"Manual flatten abandonment — entries locked; only explicit leader exits managed, no autonomous protection / provider guarantee");MaintainProtection(f);
             });
         }
-        public bool CanClose() { Account[] accounts=sessionAccounts;return !attached || (Volatile.Read(ref pendingFollowerCallbacks)==0&&!ledgerUnresolved&&instrument!=null && accounts.All(a=>Clean(a,instrument))); }
-        public void Dispose() { if(disposed)return; BlockEntries(); if(!CanClose()){log("Close refused: owned executions / orders unresolved; callbacks and ownership retained. Resolve manually before closing.");return;} disposed=true; worker.Post(Detach);worker.Dispose(); }
+        public bool CanClose() { Account[] accounts=sessionAccounts;return !attached || (Volatile.Read(ref pendingFollowerCallbacks)==0&&Volatile.Read(ref providerCallsInFlight)==0&&!ledgerUnresolved&&instrument!=null && accounts.All(a=>Clean(a,instrument))); }
+        public void Dispose() { if(disposed)return; BlockEntries(); if(!CanClose()){log("Close refused: owned executions / orders unresolved; callbacks and ownership retained. Resolve manually before closing.");return;} disposed=true; worker.Post(Detach);worker.Dispose();DisposeDispatchers(); }
     }
     public sealed class AccountRow : INotifyPropertyChanged
     {
