@@ -144,10 +144,60 @@ public static class BulkUiTests {
   v.Editable(false);v.LogBox.Text="x";v.ClearLog();Check(v.LogBox.Text=="","clearing the log is allowed while attached/held (it is not a setting)");
   Check(!v.StartButton.IsEnabled,"Start stays held");
  }
+ // Tgt / DLL are text columns: a TextBlock until the cell enters edit mode. Use the grid's real edit path.
+ static TextBox CellBox(DashboardView v,string header,AccountRow row){
+  var col=v.AccountGrid.Columns.Single(c=>(string)c.Header==header);v.AccountGrid.ScrollIntoView(row,col);Layout(v);
+  v.AccountGrid.SelectedItem=row;v.AccountGrid.CurrentCell=new DataGridCellInfo(row,col);
+  if(!v.AccountGrid.BeginEdit()){throw new Exception("grid refused to enter edit mode for "+header);}Layout(v);
+  var cell=col.GetCellContent(row);var tb=cell as TextBox??(cell==null?null:Visual<TextBox>(cell).FirstOrDefault());
+  if(tb==null)throw new Exception("no TextBox after BeginEdit in "+header+" cell ("+(cell==null?"null":cell.GetType().Name)+")");return tb;}
+ static void TypeBad(TextBox tb,string text){tb.Focus();tb.Text=text;var be=tb.GetBindingExpression(TextBox.TextProperty);if(be!=null)be.UpdateSource();}
+ // A malformed hand-typed Target must survive a broad refresh and must block commit; it must never silently turn into the old value.
+ static void BadTargetDraftSurvivesRefreshAndBlocksCommit(){
+  var v=Fresh();var row=v.Rows[1];var tb=CellBox(v,"Tgt",row);
+  TypeBad(tb,"12x5");
+  Check(Validation.GetHasError(tb),"malformed Target must show a validation error right away");
+  row.Changed();v.UpdateCards();Layout(v);
+  var again=CellBox(v,"Tgt",row);
+  Check(again.Text=="12x5","the typed text must not be replaced by the old value after a refresh; shows '"+again.Text+"'");
+  Check(!v.TryCommitSettings(),"commit/persist must be refused while a Target draft is invalid");
+  Check(row.Target==1000,"accepted value stays the last valid one (1000), never a half-parsed one; is "+row.Target);
+ }
+ static void BadLossDraftSurvivesRefreshAndBlocksCommit(){
+  var v=Fresh();var row=v.Rows[2];var tb=CellBox(v,"DLL",row);
+  TypeBad(tb,"5oo");
+  Check(Validation.GetHasError(tb),"malformed DLL must show a validation error");
+  row.Changed();v.UpdateCards();Layout(v);
+  var again=CellBox(v,"DLL",row);
+  Check(again.Text=="5oo","typed DLL text kept after refresh; shows '"+again.Text+"'");
+  Check(!v.TryCommitSettings(),"commit refused while a DLL draft is invalid");
+  Check(row.Loss==500,"accepted DLL unchanged; is "+row.Loss);
+ }
+ // The invalid row scrolls out of view (recycled). Commit must STILL be refused.
+ static void BadTargetDraftSurvivesRecyclingAndStillBlocksCommit(){
+  var v=Fresh();var row=v.Rows[1];var tb=CellBox(v,"Tgt",row);
+  TypeBad(tb,"1e");
+  var last=v.Rows[v.Rows.Count-1];v.AccountGrid.ScrollIntoView(last);Layout(v);v.AccountGrid.ScrollIntoView(last,v.AccountGrid.Columns.Last());Layout(v);
+  Check(!v.TryCommitSettings(),"commit must be refused even after the invalid row was scrolled out of view");
+  var back=CellBox(v,"Tgt",row);
+  Check(back.Text=="1e","draft returns when the row is scrolled back; shows '"+back.Text+"'");
+  back.Text="900";var be=back.GetBindingExpression(TextBox.TextProperty);if(be!=null)be.UpdateSource();Layout(v);
+  Check(row.Target==900,"correcting the draft applies it; is "+row.Target);
+  Check(v.TryCommitSettings(),"commit allowed again once every draft is valid");
+ }
+ // The model must reject values the engine treats as invalid, so a stray minus sign or NaN can never be accepted silently.
+ static void TargetAndLossSetterRejectInvalidNumbers(){
+  var v=Fresh();var row=v.Rows[1];
+  foreach(double bad in new[]{-1.0,double.NaN,double.PositiveInfinity,double.NegativeInfinity}){
+   bool threw=false;try{row.Target=bad;}catch(ArgumentException){threw=true;}Check(threw,"Target must reject "+bad);Check(row.Target==1000,"Target unchanged after rejecting "+bad+"; is "+row.Target);
+   threw=false;try{row.Loss=bad;}catch(ArgumentException){threw=true;}Check(threw,"Loss must reject "+bad);Check(row.Loss==500,"Loss unchanged after rejecting "+bad+"; is "+row.Loss);
+  }
+  row.Target=0;row.Loss=0;Check(row.Target==0&&row.Loss==0,"0 (= off) stays legal");row.Target=1234.5;Check(row.Target==1234.5,"normal value accepted");
+ }
  [STAThread] public static int Main(string[] args){
   try{
    AppDomain.CurrentDomain.AssemblyResolve+=(s,e)=>{string n=e.Name.Split(',')[0];if(n.EndsWith(".resources"))return null;var loaded=AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a=>a.GetName().Name==n);if(loaded!=null)return loaded;string p=System.IO.Path.Combine("C:/Program Files/NinjaTrader 8/bin",n+".dll");return System.IO.File.Exists(p)?System.Reflection.Assembly.LoadFrom(p):null;};
-   var all=new Action[]{TargetAndLossApplyToSelectedOnly,ZeroTurnsLimitOff,RatioStaysIndependent,InvalidInputChangesNothing,NoSelectionIsRefused,LeaderIsNotEdited,AtmToggleBulk,LockedWhenNotEditable,NeverTouchesFollowOrTrading,BarIsOnCopyTabAndKeepsHolds,FromLeaderCopiesToHighlighted,FromLeaderWithoutHighlightHitsAllVisibleFollowers,FromLeaderRespectsSearchFilter,FromLeaderKeepsRatioTickAndOtherFields,ManualEditAfterwardsSticksAndNoLiveLink,FromLeaderRefusedWhenLockedOrNoLeader,FromLeaderNeverTouchesFollowOrTrading,AdviceShownPerRowAndCounted,AdviceUpdatesAfterBulkApply,AdviceNeverBlocksOrChangesSettings,RatioCellFitsCommonValuesAt1160,LogsReadableAndTopAligned,LogClearWorksAndIsEditableIndependent};
+   var all=new Action[]{TargetAndLossApplyToSelectedOnly,ZeroTurnsLimitOff,RatioStaysIndependent,InvalidInputChangesNothing,NoSelectionIsRefused,LeaderIsNotEdited,AtmToggleBulk,LockedWhenNotEditable,NeverTouchesFollowOrTrading,BarIsOnCopyTabAndKeepsHolds,FromLeaderCopiesToHighlighted,FromLeaderWithoutHighlightHitsAllVisibleFollowers,FromLeaderRespectsSearchFilter,FromLeaderKeepsRatioTickAndOtherFields,ManualEditAfterwardsSticksAndNoLiveLink,FromLeaderRefusedWhenLockedOrNoLeader,FromLeaderNeverTouchesFollowOrTrading,AdviceShownPerRowAndCounted,AdviceUpdatesAfterBulkApply,AdviceNeverBlocksOrChangesSettings,RatioCellFitsCommonValuesAt1160,LogsReadableAndTopAligned,LogClearWorksAndIsEditableIndependent,BadTargetDraftSurvivesRefreshAndBlocksCommit,BadLossDraftSurvivesRefreshAndBlocksCommit,BadTargetDraftSurvivesRecyclingAndStillBlocksCommit,TargetAndLossSetterRejectInvalidNumbers};
    int failed=0;foreach(var a in all){try{a();Console.WriteLine("PASS "+a.Method.Name);}catch(Exception ex){failed++;Console.WriteLine("FAIL "+a.Method.Name+" :: "+ex.Message);}}
    return failed==0?0:1;
   }catch(Exception ex){Console.WriteLine("HARNESS "+ex);return 2;}

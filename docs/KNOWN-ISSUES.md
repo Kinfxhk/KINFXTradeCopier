@@ -51,6 +51,10 @@ Synthetic reproduction:
 
 ### Settings drafts, identity membership and publication contracts
 
+**Partly addressed in the public repo (source `e39b39e9…`):** the two editable amount columns, Target and DLL, now keep a row-owned text draft. A malformed hand-typed value (`12x5`, `5oo`, `1,000`) stays on screen after a broad refresh, still blocks commit/persist after the row was scrolled out of view, and never overwrites the last valid number; the model also rejects negative, NaN and Infinity. Covered by `BadTargetDraftSurvivesRefreshAndBlocksCommit`, `BadLossDraftSurvivesRefreshAndBlocksCommit`, `BadTargetDraftSurvivesRecyclingAndStillBlocksCommit`, `TargetAndLossSetterRejectInvalidNumbers`. **Still open:** the other numeric fields (Floor, Baseline, Trail, Max, ...) in the Risk dialog have no row-owned drafts; hidden accepted-state mutation across ALL rows, XML precision of Target/DLL, `-0` and BaselineSet, and the settings publication contract are unchanged. Synthetic setters and a scripted grid edit are not proof of what a user's real keyboard path does in a live NinjaTrader window.
+
+
+
 **Scoped membership repair passes; not integrated. Publication failures need policy adjudication.** [E03, E05]
 
 Synthetic reproduction: add the same AccountRow reference twice, remove one occurrence, then rename/export the remaining visible row. A unique-identity HashSet can lose ownership while an occurrence remains. Candidate alias4 and collection22 pass, but this does not accept all native draft/token paths.
