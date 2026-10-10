@@ -2,7 +2,7 @@ using System;
 using NinjaTrader.NinjaScript.AddOns.Kinfx;
 class RiskTests {
  static int Main(string[] args) {
-  try { Eq(false,DashboardSafety.CanExecute("start")); Eq(false,DashboardSafety.CanExecute("flattenSelected")); Eq(false,DashboardSafety.CanExecute("flattenAll")); Eq(false,DashboardSafety.CanExecute("batch")); Eq(true,DashboardSafety.CanExecute("refresh")); BulkAmount(); Console.WriteLine("PASS bulk amount grammar"); SettingsWarnings(); Console.WriteLine("PASS settings warnings"); WorkerRetention(); Console.WriteLine("PASS worker retains accepted work and reports rejection"); Quantity(); Console.WriteLine("PASS quantity"); Risk(); Console.WriteLine("PASS risk latch / exits / finite / DST"); Persistence(); Console.WriteLine("PASS XML atomic roundtrip"); Worker(); Console.WriteLine("PASS serial reentrancy + ownership"); Ledger(); Console.WriteLine("PASS lifecycle decisions / dedupe / reservation"); Presets(); Console.WriteLine("PASS sourced editable presets"); ChangePolicy(); Console.WriteLine("PASS locked reductions / partial exit totals"); DurableLock(); Console.WriteLine("PASS durable global latches / unlock recheck / advisory"); return 0; }
+  try { Eq(false,DashboardSafety.CanExecute("start")); Eq(false,DashboardSafety.CanExecute("flattenSelected")); Eq(false,DashboardSafety.CanExecute("flattenAll")); Eq(false,DashboardSafety.CanExecute("batch")); Eq(true,DashboardSafety.CanExecute("refresh")); BulkAmount(); Console.WriteLine("PASS bulk amount grammar"); SettingsWarnings(); Console.WriteLine("PASS settings warnings"); WorkerRetention(); Console.WriteLine("PASS worker retains accepted work and reports rejection"); DivergencePolicy(); Console.WriteLine("PASS divergence reaction setting"); Quantity(); Console.WriteLine("PASS quantity"); Risk(); Console.WriteLine("PASS risk latch / exits / finite / DST"); Persistence(); Console.WriteLine("PASS XML atomic roundtrip"); Worker(); Console.WriteLine("PASS serial reentrancy + ownership"); Ledger(); Console.WriteLine("PASS lifecycle decisions / dedupe / reservation"); Presets(); Console.WriteLine("PASS sourced editable presets"); ChangePolicy(); Console.WriteLine("PASS locked reductions / partial exit totals"); DurableLock(); Console.WriteLine("PASS durable global latches / unlock recheck / advisory"); return 0; }
   catch(Exception ex) { Console.WriteLine("FAIL "+ex.Message); return 1; }
  }
  static void Eq(object want,object got) { if(!want.Equals(got)) throw new Exception("expected "+want+" got "+got); }
@@ -62,6 +62,31 @@ class RiskTests {
   int errors=0;var later=new System.Collections.Generic.List<int>();var w3=new SerialWorker(ex=>System.Threading.Interlocked.Increment(ref errors));
   w3.Post(()=>{throw new InvalidOperationException("boom");});w3.Post(()=>{lock(later)later.Add(1);});w3.Dispose();
   Eq(1,errors);lock(later)Eq("1",string.Join(",",later));
+ }
+ // Issue #12: per-account reaction when a follower diverges. The DEFAULT is notify-only; flatten is an explicit opt-in.
+ // This is a setting only: the engine has no automatic flatten, and Flatten stays disabled in this alpha.
+ static void DivergencePolicy() {
+  var s=new RiskSettings();
+  Eq("Notify",s.OnDivergence);
+  Eq(true,s.Valid());
+  s.OnDivergence="FlattenOnce";Eq(true,s.Valid());
+  s.OnDivergence="Notify";Eq(true,s.Valid());
+  foreach(string bad in new[]{"","flatten","FlattenTwice","Retry",null,"Notify "}) { s.OnDivergence=bad; Eq(false,s.Valid()); }
+  Eq(true,DivergenceChoice.IsValid("Notify")); Eq(true,DivergenceChoice.IsValid("FlattenOnce")); Eq(false,DivergenceChoice.IsValid("x"));
+  // XML roundtrip keeps the choice per account, and an old file without the attribute loads as Notify.
+  var rows=new System.Collections.Generic.List<SavedAccount>();
+  var a=new SavedAccount{Name="A"};a.Settings.OnDivergence="FlattenOnce";var b=new SavedAccount{Name="B"};rows.Add(a);rows.Add(b);
+  var xml=SettingsStore.ToXml(rows,"MES 12-26","UTC",0);
+  var back=SettingsStore.FromXml(xml);
+  Eq("FlattenOnce",back[0].Settings.OnDivergence);Eq("Notify",back[1].Settings.OnDivergence);
+  foreach(var el in xml.Elements("Account")) { var at=el.Attribute("OnDivergence"); if(at!=null) at.Remove(); }
+  var old=SettingsStore.FromXml(xml);
+  Eq("Notify",old[0].Settings.OnDivergence);Eq("Notify",old[1].Settings.OnDivergence);
+  // a corrupted value on disk must not silently become a flatten
+  var bad2=SettingsStore.ToXml(rows,"MES 12-26","UTC",0);
+  foreach(var el2 in bad2.Elements("Account")){el2.SetAttributeValue("OnDivergence","Retry");break;}
+  bool refused=false; try{ SettingsStore.FromXml(bad2); }catch(Exception){ refused=true; }
+  Eq(true,refused);
  }
  static void Risk() {
   var s = new RiskSettings { Target=100, Loss=50, MaxContracts=4 };

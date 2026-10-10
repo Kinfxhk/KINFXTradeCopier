@@ -213,10 +213,34 @@ public static class BulkUiTests {
   Check(v.LockedCount==0,"leader row is not counted as a locked follower");
   Check(!v.StartButton.IsEnabled,"Start stays held");
  }
+ // Issue #12 setting: per-account reaction to divergence. Default Notify; FlattenOnce is an explicit per-account choice.
+ static void DivergenceChoiceIsPerAccountDefaultsToNotify(){
+  var v=Fresh();
+  Check(v.Rows.Skip(1).All(r=>r.OnDivergence=="Notify"),"every row defaults to Notify");
+  v.Rows[2].OnDivergence="FlattenOnce";Check(v.Rows[2].OnDivergence=="FlattenOnce"&&v.Rows[3].OnDivergence=="Notify","choice is per account");
+  bool threw=false;try{v.Rows[2].OnDivergence="Retry";}catch(ArgumentException){threw=true;}
+  Check(threw&&v.Rows[2].OnDivergence=="FlattenOnce","an invalid value is refused and the previous choice stays");
+ }
+ static void DivergenceBulkAndFromLeaderAndNeverTrades(){
+  var v=Fresh();v.AccountGrid.UnselectAll();v.AccountGrid.SelectedItems.Add(v.Rows[1]);v.AccountGrid.SelectedItems.Add(v.Rows[2]);
+  Check(v.BulkApply("Diverge","FlattenOnce")==null,"bulk apply");
+  Check(v.Rows[1].OnDivergence=="FlattenOnce"&&v.Rows[2].OnDivergence=="FlattenOnce"&&v.Rows[3].OnDivergence=="Notify","bulk sets selected only");
+  Check(v.BulkApply("Diverge","Retry")!=null,"invalid bulk value refused");Check(v.Rows[1].OnDivergence=="FlattenOnce","unchanged after refusal");
+  v.Rows[0].OnDivergence="FlattenOnce";v.AccountGrid.UnselectAll();Check(v.BulkFromLeader()==null,"from leader");
+  Check(v.Rows.Skip(1).All(r=>r.OnDivergence=="FlattenOnce"),"From Leader copies the divergence choice too");
+  int follow=0;v.FollowRow=(r,on)=>follow++;v.BulkApply("Diverge","Notify");Check(follow==0,"setting never calls follow/engine");
+  Check(!v.StartButton.IsEnabled,"Start stays held");
+  v.Editable(false);Check(v.BulkApply("Diverge","FlattenOnce")!=null,"locked while attached");
+ }
+ static void FlattenOnceShowsAWarningNote(){
+  var v=Fresh();v.Rows[3].OnDivergence="FlattenOnce";v.Rows[3].Changed();v.UpdateCards();
+  Check(v.Rows[3].Advice.Contains("flatten"),"a FlattenOnce row carries a visible note that it is not active in this alpha: "+v.Rows[3].Advice);
+  v.Rows[3].OnDivergence="Notify";v.Rows[3].Changed();v.UpdateCards();Check(!v.Rows[3].Advice.Contains("flatten"),"note gone for Notify");
+ }
  [STAThread] public static int Main(string[] args){
   try{
    AppDomain.CurrentDomain.AssemblyResolve+=(s,e)=>{string n=e.Name.Split(',')[0];if(n.EndsWith(".resources"))return null;var loaded=AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a=>a.GetName().Name==n);if(loaded!=null)return loaded;string p=System.IO.Path.Combine("C:/Program Files/NinjaTrader 8/bin",n+".dll");return System.IO.File.Exists(p)?System.Reflection.Assembly.LoadFrom(p):null;};
-   var all=new Action[]{TargetAndLossApplyToSelectedOnly,ZeroTurnsLimitOff,RatioStaysIndependent,InvalidInputChangesNothing,NoSelectionIsRefused,LeaderIsNotEdited,AtmToggleBulk,LockedWhenNotEditable,NeverTouchesFollowOrTrading,BarIsOnCopyTabAndKeepsHolds,FromLeaderCopiesToHighlighted,FromLeaderWithoutHighlightHitsAllVisibleFollowers,FromLeaderRespectsSearchFilter,FromLeaderKeepsRatioTickAndOtherFields,ManualEditAfterwardsSticksAndNoLiveLink,FromLeaderRefusedWhenLockedOrNoLeader,FromLeaderNeverTouchesFollowOrTrading,AdviceShownPerRowAndCounted,AdviceUpdatesAfterBulkApply,AdviceNeverBlocksOrChangesSettings,RatioCellFitsCommonValuesAt1160,LogsReadableAndTopAligned,LogClearWorksAndIsEditableIndependent,BadTargetDraftSurvivesRefreshAndBlocksCommit,BadLossDraftSurvivesRefreshAndBlocksCommit,BadTargetDraftSurvivesRecyclingAndStillBlocksCommit,TargetAndLossSetterRejectInvalidNumbers,LockedAccountIsRedWithReasonAndCountedInFooter,LockedCountIgnoresLeaderAndNeverBlocksUi};
+   var all=new Action[]{TargetAndLossApplyToSelectedOnly,ZeroTurnsLimitOff,RatioStaysIndependent,InvalidInputChangesNothing,NoSelectionIsRefused,LeaderIsNotEdited,AtmToggleBulk,LockedWhenNotEditable,NeverTouchesFollowOrTrading,BarIsOnCopyTabAndKeepsHolds,FromLeaderCopiesToHighlighted,FromLeaderWithoutHighlightHitsAllVisibleFollowers,FromLeaderRespectsSearchFilter,FromLeaderKeepsRatioTickAndOtherFields,ManualEditAfterwardsSticksAndNoLiveLink,FromLeaderRefusedWhenLockedOrNoLeader,FromLeaderNeverTouchesFollowOrTrading,AdviceShownPerRowAndCounted,AdviceUpdatesAfterBulkApply,AdviceNeverBlocksOrChangesSettings,RatioCellFitsCommonValuesAt1160,LogsReadableAndTopAligned,LogClearWorksAndIsEditableIndependent,BadTargetDraftSurvivesRefreshAndBlocksCommit,BadLossDraftSurvivesRefreshAndBlocksCommit,BadTargetDraftSurvivesRecyclingAndStillBlocksCommit,TargetAndLossSetterRejectInvalidNumbers,LockedAccountIsRedWithReasonAndCountedInFooter,LockedCountIgnoresLeaderAndNeverBlocksUi,DivergenceChoiceIsPerAccountDefaultsToNotify,DivergenceBulkAndFromLeaderAndNeverTrades,FlattenOnceShowsAWarningNote};
    int failed=0;foreach(var a in all){try{a();Console.WriteLine("PASS "+a.Method.Name);}catch(Exception ex){failed++;Console.WriteLine("FAIL "+a.Method.Name+" :: "+ex.Message);}}
    return failed==0?0:1;
   }catch(Exception ex){Console.WriteLine("HARNESS "+ex);return 2;}

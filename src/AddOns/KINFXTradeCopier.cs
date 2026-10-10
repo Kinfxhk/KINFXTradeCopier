@@ -36,6 +36,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             if(s==null||role=="Leader")return "";
             if(!RiskPolicy.Finite(s.Ratio)||s.Ratio<=0)return "Ratio is not a positive number";
             var notes=new System.Collections.Generic.List<string>();
+            if(s.OnDivergence=="FlattenOnce")notes.Add("On divergence = FlattenOnce is saved but NOT active in this alpha: the engine only locks and notifies, it never flattens by itself");
             if(s.Target<=0&&s.Loss<=0)notes.Add("no daily target and no daily loss limit (0 = off)");
             else if(s.Loss<=0)notes.Add("no daily loss limit (0 = off)");
             else if(s.Target<=0)notes.Add("no daily target (0 = off)");
@@ -113,13 +114,22 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public double Ratio = 1, Target, Loss, Floor, Baseline, TrailDistance, HighWater, BestDay, TotalProfit, Consistency;
         public int MaxContracts = 1;
         public string Alias = "", Group = "", Preset = "Custom", DrawdownType = "User defined";
+        // Reaction when this follower diverges (opposite / unknown exposure). "Notify" (default) = lock, red state, log; the engine
+        // never flattens by itself. "FlattenOnce" is an explicit per-account opt-in for a future guarded Flatten: one request, never retried.
+        // Stored only; the alpha engine has no automatic flatten and Flatten is disabled for every provider.
+        public string OnDivergence = "Notify";
         public bool BaselineSet, LocalTrail, CopyAtm=true;
         public RiskSettings Clone() { return (RiskSettings)MemberwiseClone(); }
         public bool Valid()
         {
             return new[] {Ratio,Target,Loss,Floor,Baseline,TrailDistance,HighWater,BestDay,TotalProfit,Consistency}.All(RiskPolicy.Finite)
-                && Ratio > 0 && Target >= 0 && Loss >= 0 && Floor >= 0 && MaxContracts > 0 && TrailDistance >= 0 && Consistency >= 0 && Consistency <= 100;
+                && Ratio > 0 && Target >= 0 && Loss >= 0 && Floor >= 0 && MaxContracts > 0 && TrailDistance >= 0 && Consistency >= 0 && Consistency <= 100
+                && DivergenceChoice.IsValid(OnDivergence);
         }
+    }
+    public static class DivergenceChoice
+    {
+        public static bool IsValid(string value){return value=="Notify"||value=="FlattenOnce";}
     }
     public sealed class RiskLatch
     {
@@ -1060,6 +1070,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             if(t.ProcessedFollowGeneration==latestFollowGeneration)SyncFollowing(t.Following,t.DisablePending);else Changed();return true;
         }
         public bool CopyAtm {get{return Settings.CopyAtm;}set{Settings.CopyAtm=value;Changed();}}
+        public string OnDivergence {get{return Settings.OnDivergence;}set{if(!DivergenceChoice.IsValid(value))throw new ArgumentException("On divergence must be Notify or FlattenOnce");Settings.OnDivergence=value;Changed();}}
         public bool CanFollow {get{return Role!="Leader"&&(Account!=null?CopierEngine.Sim(Account):Connection=="Synthetic");}}
         public Brush ConnLight {get{return Connection=="Connected"?DashboardView.Good:Connection=="Disconnected"?DashboardView.Bad:Connection=="Synthetic"||Connection=="Connecting"?DashboardView.Warn:DashboardView.Off;}}
         public Brush StateLight {get{return Latch.Locked||Status=="Telemetry error"?DashboardView.Bad:Paused||Status=="Target hit"||(Status??"").IndexOf("pause",StringComparison.OrdinalIgnoreCase)>=0?DashboardView.Warn:Status=="Active"?DashboardView.Good:DashboardView.Off;}}
@@ -1261,7 +1272,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             Sections=new TabControl{Background=Canvas,Foreground=Ink,BorderBrush=Line,Padding=new Thickness(0,10,0,0),ItemContainerStyle=TabStyle()};AddRow(this,Sections,2);
             var copy=new Grid();copy.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});copy.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});
             var toolbar=new WrapPanel{Margin=new Thickness(0,0,0,9)};
-            search=Input("",185);search.ToolTip="Search account / alias / group / preset · Ctrl+F · Escape clears";toolbar.Children.Add(Labeled("⌕",search,17));filter=Combo(120);filter.ToolTip="Filter displayed account states";filter.ItemsSource=new[]{"All","On","Paused","Target"};filter.SelectedIndex=0;toolbar.Children.Add(filter);var ticks=new StackPanel{Orientation=Orientation.Horizontal,Margin=new Thickness(0,0,0,6)};ticks.Children.Add(Icon("\uE73A","Tick all visible followers","tickAll",()=>TickVisible(true),true));ticks.Children.Add(Icon("\uE711","Untick all visible followers","tickNone",()=>TickVisible(false),true));toolbar.Children.Add(ticks);toolbar.Children.Add(new TextBlock{Text="Ratio: edit each account row",Foreground=Muted,FontSize=12,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(8,0,8,6)});var bulk=new StackPanel{Orientation=Orientation.Horizontal,Margin=new Thickness(0,0,0,6)};bulk.Tag="bulkbar";bulk.Children.Add(Text("Bulk  ",11,Muted));var bulkValue=Input("",78);bulkValue.ToolTip="Amount for the highlighted accounts · account currency · 0 = off";System.Windows.Automation.AutomationProperties.SetName(bulkValue,"Bulk amount");bulk.Children.Add(bulkValue);bulk.Children.Add(TextTool("Tgt","Set Target on highlighted accounts","bulkTgt",()=>BulkClick("Tgt",bulkValue.Text)));bulk.Children.Add(TextTool("DLL","Set Daily loss on highlighted accounts","bulkDll",()=>BulkClick("DLL",bulkValue.Text)));bulk.Children.Add(TextTool("ATM on","ATM exit-mirroring ON for highlighted accounts","bulkAtmOn",()=>BulkClick("ATM","on")));bulk.Children.Add(TextTool("ATM off","ATM exit-mirroring OFF for highlighted accounts","bulkAtmOff",()=>BulkClick("ATM","off")));bulk.Children.Insert(1,TextTool("From Leader","Copy the leader row's Tgt / DLL / ATM to highlighted followers (all visible if none highlighted). One-time copy; edit any row afterwards. Ratio and ticks are not copied.","bulkLeader",()=>BulkLeaderClick()));bulkBar=bulk;toolbar.Children.Add(bulk);AddRow(copy,toolbar,0);
+            search=Input("",185);search.ToolTip="Search account / alias / group / preset · Ctrl+F · Escape clears";toolbar.Children.Add(Labeled("⌕",search,17));filter=Combo(120);filter.ToolTip="Filter displayed account states";filter.ItemsSource=new[]{"All","On","Paused","Target"};filter.SelectedIndex=0;toolbar.Children.Add(filter);var ticks=new StackPanel{Orientation=Orientation.Horizontal,Margin=new Thickness(0,0,0,6)};ticks.Children.Add(Icon("\uE73A","Tick all visible followers","tickAll",()=>TickVisible(true),true));ticks.Children.Add(Icon("\uE711","Untick all visible followers","tickNone",()=>TickVisible(false),true));toolbar.Children.Add(ticks);toolbar.Children.Add(new TextBlock{Text="Ratio: edit each account row",Foreground=Muted,FontSize=12,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(8,0,8,6)});var bulk=new StackPanel{Orientation=Orientation.Horizontal,Margin=new Thickness(0,0,0,6)};bulk.Tag="bulkbar";bulk.Children.Add(Text("Bulk  ",11,Muted));var bulkValue=Input("",78);bulkValue.ToolTip="Amount for the highlighted accounts · account currency · 0 = off";System.Windows.Automation.AutomationProperties.SetName(bulkValue,"Bulk amount");bulk.Children.Add(bulkValue);bulk.Children.Add(TextTool("Tgt","Set Target on highlighted accounts","bulkTgt",()=>BulkClick("Tgt",bulkValue.Text)));bulk.Children.Add(TextTool("DLL","Set Daily loss on highlighted accounts","bulkDll",()=>BulkClick("DLL",bulkValue.Text)));bulk.Children.Add(TextTool("ATM on","ATM exit-mirroring ON for highlighted accounts","bulkAtmOn",()=>BulkClick("ATM","on")));bulk.Children.Add(TextTool("ATM off","ATM exit-mirroring OFF for highlighted accounts","bulkAtmOff",()=>BulkClick("ATM","off")));bulk.Children.Add(TextTool("Div: notify","On divergence: only lock, show red and notify (default) for highlighted accounts","bulkDivNotify",()=>BulkClick("Diverge","Notify")));bulk.Children.Add(TextTool("Div: flatten 1x","On divergence: request ONE flatten, never retried (saved only; NOT active in this alpha) for highlighted accounts","bulkDivFlat",()=>BulkClick("Diverge","FlattenOnce")));bulk.Children.Insert(1,TextTool("From Leader","Copy the leader row's Tgt / DLL / ATM to highlighted followers (all visible if none highlighted). One-time copy; edit any row afterwards. Ratio and ticks are not copied.","bulkLeader",()=>BulkLeaderClick()));bulkBar=bulk;toolbar.Children.Add(bulk);AddRow(copy,toolbar,0);
             AccountGrid=GridTable();TickColumn(AccountGrid);AccountColumn(AccountGrid);Column(AccountGrid,"Alias","Alias",100,false,"Optional display alias");RatioColumn(AccountGrid);Column(AccountGrid,"Tgt","TargetText",78,false,"Independent daily local profit target · account CCY / 0 = off",null,true);Column(AccountGrid,"DLL","LossText",78,false,"Independent daily loss limit · positive amount / 0 = off",null,true);AtmColumn(AccountGrid);Column(AccountGrid,"Qty","Position",55,true,"Signed position · + long / − short",null,true);Column(AccountGrid,"P/L","Pnl",95,true,"Observed session P/L in account currency · baseline is not historical daily accounting","N2",true);Column(AccountGrid,"Bal","BalanceText",130,true,"CashValue in account currency; not NetLiquidation / net equity",null,true);((DataGridTextColumn)AccountGrid.Columns.Last()).ElementStyle.Setters.Add(new Setter(FrameworkElement.ToolTipProperty,new Binding("BalanceDetail")));((DataGridTextColumn)AccountGrid.Columns.Last()).ElementStyle.Setters.Add(new Setter(System.Windows.Automation.AutomationProperties.NameProperty,new Binding("BalanceDetail")));LightColumn(AccountGrid,"Conn","ConnLight","Connection");StateColumn(AccountGrid);OffColumn(AccountGrid);AccountGrid.FrozenColumnCount=2;ProportionalCopyColumns(AccountGrid);AddRow(copy,AccountGrid,1);Sections.Items.Add(new TabItem{Header="Copy",Content=copy});
             var risk=new Grid();risk.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});risk.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});risk.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});var tools=new WrapPanel{Margin=new Thickness(0,0,0,10)};
             var batch=Icon("\uE713","Batch risk / presets · review hold","batch",()=>Send("batch"));batch.IsEnabled=false;tools.Children.Add(batch);tools.Children.Add(Icon("\uE74E","Save settings","save",()=>Send("save")));tools.Children.Add(Icon("\uE787","Trading-day boundary / timezone","daySettings",()=>Send("daySettings")));tools.Children.Add(Icon("\uE769","Pause highlighted accounts","pauseSelected",()=>SetSelectedPause(true)));tools.Children.Add(Icon("\uE768","Resume highlighted accounts · latch unchanged / no auto-arm","resumeSelected",()=>SetSelectedPause(false)));var fs=Icon("\uE74D","Flatten highlighted accounts · review hold","flattenSelected",()=>Send("flattenSelected"));fs.IsEnabled=false;tools.Children.Add(fs);var fa=Icon("\uE7BA","Flatten all displayed accounts · review hold","flattenAll",()=>Send("flattenAll"));fa.IsEnabled=false;tools.Children.Add(fa);
@@ -1303,10 +1314,11 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             double amount=0;bool atm=false;
             if(field=="Tgt"||field=="DLL"){if(!BulkEdit.TryParseAmount(text,out amount))return "Enter a plain amount like 1000 (0 = off); no commas, signs or text";}
             else if(field=="ATM"){if(text=="on")atm=true;else if(text=="off")atm=false;else return "ATM value must be on or off";}
+            else if(field=="Diverge"){if(!DivergenceChoice.IsValid(text))return "On divergence must be Notify or FlattenOnce";}
             else return "Unknown bulk field";
             foreach(var r in targets)
             {
-                if(field=="Tgt")r.Target=amount;else if(field=="DLL")r.Loss=amount;else r.CopyAtm=atm;
+                if(field=="Tgt")r.Target=amount;else if(field=="DLL")r.Loss=amount;else if(field=="Diverge")r.OnDivergence=text;else r.CopyAtm=atm;
                 r.Changed();
             }
             UpdateCards();return null;
@@ -1323,7 +1335,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             if(targets.Length==0)return "No follower accounts to update";
             double tgt=leader.Target,dll=leader.Loss;bool atm=leader.CopyAtm;
             if(!RiskPolicy.Finite(tgt)||!RiskPolicy.Finite(dll)||tgt<0||dll<0)return "Leader Tgt / DLL are not valid amounts";
-            foreach(var r in targets){r.Target=tgt;r.Loss=dll;r.CopyAtm=atm;r.Changed();}
+            string div=leader.OnDivergence;foreach(var r in targets){r.Target=tgt;r.Loss=dll;r.CopyAtm=atm;r.OnDivergence=div;r.Changed();}
             UpdateCards();return null;
         }
         public void ClearLog(){LogBox.Text="";}

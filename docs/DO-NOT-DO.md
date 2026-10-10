@@ -50,6 +50,10 @@ Source of truth: the lock messages in `src/AddOns/KINFXTradeCopier.cs`. Each row
 
 When the engine loses track of a follower it locks that account: the State cell says **Locked**, the lamp is red, the tooltip carries the engine's reason, and the footer shows a red `● N LOCKED` count. It does not flatten the account and it does not cancel your protective orders. **A lock is a prompt to go and look, not a fix.** Open NinjaTrader's Positions and Orders tabs first.
 
+## What happens after a failed Flatten
+
+If a Flatten request throws, the provider may still have accepted it. The engine does **not** retry it, and it does **not** copy a new leader exit onto that account. It locks the account and stays that way until you reconcile by hand. The cost: that account can end up with a position and no copied exit. Look at NinjaTrader's Positions and Orders tabs yourself, and make the account safe with native tools. Flatten is disabled in this alpha anyway.
+
 ## Planned, not built
 
 - Adopting an existing position on a just-connected follower: [#11](https://github.com/Kinfxhk/KINFXTradeCopier/issues/11).

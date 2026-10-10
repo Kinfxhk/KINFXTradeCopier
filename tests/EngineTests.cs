@@ -147,7 +147,13 @@ class EngineTests {
  static void FlatWorkingExits(){
   var l=new NinjaTrader.Cbi.Account{Name="Flat exits lead"};var a=new NinjaTrader.Cbi.Account{Name="Flat exits follow"};int locks=0;
   using(var e=new CopierEngine(s=>{},t=>{},(attached,s)=>{},(n,r)=>Interlocked.Increment(ref locks))){
-   e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10},new RiskLatch())});Wait(()=>e.EntriesArmed,"flat exit arm");l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Wait(()=>a.Submits==1,"flat exit entry");a.Orders[0].Filled=2;a.Orders[0].OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});a.Emit(a.Orders[0]);l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"flat exits bracket"));Wait(()=>a.Submits==2,"flat exit protection");a.Positions.Clear();e.Poll();Wait(()=>a.Cancels==1,"flat working exits must not reverse exposure");Wait(()=>locks==1,"flat position / execution mismatch locks");
+   e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10},new RiskLatch())});Wait(()=>e.EntriesArmed,"flat exit arm");l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Wait(()=>a.Submits==1,"flat exit entry");a.Orders[0].Filled=2;a.Orders[0].OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});a.Emit(a.Orders[0]);l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"flat exits bracket"));Wait(()=>a.Submits==2,"flat exit protection");a.Positions.Clear();e.Poll();
+   // POLICY (Issue #9, decided): a flat Position reading while the engine still owns exposure is ambiguous telemetry.
+   // It must NOT cancel the only protective exit. It locks the account and tells the user to reconcile by hand.
+   // Superseded oracle (kept for history): Wait(()=>a.Cancels==1,"flat working exits must not reverse exposure");
+   Wait(()=>locks==1,"flat position / execution mismatch locks");Thread.Sleep(150);
+   Check(a.Cancels==0,"ambiguous flat telemetry must not cancel the sole protective exit; cancels="+a.Cancels);
+   Check(a.Orders[1].OrderState==NinjaTrader.Cbi.OrderState.Working,"protective exit still working; state="+a.Orders[1].OrderState);
   }
  }
  static void InvalidLeaderLocks(){
@@ -180,7 +186,13 @@ class EngineTests {
   var l=new NinjaTrader.Cbi.Account{Name="Failed flatten lead"};var a=new NinjaTrader.Cbi.Account{Name="Failed flatten follow",ThrowFlatten=true};int locked=0;
   using(var e=new CopierEngine(s=>{},t=>{},(attached,s)=>{},(n,r)=>Interlocked.Increment(ref locked))){
    e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10},new RiskLatch())});Wait(()=>e.EntriesArmed,"failed flatten arm");l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Wait(()=>a.Submits==1,"failed flatten entry");a.Orders[0].Filled=2;a.Orders[0].OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});a.Emit(a.Orders[0]);
-   e.Flatten(new[]{a},inst);Wait(()=>locked==1,"failed flatten lock");l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"post failure protection"));Wait(()=>a.Submits==2,"failed flatten retains new protective exits");Check(!e.EntriesArmed,"failed flatten stays guarded");
+   e.Flatten(new[]{a},inst);Wait(()=>locked==1,"failed flatten lock");l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"post failure protection"));Thread.Sleep(200);
+   // POLICY (Issue #9, decided): a thrown Flatten may still have been accepted by the provider. Do NOT copy a new leader exit
+   // onto that account (it could double-reduce and reverse it), do NOT retry the Flatten, lock and notify.
+   // Superseded oracle (kept for history): Wait(()=>a.Submits==2,"failed flatten retains new protective exits");
+   Check(a.Submits==1,"a thrown Flatten must not authorise copying a new exit; submits="+a.Submits);
+   Check(a.Flattens==0,"a thrown Flatten is never retried by the engine; flattens="+a.Flattens);
+   Check(!e.EntriesArmed,"failed flatten stays guarded");
   }
  }
  static void PerFollowerAtm(){
