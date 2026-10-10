@@ -27,6 +27,23 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public static bool CanExecute(string command)
         { return command!="start" && command!="flattenSelected" && command!="flattenAll" && command!="batch"; }
     }
+    // Bulk-edit helpers: pure input grammar only. No account, engine or dispatch access.
+    public static class BulkEdit
+    {
+        // Accepts a plain non-negative finite decimal ("1000", "250.5", "0"). Rejects grouping commas,
+        // signs other than the zero case, exponent overflow, NaN/Infinity and surrounding junk.
+        public static bool TryParseAmount(string text,out double value)
+        {
+            value=0;
+            if(text==null)return false;
+            string t=text.Trim();
+            if(t.Length==0)return false;
+            if(!double.TryParse(t,NumberStyles.AllowDecimalPoint|NumberStyles.AllowLeadingSign|NumberStyles.AllowExponent,CultureInfo.InvariantCulture,out value))return false;
+            if(double.IsNaN(value)||double.IsInfinity(value)||value<0)return false;
+            if(value==0)value=0.0;
+            return true;
+        }
+    }
     public static class RiskPolicy
     {
         public static bool Finite(double n) { return !double.IsNaN(n) && !double.IsInfinity(n); }
@@ -1040,7 +1057,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         readonly ComboBox filter;
         readonly TextBlock summary,selection;
         readonly bool demo;
-        readonly List<Button> editButtons=new List<Button>();
+        readonly List<Button> editButtons=new List<Button>(); StackPanel bulkBar;
         bool editable=true;
         public string SearchText {get{return search.Text;}set{search.Text=value;}}
         public int VisibleCount {get{return view.Cast<AccountRow>().Count();}}
@@ -1059,6 +1076,12 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             var b=Button(glyph,action);b.FontFamily=new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets");b.FontSize=15;b.Width=32;b.Height=30;b.Padding=new Thickness(0);b.ToolTip=tip;b.Tag=tag;
             System.Windows.Automation.AutomationProperties.SetName(b,tip);ToolTipService.SetShowOnDisabled(b,true);
             if(edits)editButtons.Add(b);return b;
+        }
+        // Text-labelled tool button for bulk actions: never reuses a glyph from Flatten / untick.
+        Button TextTool(string label,string tip,string tag,Action action)
+        {
+            var b=Button(label,action);b.FontSize=12;b.Height=30;b.MinWidth=0;b.Padding=new Thickness(9,0,9,0);b.Margin=new Thickness(0,0,4,0);b.ToolTip=tip;b.Tag=tag;
+            System.Windows.Automation.AutomationProperties.SetName(b,tip);ToolTipService.SetShowOnDisabled(b,true);editButtons.Add(b);return b;
         }
         static TextBox Input(string text,double width){return new TextBox{Style=new Style(typeof(TextBox)),MinWidth=0,MinHeight=0,FontSize=13,Text=text,Width=width,Padding=new Thickness(8,5,8,5),Margin=new Thickness(0,0,8,0),Background=Panel,Foreground=Ink,BorderBrush=Line,VerticalContentAlignment=VerticalAlignment.Center};}
         internal static ComboBox Combo(double width)
@@ -1175,7 +1198,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             Sections=new TabControl{Background=Canvas,Foreground=Ink,BorderBrush=Line,Padding=new Thickness(0,10,0,0),ItemContainerStyle=TabStyle()};AddRow(this,Sections,2);
             var copy=new Grid();copy.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});copy.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});
             var toolbar=new WrapPanel{Margin=new Thickness(0,0,0,9)};
-            search=Input("",185);search.ToolTip="Search account / alias / group / preset · Ctrl+F · Escape clears";toolbar.Children.Add(Labeled("⌕",search,17));filter=Combo(120);filter.ToolTip="Filter displayed account states";filter.ItemsSource=new[]{"All","On","Paused","Target"};filter.SelectedIndex=0;toolbar.Children.Add(filter);var ticks=new StackPanel{Orientation=Orientation.Horizontal,Margin=new Thickness(0,0,0,6)};ticks.Children.Add(Icon("\uE73A","Tick all visible followers","tickAll",()=>TickVisible(true),true));ticks.Children.Add(Icon("\uE711","Untick all visible followers","tickNone",()=>TickVisible(false),true));toolbar.Children.Add(ticks);toolbar.Children.Add(new TextBlock{Text="Ratio: edit each account row",Foreground=Muted,FontSize=12,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(8,0,0,6)});AddRow(copy,toolbar,0);
+            search=Input("",185);search.ToolTip="Search account / alias / group / preset · Ctrl+F · Escape clears";toolbar.Children.Add(Labeled("⌕",search,17));filter=Combo(120);filter.ToolTip="Filter displayed account states";filter.ItemsSource=new[]{"All","On","Paused","Target"};filter.SelectedIndex=0;toolbar.Children.Add(filter);var ticks=new StackPanel{Orientation=Orientation.Horizontal,Margin=new Thickness(0,0,0,6)};ticks.Children.Add(Icon("\uE73A","Tick all visible followers","tickAll",()=>TickVisible(true),true));ticks.Children.Add(Icon("\uE711","Untick all visible followers","tickNone",()=>TickVisible(false),true));toolbar.Children.Add(ticks);toolbar.Children.Add(new TextBlock{Text="Ratio: edit each account row",Foreground=Muted,FontSize=12,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(8,0,8,6)});var bulk=new StackPanel{Orientation=Orientation.Horizontal,Margin=new Thickness(0,0,0,6)};bulk.Tag="bulkbar";bulk.Children.Add(Text("Bulk  ",11,Muted));var bulkValue=Input("",78);bulkValue.ToolTip="Amount for the highlighted accounts · account currency · 0 = off";System.Windows.Automation.AutomationProperties.SetName(bulkValue,"Bulk amount");bulk.Children.Add(bulkValue);bulk.Children.Add(TextTool("Tgt","Set Target on highlighted accounts","bulkTgt",()=>BulkClick("Tgt",bulkValue.Text)));bulk.Children.Add(TextTool("DLL","Set Daily loss on highlighted accounts","bulkDll",()=>BulkClick("DLL",bulkValue.Text)));bulk.Children.Add(TextTool("ATM on","ATM exit-mirroring ON for highlighted accounts","bulkAtmOn",()=>BulkClick("ATM","on")));bulk.Children.Add(TextTool("ATM off","ATM exit-mirroring OFF for highlighted accounts","bulkAtmOff",()=>BulkClick("ATM","off")));bulkBar=bulk;toolbar.Children.Add(bulk);AddRow(copy,toolbar,0);
             AccountGrid=GridTable();TickColumn(AccountGrid);AccountColumn(AccountGrid);Column(AccountGrid,"Alias","Alias",100,false,"Optional display alias");RatioColumn(AccountGrid);Column(AccountGrid,"Tgt","Target",78,false,"Independent daily local profit target · account CCY / 0 = off",null,true);Column(AccountGrid,"DLL","Loss",78,false,"Independent daily loss limit · positive amount / 0 = off",null,true);AtmColumn(AccountGrid);Column(AccountGrid,"Qty","Position",55,true,"Signed position · + long / − short",null,true);Column(AccountGrid,"P/L","Pnl",95,true,"Observed session P/L in account currency · baseline is not historical daily accounting","N2",true);Column(AccountGrid,"Bal","BalanceText",130,true,"CashValue in account currency; not NetLiquidation / net equity",null,true);((DataGridTextColumn)AccountGrid.Columns.Last()).ElementStyle.Setters.Add(new Setter(FrameworkElement.ToolTipProperty,new Binding("BalanceDetail")));((DataGridTextColumn)AccountGrid.Columns.Last()).ElementStyle.Setters.Add(new Setter(System.Windows.Automation.AutomationProperties.NameProperty,new Binding("BalanceDetail")));LightColumn(AccountGrid,"Conn","ConnLight","Connection");StateColumn(AccountGrid);OffColumn(AccountGrid);AccountGrid.FrozenColumnCount=2;ProportionalCopyColumns(AccountGrid);AddRow(copy,AccountGrid,1);Sections.Items.Add(new TabItem{Header="Copy",Content=copy});
             var risk=new Grid();risk.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});risk.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});risk.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});var tools=new WrapPanel{Margin=new Thickness(0,0,0,10)};
             var batch=Icon("\uE713","Batch risk / presets · review hold","batch",()=>Send("batch"));batch.IsEnabled=false;tools.Children.Add(batch);tools.Children.Add(Icon("\uE74E","Save settings","save",()=>Send("save")));tools.Children.Add(Icon("\uE787","Trading-day boundary / timezone","daySettings",()=>Send("daySettings")));tools.Children.Add(Icon("\uE769","Pause highlighted accounts","pauseSelected",()=>SetSelectedPause(true)));tools.Children.Add(Icon("\uE768","Resume highlighted accounts · latch unchanged / no auto-arm","resumeSelected",()=>SetSelectedPause(false)));var fs=Icon("\uE74D","Flatten highlighted accounts · review hold","flattenSelected",()=>Send("flattenSelected"));fs.IsEnabled=false;tools.Children.Add(fs);var fa=Icon("\uE7BA","Flatten all displayed accounts · review hold","flattenAll",()=>Send("flattenAll"));fa.IsEnabled=false;tools.Children.Add(fa);
@@ -1207,6 +1230,27 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             foreach(var input in inputs){var binding=input.GetBindingExpression(TextBox.TextProperty);if(binding!=null)binding.UpdateSource();}
             return !inputs.Any(Validation.GetHasError)&&AccountGrid.CommitEdit(DataGridEditingUnit.Cell,true)&&AccountGrid.CommitEdit(DataGridEditingUnit.Row,true)&&RiskGrid.CommitEdit(DataGridEditingUnit.Cell,true)&&RiskGrid.CommitEdit(DataGridEditingUnit.Row,true)&&Rows.All(r=>r.Settings.Valid());
         }
+        // Bulk settings: Tgt / DLL / ATM only, highlighted follower rows only. Returns null on success or a refusal reason.
+        // Validates first and mutates nothing on refusal. Never touches Ratio, the follow tick, the latch or any engine path.
+        public string BulkApply(string field,string text)
+        {
+            if(!editable)return "Locked while attached or on review hold";
+            var targets=SelectedRows().Where(r=>r.CanFollow).ToArray();
+            if(targets.Length==0)return "Highlight at least one follower account first";
+            double amount=0;bool atm=false;
+            if(field=="Tgt"||field=="DLL"){if(!BulkEdit.TryParseAmount(text,out amount))return "Enter a plain amount like 1000 (0 = off); no commas, signs or text";}
+            else if(field=="ATM"){if(text=="on")atm=true;else if(text=="off")atm=false;else return "ATM value must be on or off";}
+            else return "Unknown bulk field";
+            foreach(var r in targets)
+            {
+                if(field=="Tgt")r.Target=amount;else if(field=="DLL")r.Loss=amount;else r.CopyAtm=atm;
+                r.Changed();
+            }
+            UpdateCards();return null;
+        }
+        public bool BulkBarPresent{get{return bulkBar!=null&&AccountGrid.Parent!=null;}}
+        internal Action<string> BulkNotice;
+        void BulkClick(string field,string text){var reason=BulkApply(field,text);var n=BulkNotice;if(n!=null)n(reason==null?"Bulk "+field+" applied to highlighted followers; Ratio and ticks unchanged.":"Bulk "+field+" refused: "+reason);}
         public void SetSelectedPause(bool paused){foreach(var r in SelectedRows().Where(r=>r.CanFollow)){if(!demo&&PauseRow!=null)PauseRow(r,paused);else{r.Paused=paused;r.Changed();}}UpdateCards();}
         public AccountRow[] SelectedRows(){return (Sections.SelectedIndex==1?RiskGrid:AccountGrid).SelectedItems.Cast<AccountRow>().ToArray();}
         public void UpdateCards(){if(summary==null)return;FollowCountText.Text="→  "+Rows.Count(r=>r.Enabled&&r.Role!="Leader")+" followers  ";var ccy=Rows.Select(r=>r.Currency).Where(s=>!string.IsNullOrEmpty(s)).Distinct().ToArray();summary.Text=Rows.Count(r=>r.Enabled&&r.Role!="Leader")+" TICKED  /  "+Rows.Count+" ACCTS     ·     P/L  "+(ccy.Length<=1?Rows.Sum(r=>RiskPolicy.Finite(r.Pnl)?r.Pnl:0).ToString("N2")+" "+ccy.FirstOrDefault():"Mixed CCY")+"";selection.Text=SelectedRows().Length+" sel / "+VisibleCount+" rows";}
@@ -1311,7 +1355,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         {
             TabName="Dashboard";dashboard=new DashboardView();Content=dashboard;
             engine=new CopierEngine(Log,OnTelemetry,(attached,status)=>{int session=engine.SessionGeneration;Dispatch(()=>dashboard.TrySetSessionState(attached,status,session,engine.SessionGeneration,engine.Attached));},PersistLatch);
-            dashboard.Command=Command;dashboard.PauseRow=Pause;dashboard.RowSettings=r=>Edit(new[]{r});dashboard.FollowRow=Follow;
+            dashboard.Command=Command;dashboard.BulkNotice=Log;dashboard.PauseRow=Pause;dashboard.RowSettings=r=>Edit(new[]{r});dashboard.FollowRow=Follow;
             dashboard.LeaderBox.SelectionChanged+=(s,e)=>{if(engine.Attached)return;leaderName=dashboard.LeaderBox.SelectedItem as string ?? "";foreach(var row in dashboard.Rows){row.Role=row.Name==leaderName?"Leader":"Follower";if(row.Role=="Leader")row.Enabled=false;row.Changed();}};
             dashboard.AccountGrid.RowEditEnding+=(s,e)=>Dispatch(()=>{foreach(var row in dashboard.Rows){row.Changed();}dashboard.UpdateCards();});
             LoadDefault();Refresh();
