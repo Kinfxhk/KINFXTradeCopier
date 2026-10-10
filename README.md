@@ -65,6 +65,12 @@ Past offline runs tested multiple immutable candidates. Passing those candidates
 
 No full provider acceptance, restart recovery, broker OCO atomicity, native follower ATM, live-copy safety or prop-firm compliance is established. This software cannot intercept every manual/strategy order or guarantee fills. Existing positions must be managed with native NT8/broker tools, not this held preview.
 
+## Maintainer links and disclosure
+
+Maintainer: KinFx. Prop-firm rule research, comparison tables, tool links and referral codes: **<https://linktr.ee/kinfx>**
+
+Some links on that page are **affiliate / referral links** (for example prop-firm evaluation codes and partner sign-ups); the maintainer may earn a commission if you use them. They have **no influence on this software**: the code is MIT, contains no referral logic or tracking, and nothing here recommends a firm or a purchase. KinFx is not an SEC/SFC-licensed adviser; content is not investment advice. Most evaluation accounts are simulated. This project is not affiliated with any firm listed there.
+
 ## License and attribution
 
 [MIT](LICENSE), © 2026 Kinfxhk. Not affiliated with NinjaTrader, FlowBots/Replikanto, any broker or prop firm. No competitor code, vendor DLLs, downloaded research HTML, private account logs or credentials are included. Prop templates embedded in the source are historical editable metadata, not current rules or compliance certification.
@@ -72,3 +78,5 @@ No full provider acceptance, restart recovery, broker OCO atomicity, native foll
 ## 廣東話
 
 呢個係**公開共同開發 alpha，唔係可跟單正式版**。先分享原創source、可重現測試及已知FAIL，大家透過Issue／PR分工；唔再由一個人做晒全部功能先公開。真NT8帳戶（包括Sim／Playback）交易仍封鎖，Python SPEC PASS唔等於C# engine安全。
+
+**聯絡／規則研究／工具連結：** <https://linktr.ee/kinfx>。其中部分係聯盟（affiliate）／推薦連結，用咗維護者可能會有佣金；同本軟件無關，代碼唔含推薦或追蹤邏輯。KinFx 非證監會持牌，內容非投資建議，考試帳戶多數係模擬。
