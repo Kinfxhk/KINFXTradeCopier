@@ -1,0 +1,47 @@
+name: Synthetic bug or failed safety assertion
+description: Report a reproducible failure without private account data
+title: "[bug] "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "Trading is disabled. Do not attach tokens, account IDs or raw brokerage logs."
+  - type: input
+    id: revision
+    attributes:
+      label: Exact commit / source SHA
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: OS, Python, NT8 version if relevant (no personal paths)
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Command and minimal synthetic input
+    validations:
+      required: true
+  - type: textarea
+    id: invariant
+    attributes:
+      label: Expected safety invariant and actual output / exit
+    validations:
+      required: true
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Evidence scope
+      options:
+        - Portable packaging / hold check
+        - Pure Python SPEC (not engine)
+        - Framework-only fake engine / policy
+        - NT8 compile-only
+        - Untested scenario / design question
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety
+      options:
+        - label: "I removed private data and did not execute real/Sim/Playback account orders."
+          required: true

@@ -1,0 +1,21 @@
+name: Test gap / contribution proposal
+description: Propose a bounded test or feature contribution
+title: "[test-gap] "
+labels: [test-gap, help wanted]
+body:
+  - type: textarea
+    id: gap
+    attributes:
+      label: Untested contract or known failure
+    validations:
+      required: true
+  - type: textarea
+    id: fixture
+    attributes:
+      label: Proposed synthetic fixture and acceptance invariant
+    validations:
+      required: true
+  - type: textarea
+    id: limits
+    attributes:
+      label: Scope, dependencies and what this would NOT prove

@@ -1,0 +1,2303 @@
+{
+  "schema_version": 1,
+  "audit_date": "2026-10-10",
+  "purpose": "Publication-safe historical evidence index; not trading certification.",
+  "publication_stage": "Collaborative source alpha; milestone completion not asserted.",
+  "public_repository": "https://github.com/Kinfxhk/KINFXTradeCopier",
+  "public_issue_provenance": "Existing repository/issues supplied by parent after remote readback verification; no remote access performed by this audit.",
+  "source_snapshot": {
+    "path": "src/AddOns/KINFXTradeCopier.cs",
+    "sha256": "32de3089ca3e4ab7f41e94a19267c6115493dd9560cf6afa23e57508d4fa3be8",
+    "baseline_ancestor_sha256": "1def30ce3d522393a8daa0ebb829e7630ab6b9b2d66549d3ea5e6309436420c1",
+    "historical_baseline_is_current_public_source": false,
+    "scoped_repair_candidates_merged": false,
+    "observation": "Public source derives from baseline with publication safety-hold edits; exact snapshot hash only. Sibling compile/fake evidence must be separately pinned after final edits.",
+    "exact_snapshot_tests_executed_by_this_audit": 0,
+    "exact_integrated_all_branch_acceptance": "UNTESTED",
+    "provider_acceptance": "UNKNOWN",
+    "real_or_NT_demo_account_orders_executed_by_this_audit": 0
+  },
+  "status_definitions": {
+    "UNTESTED": "No matching execution evidence for the named exact artifact/environment.",
+    "KNOWN_PRODUCT_DEFECT": "Failed safety invariant on a pinned product implementation; not necessarily reproduced at a provider.",
+    "HARNESS_ORACLE_POLICY_MISMATCH": "Failure retained but attribution depends on harness validity, representation or an unadopted contract.",
+    "SCOPED_FIX_NOT_INTEGRATED": "Named candidate passes named scope; public source has not absorbed this repair.",
+    "PURE_SPEC_ONLY": "Validator/model tests only; no production-engine dispatch acceptance.",
+    "UNKNOWN": "Provider or external acceptance not established."
+  },
+  "count_policy": "Counts are scoped invocations/checks, may overlap or repeat; do not sum into unique coverage or use assertions/pins/snapshots as coverage percentage.",
+  "privacy_policy": "No personal Windows paths, private account names, raw logs, transcripts, credentials, scraped vendor HTML or proprietary binaries distributed. Origin labels refer to local historical files, not public URLs.",
+  "records": [
+    {
+      "id": "E01",
+      "origin_label": "parent-callback-verify-1def-129b6a31/parent-results.json",
+      "origin_sha256": "2ba27be472f146348a6ec120510d5dfaf357dda99525cdc8d59137ebb8c15876",
+      "availability": "Local historical evidence read by this audit; raw artifacts are not distributed here. Hashes are not a public reproduction package.",
+      "scope": "Framework-only fake engine / historical baseline",
+      "classification": "SCOPED_PASS_WITH_RETAINED_FAILURES",
+      "limitations": "Not a public-source rerun. Future secondary fake callbacks confound one unisolated exit probe; before-source RED and F04/G01 failures retained.",
+      "runs": [
+        {
+          "label": "RedIsolatedRoot",
+          "source_sha256": "54d991f1d820448d5b46dcb64af7f081a39b012c4a9efcefb8a422123407a632",
+          "test_sha256": "21301936e812355854410df5e8e31a7c5719984ca762dd4a73cb90bca3854d59",
+          "exe_sha256": "709ff56b8c7886e20c1bd62e2b11feb45c4c616a32ed5df67e0931c3c1762670",
+          "exit": 1,
+          "observed_status_counts": {
+            "PASS": 0,
+            "FAIL": 2
+          },
+          "observed_invocations": 2,
+          "failed_case_ids": [
+            "EventFillMustBeatFutureEntryWrapper",
+            "EventFillMustBeatFutureExitWrapper"
+          ]
+        },
+        {
+          "label": "GreenIndependentRoot",
+          "source_sha256": "1def30ce3d522393a8daa0ebb829e7630ab6b9b2d66549d3ea5e6309436420c1",
+          "test_sha256": "833a78f26984ae272c4597e1cecb7493677d7c7055b344a129e268c1cbbcf14c",
+          "exe_sha256": "6c9e20a59e4d373ce19048b47ccda1bae7489f4b98c13b129c2caed6a455f897",
+          "exit": 1,
+          "observed_status_counts": {
+            "PASS": 1,
+            "FAIL": 1
+          },
+          "observed_invocations": 2,
+          "failed_case_ids": [
+            "EventFillMustBeatFutureExitWrapper"
+          ]
+        },
+        {
+          "label": "GreenIsolatedRoot",
+          "source_sha256": "1def30ce3d522393a8daa0ebb829e7630ab6b9b2d66549d3ea5e6309436420c1",
+          "test_sha256": "21301936e812355854410df5e8e31a7c5719984ca762dd4a73cb90bca3854d59",
+          "exe_sha256": "143087cc6065214477fc4a0bc4a7ee2e426c3dcb92a0a61ab1e8c83af30b9515",
+          "exit": 0,
+          "observed_status_counts": {
+            "PASS": 2,
+            "FAIL": 0
+          },
+          "observed_invocations": 2,
+          "failed_case_ids": []
+        },
+        {
+          "label": "GreenNewCapture",
+          "source_sha256": "1def30ce3d522393a8daa0ebb829e7630ab6b9b2d66549d3ea5e6309436420c1",
+          "test_sha256": "52e28159bef190a3ecbebd201e71da057aa8ec1e5c5d475c36bfb779f04b61d6",
+          "exe_sha256": "e6574b95d7cbbe888659d7d841882052031053f0d19d1ef9466debc14ac69d32",
+          "exit": 0,
+          "observed_status_counts": {
+            "PASS": 13,
+            "FAIL": 0
+          },
+          "observed_invocations": 13,
+          "failed_case_ids": []
+        },
+        {
+          "label": "Prior7Audits",
+          "source_sha256": "1def30ce3d522393a8daa0ebb829e7630ab6b9b2d66549d3ea5e6309436420c1",
+          "test_sha256": "52e28159bef190a3ecbebd201e71da057aa8ec1e5c5d475c36bfb779f04b61d6",
+          "exe_sha256": "e0d40cb6c9675c07360e0e661ff92c2df5e2a9c04bde0e486947b6f1a91dd890",
+          "exit": 0,
+          "observed_status_counts": {
+            "PASS": 10,
+            "FAIL": 0
+          },
+          "observed_invocations": 10,
+          "failed_case_ids": []
+        },
+        {
+          "label": "PreservedAdditionalAudits",
+          "source_sha256": "1def30ce3d522393a8daa0ebb829e7630ab6b9b2d66549d3ea5e6309436420c1",
+          "test_sha256": "833a78f26984ae272c4597e1cecb7493677d7c7055b344a129e268c1cbbcf14c",
+          "exe_sha256": "aa2682873eaccb9ac5c34812630828dc9dc714a743961ebcaddde2dd04e1ebc9",
+          "exit": 0,
+          "observed_status_counts": {
+            "PASS": 5,
+            "FAIL": 0
+          },
+          "observed_invocations": 5,
+          "failed_case_ids": []
+        },
+        {
+          "label": "FinalBaseline57",
+          "source_sha256": "1def30ce3d522393a8daa0ebb829e7630ab6b9b2d66549d3ea5e6309436420c1",
+          "test_sha256": "937f7781e97907ddc5555a8da4fe272338f05fda295582461cf0d3b898e06e14",
+          "exe_sha256": "ad01185ba23f9f6f41dcea8bb569124aa8642197e4595a9db246bc0385b3f31a",
+          "exit": 0,
+          "observed_status_counts": {
+            "PASS": 57,
+            "FAIL": 0
+          },
+          "observed_invocations": 57,
+          "failed_case_ids": []
+        },
+        {
+          "label": "FreshReviewer9",
+          "source_sha256": "1def30ce3d522393a8daa0ebb829e7630ab6b9b2d66549d3ea5e6309436420c1",
+          "test_sha256": "82259ac0134fe19b7b47495fd187f474861856180156f23cbbd915400acf986d",
+          "exe_sha256": "5bdc17150342524de476bcf79864e82bd511381d19cf7d8586a9c9238fcabace",
+          "exit": 0,
+          "observed_status_counts": {
+            "PASS": 9,
+            "FAIL": 0
+          },
+          "observed_invocations": 9,
+          "failed_case_ids": []
+        },
+        {
+          "label": "FinalIntegrationOff",
+          "source_sha256": "1def30ce3d522393a8daa0ebb829e7630ab6b9b2d66549d3ea5e6309436420c1",
+          "test_sha256": "0a75ea0aa2b152f8acf9b8621f056a76b5333457eb9aa1f85a391504ae0bb193",
+          "exe_sha256": "573f362cf6e438759b9d70d9d1f929476ec431bbb3f829d9087dab786cdddc99",
+          "exit": 0,
+          "observed_status_counts": {
+            "PASS": 1,
+            "FAIL": 0
+          },
+          "observed_invocations": 1,
+          "failed_case_ids": []
+        },
+        {
+          "label": "FinalIntegrationOn",
+          "source_sha256": "1def30ce3d522393a8daa0ebb829e7630ab6b9b2d66549d3ea5e6309436420c1",
+          "test_sha256": "0a75ea0aa2b152f8acf9b8621f056a76b5333457eb9aa1f85a391504ae0bb193",
+          "exe_sha256": "1b2371d4bc0a17c9fa87b189cf81f8732f9b6e5defa56c464139ccc58683fc75",
+          "exit": 0,
+          "observed_status_counts": {
+            "PASS": 1,
+            "FAIL": 0
+          },
+          "observed_invocations": 1,
+          "failed_case_ids": []
+        },
+        {
+          "label": "FinalIntegrationPublish",
+          "source_sha256": "1def30ce3d522393a8daa0ebb829e7630ab6b9b2d66549d3ea5e6309436420c1",
+          "test_sha256": "0a75ea0aa2b152f8acf9b8621f056a76b5333457eb9aa1f85a391504ae0bb193",
+          "exe_sha256": "71aa131678270df3d86d5e8d6fc8f662952505df4a06bff0852b3afe1d4fd3f7",
+          "exit": 0,
+          "observed_status_counts": {
+            "PASS": 1,
+            "FAIL": 0
+          },
+          "observed_invocations": 1,
+          "failed_case_ids": []
+        },
+        {
+          "label": "FinalIntegrationCancel",
+          "source_sha256": "1def30ce3d522393a8daa0ebb829e7630ab6b9b2d66549d3ea5e6309436420c1",
+          "test_sha256": "0a75ea0aa2b152f8acf9b8621f056a76b5333457eb9aa1f85a391504ae0bb193",
+          "exe_sha256": "a4172ad9f8e924920a2200cd7695b427e56e1ca914a62f563663ba351a52b6ef",
+          "exit": 0,
+          "observed_status_counts": {
+            "PASS": 1,
+            "FAIL": 0
+          },
+          "observed_invocations": 1,
+          "failed_case_ids": []
+        },
+        {
+          "label": "HoldAllProviders",
+          "source_sha256": "1def30ce3d522393a8daa0ebb829e7630ab6b9b2d66549d3ea5e6309436420c1",
+          "test_sha256": "52e28159bef190a3ecbebd201e71da057aa8ec1e5c5d475c36bfb779f04b61d6",
+          "exe_sha256": "b1b2a8a8a0781a551bf82f07971cd96a76ee893c2c79c6e91103cea88a36da23",
+          "exit": 0,
+          "observed_status_counts": {
+            "PASS": 1,
+            "FAIL": 0
+          },
+          "observed_invocations": 1,
+          "failed_case_ids": []
+        },
+        {
+          "label": "ResidualRed",
+          "source_sha256": "1def30ce3d522393a8daa0ebb829e7630ab6b9b2d66549d3ea5e6309436420c1",
+          "test_sha256": "82259ac0134fe19b7b47495fd187f474861856180156f23cbbd915400acf986d",
+          "exe_sha256": "5132f7c12eadf11e5f7474e0501920f8c04320d1a4135ca8e9f121086b017858",
+          "exit": 1,
+          "observed_status_counts": {
+            "PASS": 0,
+            "FAIL": 2
+          },
+          "observed_invocations": 2,
+          "failed_case_ids": [
+            "F04VerifiedFlatIsStillBlocked",
+            "G01FractionalMultiTargetCoverageStillMissing"
+          ]
+        }
+      ],
+      "reported_mixed_counts": {
+        "PASS": 102,
+        "FAIL": 5
+      }
+    },
+    {
+      "id": "E02",
+      "origin_label": "parent-f01-change-repro-961c327a/parent-results.json",
+      "origin_sha256": "6dadc1754eb7f5eca2c6bfe6a7b282be2507a11dbe793b0e3a34fbd7ef76386f",
+      "availability": "Local historical evidence read by this audit; raw artifacts are not distributed here. Hashes are not a public reproduction package.",
+      "scope": "Deterministic production-method fake protective Change requests",
+      "classification": "KNOWN_PRODUCT_DEFECT",
+      "limitations": "Two cases each repeated five times on reviewed/workspace baseline; same baseline hash, not ten independent defect categories or provider executions.",
+      "runs": [
+        {
+          "label": "reviewed",
+          "source_sha256": "1def30ce3d522393a8daa0ebb829e7630ab6b9b2d66549d3ea5e6309436420c1",
+          "exit": 1,
+          "observed_status_counts": {
+            "PASS": 0,
+            "FAIL": 2
+          },
+          "observed_invocations": 2,
+          "failed_case_ids": [
+            "FreshPositionAheadDoesNotUndersize",
+            "FreshLateWorkingBeforePartialCannotUndersize"
+          ],
+          "each_defect_repeats": 5
+        },
+        {
+          "label": "workspace",
+          "source_sha256": "1def30ce3d522393a8daa0ebb829e7630ab6b9b2d66549d3ea5e6309436420c1",
+          "exit": 1,
+          "observed_status_counts": {
+            "PASS": 0,
+            "FAIL": 2
+          },
+          "observed_invocations": 2,
+          "failed_case_ids": [
+            "FreshPositionAheadDoesNotUndersize",
+            "FreshLateWorkingBeforePartialCannotUndersize"
+          ],
+          "each_defect_repeats": 5
+        }
+      ]
+    },
+    {
+      "id": "E03",
+      "origin_label": "parent-729-8e6c0ec3ba/parent-results.json",
+      "origin_sha256": "ab8bbd54ac423c2dceb69ccba4425455536cf5f9ca12b7595f05f24d3737e131",
+      "availability": "Local historical evidence read by this audit; raw artifacts are not distributed here. Hashes are not a public reproduction package.",
+      "scope": "Paired fake-engine cancellation frontier and extracted settings membership",
+      "classification": "SCOPED_FIX_NOT_INTEGRATED",
+      "limitations": "Group-scoped completion still RED; settings reentry broad-oracle failures retained. Research portion is structural evidence only, not new product bugs.",
+      "runs": [
+        {
+          "tag": "frozen-core16",
+          "sourceSha256": "481bd3be555d629ac0f6a741372c749bf4e8d678cc26b7cbd5aa207d5cc85032",
+          "fixtureSha256": "32279cf390c9aa80d15d5c00cbb9ca09de899fbd13e26662351aed4c7d7297a1",
+          "counts": {
+            "PASS": 16,
+            "FAIL": 0
+          },
+          "observed_invocations": 16,
+          "observed_status_counts": {
+            "PASS": 16
+          },
+          "failed_case_ids": []
+        },
+        {
+          "tag": "candidate-core16",
+          "sourceSha256": "249f602c91fd024565cb19760e07346d5d6113405f6f7c4560fc1fcf2d229f61",
+          "fixtureSha256": "32279cf390c9aa80d15d5c00cbb9ca09de899fbd13e26662351aed4c7d7297a1",
+          "counts": {
+            "PASS": 16,
+            "FAIL": 0
+          },
+          "observed_invocations": 16,
+          "observed_status_counts": {
+            "PASS": 16
+          },
+          "failed_case_ids": []
+        },
+        {
+          "tag": "frozen-new17-groups",
+          "sourceSha256": "481bd3be555d629ac0f6a741372c749bf4e8d678cc26b7cbd5aa207d5cc85032",
+          "fixtureSha256": "70002fbaa6130306610cdd7d1090883bed04f82b09fb2d9c9ee7fbae922dabd2",
+          "counts": {
+            "PASS": 2,
+            "FAIL": 1
+          },
+          "observed_invocations": 3,
+          "observed_status_counts": {
+            "FAIL": 1,
+            "PASS": 2
+          },
+          "failed_case_ids": [
+            "ReviewOcoCompletedSliceCancelOnlyItsGroup"
+          ]
+        },
+        {
+          "tag": "candidate-new17-groups",
+          "sourceSha256": "249f602c91fd024565cb19760e07346d5d6113405f6f7c4560fc1fcf2d229f61",
+          "fixtureSha256": "70002fbaa6130306610cdd7d1090883bed04f82b09fb2d9c9ee7fbae922dabd2",
+          "counts": {
+            "PASS": 2,
+            "FAIL": 1
+          },
+          "observed_invocations": 3,
+          "observed_status_counts": {
+            "FAIL": 1,
+            "PASS": 2
+          },
+          "failed_case_ids": [
+            "ReviewOcoCompletedSliceCancelOnlyItsGroup"
+          ]
+        },
+        {
+          "tag": "frozen-on20",
+          "sourceSha256": "481bd3be555d629ac0f6a741372c749bf4e8d678cc26b7cbd5aa207d5cc85032",
+          "fixtureSha256": "c5817769214cdd418e8dad9a9712489defe28960fe2d9043a56215e0f8f162e4",
+          "counts": {
+            "PASS": 20,
+            "FAIL": 0
+          },
+          "observed_invocations": 20,
+          "observed_status_counts": {
+            "PASS": 20
+          },
+          "failed_case_ids": []
+        },
+        {
+          "tag": "candidate-on20",
+          "sourceSha256": "249f602c91fd024565cb19760e07346d5d6113405f6f7c4560fc1fcf2d229f61",
+          "fixtureSha256": "c5817769214cdd418e8dad9a9712489defe28960fe2d9043a56215e0f8f162e4",
+          "counts": {
+            "PASS": 20,
+            "FAIL": 0
+          },
+          "observed_invocations": 20,
+          "observed_status_counts": {
+            "PASS": 20
+          },
+          "failed_case_ids": []
+        },
+        {
+          "tag": "frozen-oco10",
+          "sourceSha256": "481bd3be555d629ac0f6a741372c749bf4e8d678cc26b7cbd5aa207d5cc85032",
+          "fixtureSha256": "b54d180b3badafcaeea81eb92fe9fc3f5f823620b6cd7ecbdd58f06c202b8b5c",
+          "counts": {
+            "PASS": 9,
+            "FAIL": 1
+          },
+          "observed_invocations": 10,
+          "observed_status_counts": {
+            "PASS": 9,
+            "FAIL": 1
+          },
+          "failed_case_ids": [
+            "ReviewOcoCompletedSliceCancelOnlyItsGroup"
+          ]
+        },
+        {
+          "tag": "candidate-oco10",
+          "sourceSha256": "249f602c91fd024565cb19760e07346d5d6113405f6f7c4560fc1fcf2d229f61",
+          "fixtureSha256": "b54d180b3badafcaeea81eb92fe9fc3f5f823620b6cd7ecbdd58f06c202b8b5c",
+          "counts": {
+            "PASS": 9,
+            "FAIL": 1
+          },
+          "observed_invocations": 10,
+          "observed_status_counts": {
+            "PASS": 9,
+            "FAIL": 1
+          },
+          "failed_case_ids": [
+            "ReviewOcoCompletedSliceCancelOnlyItsGroup"
+          ]
+        },
+        {
+          "tag": "frozen-sinks6",
+          "sourceSha256": "481bd3be555d629ac0f6a741372c749bf4e8d678cc26b7cbd5aa207d5cc85032",
+          "fixtureSha256": "8fc24ac5d8cc0aa169a8f81129502b6814f2860e62815bd0d7cc559233d2fb24",
+          "counts": {
+            "PASS": 6,
+            "FAIL": 0
+          },
+          "observed_invocations": 6,
+          "observed_status_counts": {
+            "PASS": 6
+          },
+          "failed_case_ids": []
+        },
+        {
+          "tag": "candidate-sinks6",
+          "sourceSha256": "249f602c91fd024565cb19760e07346d5d6113405f6f7c4560fc1fcf2d229f61",
+          "fixtureSha256": "8fc24ac5d8cc0aa169a8f81129502b6814f2860e62815bd0d7cc559233d2fb24",
+          "counts": {
+            "PASS": 6,
+            "FAIL": 0
+          },
+          "observed_invocations": 6,
+          "observed_status_counts": {
+            "PASS": 6
+          },
+          "failed_case_ids": []
+        },
+        {
+          "tag": "frozen-independent9",
+          "sourceSha256": "481bd3be555d629ac0f6a741372c749bf4e8d678cc26b7cbd5aa207d5cc85032",
+          "fixtureSha256": "f2818df56363f62a514a47df112c9537114d74b6bfe2d5dd871e225bc29bb2fe",
+          "counts": {
+            "PASS": 7,
+            "FAIL": 2
+          },
+          "observed_invocations": 9,
+          "observed_status_counts": {
+            "PASS": 7,
+            "FAIL": 2
+          },
+          "failed_case_ids": [
+            "IndependentCancelDiagnosticTerminalBeforeSink",
+            "IndependentCancelDiagnosticNewExposureBeforeSink"
+          ]
+        },
+        {
+          "tag": "candidate-independent9",
+          "sourceSha256": "249f602c91fd024565cb19760e07346d5d6113405f6f7c4560fc1fcf2d229f61",
+          "fixtureSha256": "f2818df56363f62a514a47df112c9537114d74b6bfe2d5dd871e225bc29bb2fe",
+          "counts": {
+            "PASS": 9,
+            "FAIL": 0
+          },
+          "observed_invocations": 9,
+          "observed_status_counts": {
+            "PASS": 9
+          },
+          "failed_case_ids": []
+        },
+        {
+          "tag": "frozen-additional3",
+          "sourceSha256": "481bd3be555d629ac0f6a741372c749bf4e8d678cc26b7cbd5aa207d5cc85032",
+          "fixtureSha256": "044ccc980c4e7fc2c6ba3c90640363d73e61d8196d2e13ab4c3fd90e56bae7a4",
+          "counts": {
+            "PASS": 2,
+            "FAIL": 1
+          },
+          "observed_invocations": 3,
+          "observed_status_counts": {
+            "FAIL": 1,
+            "PASS": 2
+          },
+          "failed_case_ids": [
+            "IndependentCancelDiagnosticCoherentLateEntryBeforeSink"
+          ]
+        },
+        {
+          "tag": "candidate-additional3",
+          "sourceSha256": "249f602c91fd024565cb19760e07346d5d6113405f6f7c4560fc1fcf2d229f61",
+          "fixtureSha256": "044ccc980c4e7fc2c6ba3c90640363d73e61d8196d2e13ab4c3fd90e56bae7a4",
+          "counts": {
+            "PASS": 3,
+            "FAIL": 0
+          },
+          "observed_invocations": 3,
+          "observed_status_counts": {
+            "PASS": 3
+          },
+          "failed_case_ids": []
+        },
+        {
+          "tag": "frozen-frontier9",
+          "sourceSha256": "481bd3be555d629ac0f6a741372c749bf4e8d678cc26b7cbd5aa207d5cc85032",
+          "fixtureSha256": "4d34c0b5e670fe9826fe81e126d5d7571f5881ad559f9a3be934fbe8a0973f24",
+          "counts": {
+            "PASS": 2,
+            "FAIL": 7
+          },
+          "observed_invocations": 9,
+          "observed_status_counts": {
+            "PASS": 2,
+            "FAIL": 7
+          },
+          "failed_case_ids": [
+            "FrontierLoggerThrowAfterCapture",
+            "FrontierNestedOff",
+            "FrontierControlMutation",
+            "FrontierDisposeRefusal",
+            "FrontierNameGetterCapture",
+            "FrontierPendingChangeUndispatchedTerminalLateFill",
+            "FrontierCaptureFailure"
+          ]
+        },
+        {
+          "tag": "candidate-frontier9",
+          "sourceSha256": "249f602c91fd024565cb19760e07346d5d6113405f6f7c4560fc1fcf2d229f61",
+          "fixtureSha256": "4d34c0b5e670fe9826fe81e126d5d7571f5881ad559f9a3be934fbe8a0973f24",
+          "counts": {
+            "PASS": 9,
+            "FAIL": 0
+          },
+          "observed_invocations": 9,
+          "observed_status_counts": {
+            "PASS": 9
+          },
+          "failed_case_ids": []
+        }
+      ],
+      "settings_source_pins": {
+        "frozen_sha256": "fe9d29902e2a382aa22b05c1747faf133a48ef0be9f835a2d14f6bb041802ee2",
+        "membership_candidate_sha256": "28e049f046f61785488022e03a86371c27eb9ee98155cdccba1f06d508f43f72"
+      },
+      "settings_runs": {
+        "frozen-alias4": {
+          "count": 4,
+          "PASS": 3,
+          "FAIL": 1
+        },
+        "frozen-collection22": {
+          "count": 22,
+          "PASS": 1,
+          "FAIL": 21
+        },
+        "frozen-reentry12": {
+          "count": 12,
+          "PASS": 6,
+          "FAIL": 6
+        },
+        "candidate-alias4": {
+          "count": 4,
+          "PASS": 4,
+          "FAIL": 0
+        },
+        "candidate-collection22": {
+          "count": 22,
+          "PASS": 22,
+          "FAIL": 0
+        },
+        "candidate-reentry12": {
+          "count": 12,
+          "PASS": 6,
+          "FAIL": 6
+        }
+      },
+      "reported_case_invocations": 228,
+      "pass_to_fail": [],
+      "research": {
+        "new_confirmed_product_bugs": 0,
+        "semantic_truth_certified": false,
+        "engineering_runs": 0,
+        "provider_status": "provider_unknown",
+        "baseline_sha256": "1def30ce3d522393a8daa0ebb829e7630ab6b9b2d66549d3ea5e6309436420c1"
+      }
+    },
+    {
+      "id": "E04",
+      "origin_label": "parent-124-5b447e7dd5/parent-results.json",
+      "origin_sha256": "bafd1a6901ecb02a7e3a9a2362f4cf931a4b3b7cce67ca9674339001528a708e",
+      "availability": "Local historical evidence read by this audit; raw artifacts are not distributed here. Hashes are not a public reproduction package.",
+      "scope": "Standalone journal malformed UTF-16 early admission and reentry probes",
+      "classification": "SCOPED_FIX_NOT_INTEGRATED",
+      "limitations": "Early-admission GREEN did not fix three custom-crypto/synthetic-verifier reentry defects; default production reachability unproven. Pure SPEC checks are not engine acceptance.",
+      "runs": [
+        {
+          "label": "base-early2",
+          "sourceSha256": "205e66086b0489bfa35cf6ba73c21b5c6a709766d5c044aa186b4998afc6dd2b",
+          "exeSha256": "8e752924473d9d092049fe9110e504cb9e786a363ff473a3d5c6198e0b1ee92a",
+          "exit": 1,
+          "total": 2,
+          "PASS": 0,
+          "FAIL": 2,
+          "observed_invocations": 2,
+          "observed_status_counts": {
+            "FAIL": 2
+          },
+          "failed_case_ids": [
+            "MalformedLatchCannotBeAcknowledgedByExistingLatch",
+            "MalformedOperatorCannotBeAcknowledgedByCommitDedupe"
+          ]
+        },
+        {
+          "label": "base-rejected8",
+          "sourceSha256": "205e66086b0489bfa35cf6ba73c21b5c6a709766d5c044aa186b4998afc6dd2b",
+          "exeSha256": "cb8fcf13cb5bb32d224458328d486429182980551fe9e9869d035bffcde9fbc2",
+          "exit": 0,
+          "total": 8,
+          "PASS": 8,
+          "FAIL": 0,
+          "observed_invocations": 8,
+          "observed_status_counts": {
+            "PASS": 8
+          },
+          "failed_case_ids": []
+        },
+        {
+          "label": "base-contract51",
+          "sourceSha256": "205e66086b0489bfa35cf6ba73c21b5c6a709766d5c044aa186b4998afc6dd2b",
+          "exeSha256": "b89737e0949006a705c18179119cf0efa8970f11669bd884182a04172340cfe7",
+          "exit": 1,
+          "total": 51,
+          "PASS": 16,
+          "FAIL": 35,
+          "observed_invocations": 51,
+          "observed_status_counts": {
+            "FAIL": 35,
+            "PASS": 16
+          },
+          "failed_case_ids": [
+            "NoMutationLatchFreshDurableReplay-0",
+            "NoMutationCommitFreshDedupeReplay-0",
+            "NoMutationLatchFreshDurableReplay-1",
+            "NoMutationCommitFreshDedupeReplay-1",
+            "NoMutationLatchFreshDurableReplay-2",
+            "NoMutationCommitFreshDedupeReplay-2",
+            "NoMutationLatchFreshDurableReplay-3",
+            "NoMutationCommitFreshDedupeReplay-3",
+            "NoMutationLatchFreshDurableReplay-4",
+            "NoMutationCommitFreshDedupeReplay-4",
+            "NoMutationLatchFreshDurableReplay-5",
+            "NoMutationCommitFreshDedupeReplay-5",
+            "NoMutationLatchFreshDurableReplay-6",
+            "NoMutationCommitFreshDedupeReplay-6",
+            "NoMutationLatchFreshDurableReplay-7",
+            "NoMutationCommitFreshDedupeReplay-7",
+            "NoMutationLatchFreshDurableReplay-8",
+            "NoMutationCommitFreshDedupeReplay-8",
+            "NoMutationLatchFreshDurableReplay-9",
+            "NoMutationCommitFreshDedupeReplay-9",
+            "NoMutationLatchFreshDurableReplay-10",
+            "NoMutationCommitFreshDedupeReplay-10",
+            "NoMutationLatchFreshDurableReplay-11",
+            "NoMutationCommitFreshDedupeReplay-11",
+            "NoMutationLatchFreshDurableReplay-12",
+            "NoMutationCommitFreshDedupeReplay-12",
+            "NoMutationLatchFreshDurableReplay-13",
+            "NoMutationCommitFreshDedupeReplay-13",
+            "NoMutationLatchFreshDurableReplay-14",
+            "NoMutationCommitFreshDedupeReplay-14",
+            "NoMutationLatchFreshDurableReplay-15",
+            "NoMutationCommitFreshDedupeReplay-15",
+            "MalformedCannotBypassDurableShortcutsNested-BeforeWrite",
+            "MalformedCannotBypassDurableShortcutsNested-AfterWriteBeforeFlush",
+            "MalformedCannotBypassDurableShortcutsNested-AfterFlushBeforeProjection"
+          ]
+        },
+        {
+          "label": "fixed-early2",
+          "sourceSha256": "1acd595ba7e2ec9f3cfaf3ea9b3fc61dda81b7136347372cd7bab652e39a6842",
+          "exeSha256": "a8cfafe70b67693d77f069ecfc4960aa7418f69b01e68596400d9dee08e6d4a3",
+          "exit": 0,
+          "total": 2,
+          "PASS": 2,
+          "FAIL": 0,
+          "observed_invocations": 2,
+          "observed_status_counts": {
+            "PASS": 2
+          },
+          "failed_case_ids": []
+        },
+        {
+          "label": "fixed-rejected8",
+          "sourceSha256": "1acd595ba7e2ec9f3cfaf3ea9b3fc61dda81b7136347372cd7bab652e39a6842",
+          "exeSha256": "6547a8c1d2348140538b37d86e08ce67feb53c9be5ad12710546ed5fcb85fbb7",
+          "exit": 0,
+          "total": 8,
+          "PASS": 8,
+          "FAIL": 0,
+          "observed_invocations": 8,
+          "observed_status_counts": {
+            "PASS": 8
+          },
+          "failed_case_ids": []
+        },
+        {
+          "label": "fixed-contract51",
+          "sourceSha256": "1acd595ba7e2ec9f3cfaf3ea9b3fc61dda81b7136347372cd7bab652e39a6842",
+          "exeSha256": "24d0fedd1033b9b2c8390b226e6a109113ec36d5012ef0a0f97cebb40ccee3b6",
+          "exit": 0,
+          "total": 51,
+          "PASS": 51,
+          "FAIL": 0,
+          "observed_invocations": 51,
+          "observed_status_counts": {
+            "PASS": 51
+          },
+          "failed_case_ids": []
+        },
+        {
+          "label": "fixed-policy49",
+          "sourceSha256": "1acd595ba7e2ec9f3cfaf3ea9b3fc61dda81b7136347372cd7bab652e39a6842",
+          "exeSha256": "96232474d88e69bd4448f9c6624e3c4be4d08ace863e81f0205929d884743658",
+          "exit": 0,
+          "total": 49,
+          "PASS": 49,
+          "FAIL": 0,
+          "observed_invocations": 49,
+          "observed_status_counts": {
+            "PASS": 49
+          },
+          "failed_case_ids": []
+        },
+        {
+          "label": "fixed-minimal10",
+          "sourceSha256": "1acd595ba7e2ec9f3cfaf3ea9b3fc61dda81b7136347372cd7bab652e39a6842",
+          "exeSha256": "d5404439a1c4432166c373ebaee88a4ab9e16b58c60f6b18ea7f9a12e8b10874",
+          "exit": 1,
+          "total": 10,
+          "PASS": 7,
+          "FAIL": 3,
+          "observed_invocations": 10,
+          "observed_status_counts": {
+            "FAIL": 3,
+            "PASS": 7
+          },
+          "failed_case_ids": [
+            "MinimalREDPrepareNoStaleProofPrepared",
+            "MinimalREDCommitNoInvalidDurableTail",
+            "MinimalREDCustomCryptoACKsReplay"
+          ]
+        }
+      ],
+      "new_journal_defects_reproduced": 3,
+      "default_reachability_unproven": true
+    },
+    {
+      "id": "E05",
+      "origin_label": "parent019c-c5b981/run2/parent-results.json",
+      "origin_sha256": "260b1d489f0e2583811b72df16d5a3fb5b929bf06147f4bf440f377d20596cc4",
+      "availability": "Local historical evidence read by this audit; raw artifacts are not distributed here. Hashes are not a public reproduction package.",
+      "scope": "Settings nested publication contract adjudication",
+      "classification": "HARNESS_ORACLE_POLICY_MISMATCH",
+      "limitations": "Six broad rollback failures include already-completed valid inner publication; six proposed whole-root policy RED and one strict-zero-transient RED. An extra raw XML ordering FAIL has equal field maps and disk/index bytes. No policy adopted; not fourteen confirmed product defects.",
+      "counts": {
+        "cases": 55,
+        "PASS": 41,
+        "FAIL": 14,
+        "audits": 58,
+        "compiler_audits": 3,
+        "test_audits": 55
+      },
+      "historical_owner_counts": {
+        "PASS": 42,
+        "FAIL": 13
+      },
+      "failure_categories": {
+        "original_broad_oracle_retained": 6,
+        "proposed_whole_root_policy_RED": 6,
+        "strict_zero_transient_RED": 1,
+        "representation_only_runtime_failure_retained": 1
+      },
+      "policy_adopted": false
+    },
+    {
+      "id": "E06",
+      "origin_label": "parent-de445-16ba6cae30/run3/parent-results.json",
+      "origin_sha256": "70146f6ad27dccc5a8d3bb7ec966d0839bda77417f4161bdc66de3d8d6cac2f4",
+      "availability": "Local historical evidence read by this audit; raw artifacts are not distributed here. Hashes are not a public reproduction package.",
+      "scope": "Standalone journal three minimal reentry fixes and retained regressions",
+      "classification": "SCOPED_FIX_NOT_INTEGRATED",
+      "limitations": "Custom process-local crypto and internal synthetic verifier reachability only; three nested Dispose release-expectation failures remain. No authenticated provider closure, integrated restart or real power-loss certification.",
+      "candidate_sha256": "acd93887350269fd5460060afc83a2f62b18980f570e3d90d85e9f87a6f62212",
+      "runs": [
+        {
+          "label": "step1-RED",
+          "sourceSha256": "1acd595ba7e2ec9f3cfaf3ea9b3fc61dda81b7136347372cd7bab652e39a6842",
+          "exeSha256": "662e6993c6183c6be4a7bb775bf18be8dadacbc5eba8977ceda231cb2330ec3e",
+          "exit": 1,
+          "total": 1,
+          "PASS": 0,
+          "FAIL": 1,
+          "observed_invocations": 1,
+          "observed_status_counts": {
+            "FAIL": 1
+          },
+          "failed_case_ids": [
+            "MinimalREDCustomCryptoACKsReplay"
+          ]
+        },
+        {
+          "label": "step1-GREEN",
+          "sourceSha256": "95a2c3ce4b61ac6efbc9068d6263ba115c28014afc5e905182b581c09fda5532",
+          "exeSha256": "b68599622558310c6afb0ea7a2316fbecdefe390b7cd083b8452f8f28840d0a3",
+          "exit": 0,
+          "total": 1,
+          "PASS": 1,
+          "FAIL": 0,
+          "observed_invocations": 1,
+          "observed_status_counts": {
+            "PASS": 1
+          },
+          "failed_case_ids": []
+        },
+        {
+          "label": "step2-RED",
+          "sourceSha256": "95a2c3ce4b61ac6efbc9068d6263ba115c28014afc5e905182b581c09fda5532",
+          "exeSha256": "8e33b303c33a253433887de9dbb99b11f2e53117cf82788169058c7285876bc1",
+          "exit": 1,
+          "total": 1,
+          "PASS": 0,
+          "FAIL": 1,
+          "observed_invocations": 1,
+          "observed_status_counts": {
+            "FAIL": 1
+          },
+          "failed_case_ids": [
+            "MinimalREDPrepareNoStaleProofPrepared"
+          ]
+        },
+        {
+          "label": "step2-GREEN",
+          "sourceSha256": "439520c507107aa229aae8fba8a1070eaad6fdbc6bd88f6cd0bc128dc20f39b1",
+          "exeSha256": "491396598c1d371f48ff5a96f587b3881b3b81789ed8a02f9c1c311d54f9c1d7",
+          "exit": 0,
+          "total": 1,
+          "PASS": 1,
+          "FAIL": 0,
+          "observed_invocations": 1,
+          "observed_status_counts": {
+            "PASS": 1
+          },
+          "failed_case_ids": []
+        },
+        {
+          "label": "step3-RED",
+          "sourceSha256": "439520c507107aa229aae8fba8a1070eaad6fdbc6bd88f6cd0bc128dc20f39b1",
+          "exeSha256": "4ad2cc51d4dbb739c94a9f4cc2938b14cea1a549362adc3a29abe01334004bae",
+          "exit": 1,
+          "total": 1,
+          "PASS": 0,
+          "FAIL": 1,
+          "observed_invocations": 1,
+          "observed_status_counts": {
+            "FAIL": 1
+          },
+          "failed_case_ids": [
+            "MinimalREDCommitNoInvalidDurableTail"
+          ]
+        },
+        {
+          "label": "step3-GREEN",
+          "sourceSha256": "acd93887350269fd5460060afc83a2f62b18980f570e3d90d85e9f87a6f62212",
+          "exeSha256": "25475fcbd5a1a56a0f0a93c6c46d28376e28697b510e43875fa7a64750009f69",
+          "exit": 0,
+          "total": 1,
+          "PASS": 1,
+          "FAIL": 0,
+          "observed_invocations": 1,
+          "observed_status_counts": {
+            "PASS": 1
+          },
+          "failed_case_ids": []
+        },
+        {
+          "label": "base-minimal10",
+          "sourceSha256": "1acd595ba7e2ec9f3cfaf3ea9b3fc61dda81b7136347372cd7bab652e39a6842",
+          "exeSha256": "a7576498121f5a318b4fa25b55bd7154946daa0c62fd50a811480818001d06bb",
+          "exit": 1,
+          "total": 10,
+          "PASS": 7,
+          "FAIL": 3,
+          "observed_invocations": 10,
+          "observed_status_counts": {
+            "FAIL": 3,
+            "PASS": 7
+          },
+          "failed_case_ids": [
+            "MinimalREDPrepareNoStaleProofPrepared",
+            "MinimalREDCommitNoInvalidDurableTail",
+            "MinimalREDCustomCryptoACKsReplay"
+          ]
+        },
+        {
+          "label": "candidate-minimal10",
+          "sourceSha256": "acd93887350269fd5460060afc83a2f62b18980f570e3d90d85e9f87a6f62212",
+          "exeSha256": "8e09b8cb73f89323cba335a5873fbea9162f3f6e4fb300ea341ce4080e3b6959",
+          "exit": 0,
+          "total": 10,
+          "PASS": 10,
+          "FAIL": 0,
+          "observed_invocations": 10,
+          "observed_status_counts": {
+            "PASS": 10
+          },
+          "failed_case_ids": []
+        },
+        {
+          "label": "candidate-early2",
+          "sourceSha256": "acd93887350269fd5460060afc83a2f62b18980f570e3d90d85e9f87a6f62212",
+          "exeSha256": "974d3d4225b4c81fa5605dd994ed8a3101e276a5eccf261342df62686e08c249",
+          "exit": 0,
+          "total": 2,
+          "PASS": 2,
+          "FAIL": 0,
+          "observed_invocations": 2,
+          "observed_status_counts": {
+            "PASS": 2
+          },
+          "failed_case_ids": []
+        },
+        {
+          "label": "candidate-rejected8",
+          "sourceSha256": "acd93887350269fd5460060afc83a2f62b18980f570e3d90d85e9f87a6f62212",
+          "exeSha256": "b78bc9d5b3d8e56301b9d54914b99ae45607194b51aedadad6a518e69e8b9b74",
+          "exit": 0,
+          "total": 8,
+          "PASS": 8,
+          "FAIL": 0,
+          "observed_invocations": 8,
+          "observed_status_counts": {
+            "PASS": 8
+          },
+          "failed_case_ids": []
+        },
+        {
+          "label": "candidate-contract51",
+          "sourceSha256": "acd93887350269fd5460060afc83a2f62b18980f570e3d90d85e9f87a6f62212",
+          "exeSha256": "f4f020156620cbe086ac39e60a0d38ad158d12c2a80ea8030f2fd0888fd059d6",
+          "exit": 0,
+          "total": 51,
+          "PASS": 51,
+          "FAIL": 0,
+          "observed_invocations": 51,
+          "observed_status_counts": {
+            "PASS": 51
+          },
+          "failed_case_ids": []
+        },
+        {
+          "label": "candidate-policy49",
+          "sourceSha256": "acd93887350269fd5460060afc83a2f62b18980f570e3d90d85e9f87a6f62212",
+          "exeSha256": "201b27e06e6ab8156652a03ecf2df652106de9225babde9efca074d3da157e63",
+          "exit": 0,
+          "total": 49,
+          "PASS": 49,
+          "FAIL": 0,
+          "observed_invocations": 49,
+          "observed_status_counts": {
+            "PASS": 49
+          },
+          "failed_case_ids": []
+        },
+        {
+          "label": "candidate-fresh18",
+          "sourceSha256": "acd93887350269fd5460060afc83a2f62b18980f570e3d90d85e9f87a6f62212",
+          "exeSha256": "b2271e13bd2a36968bf5848ad78567b46523ebb3e6ae0544657403c71a7fabd0",
+          "exit": 0,
+          "total": 18,
+          "PASS": 18,
+          "FAIL": 0,
+          "observed_invocations": 18,
+          "observed_status_counts": {
+            "PASS": 18
+          },
+          "failed_case_ids": []
+        },
+        {
+          "label": "candidate-closure7",
+          "sourceSha256": "acd93887350269fd5460060afc83a2f62b18980f570e3d90d85e9f87a6f62212",
+          "exeSha256": "2ba09826efa0c74f89f13aecaedfad41ad96583870eb97aa03046f9d3bd40368",
+          "exit": 0,
+          "total": 7,
+          "PASS": 7,
+          "FAIL": 0,
+          "observed_invocations": 7,
+          "observed_status_counts": {
+            "PASS": 7
+          },
+          "failed_case_ids": []
+        },
+        {
+          "label": "candidate-independent20",
+          "sourceSha256": "acd93887350269fd5460060afc83a2f62b18980f570e3d90d85e9f87a6f62212",
+          "exeSha256": "3bda129fd07a1b71b569158e6df7af398cc2acaad0159b37e182ff643bdc865b",
+          "exit": 1,
+          "total": 20,
+          "PASS": 17,
+          "FAIL": 3,
+          "observed_invocations": 20,
+          "observed_status_counts": {
+            "PASS": 17,
+            "FAIL": 3
+          },
+          "failed_case_ids": [
+            "DisposeIDisposableReleaseExpectationBeforeWrite",
+            "DisposeIDisposableReleaseExpectationAfterWriteBeforeFlush",
+            "DisposeIDisposableReleaseExpectationAfterFlushBeforeProjection"
+          ]
+        },
+        {
+          "label": "candidate-boundary1",
+          "sourceSha256": "acd93887350269fd5460060afc83a2f62b18980f570e3d90d85e9f87a6f62212",
+          "exeSha256": "760b2316fe9852640c235527e703a3ae4c08a3a52f3f713ab3b3f5b65078e940",
+          "exit": 0,
+          "total": 1,
+          "PASS": 1,
+          "FAIL": 0,
+          "observed_invocations": 1,
+          "observed_status_counts": {
+            "PASS": 1
+          },
+          "failed_case_ids": []
+        },
+        {
+          "label": "candidate-realboundary3",
+          "sourceSha256": "acd93887350269fd5460060afc83a2f62b18980f570e3d90d85e9f87a6f62212",
+          "exeSha256": "10f8ec5b47bb506f63d9c051e9a062e86f8639efb4d5d55877d5a04408c6a6d9",
+          "exit": 0,
+          "total": 3,
+          "PASS": 3,
+          "FAIL": 0,
+          "observed_invocations": 3,
+          "observed_status_counts": {
+            "PASS": 3
+          },
+          "failed_case_ids": []
+        },
+        {
+          "label": "candidate-schema31",
+          "sourceSha256": "acd93887350269fd5460060afc83a2f62b18980f570e3d90d85e9f87a6f62212",
+          "exeSha256": "cefbc70979f85c2e4288ece97ad0d1a4373b0d83f400c662b0e21bd548001eba",
+          "exit": 0,
+          "total": 31,
+          "PASS": 31,
+          "FAIL": 0,
+          "observed_invocations": 31,
+          "observed_status_counts": {
+            "PASS": 31
+          },
+          "failed_case_ids": []
+        },
+        {
+          "label": "candidate-unicode344",
+          "sourceSha256": "acd93887350269fd5460060afc83a2f62b18980f570e3d90d85e9f87a6f62212",
+          "exeSha256": "b6bb65430a99edcfe4ee19d7bd1d807c466708d08af9e6b1170edf8471be6e41",
+          "exit": 0,
+          "total": 344,
+          "PASS": 344,
+          "FAIL": 0,
+          "observed_invocations": 344,
+          "observed_status_counts": {
+            "PASS": 344
+          },
+          "failed_case_ids": []
+        },
+        {
+          "label": "candidate-delimiter295",
+          "sourceSha256": "acd93887350269fd5460060afc83a2f62b18980f570e3d90d85e9f87a6f62212",
+          "exeSha256": "3f81d96f56618fa39f79e8b0096c885593a39b3c5c3c128207aa0cf2f54d6ce2",
+          "exit": 0,
+          "total": 295,
+          "PASS": 295,
+          "FAIL": 0,
+          "observed_invocations": 295,
+          "observed_status_counts": {
+            "PASS": 295
+          },
+          "failed_case_ids": []
+        },
+        {
+          "label": "candidate-corr36",
+          "sourceSha256": "acd93887350269fd5460060afc83a2f62b18980f570e3d90d85e9f87a6f62212",
+          "exeSha256": "b65e86f4aff3b83441c5b8b2e1bdd468ae33a3edbe69672b024ea93b40345616",
+          "exit": 0,
+          "total": 36,
+          "PASS": 36,
+          "FAIL": 0,
+          "observed_invocations": 36,
+          "observed_status_counts": {
+            "PASS": 36
+          },
+          "failed_case_ids": []
+        },
+        {
+          "label": "candidate-narrow3",
+          "sourceSha256": "acd93887350269fd5460060afc83a2f62b18980f570e3d90d85e9f87a6f62212",
+          "exeSha256": "da5f1d78bffa7f7fbaf4c9b9978653be27103e88187b398cd3c3fedb3b58ccb3",
+          "exit": 0,
+          "total": 3,
+          "PASS": 3,
+          "FAIL": 0,
+          "observed_invocations": 3,
+          "observed_status_counts": {
+            "PASS": 3
+          },
+          "failed_case_ids": []
+        },
+        {
+          "label": "base-durable22",
+          "sourceSha256": "1acd595ba7e2ec9f3cfaf3ea9b3fc61dda81b7136347372cd7bab652e39a6842",
+          "exeSha256": "84aa70be36b91f97c11caba31600fe7275193776b249bda8712756c5569b3a87",
+          "exit": 0,
+          "total": 22,
+          "PASS": 22,
+          "FAIL": 0,
+          "observed_invocations": 22,
+          "observed_status_counts": {
+            "PASS": 22
+          },
+          "failed_case_ids": []
+        },
+        {
+          "label": "candidate-durable22",
+          "sourceSha256": "acd93887350269fd5460060afc83a2f62b18980f570e3d90d85e9f87a6f62212",
+          "exeSha256": "196c8b3ee2579b5bef748e1326b388eb4b176d46b9ea6884bb4841230ea009af",
+          "exit": 0,
+          "total": 22,
+          "PASS": 22,
+          "FAIL": 0,
+          "observed_invocations": 22,
+          "observed_status_counts": {
+            "PASS": 22
+          },
+          "failed_case_ids": []
+        },
+        {
+          "label": "candidate-replay10",
+          "sourceSha256": "acd93887350269fd5460060afc83a2f62b18980f570e3d90d85e9f87a6f62212",
+          "exeSha256": "741cd850c50f3cecdff6ca684a492f7405012c31ec5a2f5d36323903c6a8e06a",
+          "exit": 0,
+          "total": 10,
+          "PASS": 10,
+          "FAIL": 0,
+          "observed_invocations": 10,
+          "observed_status_counts": {
+            "PASS": 10
+          },
+          "failed_case_ids": []
+        }
+      ],
+      "reported_fresh_runs": 25,
+      "reported_case_invocations": 948,
+      "candidate_observed_counts": {
+        "total": 911,
+        "PASS": 908,
+        "FAIL": 3
+      },
+      "default_reachability_unproven": true
+    },
+    {
+      "id": "E07",
+      "origin_label": "parent-1c6c-4e812c/parent-results.json",
+      "origin_sha256": "32e061be1c8f9a64df83af0919f71c77e4c0072fdce27cc1cd87b0ab1671707d",
+      "availability": "Local historical evidence read by this audit; raw artifacts are not distributed here. Hashes are not a public reproduction package.",
+      "scope": "Independent standalone journal review",
+      "classification": "SCOPED_PASS_WITH_POLICY_FAILURES",
+      "limitations": "23 candidate PASS versus original 5 PASS/18 FAIL; retained 20 has 17 PASS/3 nested Dispose policy FAIL. No production or provider closure acceptance.",
+      "runs": [
+        {
+          "label": "parent-fresh23-candidate",
+          "sourceSha256": "acd93887350269fd5460060afc83a2f62b18980f570e3d90d85e9f87a6f62212",
+          "exeSha256": "880c3a143f8839ab657b8dcdcf9b15392d9c9a92b7bb4bb9553c0dbb325a6cbb",
+          "exit": 0,
+          "total": 23,
+          "PASS": 23,
+          "FAIL": 0,
+          "observed_invocations": 23,
+          "observed_status_counts": {
+            "PASS": 23
+          },
+          "failed_case_ids": []
+        },
+        {
+          "label": "parent-fresh23-original",
+          "sourceSha256": "1acd595ba7e2ec9f3cfaf3ea9b3fc61dda81b7136347372cd7bab652e39a6842",
+          "exeSha256": "31a6cfdb661216083232a72d05ffe7b9f4ec107b1c7376babca06466b2eb18e3",
+          "exit": 1,
+          "total": 23,
+          "PASS": 5,
+          "FAIL": 18,
+          "observed_invocations": 23,
+          "observed_status_counts": {
+            "FAIL": 18,
+            "PASS": 5
+          },
+          "failed_case_ids": [
+            "FreshFrameGuard-Constructor",
+            "FreshPreparationThrowFinally-Constructor",
+            "FreshPostProposalGate-Constructor",
+            "FreshFrameGuard-Initialize",
+            "FreshPreparationThrowFinally-Initialize",
+            "FreshPostProposalGate-Initialize",
+            "FreshFrameGuard-HashCore",
+            "FreshPreparationThrowFinally-HashCore",
+            "FreshPostProposalGate-HashCore",
+            "FreshFrameGuard-HashFinal",
+            "FreshPreparationThrowFinally-HashFinal",
+            "FreshPostProposalGate-HashFinal",
+            "FreshFrameGuard-Dispose",
+            "FreshPreparationThrowFinally-Dispose",
+            "FreshPostProposalGate-Dispose",
+            "FreshPublicCapacityQuarantinePrepareGate",
+            "FreshPublicCapacityQuarantineCommitGate",
+            "FreshPublicCapacityQuarantinePostProposalHashGate"
+          ]
+        },
+        {
+          "label": "parent-retained20",
+          "sourceSha256": "acd93887350269fd5460060afc83a2f62b18980f570e3d90d85e9f87a6f62212",
+          "exeSha256": "49d06ec195a15c3bdbecb6cd416645b4d5d59e49bbb237ac05ae7c18dac5fb81",
+          "exit": 1,
+          "total": 20,
+          "PASS": 17,
+          "FAIL": 3,
+          "observed_invocations": 20,
+          "observed_status_counts": {
+            "PASS": 17,
+            "FAIL": 3
+          },
+          "failed_case_ids": [
+            "DisposeIDisposableReleaseExpectationBeforeWrite",
+            "DisposeIDisposableReleaseExpectationAfterWriteBeforeFlush",
+            "DisposeIDisposableReleaseExpectationAfterFlushBeforeProjection"
+          ]
+        }
+      ],
+      "reported_case_invocations": 66,
+      "runtime_audits": 9
+    },
+    {
+      "id": "E08",
+      "origin_label": "parent-a989-7f9c3e/parent-results.json",
+      "origin_sha256": "83fed2cf9c4ca7cf64f8e988b2d3f65c5e39b141b83b8b471d6b9d2c901f4a4b",
+      "availability": "Local historical evidence read by this audit; raw artifacts are not distributed here. Hashes are not a public reproduction package.",
+      "scope": "Pure Python SPEC validator independent review",
+      "classification": "PURE_SPEC_ONLY",
+      "limitations": "No engineering runs. Semantic session/generation registration checks remain FAIL; corrected legal-prefix harness cases do not overwrite preserved initial failures. Not engine integration, dispatch or provider acceptance.",
+      "source_pins": {
+        "starting_spec_sha256": "f6953e1e051c2a1f69f5ea8a423c177a187d6974f8b2d6e66758c34573e5aaa2",
+        "final_spec_sha256": "f9974ad29b5ef6ba7619434a47d0b97597fc9b15f9a5c8e9c7a589176875a024"
+      },
+      "final388": {
+        "cases": 388,
+        "PASS": 388,
+        "FAIL": 0,
+        "ERROR": 0,
+        "runtime_exit": 0,
+        "failures": []
+      },
+      "controls191": {
+        "cases": 191,
+        "PASS": 191,
+        "FAIL": 0,
+        "ERROR": 0,
+        "runtime_exit": 0,
+        "failures": []
+      },
+      "independent40": {
+        "cases": 40,
+        "PASS": 40,
+        "FAIL": 0,
+        "ERROR": 0,
+        "detailed_checks": 141
+      },
+      "semantic91": {
+        "cases": 91,
+        "PASS": 89,
+        "FAIL": 2,
+        "ERROR": 0,
+        "runtime_exit": 1,
+        "failures": [
+          "register_schema_session",
+          "register_schema_generation"
+        ]
+      },
+      "preserved_initial_harness_counts": {
+        "cases": 40,
+        "PASS": 16,
+        "FAIL": 24,
+        "ERROR": 0,
+        "detailed_checks": 138
+      },
+      "input_pin_count": 2289,
+      "input_mismatches": 0,
+      "engineering_runs": 0
+    },
+    {
+      "id": "E09",
+      "origin_label": "parent-nr-f997-682e1f/parent-results.json",
+      "origin_sha256": "b1941130d2d7b6eb84eb6fb3c750f60b0a2dd0fd564528e83f9a076bdb7826fe",
+      "availability": "Local historical evidence read by this audit; raw artifacts are not distributed here. Hashes are not a public reproduction package.",
+      "scope": "Pure SPEC sequential NR01/02/03 replay",
+      "classification": "PURE_SPEC_ONLY",
+      "limitations": "Final 388 PASS and contract 191 PASS; semantic91 retains two unresolved schema checks. SPEC source hash is not a C# engine hash.",
+      "source_pins": {
+        "starting_spec_sha256": "f6953e1e051c2a1f69f5ea8a423c177a187d6974f8b2d6e66758c34573e5aaa2",
+        "final_spec_sha256": "f9974ad29b5ef6ba7619434a47d0b97597fc9b15f9a5c8e9c7a589176875a024"
+      },
+      "final_stage": {
+        "unit39": {
+          "cases": 39,
+          "PASS": 39,
+          "FAIL": 0,
+          "ERROR": 0,
+          "skips": 0
+        },
+        "review388.json": {
+          "cases": 388,
+          "PASS": 388,
+          "FAIL": 0,
+          "ERROR": 0,
+          "runtimeExit": 0
+        },
+        "minimal4.json": {
+          "cases": 4,
+          "PASS": 4,
+          "FAIL": 0,
+          "ERROR": 0,
+          "runtimeExit": 0
+        },
+        "semantic91": {
+          "cases": 91,
+          "expectations_met": 89,
+          "unresolved": [
+            "register_schema_session",
+            "register_schema_generation"
+          ],
+          "not_promoted_to_PASS": true,
+          "full_result_deltas": 0
+        },
+        "cart864.json": {
+          "cases": 864,
+          "PASS": 864,
+          "FAIL": 0,
+          "ERROR": 0,
+          "runtimeExit": 0
+        },
+        "witness7.json": {
+          "cases": 7,
+          "PASS": 7,
+          "FAIL": 0,
+          "ERROR": 0,
+          "runtimeExit": 0
+        },
+        "mutation35.json": {
+          "cases": 35,
+          "PASS": 35,
+          "FAIL": 0,
+          "ERROR": 0,
+          "runtimeExit": 0
+        },
+        "alpha6.json": {
+          "cases": 6,
+          "PASS": 6,
+          "FAIL": 0,
+          "ERROR": 0,
+          "runtimeExit": 0
+        },
+        "literal6.json": {
+          "cases": 6,
+          "PASS": 6,
+          "FAIL": 0,
+          "ERROR": 0,
+          "runtimeExit": 0
+        }
+      },
+      "contract_controls": {
+        "cases": 191,
+        "PASS": 191,
+        "FAIL": 0,
+        "ERROR": 0,
+        "runtimeExit": 0
+      },
+      "engineering_runs": 0
+    },
+    {
+      "id": "E10",
+      "origin_label": "p94b-dab94f56/run2/parent-results.json",
+      "origin_sha256": "d931038e09bdaf1c4bbc489c247a9c3393de2c509e1cecfd72ae0f0fe71a7f9e",
+      "availability": "Local historical evidence read by this audit; raw artifacts are not distributed here. Hashes are not a public reproduction package.",
+      "scope": "Corrected parent replay of fake engine / UI settings variants",
+      "classification": "SCOPED_FIX_NOT_INTEGRATED",
+      "limitations": "282 fresh invocations / 80 runtime audits, not branch coverage. Separate reviewer130 vectors are readback-only, not this parent rerun. Group certificate is research algebra, engine group completion RED.",
+      "runs": [
+        {
+          "domain": "engine",
+          "variant": "base",
+          "suite": "core16",
+          "sourceSha256": "7d0ae59a57b3466f1defd0f5f2ecb6625e87c32b4238178ed59a1cb7c3c62b4a",
+          "fixtureSha256": "32279cf390c9aa80d15d5c00cbb9ca09de899fbd13e26662351aed4c7d7297a1",
+          "counts": {
+            "PASS": 16,
+            "FAIL": 0
+          },
+          "observed_invocations": 16,
+          "observed_status_counts": {
+            "PASS": 16
+          },
+          "failed_case_ids": []
+        },
+        {
+          "domain": "engine",
+          "variant": "base",
+          "suite": "on20",
+          "sourceSha256": "7d0ae59a57b3466f1defd0f5f2ecb6625e87c32b4238178ed59a1cb7c3c62b4a",
+          "fixtureSha256": "c5817769214cdd418e8dad9a9712489defe28960fe2d9043a56215e0f8f162e4",
+          "counts": {
+            "PASS": 7,
+            "FAIL": 13
+          },
+          "observed_invocations": 20,
+          "observed_status_counts": {
+            "PASS": 7,
+            "FAIL": 13
+          },
+          "failed_case_ids": [
+            "OnUncommittedGapAlreadyBeforeRequest",
+            "OnRiskReadUnknownCallback",
+            "OnRiskPublishUnknownCallback",
+            "OnAckLastReadUnknownCallback",
+            "OnRiskReadLeaderCallback",
+            "OnRiskPublishLeaderCallback",
+            "OnAckReadLeaderCallback",
+            "OnAckLastReadLeaderCallback",
+            "OnAcknowledgementVersionChange",
+            "OnTelemetryReadAfterCommitCannotAcknowledgeGap",
+            "ReviewOnCapturedGapCannotAdvertiseFollowing",
+            "OnOrderCollectionCallbackDuringBlockedCleanRead",
+            "OnOffSupersedesAtFinalTelemetryRead"
+          ]
+        },
+        {
+          "domain": "engine",
+          "variant": "base",
+          "suite": "oco10",
+          "sourceSha256": "7d0ae59a57b3466f1defd0f5f2ecb6625e87c32b4238178ed59a1cb7c3c62b4a",
+          "fixtureSha256": "b54d180b3badafcaeea81eb92fe9fc3f5f823620b6cd7ecbdd58f06c202b8b5c",
+          "counts": {
+            "PASS": 5,
+            "FAIL": 5
+          },
+          "observed_invocations": 10,
+          "observed_status_counts": {
+            "FAIL": 5,
+            "PASS": 5
+          },
+          "failed_case_ids": [
+            "OcoCancelPendingMatrix",
+            "OcoCancelPending10_20_30",
+            "ReviewOcoPendingAmendmentLateStopReversalEvidence",
+            "ReviewOcoPendingAmendmentCompletedClosureMustCancel",
+            "ReviewOcoCompletedSliceCancelOnlyItsGroup"
+          ]
+        },
+        {
+          "domain": "engine",
+          "variant": "base",
+          "suite": "sinks6",
+          "sourceSha256": "7d0ae59a57b3466f1defd0f5f2ecb6625e87c32b4238178ed59a1cb7c3c62b4a",
+          "fixtureSha256": "8fc24ac5d8cc0aa169a8f81129502b6814f2860e62815bd0d7cc559233d2fb24",
+          "counts": {
+            "PASS": 0,
+            "FAIL": 6
+          },
+          "observed_invocations": 6,
+          "observed_status_counts": {
+            "FAIL": 6
+          },
+          "failed_case_ids": [
+            "OcoPendingSink_noack",
+            "OcoPendingSink_delayedAck",
+            "OcoPendingSink_throw",
+            "OcoPendingSink_acceptedThenThrow",
+            "OcoPendingSink_latePositive",
+            "OcoPendingSink_doubleFill"
+          ]
+        },
+        {
+          "domain": "engine",
+          "variant": "base",
+          "suite": "independent9",
+          "sourceSha256": "7d0ae59a57b3466f1defd0f5f2ecb6625e87c32b4238178ed59a1cb7c3c62b4a",
+          "fixtureSha256": "f2818df56363f62a514a47df112c9537114d74b6bfe2d5dd871e225bc29bb2fe",
+          "counts": {
+            "PASS": 2,
+            "FAIL": 7
+          },
+          "observed_invocations": 9,
+          "observed_status_counts": {
+            "FAIL": 7,
+            "PASS": 2
+          },
+          "failed_case_ids": [
+            "IndependentOnDenominationPostcommit",
+            "IndependentOnNamePostcommit",
+            "IndependentOnConnectionPostcommit",
+            "IndependentOnOrdersPrecommit",
+            "IndependentOnPositionsPrecommit",
+            "IndependentCancelDiagnosticTerminalBeforeSink",
+            "IndependentCancelDiagnosticNewExposureBeforeSink"
+          ]
+        },
+        {
+          "domain": "engine",
+          "variant": "base",
+          "suite": "additional3",
+          "sourceSha256": "7d0ae59a57b3466f1defd0f5f2ecb6625e87c32b4238178ed59a1cb7c3c62b4a",
+          "fixtureSha256": "044ccc980c4e7fc2c6ba3c90640363d73e61d8196d2e13ab4c3fd90e56bae7a4",
+          "counts": {
+            "PASS": 0,
+            "FAIL": 3
+          },
+          "observed_invocations": 3,
+          "observed_status_counts": {
+            "FAIL": 3
+          },
+          "failed_case_ids": [
+            "IndependentCancelDiagnosticCoherentLateEntryBeforeSink",
+            "IndependentOnOrderStatePropertyFence",
+            "IndependentOnPositionQuantityPropertyFence"
+          ]
+        },
+        {
+          "domain": "engine",
+          "variant": "on",
+          "suite": "core16",
+          "sourceSha256": "8d094d1dbe09811f484b52c070a4fd4f2749f7327ebfb11bfb0afad5b3aaec8f",
+          "fixtureSha256": "32279cf390c9aa80d15d5c00cbb9ca09de899fbd13e26662351aed4c7d7297a1",
+          "counts": {
+            "PASS": 16,
+            "FAIL": 0
+          },
+          "observed_invocations": 16,
+          "observed_status_counts": {
+            "PASS": 16
+          },
+          "failed_case_ids": []
+        },
+        {
+          "domain": "engine",
+          "variant": "on",
+          "suite": "on20",
+          "sourceSha256": "8d094d1dbe09811f484b52c070a4fd4f2749f7327ebfb11bfb0afad5b3aaec8f",
+          "fixtureSha256": "c5817769214cdd418e8dad9a9712489defe28960fe2d9043a56215e0f8f162e4",
+          "counts": {
+            "PASS": 20,
+            "FAIL": 0
+          },
+          "observed_invocations": 20,
+          "observed_status_counts": {
+            "PASS": 20
+          },
+          "failed_case_ids": []
+        },
+        {
+          "domain": "engine",
+          "variant": "on",
+          "suite": "oco10",
+          "sourceSha256": "8d094d1dbe09811f484b52c070a4fd4f2749f7327ebfb11bfb0afad5b3aaec8f",
+          "fixtureSha256": "b54d180b3badafcaeea81eb92fe9fc3f5f823620b6cd7ecbdd58f06c202b8b5c",
+          "counts": {
+            "PASS": 5,
+            "FAIL": 5
+          },
+          "observed_invocations": 10,
+          "observed_status_counts": {
+            "FAIL": 5,
+            "PASS": 5
+          },
+          "failed_case_ids": [
+            "OcoCancelPendingMatrix",
+            "OcoCancelPending10_20_30",
+            "ReviewOcoPendingAmendmentLateStopReversalEvidence",
+            "ReviewOcoPendingAmendmentCompletedClosureMustCancel",
+            "ReviewOcoCompletedSliceCancelOnlyItsGroup"
+          ]
+        },
+        {
+          "domain": "engine",
+          "variant": "on",
+          "suite": "sinks6",
+          "sourceSha256": "8d094d1dbe09811f484b52c070a4fd4f2749f7327ebfb11bfb0afad5b3aaec8f",
+          "fixtureSha256": "8fc24ac5d8cc0aa169a8f81129502b6814f2860e62815bd0d7cc559233d2fb24",
+          "counts": {
+            "PASS": 0,
+            "FAIL": 6
+          },
+          "observed_invocations": 6,
+          "observed_status_counts": {
+            "FAIL": 6
+          },
+          "failed_case_ids": [
+            "OcoPendingSink_noack",
+            "OcoPendingSink_delayedAck",
+            "OcoPendingSink_throw",
+            "OcoPendingSink_acceptedThenThrow",
+            "OcoPendingSink_latePositive",
+            "OcoPendingSink_doubleFill"
+          ]
+        },
+        {
+          "domain": "engine",
+          "variant": "on",
+          "suite": "independent9",
+          "sourceSha256": "8d094d1dbe09811f484b52c070a4fd4f2749f7327ebfb11bfb0afad5b3aaec8f",
+          "fixtureSha256": "f2818df56363f62a514a47df112c9537114d74b6bfe2d5dd871e225bc29bb2fe",
+          "counts": {
+            "PASS": 7,
+            "FAIL": 2
+          },
+          "observed_invocations": 9,
+          "observed_status_counts": {
+            "PASS": 7,
+            "FAIL": 2
+          },
+          "failed_case_ids": [
+            "IndependentCancelDiagnosticTerminalBeforeSink",
+            "IndependentCancelDiagnosticNewExposureBeforeSink"
+          ]
+        },
+        {
+          "domain": "engine",
+          "variant": "oco",
+          "suite": "core16",
+          "sourceSha256": "d0b5115fa8109507bc0cafcb44bc6927dcf08c076f76e9b4f73a27d8a22314a3",
+          "fixtureSha256": "32279cf390c9aa80d15d5c00cbb9ca09de899fbd13e26662351aed4c7d7297a1",
+          "counts": {
+            "PASS": 16,
+            "FAIL": 0
+          },
+          "observed_invocations": 16,
+          "observed_status_counts": {
+            "PASS": 16
+          },
+          "failed_case_ids": []
+        },
+        {
+          "domain": "engine",
+          "variant": "oco",
+          "suite": "on20",
+          "sourceSha256": "d0b5115fa8109507bc0cafcb44bc6927dcf08c076f76e9b4f73a27d8a22314a3",
+          "fixtureSha256": "c5817769214cdd418e8dad9a9712489defe28960fe2d9043a56215e0f8f162e4",
+          "counts": {
+            "PASS": 7,
+            "FAIL": 13
+          },
+          "observed_invocations": 20,
+          "observed_status_counts": {
+            "PASS": 7,
+            "FAIL": 13
+          },
+          "failed_case_ids": [
+            "OnUncommittedGapAlreadyBeforeRequest",
+            "OnRiskReadUnknownCallback",
+            "OnRiskPublishUnknownCallback",
+            "OnAckLastReadUnknownCallback",
+            "OnRiskReadLeaderCallback",
+            "OnRiskPublishLeaderCallback",
+            "OnAckReadLeaderCallback",
+            "OnAckLastReadLeaderCallback",
+            "OnAcknowledgementVersionChange",
+            "OnTelemetryReadAfterCommitCannotAcknowledgeGap",
+            "ReviewOnCapturedGapCannotAdvertiseFollowing",
+            "OnOrderCollectionCallbackDuringBlockedCleanRead",
+            "OnOffSupersedesAtFinalTelemetryRead"
+          ]
+        },
+        {
+          "domain": "engine",
+          "variant": "oco",
+          "suite": "oco10",
+          "sourceSha256": "d0b5115fa8109507bc0cafcb44bc6927dcf08c076f76e9b4f73a27d8a22314a3",
+          "fixtureSha256": "b54d180b3badafcaeea81eb92fe9fc3f5f823620b6cd7ecbdd58f06c202b8b5c",
+          "counts": {
+            "PASS": 9,
+            "FAIL": 1
+          },
+          "observed_invocations": 10,
+          "observed_status_counts": {
+            "PASS": 9,
+            "FAIL": 1
+          },
+          "failed_case_ids": [
+            "ReviewOcoCompletedSliceCancelOnlyItsGroup"
+          ]
+        },
+        {
+          "domain": "engine",
+          "variant": "oco",
+          "suite": "sinks6",
+          "sourceSha256": "d0b5115fa8109507bc0cafcb44bc6927dcf08c076f76e9b4f73a27d8a22314a3",
+          "fixtureSha256": "8fc24ac5d8cc0aa169a8f81129502b6814f2860e62815bd0d7cc559233d2fb24",
+          "counts": {
+            "PASS": 6,
+            "FAIL": 0
+          },
+          "observed_invocations": 6,
+          "observed_status_counts": {
+            "PASS": 6
+          },
+          "failed_case_ids": []
+        },
+        {
+          "domain": "engine",
+          "variant": "oco",
+          "suite": "independent9",
+          "sourceSha256": "d0b5115fa8109507bc0cafcb44bc6927dcf08c076f76e9b4f73a27d8a22314a3",
+          "fixtureSha256": "f2818df56363f62a514a47df112c9537114d74b6bfe2d5dd871e225bc29bb2fe",
+          "counts": {
+            "PASS": 2,
+            "FAIL": 7
+          },
+          "observed_invocations": 9,
+          "observed_status_counts": {
+            "FAIL": 7,
+            "PASS": 2
+          },
+          "failed_case_ids": [
+            "IndependentOnDenominationPostcommit",
+            "IndependentOnNamePostcommit",
+            "IndependentOnConnectionPostcommit",
+            "IndependentOnOrdersPrecommit",
+            "IndependentOnPositionsPrecommit",
+            "IndependentCancelDiagnosticTerminalBeforeSink",
+            "IndependentCancelDiagnosticNewExposureBeforeSink"
+          ]
+        },
+        {
+          "domain": "engine",
+          "variant": "composed",
+          "suite": "core16",
+          "sourceSha256": "481bd3be555d629ac0f6a741372c749bf4e8d678cc26b7cbd5aa207d5cc85032",
+          "fixtureSha256": "32279cf390c9aa80d15d5c00cbb9ca09de899fbd13e26662351aed4c7d7297a1",
+          "counts": {
+            "PASS": 16,
+            "FAIL": 0
+          },
+          "observed_invocations": 16,
+          "observed_status_counts": {
+            "PASS": 16
+          },
+          "failed_case_ids": []
+        },
+        {
+          "domain": "engine",
+          "variant": "composed",
+          "suite": "on20",
+          "sourceSha256": "481bd3be555d629ac0f6a741372c749bf4e8d678cc26b7cbd5aa207d5cc85032",
+          "fixtureSha256": "c5817769214cdd418e8dad9a9712489defe28960fe2d9043a56215e0f8f162e4",
+          "counts": {
+            "PASS": 20,
+            "FAIL": 0
+          },
+          "observed_invocations": 20,
+          "observed_status_counts": {
+            "PASS": 20
+          },
+          "failed_case_ids": []
+        },
+        {
+          "domain": "engine",
+          "variant": "composed",
+          "suite": "oco10",
+          "sourceSha256": "481bd3be555d629ac0f6a741372c749bf4e8d678cc26b7cbd5aa207d5cc85032",
+          "fixtureSha256": "b54d180b3badafcaeea81eb92fe9fc3f5f823620b6cd7ecbdd58f06c202b8b5c",
+          "counts": {
+            "PASS": 9,
+            "FAIL": 1
+          },
+          "observed_invocations": 10,
+          "observed_status_counts": {
+            "PASS": 9,
+            "FAIL": 1
+          },
+          "failed_case_ids": [
+            "ReviewOcoCompletedSliceCancelOnlyItsGroup"
+          ]
+        },
+        {
+          "domain": "engine",
+          "variant": "composed",
+          "suite": "sinks6",
+          "sourceSha256": "481bd3be555d629ac0f6a741372c749bf4e8d678cc26b7cbd5aa207d5cc85032",
+          "fixtureSha256": "8fc24ac5d8cc0aa169a8f81129502b6814f2860e62815bd0d7cc559233d2fb24",
+          "counts": {
+            "PASS": 6,
+            "FAIL": 0
+          },
+          "observed_invocations": 6,
+          "observed_status_counts": {
+            "PASS": 6
+          },
+          "failed_case_ids": []
+        },
+        {
+          "domain": "engine",
+          "variant": "composed",
+          "suite": "independent9",
+          "sourceSha256": "481bd3be555d629ac0f6a741372c749bf4e8d678cc26b7cbd5aa207d5cc85032",
+          "fixtureSha256": "f2818df56363f62a514a47df112c9537114d74b6bfe2d5dd871e225bc29bb2fe",
+          "counts": {
+            "PASS": 7,
+            "FAIL": 2
+          },
+          "observed_invocations": 9,
+          "observed_status_counts": {
+            "PASS": 7,
+            "FAIL": 2
+          },
+          "failed_case_ids": [
+            "IndependentCancelDiagnosticTerminalBeforeSink",
+            "IndependentCancelDiagnosticNewExposureBeforeSink"
+          ]
+        },
+        {
+          "domain": "engine",
+          "variant": "composed",
+          "suite": "additional3",
+          "sourceSha256": "481bd3be555d629ac0f6a741372c749bf4e8d678cc26b7cbd5aa207d5cc85032",
+          "fixtureSha256": "044ccc980c4e7fc2c6ba3c90640363d73e61d8196d2e13ab4c3fd90e56bae7a4",
+          "counts": {
+            "PASS": 2,
+            "FAIL": 1
+          },
+          "observed_invocations": 3,
+          "observed_status_counts": {
+            "FAIL": 1,
+            "PASS": 2
+          },
+          "failed_case_ids": [
+            "IndependentCancelDiagnosticCoherentLateEntryBeforeSink"
+          ]
+        },
+        {
+          "domain": "UI",
+          "variant": "frozen",
+          "suite": "alias4",
+          "sourceSha256": "a9160d05b66c2c56f74c2da5be1e77f70f32eaa75958f5e6a28351341eef7c18",
+          "fixtureSha256": "9d1d7a4ee86a371f25c840b64daf0b667fc3c6cf0f0e058f189fedecb3a677b6",
+          "counts": {
+            "PASS": 3,
+            "FAIL": 1
+          },
+          "observed_invocations": 4,
+          "observed_status_counts": {
+            "FAIL": 1,
+            "PASS": 3
+          },
+          "failed_case_ids": [
+            "same-reference-duplicate-remove-rename"
+          ]
+        },
+        {
+          "domain": "UI",
+          "variant": "frozen",
+          "suite": "reentry12",
+          "sourceSha256": "a9160d05b66c2c56f74c2da5be1e77f70f32eaa75958f5e6a28351341eef7c18",
+          "fixtureSha256": "62ae99074eb3eb957a29c3eb3047ffad1d22938f3d89e1362419aee4e7d8c2b1",
+          "counts": {
+            "PASS": 6,
+            "FAIL": 6
+          },
+          "observed_invocations": 12,
+          "observed_status_counts": {
+            "PASS": 6,
+            "FAIL": 6
+          },
+          "failed_case_ids": [
+            "commit:nested-first:export",
+            "commit:nested-first:persist",
+            "commit:nested-first:save",
+            "publish:nested-first:export",
+            "publish:nested-first:persist",
+            "publish:nested-first:save"
+          ]
+        },
+        {
+          "domain": "UI",
+          "variant": "candidate",
+          "suite": "alias4",
+          "sourceSha256": "fe9d29902e2a382aa22b05c1747faf133a48ef0be9f835a2d14f6bb041802ee2",
+          "fixtureSha256": "9d1d7a4ee86a371f25c840b64daf0b667fc3c6cf0f0e058f189fedecb3a677b6",
+          "counts": {
+            "PASS": 3,
+            "FAIL": 1
+          },
+          "observed_invocations": 4,
+          "observed_status_counts": {
+            "FAIL": 1,
+            "PASS": 3
+          },
+          "failed_case_ids": [
+            "same-reference-duplicate-remove-rename"
+          ]
+        },
+        {
+          "domain": "UI",
+          "variant": "candidate",
+          "suite": "reentry12",
+          "sourceSha256": "fe9d29902e2a382aa22b05c1747faf133a48ef0be9f835a2d14f6bb041802ee2",
+          "fixtureSha256": "62ae99074eb3eb957a29c3eb3047ffad1d22938f3d89e1362419aee4e7d8c2b1",
+          "counts": {
+            "PASS": 6,
+            "FAIL": 6
+          },
+          "observed_invocations": 12,
+          "observed_status_counts": {
+            "PASS": 6,
+            "FAIL": 6
+          },
+          "failed_case_ids": [
+            "commit:nested-first:export",
+            "commit:nested-first:persist",
+            "commit:nested-first:save",
+            "publish:nested-first:export",
+            "publish:nested-first:persist",
+            "publish:nested-first:save"
+          ]
+        }
+      ],
+      "reported_case_invocations": 282,
+      "runtime_audits": 80,
+      "reviewer130_readback_only": [
+        {
+          "variant": "base",
+          "total": 130,
+          "counts": {
+            "PASS": 63,
+            "FAIL": 67,
+            "ERROR": 0,
+            "TIMEOUT": 0
+          }
+        },
+        {
+          "variant": "composed",
+          "total": 130,
+          "counts": {
+            "PASS": 63,
+            "FAIL": 67,
+            "ERROR": 0,
+            "TIMEOUT": 0
+          }
+        }
+      ],
+      "research_certificate": {
+        "classification": "NEW_RESEARCH_SPECIFICATION_ALGEBRA_ONLY_NOT_ENGINE_ACCEPTANCE",
+        "counts": {
+          "allocation_vectors": 840,
+          "conservation_states": 23040,
+          "history_permutations": 18,
+          "unsafe_rule_counterexamples": 3
+        },
+        "named_controls": 54,
+        "engine_run": false,
+        "provider_acceptance": "UNKNOWN",
+        "engine_groupcompletion_status": "RED_RETAINED",
+        "whole_pass": false
+      }
+    },
+    {
+      "id": "E11",
+      "origin_label": "pg71-4b62/parent-results.json",
+      "origin_sha256": "38527c81dca3039c9ff37b5cfdaf51ed6fac44ae11a442433a7cc056a636029d",
+      "availability": "Local historical evidence read by this audit; raw artifacts are not distributed here. Hashes are not a public reproduction package.",
+      "scope": "Pure G01 logical revision-history index equivalence / operation budgets",
+      "classification": "PURE_POLICY_ONLY_WITH_RETAINED_FAILURES",
+      "limitations": "Review 333 PASS/35 FAIL retained. Exact snapshots and operation counts are not engine worker or provider latency acceptance. Prior scope incident remains; clean parent replay does not certify earlier procedure.",
+      "review_counts": {
+        "total": 368,
+        "PASS": 333,
+        "FAIL": 35
+      },
+      "snapshot_observations": 33293,
+      "fresh_runs": {
+        "fresh-original": {
+          "exit": 1,
+          "stdoutSha256": "e3225d7176098c90b6372fea4edd6441a7f2e1df923a60e636d731d0747f7ae6"
+        },
+        "fresh-continuation": {
+          "exit": 1,
+          "stdoutSha256": "13b2278afa08efe85099054b87e89715647d2379c97ffadc17ff14cc627b3ddd"
+        },
+        "capacity-complete": {
+          "exit": 0,
+          "stdoutSha256": "83d2936f7598b37314f18996f8afaf2ac0543c97eaa330c6169d85c45c95e883"
+        },
+        "direct-extrema": {
+          "exit": 0,
+          "stdoutSha256": "b849fa274ff17c094690e6ae2328a366c9eebf86edac0ea28ae40fe2a368e3e4"
+        },
+        "mutation-discriminator": {
+          "exit": 1,
+          "stdoutSha256": "d392a3a5b4352a11f1465bc1bbd9c01a6b97581e6b2f63e9d4390a72b8f8add8"
+        },
+        "cost-frozen": {
+          "exit": 1,
+          "stdoutSha256": "db96b41ce82f56f1cd115c461179f711de41c388e7437338bac50294a45160ba"
+        },
+        "cost-index": {
+          "exit": 0,
+          "stdoutSha256": "6cbfc1576621f33ebdfd059f20b7c6d7a2fd1b6f7b68bf40b5e760ce0bc9ee72"
+        }
+      },
+      "procedural_acceptance": false,
+      "source_pins": {
+        "frozen_policy_sha256": "1cf7167ad2f9c5135992d35d2730bc58d124216b823d6b32e5e20b9e8b0555c7",
+        "candidate_policy_sha256": "f917e7235c9e4cfbe7edf22e1255042e63876b94484d192668c6a9918a6f3756"
+      }
+    },
+    {
+      "id": "E12",
+      "origin_label": "br-4d91/parent-results.json",
+      "origin_sha256": "03371ee1476bcfecf7645c7fc637010667f11690ee3d61798e63665dc41a6406",
+      "availability": "Local historical evidence read by this audit; raw artifacts are not distributed here. Hashes are not a public reproduction package.",
+      "scope": "Standalone compile-driver S1/L1 boundary repair / NT compile-only",
+      "classification": "SCOPED_TOOLING_FIX_NOT_INTEGRATED",
+      "limitations": "18 fresh boundary PASS; NT-linked target only compiled, never loaded/executed. Long paths, PowerShell Roslyn StackOverflow root cause and direct editor/compiler bypass remain unresolved.",
+      "source_pins": {
+        "driver_sha256": "82b0e76ead007fba4451724cb15add44c70cbff93479d1ad5ff1a340d1fbf30e",
+        "compile_only_source_sha256": "322a02022061727d240b510083023bc345b44a5ebc733a9a643a3592c982030a"
+      },
+      "fresh_boundary_counts": {
+        "total": 18,
+        "PASS": 18,
+        "FAIL": 0
+      },
+      "compile_only": {
+        "fresh_fullNT_compile_only": 1,
+        "source_errors": 0,
+        "source_warnings": 263,
+        "legacy_reference_warnings": 913,
+        "NT_targets_never_loaded_or_executed": true
+      }
+    },
+    {
+      "id": "E13",
+      "origin_label": "on-frontier-5bc08b1950024ae8a12b547889cd599a/delivery.json",
+      "origin_sha256": "8a5bacc9bca7c56d5fdf0b82d9b3f1b04b9dd8a2067f270b8ea787fa96e053da",
+      "availability": "Local historical evidence read by this audit; raw artifacts are not distributed here. Hashes are not a public reproduction package.",
+      "scope": "Owner fake ON-frontier fixture vectors and mailbox/Dispose/HOL residuals",
+      "classification": "KNOWN_PRODUCT_DEFECTS_AND_SCOPED_FIX",
+      "limitations": "Owner delivery readback, not new execution by this docs audit. Synthetic 10/20/30-account vectors retain failures; not provider latency acceptance or evidence of 67 independent defects.",
+      "source_pins": {
+        "base_sha256": "7d0ae59a57b3466f1defd0f5f2ecb6625e87c32b4238178ed59a1cb7c3c62b4a",
+        "candidate_sha256": "8d094d1dbe09811f484b52c070a4fd4f2749f7327ebfb11bfb0afad5b3aaec8f"
+      },
+      "selected_vectors": {
+        "base": {
+          "core16": {
+            "total": 16,
+            "counts": {
+              "PASS": 16,
+              "FAIL": 0
+            },
+            "failed_case_ids": []
+          },
+          "independent15": {
+            "total": 15,
+            "counts": {
+              "PASS": 12,
+              "FAIL": 3
+            },
+            "failed_case_ids": [
+              "RequestMailboxHardBound",
+              "RequestRejectedPostMustBeObservable",
+              "RequestPublicDisposeCannotLoseAcceptedCallbacks"
+            ]
+          },
+          "on20": {
+            "total": 20,
+            "counts": {
+              "PASS": 7,
+              "FAIL": 13
+            },
+            "failed_case_ids": [
+              "OnUncommittedGapAlreadyBeforeRequest",
+              "OnRiskReadUnknownCallback",
+              "OnRiskPublishUnknownCallback",
+              "OnAckLastReadUnknownCallback",
+              "OnRiskReadLeaderCallback",
+              "OnRiskPublishLeaderCallback",
+              "OnAckReadLeaderCallback",
+              "OnAckLastReadLeaderCallback",
+              "OnAcknowledgementVersionChange",
+              "OnTelemetryReadAfterCommitCannotAcknowledgeGap",
+              "ReviewOnCapturedGapCannotAdvertiseFollowing",
+              "OnOrderCollectionCallbackDuringBlockedCleanRead",
+              "OnOffSupersedesAtFinalTelemetryRead"
+            ]
+          },
+          "scale130": {
+            "total": 130,
+            "counts": {
+              "PASS": 63,
+              "FAIL": 67
+            },
+            "failed_case_ids": [
+              "throw-10-Submit-5",
+              "throw-10-Change-5",
+              "throw-10-Cancel-5",
+              "lifecycleDelay-10-0",
+              "lifecycleDelay-10-100",
+              "lifecycleDelay-10-1000",
+              "lifecycleDelay-10-5000",
+              "invalidQuantity-10",
+              "block-10-Submit-100",
+              "block-10-Submit-1000",
+              "block-10-Submit-5000",
+              "block-10-Change-100",
+              "block-10-Change-1000",
+              "block-10-Change-5000",
+              "submitThrow-10",
+              "lostFill-10",
+              "ocoDouble-10",
+              "fractional-10",
+              "manualFlat-10",
+              "partialTerminal-10",
+              "permute-10-filledOlderWorking",
+              "permute-10-decreasingFill",
+              "throw-20-Submit-10",
+              "throw-20-Change-10",
+              "throw-20-Cancel-10",
+              "lifecycleDelay-20-0",
+              "lifecycleDelay-20-100",
+              "lifecycleDelay-20-1000",
+              "lifecycleDelay-20-5000",
+              "invalidQuantity-20",
+              "block-20-Submit-100",
+              "block-20-Submit-1000",
+              "block-20-Submit-5000",
+              "block-20-Change-100",
+              "block-20-Change-1000",
+              "block-20-Change-5000",
+              "submitThrow-20",
+              "lostFill-20",
+              "ocoDouble-20",
+              "fractional-20",
+              "manualFlat-20",
+              "partialTerminal-20",
+              "permute-20-filledOlderWorking",
+              "permute-20-decreasingFill",
+              "throw-30-Submit-15",
+              "throw-30-Change-15",
+              "throw-30-Cancel-15",
+              "lifecycleDelay-30-0",
+              "lifecycleDelay-30-100",
+              "lifecycleDelay-30-1000",
+              "lifecycleDelay-30-5000",
+              "invalidQuantity-30",
+              "block-30-Submit-100",
+              "block-30-Submit-1000",
+              "block-30-Submit-5000",
+              "block-30-Change-100",
+              "block-30-Change-1000",
+              "block-30-Change-5000",
+              "submitThrow-30",
+              "lostFill-30",
+              "ocoDouble-30",
+              "fractional-30",
+              "manualFlat-30",
+              "partialTerminal-30",
+              "permute-30-filledOlderWorking",
+              "permute-30-decreasingFill",
+              "stall-30"
+            ]
+          }
+        },
+        "candidate": {
+          "core16": {
+            "total": 16,
+            "counts": {
+              "PASS": 16,
+              "FAIL": 0
+            },
+            "failed_case_ids": []
+          },
+          "independent15": {
+            "total": 15,
+            "counts": {
+              "PASS": 12,
+              "FAIL": 3
+            },
+            "failed_case_ids": [
+              "RequestMailboxHardBound",
+              "RequestRejectedPostMustBeObservable",
+              "RequestPublicDisposeCannotLoseAcceptedCallbacks"
+            ]
+          },
+          "on20": {
+            "total": 20,
+            "counts": {
+              "PASS": 20,
+              "FAIL": 0
+            },
+            "failed_case_ids": []
+          },
+          "scale130": {
+            "total": 130,
+            "counts": {
+              "PASS": 63,
+              "FAIL": 67
+            },
+            "failed_case_ids": [
+              "throw-10-Submit-5",
+              "throw-10-Change-5",
+              "throw-10-Cancel-5",
+              "lifecycleDelay-10-0",
+              "lifecycleDelay-10-100",
+              "lifecycleDelay-10-1000",
+              "lifecycleDelay-10-5000",
+              "invalidQuantity-10",
+              "block-10-Submit-100",
+              "block-10-Submit-1000",
+              "block-10-Submit-5000",
+              "block-10-Change-100",
+              "block-10-Change-1000",
+              "block-10-Change-5000",
+              "submitThrow-10",
+              "lostFill-10",
+              "ocoDouble-10",
+              "fractional-10",
+              "manualFlat-10",
+              "partialTerminal-10",
+              "permute-10-filledOlderWorking",
+              "permute-10-decreasingFill",
+              "throw-20-Submit-10",
+              "throw-20-Change-10",
+              "throw-20-Cancel-10",
+              "lifecycleDelay-20-0",
+              "lifecycleDelay-20-100",
+              "lifecycleDelay-20-1000",
+              "lifecycleDelay-20-5000",
+              "invalidQuantity-20",
+              "block-20-Submit-100",
+              "block-20-Submit-1000",
+              "block-20-Submit-5000",
+              "block-20-Change-100",
+              "block-20-Change-1000",
+              "block-20-Change-5000",
+              "submitThrow-20",
+              "lostFill-20",
+              "ocoDouble-20",
+              "fractional-20",
+              "manualFlat-20",
+              "partialTerminal-20",
+              "permute-20-filledOlderWorking",
+              "permute-20-decreasingFill",
+              "throw-30-Submit-15",
+              "throw-30-Change-15",
+              "throw-30-Cancel-15",
+              "lifecycleDelay-30-0",
+              "lifecycleDelay-30-100",
+              "lifecycleDelay-30-1000",
+              "lifecycleDelay-30-5000",
+              "invalidQuantity-30",
+              "block-30-Submit-100",
+              "block-30-Submit-1000",
+              "block-30-Submit-5000",
+              "block-30-Change-100",
+              "block-30-Change-1000",
+              "block-30-Change-5000",
+              "submitThrow-30",
+              "lostFill-30",
+              "ocoDouble-30",
+              "fractional-30",
+              "manualFlat-30",
+              "partialTerminal-30",
+              "permute-30-filledOlderWorking",
+              "permute-30-decreasingFill",
+              "stall-30"
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "approval": {
+    "integration": false,
+    "deployment": false,
+    "simulation_trading": false,
+    "live_trading": false,
+    "whole_task_closure": false
+  }
+}

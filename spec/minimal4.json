@@ -1,0 +1,331 @@
+[
+  {
+    "name": "new-submit-price-None-100",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": [
+          {
+            "id": "E",
+            "account": "qa-a",
+            "instrument": "SYNTH-Q",
+            "session": "S1",
+            "generation": 1,
+            "group": "qa-g",
+            "role": "ENTRY",
+            "side": "Buy",
+            "filled": 2,
+            "accepted_total": 2
+          },
+          {
+            "id": "S",
+            "account": "qa-a",
+            "instrument": "SYNTH-Q",
+            "session": "S1",
+            "generation": 1,
+            "group": "qa-g",
+            "role": "STOP",
+            "side": "Sell",
+            "filled": 0,
+            "accepted_total": 2,
+            "accepted_stop_price": "99"
+          }
+        ]
+      },
+      {
+        "tag": "register",
+        "order": {
+          "id": "R",
+          "account": "qa-a",
+          "instrument": "SYNTH-Q",
+          "session": "S1",
+          "generation": 1,
+          "group": "qa-g",
+          "role": "STOP",
+          "side": "Sell",
+          "filled": 0,
+          "accepted_total": 0,
+          "accepted_stop_price": "100"
+        }
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "p",
+          "operation": "Submit",
+          "account": "qa-a",
+          "instrument": "SYNTH-Q",
+          "session": "S1",
+          "generation": 1,
+          "order": "R",
+          "group": "qa-g",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 1,
+          "base_ack_revision": 0,
+          "total": 2,
+          "side": "Sell",
+          "order_type": "StopMarket",
+          "stop_price": "101.125",
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "p"
+      },
+      {
+        "tag": "ack",
+        "command_id": "p",
+        "revision": 1,
+        "account": "qa-a",
+        "order": "R",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 2,
+        "state": "Working",
+        "accepted_stop_price": null
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "x",
+          "operation": "Cancel",
+          "account": "qa-a",
+          "instrument": "SYNTH-Q",
+          "session": "S1",
+          "generation": 1,
+          "order": "S",
+          "group": "qa-g",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 1,
+          "base_ack_revision": 0,
+          "total": null,
+          "side": null,
+          "order_type": null,
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "x"
+      }
+    ],
+    "expected_accepted": false
+  },
+  {
+    "name": "ack-reduction-below-positive-fill-ENTRY-captured-only",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": [
+          {
+            "id": "N",
+            "account": "qa-a",
+            "instrument": "SYNTH-Q",
+            "session": "S1",
+            "generation": 1,
+            "group": "qa-g",
+            "role": "ENTRY",
+            "side": "Buy",
+            "filled": 0,
+            "accepted_total": 4
+          }
+        ]
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "c",
+          "operation": "Change",
+          "account": "qa-a",
+          "instrument": "SYNTH-Q",
+          "session": "S1",
+          "generation": 1,
+          "order": "N",
+          "group": "qa-g",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 1,
+          "base_ack_revision": 0,
+          "total": 2,
+          "side": "Buy",
+          "order_type": "Market",
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "c"
+      },
+      {
+        "tag": "capture",
+        "order": "N",
+        "seq": 2,
+        "cumulative": 3
+      },
+      {
+        "tag": "ack",
+        "command_id": "c",
+        "revision": 1,
+        "account": "qa-a",
+        "order": "N",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 2,
+        "state": "Working",
+        "accepted_stop_price": null
+      },
+      {
+        "tag": "apply",
+        "frontier": 2
+      }
+    ],
+    "expected_accepted": false
+  },
+  {
+    "name": "cancel-ack-unproven-total-100001",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": [
+          {
+            "id": "E",
+            "account": "qa-a",
+            "instrument": "SYNTH-Q",
+            "session": "S1",
+            "generation": 1,
+            "group": "qa-g",
+            "role": "ENTRY",
+            "side": "Buy",
+            "filled": 0,
+            "accepted_total": 2
+          }
+        ]
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "c",
+          "operation": "Cancel",
+          "account": "qa-a",
+          "instrument": "SYNTH-Q",
+          "session": "S1",
+          "generation": 1,
+          "order": "E",
+          "group": "qa-g",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 1,
+          "base_ack_revision": 0,
+          "total": null,
+          "side": null,
+          "order_type": null,
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "c"
+      },
+      {
+        "tag": "ack",
+        "command_id": "c",
+        "revision": 1,
+        "account": "qa-a",
+        "order": "E",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 100001,
+        "state": "Cancelled",
+        "accepted_stop_price": null
+      }
+    ],
+    "expected_accepted": false
+  },
+  {
+    "name": "cancel-ack-manufactures-fill-capacity",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": [
+          {
+            "id": "E",
+            "account": "qa-a",
+            "instrument": "SYNTH-Q",
+            "session": "S1",
+            "generation": 1,
+            "group": "qa-g",
+            "role": "ENTRY",
+            "side": "Buy",
+            "filled": 0,
+            "accepted_total": 2
+          }
+        ]
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "c",
+          "operation": "Cancel",
+          "account": "qa-a",
+          "instrument": "SYNTH-Q",
+          "session": "S1",
+          "generation": 1,
+          "order": "E",
+          "group": "qa-g",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 1,
+          "base_ack_revision": 0,
+          "total": null,
+          "side": null,
+          "order_type": null,
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "c"
+      },
+      {
+        "tag": "ack",
+        "command_id": "c",
+        "revision": 1,
+        "account": "qa-a",
+        "order": "E",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 3,
+        "state": "Cancelled",
+        "accepted_stop_price": null
+      },
+      {
+        "tag": "capture",
+        "order": "E",
+        "seq": 2,
+        "cumulative": 3
+      },
+      {
+        "tag": "apply",
+        "frontier": 2
+      }
+    ],
+    "expected_accepted": false
+  }
+]

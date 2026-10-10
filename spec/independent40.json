@@ -1,0 +1,4704 @@
+[
+  {
+    "name": "retained-maximum-not-latest-ENTRY",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": [
+          {
+            "id": "subject",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "ENTRY",
+            "side": "Sell",
+            "filled": 0,
+            "accepted_total": 7,
+            "ack_revision": 7,
+            "live": true,
+            "accepted_stop_price": null
+          }
+        ]
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "reduce-after-high",
+          "operation": "Change",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "subject",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 8,
+          "base_ack_revision": 7,
+          "total": 3,
+          "side": "Sell",
+          "order_type": "Market",
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "reduce-after-high"
+      },
+      {
+        "tag": "capture",
+        "order": "subject",
+        "seq": 2,
+        "cumulative": 6
+      },
+      {
+        "tag": "capture",
+        "order": "subject",
+        "seq": 3,
+        "cumulative": 2
+      },
+      {
+        "tag": "ack",
+        "command_id": "reduce-after-high",
+        "revision": 8,
+        "account": "isolated-A",
+        "order": "subject",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 3,
+        "state": "PartFilled",
+        "accepted_stop_price": null
+      }
+    ],
+    "expected": false,
+    "property": "ACK_FILL_COHERENCE",
+    "checks": {
+      "filled": "retained6"
+    },
+    "category": "NR01"
+  },
+  {
+    "name": "applied-maximum-survives-lower-late-ENTRY",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": [
+          {
+            "id": "subject",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "ENTRY",
+            "side": "Sell",
+            "filled": 0,
+            "accepted_total": 7,
+            "ack_revision": 7,
+            "live": true,
+            "accepted_stop_price": null
+          }
+        ]
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "reduce-after-high",
+          "operation": "Change",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "subject",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 8,
+          "base_ack_revision": 7,
+          "total": 3,
+          "side": "Sell",
+          "order_type": "Market",
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "reduce-after-high"
+      },
+      {
+        "tag": "capture",
+        "order": "subject",
+        "seq": 2,
+        "cumulative": 6
+      },
+      {
+        "tag": "apply",
+        "frontier": 2
+      },
+      {
+        "tag": "capture",
+        "order": "subject",
+        "seq": 3,
+        "cumulative": 2
+      },
+      {
+        "tag": "apply",
+        "frontier": 3
+      },
+      {
+        "tag": "ack",
+        "command_id": "reduce-after-high",
+        "revision": 8,
+        "account": "isolated-A",
+        "order": "subject",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 3,
+        "state": "PartFilled",
+        "accepted_stop_price": null
+      }
+    ],
+    "expected": false,
+    "property": "ACK_FILL_COHERENCE",
+    "checks": {},
+    "category": "NR01"
+  },
+  {
+    "name": "coherent-maximum-after-old-total-fill-ENTRY",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": [
+          {
+            "id": "subject",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "ENTRY",
+            "side": "Sell",
+            "filled": 0,
+            "accepted_total": 7,
+            "ack_revision": 7,
+            "live": true,
+            "accepted_stop_price": null
+          }
+        ]
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "reduce-after-high",
+          "operation": "Change",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "subject",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 8,
+          "base_ack_revision": 7,
+          "total": 6,
+          "side": "Sell",
+          "order_type": "Market",
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "reduce-after-high"
+      },
+      {
+        "tag": "capture",
+        "order": "subject",
+        "seq": 2,
+        "cumulative": 6
+      },
+      {
+        "tag": "capture",
+        "order": "subject",
+        "seq": 3,
+        "cumulative": 2
+      },
+      {
+        "tag": "ack",
+        "command_id": "reduce-after-high",
+        "revision": 8,
+        "account": "isolated-A",
+        "order": "subject",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 6,
+        "state": "PartFilled",
+        "accepted_stop_price": null
+      },
+      {
+        "tag": "apply",
+        "frontier": 3
+      }
+    ],
+    "expected": true,
+    "property": null,
+    "checks": {
+      "order": {
+        "subject": {
+          "filled": 6,
+          "accepted_total": 6,
+          "ack_revision": 8
+        }
+      }
+    },
+    "category": "NR01-valid"
+  },
+  {
+    "name": "retained-maximum-not-latest-TP",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": [
+          {
+            "id": "subject",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "TP",
+            "side": "Sell",
+            "filled": 0,
+            "accepted_total": 7,
+            "ack_revision": 7,
+            "live": true,
+            "accepted_stop_price": null
+          }
+        ]
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "reduce-after-high",
+          "operation": "Change",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "subject",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 8,
+          "base_ack_revision": 7,
+          "total": 3,
+          "side": "Sell",
+          "order_type": "Market",
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "reduce-after-high"
+      },
+      {
+        "tag": "capture",
+        "order": "subject",
+        "seq": 2,
+        "cumulative": 6
+      },
+      {
+        "tag": "capture",
+        "order": "subject",
+        "seq": 3,
+        "cumulative": 2
+      },
+      {
+        "tag": "ack",
+        "command_id": "reduce-after-high",
+        "revision": 8,
+        "account": "isolated-A",
+        "order": "subject",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 3,
+        "state": "PartFilled",
+        "accepted_stop_price": null
+      }
+    ],
+    "expected": false,
+    "property": "ACK_FILL_COHERENCE",
+    "checks": {
+      "filled": "retained6"
+    },
+    "category": "NR01"
+  },
+  {
+    "name": "applied-maximum-survives-lower-late-TP",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": [
+          {
+            "id": "subject",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "TP",
+            "side": "Sell",
+            "filled": 0,
+            "accepted_total": 7,
+            "ack_revision": 7,
+            "live": true,
+            "accepted_stop_price": null
+          }
+        ]
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "reduce-after-high",
+          "operation": "Change",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "subject",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 8,
+          "base_ack_revision": 7,
+          "total": 3,
+          "side": "Sell",
+          "order_type": "Market",
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "reduce-after-high"
+      },
+      {
+        "tag": "capture",
+        "order": "subject",
+        "seq": 2,
+        "cumulative": 6
+      },
+      {
+        "tag": "apply",
+        "frontier": 2
+      },
+      {
+        "tag": "capture",
+        "order": "subject",
+        "seq": 3,
+        "cumulative": 2
+      },
+      {
+        "tag": "apply",
+        "frontier": 3
+      },
+      {
+        "tag": "ack",
+        "command_id": "reduce-after-high",
+        "revision": 8,
+        "account": "isolated-A",
+        "order": "subject",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 3,
+        "state": "PartFilled",
+        "accepted_stop_price": null
+      }
+    ],
+    "expected": false,
+    "property": "ACK_FILL_COHERENCE",
+    "checks": {},
+    "category": "NR01"
+  },
+  {
+    "name": "coherent-maximum-after-old-total-fill-TP",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": [
+          {
+            "id": "subject",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "TP",
+            "side": "Sell",
+            "filled": 0,
+            "accepted_total": 7,
+            "ack_revision": 7,
+            "live": true,
+            "accepted_stop_price": null
+          }
+        ]
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "reduce-after-high",
+          "operation": "Change",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "subject",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 8,
+          "base_ack_revision": 7,
+          "total": 6,
+          "side": "Sell",
+          "order_type": "Market",
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "reduce-after-high"
+      },
+      {
+        "tag": "capture",
+        "order": "subject",
+        "seq": 2,
+        "cumulative": 6
+      },
+      {
+        "tag": "capture",
+        "order": "subject",
+        "seq": 3,
+        "cumulative": 2
+      },
+      {
+        "tag": "ack",
+        "command_id": "reduce-after-high",
+        "revision": 8,
+        "account": "isolated-A",
+        "order": "subject",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 6,
+        "state": "PartFilled",
+        "accepted_stop_price": null
+      },
+      {
+        "tag": "apply",
+        "frontier": 3
+      }
+    ],
+    "expected": true,
+    "property": null,
+    "checks": {
+      "order": {
+        "subject": {
+          "filled": 6,
+          "accepted_total": 6,
+          "ack_revision": 8
+        }
+      }
+    },
+    "category": "NR01-valid"
+  },
+  {
+    "name": "retained-maximum-not-latest-STOP",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": [
+          {
+            "id": "short-origin",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "ENTRY",
+            "side": "Sell",
+            "filled": 3,
+            "accepted_total": 7,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": null
+          },
+          {
+            "id": "subject",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "STOP",
+            "side": "Buy",
+            "filled": 0,
+            "accepted_total": 7,
+            "ack_revision": 7,
+            "live": true,
+            "accepted_stop_price": "121.5"
+          }
+        ]
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "reduce-after-high",
+          "operation": "Change",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "subject",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 8,
+          "base_ack_revision": 7,
+          "total": 3,
+          "side": "Buy",
+          "order_type": "StopMarket",
+          "stop_price": "120.875",
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "reduce-after-high"
+      },
+      {
+        "tag": "capture",
+        "order": "subject",
+        "seq": 2,
+        "cumulative": 6
+      },
+      {
+        "tag": "capture",
+        "order": "subject",
+        "seq": 3,
+        "cumulative": 2
+      },
+      {
+        "tag": "ack",
+        "command_id": "reduce-after-high",
+        "revision": 8,
+        "account": "isolated-A",
+        "order": "subject",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 3,
+        "state": "PartFilled",
+        "accepted_stop_price": null
+      }
+    ],
+    "expected": false,
+    "property": "ACK_FILL_COHERENCE",
+    "checks": {
+      "filled": "retained6"
+    },
+    "category": "NR01"
+  },
+  {
+    "name": "applied-maximum-survives-lower-late-STOP",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": [
+          {
+            "id": "short-origin",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "ENTRY",
+            "side": "Sell",
+            "filled": 3,
+            "accepted_total": 7,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": null
+          },
+          {
+            "id": "subject",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "STOP",
+            "side": "Buy",
+            "filled": 0,
+            "accepted_total": 7,
+            "ack_revision": 7,
+            "live": true,
+            "accepted_stop_price": "121.5"
+          }
+        ]
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "reduce-after-high",
+          "operation": "Change",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "subject",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 8,
+          "base_ack_revision": 7,
+          "total": 3,
+          "side": "Buy",
+          "order_type": "StopMarket",
+          "stop_price": "120.875",
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "reduce-after-high"
+      },
+      {
+        "tag": "capture",
+        "order": "subject",
+        "seq": 2,
+        "cumulative": 6
+      },
+      {
+        "tag": "apply",
+        "frontier": 2
+      },
+      {
+        "tag": "capture",
+        "order": "subject",
+        "seq": 3,
+        "cumulative": 2
+      },
+      {
+        "tag": "apply",
+        "frontier": 3
+      },
+      {
+        "tag": "ack",
+        "command_id": "reduce-after-high",
+        "revision": 8,
+        "account": "isolated-A",
+        "order": "subject",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 3,
+        "state": "PartFilled",
+        "accepted_stop_price": null
+      }
+    ],
+    "expected": false,
+    "property": "ACK_FILL_COHERENCE",
+    "checks": {},
+    "category": "NR01"
+  },
+  {
+    "name": "coherent-maximum-after-old-total-fill-STOP",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": [
+          {
+            "id": "short-origin",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "ENTRY",
+            "side": "Sell",
+            "filled": 3,
+            "accepted_total": 7,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": null
+          },
+          {
+            "id": "subject",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "STOP",
+            "side": "Buy",
+            "filled": 0,
+            "accepted_total": 7,
+            "ack_revision": 7,
+            "live": true,
+            "accepted_stop_price": "121.5"
+          }
+        ]
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "reduce-after-high",
+          "operation": "Change",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "subject",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 8,
+          "base_ack_revision": 7,
+          "total": 6,
+          "side": "Buy",
+          "order_type": "StopMarket",
+          "stop_price": "120.875",
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "reduce-after-high"
+      },
+      {
+        "tag": "capture",
+        "order": "subject",
+        "seq": 2,
+        "cumulative": 6
+      },
+      {
+        "tag": "capture",
+        "order": "subject",
+        "seq": 3,
+        "cumulative": 2
+      },
+      {
+        "tag": "ack",
+        "command_id": "reduce-after-high",
+        "revision": 8,
+        "account": "isolated-A",
+        "order": "subject",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 6,
+        "state": "PartFilled",
+        "accepted_stop_price": null
+      },
+      {
+        "tag": "apply",
+        "frontier": 3
+      }
+    ],
+    "expected": true,
+    "property": null,
+    "checks": {
+      "order": {
+        "subject": {
+          "filled": 6,
+          "accepted_total": 6,
+          "ack_revision": 8
+        }
+      }
+    },
+    "category": "NR01-valid"
+  },
+  {
+    "name": "two-revision-partial-apply-unknown-contradiction",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": [
+          {
+            "id": "growth",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "ENTRY",
+            "side": "Buy",
+            "filled": 0,
+            "accepted_total": 4,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": null
+          },
+          {
+            "id": "elsewhere",
+            "account": "isolated-B",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "other",
+            "role": "ENTRY",
+            "side": "Buy",
+            "filled": 0,
+            "accepted_total": 12,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": null
+          }
+        ]
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "grow-r1",
+          "operation": "Change",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "growth",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 1,
+          "base_ack_revision": 0,
+          "total": 9,
+          "side": "Buy",
+          "order_type": "Market",
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "grow-r1"
+      },
+      {
+        "tag": "ack",
+        "command_id": "grow-r1",
+        "revision": 1,
+        "account": "isolated-A",
+        "order": "growth",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 9,
+        "state": "Working",
+        "accepted_stop_price": null
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "reduce-r2",
+          "operation": "Change",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "growth",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 2,
+          "base_ack_revision": 1,
+          "total": 5,
+          "side": "Buy",
+          "order_type": "Market",
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "reduce-r2"
+      },
+      {
+        "tag": "capture",
+        "order": "elsewhere",
+        "seq": 2,
+        "cumulative": 12
+      },
+      {
+        "tag": "capture",
+        "order": "growth",
+        "seq": 3,
+        "cumulative": 8
+      },
+      {
+        "tag": "apply",
+        "frontier": 2
+      },
+      {
+        "tag": "return",
+        "command_id": "reduce-r2",
+        "outcome": "exception"
+      },
+      {
+        "tag": "tick",
+        "ms": 500
+      },
+      {
+        "tag": "ack",
+        "command_id": "reduce-r2",
+        "revision": 2,
+        "account": "isolated-A",
+        "order": "growth",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 5,
+        "state": "PartFilled",
+        "accepted_stop_price": null
+      }
+    ],
+    "expected": false,
+    "property": "ACK_FILL_COHERENCE",
+    "checks": {},
+    "category": "NR01"
+  },
+  {
+    "name": "two-revision-late-coherent-ack-reconciles",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": [
+          {
+            "id": "growth",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "ENTRY",
+            "side": "Buy",
+            "filled": 0,
+            "accepted_total": 4,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": null
+          },
+          {
+            "id": "elsewhere",
+            "account": "isolated-B",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "other",
+            "role": "ENTRY",
+            "side": "Buy",
+            "filled": 0,
+            "accepted_total": 12,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": null
+          }
+        ]
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "grow-r1",
+          "operation": "Change",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "growth",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 1,
+          "base_ack_revision": 0,
+          "total": 9,
+          "side": "Buy",
+          "order_type": "Market",
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "grow-r1"
+      },
+      {
+        "tag": "ack",
+        "command_id": "grow-r1",
+        "revision": 1,
+        "account": "isolated-A",
+        "order": "growth",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 9,
+        "state": "Working",
+        "accepted_stop_price": null
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "reduce-r2",
+          "operation": "Change",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "growth",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 2,
+          "base_ack_revision": 1,
+          "total": 8,
+          "side": "Buy",
+          "order_type": "Market",
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "reduce-r2"
+      },
+      {
+        "tag": "capture",
+        "order": "elsewhere",
+        "seq": 2,
+        "cumulative": 12
+      },
+      {
+        "tag": "capture",
+        "order": "growth",
+        "seq": 3,
+        "cumulative": 8
+      },
+      {
+        "tag": "apply",
+        "frontier": 2
+      },
+      {
+        "tag": "return",
+        "command_id": "reduce-r2",
+        "outcome": "exception"
+      },
+      {
+        "tag": "tick",
+        "ms": 500
+      },
+      {
+        "tag": "ack",
+        "command_id": "reduce-r2",
+        "revision": 2,
+        "account": "isolated-A",
+        "order": "growth",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 8,
+        "state": "PartFilled",
+        "accepted_stop_price": null
+      },
+      {
+        "tag": "apply",
+        "frontier": 3
+      }
+    ],
+    "expected": true,
+    "property": null,
+    "checks": {
+      "order": {
+        "growth": {
+          "accepted_total": 8,
+          "filled": 8,
+          "ack_revision": 2
+        },
+        "elsewhere": {
+          "filled": 12
+        }
+      },
+      "request": {
+        "reduce-r2": "Acknowledged"
+      },
+      "blocked": [
+        "isolated-A"
+      ]
+    },
+    "category": "NR01-valid"
+  },
+  {
+    "name": "seed-applied-positive-evidence-not-erased",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": [
+          {
+            "id": "checkpoint",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "ENTRY",
+            "side": "Buy",
+            "filled": 6,
+            "accepted_total": 8,
+            "ack_revision": 9,
+            "live": true,
+            "accepted_stop_price": null
+          }
+        ]
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "trusted-reduce",
+          "operation": "Change",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "checkpoint",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 10,
+          "base_ack_revision": 9,
+          "total": 5,
+          "side": "Buy",
+          "order_type": "Market",
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "trusted-reduce"
+      },
+      {
+        "tag": "capture",
+        "order": "checkpoint",
+        "seq": 2,
+        "cumulative": 2
+      },
+      {
+        "tag": "apply",
+        "frontier": 2
+      },
+      {
+        "tag": "ack",
+        "command_id": "trusted-reduce",
+        "revision": 10,
+        "account": "isolated-A",
+        "order": "checkpoint",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 5,
+        "state": "PartFilled",
+        "accepted_stop_price": null
+      }
+    ],
+    "expected": false,
+    "property": "ACK_FILL_COHERENCE",
+    "checks": {},
+    "category": "NR01"
+  },
+  {
+    "name": "unrelated-account-max-cannot-poison-coherent-ack",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": [
+          {
+            "id": "checkpoint",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "ENTRY",
+            "side": "Buy",
+            "filled": 4,
+            "accepted_total": 8,
+            "ack_revision": 9,
+            "live": true,
+            "accepted_stop_price": null
+          },
+          {
+            "id": "unrelated",
+            "account": "isolated-B",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "ENTRY",
+            "side": "Buy",
+            "filled": 40,
+            "accepted_total": 40,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": null
+          }
+        ]
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "scoped-reduce",
+          "operation": "Change",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "checkpoint",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 10,
+          "base_ack_revision": 9,
+          "total": 5,
+          "side": "Buy",
+          "order_type": "Market",
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "scoped-reduce"
+      },
+      {
+        "tag": "capture",
+        "order": "checkpoint",
+        "seq": 2,
+        "cumulative": 2
+      },
+      {
+        "tag": "ack",
+        "command_id": "scoped-reduce",
+        "revision": 10,
+        "account": "isolated-A",
+        "order": "checkpoint",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 5,
+        "state": "PartFilled",
+        "accepted_stop_price": null
+      },
+      {
+        "tag": "apply",
+        "frontier": 2
+      }
+    ],
+    "expected": true,
+    "property": null,
+    "checks": {
+      "order": {
+        "checkpoint": {
+          "accepted_total": 5,
+          "filled": 4
+        }
+      }
+    },
+    "category": "NR01-valid"
+  },
+  {
+    "name": "submit-high-then-zero-unknown-valid",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": []
+      },
+      {
+        "tag": "register",
+        "order": {
+          "id": "new",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "group": "primary",
+          "role": "ENTRY",
+          "side": "Buy",
+          "filled": 0,
+          "accepted_total": 0,
+          "ack_revision": 0,
+          "live": true,
+          "accepted_stop_price": null
+        }
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "new-entry",
+          "operation": "Submit",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "new",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 1,
+          "base_ack_revision": 0,
+          "total": 5,
+          "side": "Buy",
+          "order_type": "Market",
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "new-entry"
+      },
+      {
+        "tag": "capture",
+        "order": "new",
+        "seq": 2,
+        "cumulative": 5
+      },
+      {
+        "tag": "capture",
+        "order": "new",
+        "seq": 3,
+        "cumulative": 0
+      },
+      {
+        "tag": "return",
+        "command_id": "new-entry",
+        "outcome": "exception"
+      },
+      {
+        "tag": "tick",
+        "ms": 500
+      },
+      {
+        "tag": "ack",
+        "command_id": "new-entry",
+        "revision": 1,
+        "account": "isolated-A",
+        "order": "new",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 5,
+        "state": "PartFilled",
+        "accepted_stop_price": null
+      },
+      {
+        "tag": "apply",
+        "frontier": 3
+      }
+    ],
+    "expected": true,
+    "property": null,
+    "checks": {
+      "order": {
+        "new": {
+          "filled": 5,
+          "accepted_total": 5,
+          "ack_revision": 1
+        }
+      }
+    },
+    "category": "NR01-valid"
+  },
+  {
+    "name": "submit-excess-rejected-before-ack",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": []
+      },
+      {
+        "tag": "register",
+        "order": {
+          "id": "new",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "group": "primary",
+          "role": "ENTRY",
+          "side": "Buy",
+          "filled": 0,
+          "accepted_total": 0,
+          "ack_revision": 0,
+          "live": true,
+          "accepted_stop_price": null
+        }
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "new-entry",
+          "operation": "Submit",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "new",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 1,
+          "base_ack_revision": 0,
+          "total": 5,
+          "side": "Buy",
+          "order_type": "Market",
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "new-entry"
+      },
+      {
+        "tag": "capture",
+        "order": "new",
+        "seq": 2,
+        "cumulative": 5
+      },
+      {
+        "tag": "capture",
+        "order": "new",
+        "seq": 3,
+        "cumulative": 6
+      },
+      {
+        "tag": "return",
+        "command_id": "new-entry",
+        "outcome": "exception"
+      },
+      {
+        "tag": "tick",
+        "ms": 500
+      },
+      {
+        "tag": "ack",
+        "command_id": "new-entry",
+        "revision": 1,
+        "account": "isolated-A",
+        "order": "new",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 5,
+        "state": "PartFilled",
+        "accepted_stop_price": null
+      }
+    ],
+    "expected": false,
+    "property": "FILL_CAPACITY",
+    "checks": {},
+    "category": "NR01"
+  },
+  {
+    "name": "cancel-cannot-recertify-growth",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": [
+          {
+            "id": "cancel-subject",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "ENTRY",
+            "side": "Buy",
+            "filled": 0,
+            "accepted_total": 4,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": null
+          }
+        ]
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "growth-established",
+          "operation": "Change",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "cancel-subject",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 1,
+          "base_ack_revision": 0,
+          "total": 9,
+          "side": "Buy",
+          "order_type": "Market",
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "growth-established"
+      },
+      {
+        "tag": "ack",
+        "command_id": "growth-established",
+        "revision": 1,
+        "account": "isolated-A",
+        "order": "cancel-subject",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 9,
+        "state": "Working",
+        "accepted_stop_price": null
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "cancel-r2",
+          "operation": "Cancel",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "cancel-subject",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 2,
+          "base_ack_revision": 1,
+          "total": null,
+          "side": null,
+          "order_type": null,
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "cancel-r2"
+      },
+      {
+        "tag": "capture",
+        "order": "cancel-subject",
+        "seq": 2,
+        "cumulative": 6
+      },
+      {
+        "tag": "apply",
+        "frontier": 2
+      },
+      {
+        "tag": "return",
+        "command_id": "cancel-r2",
+        "outcome": "exception"
+      },
+      {
+        "tag": "tick",
+        "ms": 500
+      },
+      {
+        "tag": "ack",
+        "command_id": "cancel-r2",
+        "revision": 2,
+        "account": "isolated-A",
+        "order": "cancel-subject",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 10,
+        "state": "Cancelled",
+        "accepted_stop_price": null
+      },
+      {
+        "tag": "capture",
+        "order": "cancel-subject",
+        "seq": 3,
+        "cumulative": 10
+      }
+    ],
+    "expected": false,
+    "property": "ACK_TOTAL",
+    "checks": {},
+    "category": "NR02"
+  },
+  {
+    "name": "cancel-cannot-recertify-filled-not-total",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": [
+          {
+            "id": "cancel-subject",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "ENTRY",
+            "side": "Buy",
+            "filled": 0,
+            "accepted_total": 4,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": null
+          }
+        ]
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "growth-established",
+          "operation": "Change",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "cancel-subject",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 1,
+          "base_ack_revision": 0,
+          "total": 9,
+          "side": "Buy",
+          "order_type": "Market",
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "growth-established"
+      },
+      {
+        "tag": "ack",
+        "command_id": "growth-established",
+        "revision": 1,
+        "account": "isolated-A",
+        "order": "cancel-subject",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 9,
+        "state": "Working",
+        "accepted_stop_price": null
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "cancel-r2",
+          "operation": "Cancel",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "cancel-subject",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 2,
+          "base_ack_revision": 1,
+          "total": null,
+          "side": null,
+          "order_type": null,
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "cancel-r2"
+      },
+      {
+        "tag": "capture",
+        "order": "cancel-subject",
+        "seq": 2,
+        "cumulative": 6
+      },
+      {
+        "tag": "apply",
+        "frontier": 2
+      },
+      {
+        "tag": "return",
+        "command_id": "cancel-r2",
+        "outcome": "exception"
+      },
+      {
+        "tag": "tick",
+        "ms": 500
+      },
+      {
+        "tag": "ack",
+        "command_id": "cancel-r2",
+        "revision": 2,
+        "account": "isolated-A",
+        "order": "cancel-subject",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 6,
+        "state": "Cancelled",
+        "accepted_stop_price": null
+      },
+      {
+        "tag": "capture",
+        "order": "cancel-subject",
+        "seq": 3,
+        "cumulative": 10
+      }
+    ],
+    "expected": false,
+    "property": "ACK_TOTAL",
+    "checks": {},
+    "category": "NR02"
+  },
+  {
+    "name": "cancel-cannot-recertify-leaves-not-total",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": [
+          {
+            "id": "cancel-subject",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "ENTRY",
+            "side": "Buy",
+            "filled": 0,
+            "accepted_total": 4,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": null
+          }
+        ]
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "growth-established",
+          "operation": "Change",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "cancel-subject",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 1,
+          "base_ack_revision": 0,
+          "total": 9,
+          "side": "Buy",
+          "order_type": "Market",
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "growth-established"
+      },
+      {
+        "tag": "ack",
+        "command_id": "growth-established",
+        "revision": 1,
+        "account": "isolated-A",
+        "order": "cancel-subject",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 9,
+        "state": "Working",
+        "accepted_stop_price": null
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "cancel-r2",
+          "operation": "Cancel",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "cancel-subject",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 2,
+          "base_ack_revision": 1,
+          "total": null,
+          "side": null,
+          "order_type": null,
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "cancel-r2"
+      },
+      {
+        "tag": "capture",
+        "order": "cancel-subject",
+        "seq": 2,
+        "cumulative": 6
+      },
+      {
+        "tag": "apply",
+        "frontier": 2
+      },
+      {
+        "tag": "return",
+        "command_id": "cancel-r2",
+        "outcome": "exception"
+      },
+      {
+        "tag": "tick",
+        "ms": 500
+      },
+      {
+        "tag": "ack",
+        "command_id": "cancel-r2",
+        "revision": 2,
+        "account": "isolated-A",
+        "order": "cancel-subject",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 3,
+        "state": "Cancelled",
+        "accepted_stop_price": null
+      },
+      {
+        "tag": "capture",
+        "order": "cancel-subject",
+        "seq": 3,
+        "cumulative": 10
+      }
+    ],
+    "expected": false,
+    "property": "ACK_TOTAL",
+    "checks": {},
+    "category": "NR02"
+  },
+  {
+    "name": "cancel-cannot-recertify-pre-growth-stale",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": [
+          {
+            "id": "cancel-subject",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "ENTRY",
+            "side": "Buy",
+            "filled": 0,
+            "accepted_total": 4,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": null
+          }
+        ]
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "growth-established",
+          "operation": "Change",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "cancel-subject",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 1,
+          "base_ack_revision": 0,
+          "total": 9,
+          "side": "Buy",
+          "order_type": "Market",
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "growth-established"
+      },
+      {
+        "tag": "ack",
+        "command_id": "growth-established",
+        "revision": 1,
+        "account": "isolated-A",
+        "order": "cancel-subject",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 9,
+        "state": "Working",
+        "accepted_stop_price": null
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "cancel-r2",
+          "operation": "Cancel",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "cancel-subject",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 2,
+          "base_ack_revision": 1,
+          "total": null,
+          "side": null,
+          "order_type": null,
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "cancel-r2"
+      },
+      {
+        "tag": "capture",
+        "order": "cancel-subject",
+        "seq": 2,
+        "cumulative": 6
+      },
+      {
+        "tag": "apply",
+        "frontier": 2
+      },
+      {
+        "tag": "return",
+        "command_id": "cancel-r2",
+        "outcome": "exception"
+      },
+      {
+        "tag": "tick",
+        "ms": 500
+      },
+      {
+        "tag": "ack",
+        "command_id": "cancel-r2",
+        "revision": 2,
+        "account": "isolated-A",
+        "order": "cancel-subject",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 4,
+        "state": "Cancelled",
+        "accepted_stop_price": null
+      },
+      {
+        "tag": "capture",
+        "order": "cancel-subject",
+        "seq": 3,
+        "cumulative": 10
+      }
+    ],
+    "expected": false,
+    "property": "ACK_TOTAL",
+    "checks": {},
+    "category": "NR02"
+  },
+  {
+    "name": "cancel-cannot-recertify-negative",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": [
+          {
+            "id": "cancel-subject",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "ENTRY",
+            "side": "Buy",
+            "filled": 0,
+            "accepted_total": 4,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": null
+          }
+        ]
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "growth-established",
+          "operation": "Change",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "cancel-subject",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 1,
+          "base_ack_revision": 0,
+          "total": 9,
+          "side": "Buy",
+          "order_type": "Market",
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "growth-established"
+      },
+      {
+        "tag": "ack",
+        "command_id": "growth-established",
+        "revision": 1,
+        "account": "isolated-A",
+        "order": "cancel-subject",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 9,
+        "state": "Working",
+        "accepted_stop_price": null
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "cancel-r2",
+          "operation": "Cancel",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "cancel-subject",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 2,
+          "base_ack_revision": 1,
+          "total": null,
+          "side": null,
+          "order_type": null,
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "cancel-r2"
+      },
+      {
+        "tag": "capture",
+        "order": "cancel-subject",
+        "seq": 2,
+        "cumulative": 6
+      },
+      {
+        "tag": "apply",
+        "frontier": 2
+      },
+      {
+        "tag": "return",
+        "command_id": "cancel-r2",
+        "outcome": "exception"
+      },
+      {
+        "tag": "tick",
+        "ms": 500
+      },
+      {
+        "tag": "ack",
+        "command_id": "cancel-r2",
+        "revision": 2,
+        "account": "isolated-A",
+        "order": "cancel-subject",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": -1,
+        "state": "Cancelled",
+        "accepted_stop_price": null
+      },
+      {
+        "tag": "capture",
+        "order": "cancel-subject",
+        "seq": 3,
+        "cumulative": 10
+      }
+    ],
+    "expected": false,
+    "property": "ACK_TOTAL",
+    "checks": {},
+    "category": "NR02"
+  },
+  {
+    "name": "cancel-cannot-recertify-out-of-bound",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": [
+          {
+            "id": "cancel-subject",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "ENTRY",
+            "side": "Buy",
+            "filled": 0,
+            "accepted_total": 4,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": null
+          }
+        ]
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "growth-established",
+          "operation": "Change",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "cancel-subject",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 1,
+          "base_ack_revision": 0,
+          "total": 9,
+          "side": "Buy",
+          "order_type": "Market",
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "growth-established"
+      },
+      {
+        "tag": "ack",
+        "command_id": "growth-established",
+        "revision": 1,
+        "account": "isolated-A",
+        "order": "cancel-subject",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 9,
+        "state": "Working",
+        "accepted_stop_price": null
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "cancel-r2",
+          "operation": "Cancel",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "cancel-subject",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 2,
+          "base_ack_revision": 1,
+          "total": null,
+          "side": null,
+          "order_type": null,
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "cancel-r2"
+      },
+      {
+        "tag": "capture",
+        "order": "cancel-subject",
+        "seq": 2,
+        "cumulative": 6
+      },
+      {
+        "tag": "apply",
+        "frontier": 2
+      },
+      {
+        "tag": "return",
+        "command_id": "cancel-r2",
+        "outcome": "exception"
+      },
+      {
+        "tag": "tick",
+        "ms": 500
+      },
+      {
+        "tag": "ack",
+        "command_id": "cancel-r2",
+        "revision": 2,
+        "account": "isolated-A",
+        "order": "cancel-subject",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 100001,
+        "state": "Cancelled",
+        "accepted_stop_price": null
+      },
+      {
+        "tag": "capture",
+        "order": "cancel-subject",
+        "seq": 3,
+        "cumulative": 10
+      }
+    ],
+    "expected": false,
+    "property": "ACK_TOTAL",
+    "checks": {},
+    "category": "NR02"
+  },
+  {
+    "name": "late-cancel-original-grown-total-with-postcancel-history",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": [
+          {
+            "id": "cancel-subject",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "ENTRY",
+            "side": "Buy",
+            "filled": 0,
+            "accepted_total": 4,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": null
+          }
+        ]
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "growth-established",
+          "operation": "Change",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "cancel-subject",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 1,
+          "base_ack_revision": 0,
+          "total": 9,
+          "side": "Buy",
+          "order_type": "Market",
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "growth-established"
+      },
+      {
+        "tag": "ack",
+        "command_id": "growth-established",
+        "revision": 1,
+        "account": "isolated-A",
+        "order": "cancel-subject",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 9,
+        "state": "Working",
+        "accepted_stop_price": null
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "cancel-r2",
+          "operation": "Cancel",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "cancel-subject",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 2,
+          "base_ack_revision": 1,
+          "total": null,
+          "side": null,
+          "order_type": null,
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "cancel-r2"
+      },
+      {
+        "tag": "capture",
+        "order": "cancel-subject",
+        "seq": 2,
+        "cumulative": 6
+      },
+      {
+        "tag": "apply",
+        "frontier": 2
+      },
+      {
+        "tag": "return",
+        "command_id": "cancel-r2",
+        "outcome": "exception"
+      },
+      {
+        "tag": "tick",
+        "ms": 500
+      },
+      {
+        "tag": "ack",
+        "command_id": "cancel-r2",
+        "revision": 2,
+        "account": "isolated-A",
+        "order": "cancel-subject",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 9,
+        "state": "Cancelled",
+        "accepted_stop_price": null
+      },
+      {
+        "tag": "capture",
+        "order": "cancel-subject",
+        "seq": 3,
+        "cumulative": 8
+      },
+      {
+        "tag": "capture",
+        "order": "cancel-subject",
+        "seq": 4,
+        "cumulative": 1
+      },
+      {
+        "tag": "apply",
+        "frontier": 4
+      }
+    ],
+    "expected": true,
+    "property": null,
+    "checks": {
+      "order": {
+        "cancel-subject": {
+          "filled": 8,
+          "accepted_total": 9,
+          "live": false,
+          "ack_revision": 2
+        }
+      },
+      "request": {
+        "cancel-r2": "Acknowledged"
+      },
+      "blocked": [
+        "isolated-A"
+      ]
+    },
+    "category": "NR02-valid"
+  },
+  {
+    "name": "postcancel-capture-cannot-use-manufactured-growth",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": [
+          {
+            "id": "cancel-subject",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "ENTRY",
+            "side": "Buy",
+            "filled": 0,
+            "accepted_total": 4,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": null
+          }
+        ]
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "growth-established",
+          "operation": "Change",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "cancel-subject",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 1,
+          "base_ack_revision": 0,
+          "total": 9,
+          "side": "Buy",
+          "order_type": "Market",
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "growth-established"
+      },
+      {
+        "tag": "ack",
+        "command_id": "growth-established",
+        "revision": 1,
+        "account": "isolated-A",
+        "order": "cancel-subject",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 9,
+        "state": "Working",
+        "accepted_stop_price": null
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "cancel-r2",
+          "operation": "Cancel",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "cancel-subject",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 2,
+          "base_ack_revision": 1,
+          "total": null,
+          "side": null,
+          "order_type": null,
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "cancel-r2"
+      },
+      {
+        "tag": "capture",
+        "order": "cancel-subject",
+        "seq": 2,
+        "cumulative": 6
+      },
+      {
+        "tag": "apply",
+        "frontier": 2
+      },
+      {
+        "tag": "return",
+        "command_id": "cancel-r2",
+        "outcome": "exception"
+      },
+      {
+        "tag": "tick",
+        "ms": 500
+      },
+      {
+        "tag": "ack",
+        "command_id": "cancel-r2",
+        "revision": 2,
+        "account": "isolated-A",
+        "order": "cancel-subject",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 9,
+        "state": "Cancelled",
+        "accepted_stop_price": null
+      },
+      {
+        "tag": "capture",
+        "order": "cancel-subject",
+        "seq": 3,
+        "cumulative": 10
+      }
+    ],
+    "expected": false,
+    "property": "FILL_CAPACITY",
+    "checks": {},
+    "category": "NR02"
+  },
+  {
+    "name": "duplicate-cancel-ack-does-not-rewrite-history",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": [
+          {
+            "id": "cancel-subject",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "ENTRY",
+            "side": "Buy",
+            "filled": 0,
+            "accepted_total": 4,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": null
+          }
+        ]
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "growth-established",
+          "operation": "Change",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "cancel-subject",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 1,
+          "base_ack_revision": 0,
+          "total": 9,
+          "side": "Buy",
+          "order_type": "Market",
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "growth-established"
+      },
+      {
+        "tag": "ack",
+        "command_id": "growth-established",
+        "revision": 1,
+        "account": "isolated-A",
+        "order": "cancel-subject",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 9,
+        "state": "Working",
+        "accepted_stop_price": null
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "cancel-r2",
+          "operation": "Cancel",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "cancel-subject",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 2,
+          "base_ack_revision": 1,
+          "total": null,
+          "side": null,
+          "order_type": null,
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "cancel-r2"
+      },
+      {
+        "tag": "capture",
+        "order": "cancel-subject",
+        "seq": 2,
+        "cumulative": 6
+      },
+      {
+        "tag": "apply",
+        "frontier": 2
+      },
+      {
+        "tag": "return",
+        "command_id": "cancel-r2",
+        "outcome": "exception"
+      },
+      {
+        "tag": "tick",
+        "ms": 500
+      },
+      {
+        "tag": "ack",
+        "command_id": "cancel-r2",
+        "revision": 2,
+        "account": "isolated-A",
+        "order": "cancel-subject",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 9,
+        "state": "Cancelled",
+        "accepted_stop_price": null
+      },
+      {
+        "tag": "capture",
+        "order": "cancel-subject",
+        "seq": 3,
+        "cumulative": 8
+      },
+      {
+        "tag": "capture",
+        "order": "cancel-subject",
+        "seq": 4,
+        "cumulative": 1
+      },
+      {
+        "tag": "apply",
+        "frontier": 4
+      },
+      {
+        "tag": "ack",
+        "command_id": "cancel-r2",
+        "revision": 2,
+        "account": "isolated-A",
+        "order": "cancel-subject",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 9,
+        "state": "Cancelled",
+        "accepted_stop_price": null
+      }
+    ],
+    "expected": false,
+    "property": "ACK_COMMAND_SCOPE",
+    "checks": {},
+    "category": "NR02"
+  },
+  {
+    "name": "cancel-no-cross-order-proposal-borrowing",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": [
+          {
+            "id": "small",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "ENTRY",
+            "side": "Buy",
+            "filled": 1,
+            "accepted_total": 3,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": null
+          },
+          {
+            "id": "other-order",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "ENTRY",
+            "side": "Buy",
+            "filled": 0,
+            "accepted_total": 2,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": null
+          }
+        ]
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "independent-grow",
+          "operation": "Change",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "other-order",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 1,
+          "base_ack_revision": 0,
+          "total": 20,
+          "side": "Buy",
+          "order_type": "Market",
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "independent-grow"
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "independent-cancel",
+          "operation": "Cancel",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "small",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 1,
+          "base_ack_revision": 0,
+          "total": null,
+          "side": null,
+          "order_type": null,
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "independent-cancel"
+      },
+      {
+        "tag": "ack",
+        "command_id": "independent-cancel",
+        "revision": 1,
+        "account": "isolated-A",
+        "order": "small",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 20,
+        "state": "Cancelled",
+        "accepted_stop_price": null
+      }
+    ],
+    "expected": false,
+    "property": "ACK_TOTAL",
+    "checks": {},
+    "category": "NR02"
+  },
+  {
+    "name": "cancel-scope-valid-with-other-inflight",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": [
+          {
+            "id": "small",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "ENTRY",
+            "side": "Buy",
+            "filled": 1,
+            "accepted_total": 3,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": null
+          },
+          {
+            "id": "other-order",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "ENTRY",
+            "side": "Buy",
+            "filled": 0,
+            "accepted_total": 2,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": null
+          }
+        ]
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "independent-grow",
+          "operation": "Change",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "other-order",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 1,
+          "base_ack_revision": 0,
+          "total": 20,
+          "side": "Buy",
+          "order_type": "Market",
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "independent-grow"
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "independent-cancel",
+          "operation": "Cancel",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "small",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 1,
+          "base_ack_revision": 0,
+          "total": null,
+          "side": null,
+          "order_type": null,
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "independent-cancel"
+      },
+      {
+        "tag": "ack",
+        "command_id": "independent-cancel",
+        "revision": 1,
+        "account": "isolated-A",
+        "order": "small",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 3,
+        "state": "Cancelled",
+        "accepted_stop_price": null
+      },
+      {
+        "tag": "capture",
+        "order": "small",
+        "seq": 2,
+        "cumulative": 3
+      },
+      {
+        "tag": "apply",
+        "frontier": 2
+      }
+    ],
+    "expected": true,
+    "property": null,
+    "checks": {
+      "order": {
+        "small": {
+          "accepted_total": 3,
+          "filled": 3,
+          "live": false
+        }
+      },
+      "request": {
+        "independent-grow": "PendingAck",
+        "independent-cancel": "Acknowledged"
+      }
+    },
+    "category": "NR02-valid"
+  },
+  {
+    "name": "trusted-zero-total-cancel-valid",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": [
+          {
+            "id": "zero",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "ENTRY",
+            "side": "Buy",
+            "filled": 0,
+            "accepted_total": 0,
+            "ack_revision": 4,
+            "live": true,
+            "accepted_stop_price": null
+          }
+        ]
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "zero-cancel",
+          "operation": "Cancel",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "zero",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 5,
+          "base_ack_revision": 4,
+          "total": null,
+          "side": null,
+          "order_type": null,
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "zero-cancel"
+      },
+      {
+        "tag": "ack",
+        "command_id": "zero-cancel",
+        "revision": 5,
+        "account": "isolated-A",
+        "order": "zero",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 0,
+        "state": "Cancelled",
+        "accepted_stop_price": null
+      },
+      {
+        "tag": "capture",
+        "order": "zero",
+        "seq": 2,
+        "cumulative": 0
+      },
+      {
+        "tag": "apply",
+        "frontier": 2
+      }
+    ],
+    "expected": true,
+    "property": null,
+    "checks": {
+      "order": {
+        "zero": {
+          "accepted_total": 0,
+          "filled": 0,
+          "live": false
+        }
+      }
+    },
+    "category": "NR02-valid"
+  },
+  {
+    "name": "trusted-zero-cancel-cannot-invent-positive-fill",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": [
+          {
+            "id": "zero",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "ENTRY",
+            "side": "Buy",
+            "filled": 0,
+            "accepted_total": 0,
+            "ack_revision": 4,
+            "live": true,
+            "accepted_stop_price": null
+          }
+        ]
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "zero-cancel",
+          "operation": "Cancel",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "zero",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 5,
+          "base_ack_revision": 4,
+          "total": null,
+          "side": null,
+          "order_type": null,
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "zero-cancel"
+      },
+      {
+        "tag": "ack",
+        "command_id": "zero-cancel",
+        "revision": 5,
+        "account": "isolated-A",
+        "order": "zero",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 0,
+        "state": "Cancelled",
+        "accepted_stop_price": null
+      },
+      {
+        "tag": "capture",
+        "order": "zero",
+        "seq": 2,
+        "cumulative": 1
+      }
+    ],
+    "expected": false,
+    "property": "FILL_CAPACITY",
+    "checks": {},
+    "category": "NR02"
+  },
+  {
+    "name": "raw-register-hint-not-state-proof",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": [
+          {
+            "id": "entry-short",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "ENTRY",
+            "side": "Sell",
+            "filled": 5,
+            "accepted_total": 5,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": null
+          },
+          {
+            "id": "old-stop",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "STOP",
+            "side": "Buy",
+            "filled": 2,
+            "accepted_total": 5,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": "124.5"
+          }
+        ]
+      },
+      {
+        "tag": "register",
+        "order": {
+          "id": "new-stop",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "group": "primary",
+          "role": "STOP",
+          "side": "Buy",
+          "filled": 0,
+          "accepted_total": 0,
+          "ack_revision": 0,
+          "live": true,
+          "accepted_stop_price": "125.375"
+        }
+      }
+    ],
+    "expected": true,
+    "property": null,
+    "checks": {
+      "order": {
+        "new-stop": {
+          "ack_revision": -1,
+          "accepted_stop_price": null
+        }
+      },
+      "raw_hint": "125.375"
+    },
+    "category": "NR03"
+  },
+  {
+    "name": "register-matching-hint-priceless-ack-no-coverage",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": [
+          {
+            "id": "entry-short",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "ENTRY",
+            "side": "Sell",
+            "filled": 5,
+            "accepted_total": 5,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": null
+          },
+          {
+            "id": "old-stop",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "STOP",
+            "side": "Buy",
+            "filled": 2,
+            "accepted_total": 5,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": "124.5"
+          }
+        ]
+      },
+      {
+        "tag": "register",
+        "order": {
+          "id": "new-stop",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "group": "primary",
+          "role": "STOP",
+          "side": "Buy",
+          "filled": 0,
+          "accepted_total": 0,
+          "ack_revision": 0,
+          "live": true,
+          "accepted_stop_price": "125.375"
+        }
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "replace-short",
+          "operation": "Submit",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "new-stop",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 1,
+          "base_ack_revision": 0,
+          "total": 3,
+          "side": "Buy",
+          "order_type": "StopMarket",
+          "stop_price": "125.375",
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "replace-short"
+      },
+      {
+        "tag": "ack",
+        "command_id": "replace-short",
+        "revision": 1,
+        "account": "isolated-A",
+        "order": "new-stop",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 3,
+        "state": "Working",
+        "accepted_stop_price": null
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "cancel-old-short",
+          "operation": "Cancel",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "old-stop",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 1,
+          "base_ack_revision": 0,
+          "total": null,
+          "side": null,
+          "order_type": null,
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "cancel-old-short"
+      }
+    ],
+    "expected": false,
+    "property": "PRESERVE_STOP",
+    "checks": {},
+    "category": "NR03"
+  },
+  {
+    "name": "short-real-price-ack-restores-replacement",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": [
+          {
+            "id": "entry-short",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "ENTRY",
+            "side": "Sell",
+            "filled": 5,
+            "accepted_total": 5,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": null
+          },
+          {
+            "id": "old-stop",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "STOP",
+            "side": "Buy",
+            "filled": 2,
+            "accepted_total": 5,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": "124.5"
+          }
+        ]
+      },
+      {
+        "tag": "register",
+        "order": {
+          "id": "new-stop",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "group": "primary",
+          "role": "STOP",
+          "side": "Buy",
+          "filled": 0,
+          "accepted_total": 0,
+          "ack_revision": 0,
+          "live": true,
+          "accepted_stop_price": "125.375"
+        }
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "replace-short",
+          "operation": "Submit",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "new-stop",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 1,
+          "base_ack_revision": 0,
+          "total": 3,
+          "side": "Buy",
+          "order_type": "StopMarket",
+          "stop_price": "125.375",
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "replace-short"
+      },
+      {
+        "tag": "ack",
+        "command_id": "replace-short",
+        "revision": 1,
+        "account": "isolated-A",
+        "order": "new-stop",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 3,
+        "state": "Working",
+        "accepted_stop_price": "125.375"
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "cancel-old-short",
+          "operation": "Cancel",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "old-stop",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 1,
+          "base_ack_revision": 0,
+          "total": null,
+          "side": null,
+          "order_type": null,
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "cancel-old-short"
+      }
+    ],
+    "expected": true,
+    "property": null,
+    "checks": {
+      "order": {
+        "new-stop": {
+          "accepted_stop_price": "125.375",
+          "accepted_total": 3
+        }
+      },
+      "request": {
+        "cancel-old-short": "PendingAck"
+      }
+    },
+    "category": "NR03-valid"
+  },
+  {
+    "name": "ack-hint-price-not-command-price-rejected",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": [
+          {
+            "id": "entry-short",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "ENTRY",
+            "side": "Sell",
+            "filled": 5,
+            "accepted_total": 5,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": null
+          },
+          {
+            "id": "old-stop",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "STOP",
+            "side": "Buy",
+            "filled": 2,
+            "accepted_total": 5,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": "124.5"
+          }
+        ]
+      },
+      {
+        "tag": "register",
+        "order": {
+          "id": "new-stop",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "group": "primary",
+          "role": "STOP",
+          "side": "Buy",
+          "filled": 0,
+          "accepted_total": 0,
+          "ack_revision": 0,
+          "live": true,
+          "accepted_stop_price": "125.375"
+        }
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "replace-short",
+          "operation": "Submit",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "new-stop",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 1,
+          "base_ack_revision": 0,
+          "total": 3,
+          "side": "Buy",
+          "order_type": "StopMarket",
+          "stop_price": "125.375",
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "replace-short"
+      },
+      {
+        "tag": "ack",
+        "command_id": "replace-short",
+        "revision": 1,
+        "account": "isolated-A",
+        "order": "new-stop",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 3,
+        "state": "Working",
+        "accepted_stop_price": "124.5"
+      }
+    ],
+    "expected": false,
+    "property": "ACK_PRICE",
+    "checks": {},
+    "category": "NR03"
+  },
+  {
+    "name": "two-revision-hint-never-revived-by-priceless-change",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": [
+          {
+            "id": "entry-short",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "ENTRY",
+            "side": "Sell",
+            "filled": 5,
+            "accepted_total": 5,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": null
+          },
+          {
+            "id": "old-stop",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "STOP",
+            "side": "Buy",
+            "filled": 2,
+            "accepted_total": 5,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": "124.5"
+          }
+        ]
+      },
+      {
+        "tag": "register",
+        "order": {
+          "id": "new-stop",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "group": "primary",
+          "role": "STOP",
+          "side": "Buy",
+          "filled": 0,
+          "accepted_total": 0,
+          "ack_revision": 0,
+          "live": true,
+          "accepted_stop_price": "125.375"
+        }
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "replace-short",
+          "operation": "Submit",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "new-stop",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 1,
+          "base_ack_revision": 0,
+          "total": 3,
+          "side": "Buy",
+          "order_type": "StopMarket",
+          "stop_price": "125.375",
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "replace-short"
+      },
+      {
+        "tag": "ack",
+        "command_id": "replace-short",
+        "revision": 1,
+        "account": "isolated-A",
+        "order": "new-stop",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 3,
+        "state": "Working",
+        "accepted_stop_price": null
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "change-after-priceless-submit",
+          "operation": "Change",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "new-stop",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 2,
+          "base_ack_revision": 1,
+          "total": 3,
+          "side": "Buy",
+          "order_type": "StopMarket",
+          "stop_price": "126.875",
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "change-after-priceless-submit"
+      },
+      {
+        "tag": "ack",
+        "command_id": "change-after-priceless-submit",
+        "revision": 2,
+        "account": "isolated-A",
+        "order": "new-stop",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 3,
+        "state": "Working",
+        "accepted_stop_price": null
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "cancel-old-short",
+          "operation": "Cancel",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "old-stop",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 1,
+          "base_ack_revision": 0,
+          "total": null,
+          "side": null,
+          "order_type": null,
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "cancel-old-short"
+      }
+    ],
+    "expected": false,
+    "property": "PRESERVE_STOP",
+    "checks": {},
+    "category": "NR03"
+  },
+  {
+    "name": "explicit-change-price-can-establish-provenance",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": [
+          {
+            "id": "entry-short",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "ENTRY",
+            "side": "Sell",
+            "filled": 5,
+            "accepted_total": 5,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": null
+          },
+          {
+            "id": "old-stop",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "STOP",
+            "side": "Buy",
+            "filled": 2,
+            "accepted_total": 5,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": "124.5"
+          }
+        ]
+      },
+      {
+        "tag": "register",
+        "order": {
+          "id": "new-stop",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "group": "primary",
+          "role": "STOP",
+          "side": "Buy",
+          "filled": 0,
+          "accepted_total": 0,
+          "ack_revision": 0,
+          "live": true,
+          "accepted_stop_price": "125.375"
+        }
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "replace-short",
+          "operation": "Submit",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "new-stop",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 1,
+          "base_ack_revision": 0,
+          "total": 3,
+          "side": "Buy",
+          "order_type": "StopMarket",
+          "stop_price": "125.375",
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "replace-short"
+      },
+      {
+        "tag": "ack",
+        "command_id": "replace-short",
+        "revision": 1,
+        "account": "isolated-A",
+        "order": "new-stop",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 3,
+        "state": "Working",
+        "accepted_stop_price": null
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "change-after-priceless-submit",
+          "operation": "Change",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "new-stop",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 2,
+          "base_ack_revision": 1,
+          "total": 3,
+          "side": "Buy",
+          "order_type": "StopMarket",
+          "stop_price": "126.875",
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "change-after-priceless-submit"
+      },
+      {
+        "tag": "ack",
+        "command_id": "change-after-priceless-submit",
+        "revision": 2,
+        "account": "isolated-A",
+        "order": "new-stop",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 3,
+        "state": "Working",
+        "accepted_stop_price": "126.875"
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "cancel-old-short",
+          "operation": "Cancel",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "old-stop",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 1,
+          "base_ack_revision": 0,
+          "total": null,
+          "side": null,
+          "order_type": null,
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "cancel-old-short"
+      }
+    ],
+    "expected": true,
+    "property": null,
+    "checks": {
+      "order": {
+        "new-stop": {
+          "ack_revision": 2,
+          "accepted_stop_price": "126.875"
+        }
+      }
+    },
+    "category": "NR03-valid"
+  },
+  {
+    "name": "priceless-change-preserves-actual-submit-price",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": [
+          {
+            "id": "entry-short",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "ENTRY",
+            "side": "Sell",
+            "filled": 5,
+            "accepted_total": 5,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": null
+          },
+          {
+            "id": "old-stop",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "STOP",
+            "side": "Buy",
+            "filled": 2,
+            "accepted_total": 5,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": "124.5"
+          }
+        ]
+      },
+      {
+        "tag": "register",
+        "order": {
+          "id": "new-stop",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "group": "primary",
+          "role": "STOP",
+          "side": "Buy",
+          "filled": 0,
+          "accepted_total": 0,
+          "ack_revision": 0,
+          "live": true,
+          "accepted_stop_price": "125.375"
+        }
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "replace-short",
+          "operation": "Submit",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "new-stop",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 1,
+          "base_ack_revision": 0,
+          "total": 3,
+          "side": "Buy",
+          "order_type": "StopMarket",
+          "stop_price": "125.375",
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "replace-short"
+      },
+      {
+        "tag": "ack",
+        "command_id": "replace-short",
+        "revision": 1,
+        "account": "isolated-A",
+        "order": "new-stop",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 3,
+        "state": "Working",
+        "accepted_stop_price": "125.375"
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "change-after-priceless-submit",
+          "operation": "Change",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "new-stop",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 2,
+          "base_ack_revision": 1,
+          "total": 3,
+          "side": "Buy",
+          "order_type": "StopMarket",
+          "stop_price": "126.875",
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "change-after-priceless-submit"
+      },
+      {
+        "tag": "ack",
+        "command_id": "change-after-priceless-submit",
+        "revision": 2,
+        "account": "isolated-A",
+        "order": "new-stop",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 3,
+        "state": "Working",
+        "accepted_stop_price": null
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "cancel-old-short",
+          "operation": "Cancel",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "old-stop",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 1,
+          "base_ack_revision": 0,
+          "total": null,
+          "side": null,
+          "order_type": null,
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "cancel-old-short"
+      }
+    ],
+    "expected": true,
+    "property": null,
+    "checks": {
+      "order": {
+        "new-stop": {
+          "ack_revision": 2,
+          "accepted_stop_price": "125.375"
+        }
+      }
+    },
+    "category": "NR03-valid"
+  },
+  {
+    "name": "trusted-seed-unknown-price-cancel-policy-preserved",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": [
+          {
+            "id": "entry-short",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "ENTRY",
+            "side": "Sell",
+            "filled": 5,
+            "accepted_total": 5,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": null
+          },
+          {
+            "id": "old-stop",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "STOP",
+            "side": "Buy",
+            "filled": 2,
+            "accepted_total": 5,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": "124.5"
+          },
+          {
+            "id": "trusted-replacement",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "STOP",
+            "side": "Buy",
+            "filled": 0,
+            "accepted_total": 3,
+            "ack_revision": 41,
+            "live": true,
+            "accepted_stop_price": null
+          }
+        ]
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "cancel-old-short",
+          "operation": "Cancel",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "old-stop",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 1,
+          "base_ack_revision": 0,
+          "total": null,
+          "side": null,
+          "order_type": null,
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "cancel-old-short"
+      }
+    ],
+    "expected": true,
+    "property": null,
+    "checks": {},
+    "category": "trusted-policy"
+  },
+  {
+    "name": "trusted-seed-unknown-price-flatten-policy-preserved",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": [
+          {
+            "id": "entry-short",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "ENTRY",
+            "side": "Sell",
+            "filled": 5,
+            "accepted_total": 5,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": null
+          },
+          {
+            "id": "old-stop",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "STOP",
+            "side": "Buy",
+            "filled": 2,
+            "accepted_total": 5,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": "124.5"
+          },
+          {
+            "id": "trusted-replacement",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "STOP",
+            "side": "Buy",
+            "filled": 0,
+            "accepted_total": 3,
+            "ack_revision": 41,
+            "live": true,
+            "accepted_stop_price": null
+          }
+        ]
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "trusted-flat",
+          "operation": "Flatten",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "*",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 1,
+          "base_ack_revision": 0,
+          "total": null,
+          "side": null,
+          "order_type": null,
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "trusted-flat"
+      }
+    ],
+    "expected": true,
+    "property": null,
+    "checks": {},
+    "category": "trusted-policy"
+  },
+  {
+    "name": "trusted-seed-price-not-replaced-by-priceless-change",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": [
+          {
+            "id": "short-e",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "ENTRY",
+            "side": "Sell",
+            "filled": 3,
+            "accepted_total": 3,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": null
+          },
+          {
+            "id": "trusted-replacement",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "STOP",
+            "side": "Buy",
+            "filled": 0,
+            "accepted_total": 3,
+            "ack_revision": 41,
+            "live": true,
+            "accepted_stop_price": "128.75"
+          }
+        ]
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "trusted-priceless-change",
+          "operation": "Change",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "trusted-replacement",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 42,
+          "base_ack_revision": 41,
+          "total": 3,
+          "side": "Buy",
+          "order_type": "StopMarket",
+          "stop_price": "127.125",
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "trusted-priceless-change"
+      },
+      {
+        "tag": "ack",
+        "command_id": "trusted-priceless-change",
+        "revision": 42,
+        "account": "isolated-A",
+        "order": "trusted-replacement",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 3,
+        "state": "Working",
+        "accepted_stop_price": null
+      }
+    ],
+    "expected": true,
+    "property": null,
+    "checks": {
+      "order": {
+        "trusted-replacement": {
+          "accepted_stop_price": "128.75",
+          "ack_revision": 42
+        }
+      }
+    },
+    "category": "trusted-policy"
+  },
+  {
+    "name": "other-account-proven-price-cannot-substitute-for-hint",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": [
+          {
+            "id": "entry-short",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "ENTRY",
+            "side": "Sell",
+            "filled": 5,
+            "accepted_total": 5,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": null
+          },
+          {
+            "id": "old-stop",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "STOP",
+            "side": "Buy",
+            "filled": 2,
+            "accepted_total": 5,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": "124.5"
+          },
+          {
+            "id": "unrelated-proof",
+            "account": "isolated-B",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "elsewhere",
+            "role": "STOP",
+            "side": "Buy",
+            "filled": 0,
+            "accepted_total": 100,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": "125.375"
+          }
+        ]
+      },
+      {
+        "tag": "register",
+        "order": {
+          "id": "new-stop",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "group": "primary",
+          "role": "STOP",
+          "side": "Buy",
+          "filled": 0,
+          "accepted_total": 0,
+          "ack_revision": 0,
+          "live": true,
+          "accepted_stop_price": "125.375"
+        }
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "replace-short",
+          "operation": "Submit",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "new-stop",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 1,
+          "base_ack_revision": 0,
+          "total": 3,
+          "side": "Buy",
+          "order_type": "StopMarket",
+          "stop_price": "125.375",
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "replace-short"
+      },
+      {
+        "tag": "ack",
+        "command_id": "replace-short",
+        "revision": 1,
+        "account": "isolated-A",
+        "order": "new-stop",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 3,
+        "state": "Working",
+        "accepted_stop_price": null
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "cancel-old-short",
+          "operation": "Cancel",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "old-stop",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 1,
+          "base_ack_revision": 0,
+          "total": null,
+          "side": null,
+          "order_type": null,
+          "stop_price": null,
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "cancel-old-short"
+      }
+    ],
+    "expected": false,
+    "property": "PRESERVE_STOP",
+    "checks": {},
+    "category": "NR03"
+  },
+  {
+    "name": "multi-register-price-channel-isolation",
+    "input": [
+      {
+        "tag": "seed",
+        "orders": [
+          {
+            "id": "entry-short",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "ENTRY",
+            "side": "Sell",
+            "filled": 5,
+            "accepted_total": 5,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": null
+          },
+          {
+            "id": "old-stop",
+            "account": "isolated-A",
+            "instrument": "OFFLINE-ONLY",
+            "session": "S1",
+            "generation": 1,
+            "group": "primary",
+            "role": "STOP",
+            "side": "Buy",
+            "filled": 2,
+            "accepted_total": 5,
+            "ack_revision": 0,
+            "live": true,
+            "accepted_stop_price": "124.5"
+          }
+        ]
+      },
+      {
+        "tag": "register",
+        "order": {
+          "id": "new-stop",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "group": "primary",
+          "role": "STOP",
+          "side": "Buy",
+          "filled": 0,
+          "accepted_total": 0,
+          "ack_revision": 0,
+          "live": true,
+          "accepted_stop_price": "125.375"
+        }
+      },
+      {
+        "tag": "register",
+        "order": {
+          "id": "extra-hint",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "group": "primary",
+          "role": "STOP",
+          "side": "Buy",
+          "filled": 0,
+          "accepted_total": 0,
+          "ack_revision": 0,
+          "live": true,
+          "accepted_stop_price": "999.5"
+        }
+      },
+      {
+        "tag": "plan",
+        "command": {
+          "id": "replace-short",
+          "operation": "Submit",
+          "account": "isolated-A",
+          "instrument": "OFFLINE-ONLY",
+          "session": "S1",
+          "generation": 1,
+          "order": "new-stop",
+          "group": "primary",
+          "target_session": "S1",
+          "target_generation": 1,
+          "revision": 1,
+          "base_ack_revision": 0,
+          "total": 3,
+          "side": "Buy",
+          "order_type": "StopMarket",
+          "stop_price": "125.375",
+          "admitted_ms": 0,
+          "deadline_ms": 100,
+          "frontier": 1
+        }
+      },
+      {
+        "tag": "attempt",
+        "command_id": "replace-short"
+      },
+      {
+        "tag": "ack",
+        "command_id": "replace-short",
+        "revision": 1,
+        "account": "isolated-A",
+        "order": "new-stop",
+        "session": "S1",
+        "generation": 1,
+        "accepted_total": 3,
+        "state": "Working",
+        "accepted_stop_price": "125.375"
+      }
+    ],
+    "expected": true,
+    "property": null,
+    "checks": {
+      "order": {
+        "new-stop": {
+          "accepted_stop_price": "125.375"
+        },
+        "extra-hint": {
+          "accepted_stop_price": null,
+          "ack_revision": -1
+        }
+      }
+    },
+    "category": "NR03-valid"
+  }
+]

@@ -1,0 +1,21 @@
+# Local test/build output and platform binaries
+.artifacts/
+build/
+dist/
+__pycache__/
+*.py[cod]
+*.dll
+*.exe
+*.pdb
+*.zip
+*.log
+.env
+.env.*
+*.key
+*.pem
+.vs/
+.idea/
+# Never check in account/workspace/private research captures
+backups/
+research/raw/
+NinjaTrader.Custom.*
