@@ -194,10 +194,29 @@ public static class BulkUiTests {
   }
   row.Target=0;row.Loss=0;Check(row.Target==0&&row.Loss==0,"0 (= off) stays legal");row.Target=1234.5;Check(row.Target==1234.5,"normal value accepted");
  }
+ // Divergence / opposite-exposure handling today is notify-only: lock, red lamp, text and reason. It must be unmistakable.
+ static void LockedAccountIsRedWithReasonAndCountedInFooter(){
+  var v=Fresh();var row=v.Rows[4];
+  Check(v.LockedCount==0,"fixture starts with no locked rows; got "+v.LockedCount);
+  row.Latch.Locked=true;row.Latch.Reason="Unknown / opposite exposure — exit adoption blocked";row.Changed();v.UpdateCards();
+  Check(row.StateLabel=="Locked","state text says Locked, not a colour alone; is "+row.StateLabel);
+  Check(object.ReferenceEquals(row.StateLight,DashboardView.Bad),"state lamp is the red Bad brush");
+  Check(row.StateDetail.Contains("opposite exposure"),"tooltip carries the engine reason: "+row.StateDetail);
+  Check(v.LockedCount==1,"footer counts locked accounts; got "+v.LockedCount);
+  Check(v.LockedText.Contains("1")&&v.LockedText.ToLowerInvariant().Contains("locked"),"footer text names the lock: "+v.LockedText);
+  Check(!row.Enabled||row.StateLabel=="Locked","a locked row never reads as Copying");
+  row.Latch.Locked=false;row.Latch.Reason="";row.Changed();v.UpdateCards();
+  Check(v.LockedCount==0&&v.LockedText=="","footer clears when the latch is gone");
+ }
+ static void LockedCountIgnoresLeaderAndNeverBlocksUi(){
+  var v=Fresh();v.Rows[0].Latch.Locked=true;v.Rows[0].Latch.Reason="leader row";v.Rows[0].Changed();v.UpdateCards();
+  Check(v.LockedCount==0,"leader row is not counted as a locked follower");
+  Check(!v.StartButton.IsEnabled,"Start stays held");
+ }
  [STAThread] public static int Main(string[] args){
   try{
    AppDomain.CurrentDomain.AssemblyResolve+=(s,e)=>{string n=e.Name.Split(',')[0];if(n.EndsWith(".resources"))return null;var loaded=AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a=>a.GetName().Name==n);if(loaded!=null)return loaded;string p=System.IO.Path.Combine("C:/Program Files/NinjaTrader 8/bin",n+".dll");return System.IO.File.Exists(p)?System.Reflection.Assembly.LoadFrom(p):null;};
-   var all=new Action[]{TargetAndLossApplyToSelectedOnly,ZeroTurnsLimitOff,RatioStaysIndependent,InvalidInputChangesNothing,NoSelectionIsRefused,LeaderIsNotEdited,AtmToggleBulk,LockedWhenNotEditable,NeverTouchesFollowOrTrading,BarIsOnCopyTabAndKeepsHolds,FromLeaderCopiesToHighlighted,FromLeaderWithoutHighlightHitsAllVisibleFollowers,FromLeaderRespectsSearchFilter,FromLeaderKeepsRatioTickAndOtherFields,ManualEditAfterwardsSticksAndNoLiveLink,FromLeaderRefusedWhenLockedOrNoLeader,FromLeaderNeverTouchesFollowOrTrading,AdviceShownPerRowAndCounted,AdviceUpdatesAfterBulkApply,AdviceNeverBlocksOrChangesSettings,RatioCellFitsCommonValuesAt1160,LogsReadableAndTopAligned,LogClearWorksAndIsEditableIndependent,BadTargetDraftSurvivesRefreshAndBlocksCommit,BadLossDraftSurvivesRefreshAndBlocksCommit,BadTargetDraftSurvivesRecyclingAndStillBlocksCommit,TargetAndLossSetterRejectInvalidNumbers};
+   var all=new Action[]{TargetAndLossApplyToSelectedOnly,ZeroTurnsLimitOff,RatioStaysIndependent,InvalidInputChangesNothing,NoSelectionIsRefused,LeaderIsNotEdited,AtmToggleBulk,LockedWhenNotEditable,NeverTouchesFollowOrTrading,BarIsOnCopyTabAndKeepsHolds,FromLeaderCopiesToHighlighted,FromLeaderWithoutHighlightHitsAllVisibleFollowers,FromLeaderRespectsSearchFilter,FromLeaderKeepsRatioTickAndOtherFields,ManualEditAfterwardsSticksAndNoLiveLink,FromLeaderRefusedWhenLockedOrNoLeader,FromLeaderNeverTouchesFollowOrTrading,AdviceShownPerRowAndCounted,AdviceUpdatesAfterBulkApply,AdviceNeverBlocksOrChangesSettings,RatioCellFitsCommonValuesAt1160,LogsReadableAndTopAligned,LogClearWorksAndIsEditableIndependent,BadTargetDraftSurvivesRefreshAndBlocksCommit,BadLossDraftSurvivesRefreshAndBlocksCommit,BadTargetDraftSurvivesRecyclingAndStillBlocksCommit,TargetAndLossSetterRejectInvalidNumbers,LockedAccountIsRedWithReasonAndCountedInFooter,LockedCountIgnoresLeaderAndNeverBlocksUi};
    int failed=0;foreach(var a in all){try{a();Console.WriteLine("PASS "+a.Method.Name);}catch(Exception ex){failed++;Console.WriteLine("FAIL "+a.Method.Name+" :: "+ex.Message);}}
    return failed==0?0:1;
   }catch(Exception ex){Console.WriteLine("HARNESS "+ex);return 2;}

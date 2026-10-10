@@ -46,6 +46,10 @@ Source of truth: the lock messages in `src/AddOns/KINFXTradeCopier.cs`. Each row
 3. Leave the account locked until it is flat with no working orders.
 4. Report it with a redacted, synthetic-style trace, never account numbers or balances (see `docs/COMMUNITY-TESTING.md`).
 
+## What a lock looks like
+
+When the engine loses track of a follower it locks that account: the State cell says **Locked**, the lamp is red, the tooltip carries the engine's reason, and the footer shows a red `● N LOCKED` count. It does not flatten the account and it does not cancel your protective orders. **A lock is a prompt to go and look, not a fix.** Open NinjaTrader's Positions and Orders tabs first.
+
 ## Planned, not built
 
 - Adopting an existing position on a just-connected follower: [#11](https://github.com/Kinfxhk/KINFXTradeCopier/issues/11).

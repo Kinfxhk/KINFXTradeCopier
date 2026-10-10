@@ -17,6 +17,7 @@ public static class Screenshots {
    // Two deliberately risky synthetic rows so the settings-note footer is visible in the picture.
    view.Rows[3].Target=0;view.Rows[3].Loss=0;view.Rows[3].Changed();
    view.Rows[5].Ratio=0.2;view.Rows[5].Changed();
+   view.Rows[7].Latch.Locked=true;view.Rows[7].Latch.Reason="Unknown / opposite exposure — exit adoption blocked";view.Rows[7].Changed();
    view.LeaderBox.ItemsSource=new[]{view.Rows[0].Name};view.LeaderBox.SelectedIndex=0;view.UpdateCards();
    view.LogBox.Text=string.Join(Environment.NewLine,new[]{"10:02:11  Demo preview loaded - synthetic rows only","10:02:11  REVIEW HOLD - Start / Flatten disabled for every account","10:02:12  Per-account Ratio / Tgt / DLL / ATM are editable on this page","10:02:12  No NinjaTrader account is connected in this screenshot"});
    var host=new Border{Background=DashboardView.Canvas,Child=view};
