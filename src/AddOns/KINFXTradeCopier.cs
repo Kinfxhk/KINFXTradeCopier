@@ -412,6 +412,10 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public Order Order;
         public OrderSnapshot Latest;
         public bool Exit, Waiting, Cancelled;
+        // Set ONLY when the ENGINE retired this exit because its OCO group completed (never when the leader cancelled it).
+        // A retired sibling no longer reserves exit capacity for a DIFFERENT OCO group; a leader-cancelled order that the provider
+        // has not acknowledged is still a working order and keeps reserving.
+        public bool OcoRetired;
         public DateTime WaitingSince=DateTime.UtcNow;
         public string Oco, ProviderId;
         public int Desired, ObservedFilled, RequestedQuantity, ReservedQuantity;
@@ -683,6 +687,11 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         {
             var f=current.Follower;
             var reservations=links.Values.SelectMany(v=>v).Where(x=>x.Follower==f&&x!=current&&x.Exit&&x.Order!=null&&x.SubmittedAction==current.Latest.Action)
+                // Issue #3: a sibling the engine retired because its OCO group completed no longer reserves capacity for ANOTHER group.
+                // Its stale captured Working state would otherwise make a still-open group look like it has no closable exposure and
+                // get its sole protection cancelled. Leader-cancelled links (Cancelled but not OcoRetired) still reserve until acknowledged.
+                // Same-OCO members are excluded again below by OCO id, so no same-group exception is needed here.
+                .Where(x=>!x.OcoRetired)
                 .Select(x=>Tuple.Create(x.Oco,CapturedRemaining(x))).ToList();
             // Unknown manual work consumes capacity but is never adopted. Owned wrappers use captured evidence only.
             Order[] actual; lock(f.Account.Orders)actual=f.Account.Orders.ToArray();
@@ -814,7 +823,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                         foreach(var waiting in links.Values.SelectMany(v=>v).Where(x=>x.Follower==f&&x.Exit&&x.Waiting&&x.Order==null)) { waiting.Cancelled=true; waiting.Waiting=false; }
                         foreach(var sibling in links.Values.SelectMany(v=>v).Where(x=>x.Follower==f&&x.Exit&&x!=link&&!string.IsNullOrEmpty(link.Oco)&&x.Oco==link.Oco).ToArray())
                         {
-                            sibling.Cancelled=true; sibling.Waiting=false;
+                            sibling.Cancelled=true; sibling.Waiting=false; sibling.OcoRetired=true;
                             if(sibling.Order!=null&&!Order.IsTerminalState(sibling.Order.OrderState))try { f.Account.Cancel(new[]{sibling.Order}); }catch(Exception ex){Lock(f,"OCO cancellation unresolved: "+ex.Message);}
                         }
                     }

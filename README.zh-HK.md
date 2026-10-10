@@ -23,17 +23,18 @@ Leader → 勾選 follower → 每戶設定 Ratio → Start。可選擇一併跟
 - 每戶「反向時反應」設定：`Notify`（預設，只通知）或 `FlattenOnce`。**只係儲存**，引擎唔會自動平倉；揀咗 FlattenOnce 嘅行會顯示「呢個 alpha 未生效」。
 - 設定警告、鎖定帳戶計數、數值欄位草稿保護。
 - 已定安全政策（[#9](https://github.com/Kinfxhk/KINFXTradeCopier/issues/9)）：持倉但讀到 flat，唔取消唯一保護單；Flatten 拋例外後，唔複製新出場單、唔重試，鎖帳戶並通知。代價：該帳戶可能有倉位但冇出場單，要人手處理。
+- 多組 OCO 修正（[#3](https://github.com/Kinfxhk/KINFXTradeCopier/issues/3)，部分）：已寫失敗測試先行，並經獨立覆核；覆核搵到我第一版嘅回歸，已改正後先發佈。
 - Mailbox 修正（[#4](https://github.com/Kinfxhk/KINFXTradeCopier/issues/4)，部分）：worker 停止後被拒絕嘅回報、輪詢、跟單請求、平倉請求，唔再令計數或旗標卡死。已獨立覆核。
 - 所有 provider 交易封鎖；可重現測試工具、CI、12 個 Issue、截圖、中英安全說明。
 
-最新已發佈離線結果：C# engine **106 PASS／0 FAIL**；pure 12／12；獨立覆核套件 24 PASS／1 已知 FAIL（[#6](https://github.com/Kinfxhk/KINFXTradeCopier/issues/6)）；Dashboard UI 32／32；Python 450 OK；完整 AddOn 只編譯成功（從未載入執行）。詳情同限制見 [TEST-MATRIX](docs/TEST-MATRIX.md)。
+最新已發佈離線結果：C# engine **111 PASS／0 FAIL**；pure 12／12；獨立覆核套件 24 PASS／1 已知 FAIL（[#6](https://github.com/Kinfxhk/KINFXTradeCopier/issues/6)）；Dashboard UI 32／32；Python 450 OK；完整 AddOn 只編譯成功（從未載入執行）。詳情同限制見 [TEST-MATRIX](docs/TEST-MATRIX.md)。
 
 ### 未完成
 
 - **完全未用真 NinjaTrader 帳戶測試**（連 Sim／Playback 都未）：兩個 Demo 帳戶 Leader→Follower、真實 provider 回報、斷線重連、滑點、關閉 workspace 及重啟、真實多螢幕 DPI、30 戶實際延遲。
 - **Start 同 Flatten 全部封鎖**：所以冇任何跟單，亦冇一鍵全平。
 - 保護單改量前，成交資料一致性（[#2](https://github.com/Kinfxhk/KINFXTradeCopier/issues/2)）。
-- 多組 OCO 完成判斷同出場分配（[#3](https://github.com/Kinfxhk/KINFXTradeCopier/issues/3)）：已寫窄範圍修正、獨立覆核中，**未合併**；跨組遲到成交會鎖帳戶，要人手處理。
+- 多組 OCO（[#3](https://github.com/Kinfxhk/KINFXTradeCopier/issues/3)）：一組完成唔再取消另一組仍開放嘅保護，窄範圍修正**已合併**。**仍未完成：**入場未全部成交時一組完成，帳戶會鎖定，另一組等待中嘅出場單唔會送出（倉位冇保護，要人手處理）；出場分配。
 - 一個卡住嘅 follower 仍可能阻住其他戶；Dispose 跨多輪排乾（[#4](https://github.com/Kinfxhk/KINFXTradeCopier/issues/4)）。
 - 全部數值草稿同設定發佈（[#5](https://github.com/Kinfxhk/KINFXTradeCopier/issues/5)）。
 - Journal 同重啟後可驗證恢復（[#6](https://github.com/Kinfxhk/KINFXTradeCopier/issues/6)）：**維護者暫時擱置**。

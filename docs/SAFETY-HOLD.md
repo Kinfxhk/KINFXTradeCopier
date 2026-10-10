@@ -175,7 +175,7 @@ unchanged separately from this public-source proof.
 
 `32de3089…` above is the hold-hardening revision and the base for the recorded RED/GREEN runs. Later UI-only commits change the source hash but not the hold:
 
-- Bulk Tgt / DLL / ATM bar and one-shot **From Leader** copy on the Copy tab (`BulkApply`, `BulkFromLeader`, pure `BulkEdit.TryParseAmount`): SHA-256 `391bc435b48001c74052046b177e6c8941a0a5cbbb654971c228bccbcc1ac70c`.
+- Bulk Tgt / DLL / ATM bar and one-shot **From Leader** copy on the Copy tab (`BulkApply`, `BulkFromLeader`, pure `BulkEdit.TryParseAmount`): SHA-256 `f5ff5aca06140588dc88d2caf199b71a9f873240477efe5ee81cda0356073688`.
 
 The bulk bar edits highlighted follower rows only, validates before mutating, never touches Ratio, the follow tick, latches or any engine path, and is disabled while attached. Start / Flatten / the old `batch` dialog remain held (`tests/test_production_hold.py` and `BulkUiTests.cs` `NeverTouchesFollowOrTrading`).
 
@@ -184,3 +184,4 @@ The bulk bar edits highlighted follower rows only, validates before mutating, ne
 - Footer shows a red count of locked follower accounts (`LockedCount` / `LockedText`). Display only; no new action. Same source hash as above.
 - Mailbox: `SerialWorker.Post` now reports refusal (`bool`); `FollowerUpdate`, `Poll`, `SetFollowing` and the fake-path `Flatten` undo what they raised before Post when it is refused. Same source hash as above.
 - Per-account `OnDivergence` setting (default `Notify`, optional `FlattenOnce`), stored and shown only. The engine has no automatic flatten and Flatten stays disabled. Same source hash as above.
+- `OcoRetired` flag: exit reservation no longer counts siblings the engine retired when their OCO group completed. Same source hash as above.

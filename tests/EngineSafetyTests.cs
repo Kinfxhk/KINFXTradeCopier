@@ -409,6 +409,69 @@ class EngineSafetyTests {
   Check(!sup,"a Flatten the stopped mailbox refused must not leave suppressNew stuck at true");
   Check(a.Flattens==0,"a refused Flatten must not have reached the account; flattens="+a.Flattens);
  }
+ static NinjaTrader.Cbi.Order LeaderLimit(NinjaTrader.Cbi.Account l,NinjaTrader.Cbi.OrderAction act,string oco,int qty,double price){var o=LeaderOrder(l,act,oco,qty);o.LimitPrice=price;return o;}
+ static string Probe(NinjaTrader.Cbi.Account a){return "submits="+a.Submits+" cancels="+a.Cancels+" orders=["+string.Join(";",a.Orders.Select(o=>o.Name+" q="+o.Quantity+" f="+o.Filled+" "+o.OrderState))+"]";}
+ // Issue #3 scenario 1: entry 4 split into groups A (2) and B (2), both groups already protected. Fill A's target fully.
+ // A's stop must go; B's stop and target must stay working.
+ static void OcoCompletedGroupDoesNotCancelOtherProtectedGroup(){
+  var l=Acc("oco1 lead");var a=Acc("oco1 follow");AccountTelemetry t=null;
+  using(var e=Arm(l,a,x=>t=x)){
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",4));Wait(()=>a.Submits==1,"entry");Fill(a,4);Drain(e);
+   l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"oco1 A",2,99));l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"oco1 A",2,110));
+   l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"oco1 B",2,98));l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"oco1 B",2,111));
+   Wait(()=>a.Submits==5,"four protective orders submitted; "+Probe(a));Drain(e);
+   var aTarget=a.Orders[2];aTarget.Filled=2;aTarget.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Clear();a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});a.Emit(aTarget);Drain(e);e.Poll();Drain(e);
+   var bStop=a.Orders[3];var bTarget=a.Orders[4];var aStop=a.Orders[1];
+   Check(aStop.OrderState==NinjaTrader.Cbi.OrderState.Cancelled,"A's sibling stop is retired; "+Probe(a));
+   // Window 1: A's stop cancel is requested but NOT yet acknowledged. Captured evidence still shows it Working, so it still
+   // reserves 2 and B appears to have no closable exposure. B's sole protection must be frozen, never cancelled.
+   Check(bStop.OrderState==NinjaTrader.Cbi.OrderState.Working&&bTarget.OrderState==NinjaTrader.Cbi.OrderState.Working,"B group protection must stay working before A's cancel ack; "+Probe(a));
+   Check(bStop.Quantity==2&&bTarget.Quantity==2,"B quantities frozen before the ack; "+Probe(a));
+   // Window 2: the ack arrives. B keeps full protection of the remaining 2.
+   a.Emit(aStop);Drain(e);e.Poll();Drain(e);
+   Check(bStop.OrderState==NinjaTrader.Cbi.OrderState.Working&&bTarget.OrderState==NinjaTrader.Cbi.OrderState.Working&&bStop.Quantity==2&&bTarget.Quantity==2,"B group protection intact after A's cancel ack; "+Probe(a));
+  }
+ }
+ // Issue #3 scenario 2: B's exits are still WAITING (no closable exposure yet) and A completes. The rest of the entry can then only
+ // fill AFTER an exit group completed. The engine must fail closed (lock, manual recovery) - it must not guess how the late lots
+ // split across groups, must not cancel anything extra, and must not submit unprotected-by-design orders.
+ // KNOWN LIMITATION (documented): B's waiting exit is therefore never sent; the user reconciles by hand.
+ static void OcoCompletionWithUnfilledEntryFailsClosed(){
+  var l=Acc("oco2 lead");var a=Acc("oco2 follow");AccountTelemetry latest=null;
+  using(var e=Arm(l,a,x=>latest=x)){
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",4));Wait(()=>a.Submits==1,"entry");Fill(a,2);Drain(e);
+   l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"oco2 A",2,99));l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"oco2 A",2,110));
+   Wait(()=>a.Submits==3,"A protected; "+Probe(a));
+   l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"oco2 B",2,98));Drain(e);
+   var aTarget=a.Orders[2];aTarget.Filled=2;aTarget.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Clear();a.Emit(aTarget);Drain(e);
+   var entry=a.Orders[0];entry.Filled=4;entry.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});a.Emit(entry);Drain(e);
+   a.Emit(a.Orders[1]);Drain(e);e.Poll();Drain(e);e.Poll();Drain(e);
+   Check(latest.Locked&&!latest.Following,"late entry fill after an exit group completed must lock; "+Probe(a));
+   Check(latest.Reason.Contains("manual"),"lock reason must say manual recovery is required: "+latest.Reason);
+   Check(a.Submits==3,"no order is guessed or submitted after the lock; "+Probe(a));
+   Check(a.Cancels==2,"no extra cancel: only A's stop and the entry remainder; "+Probe(a));
+  }
+ }
+ // Issue #3 guard (review-driven): a leader-cancelled exit whose follower cancel is NOT acknowledged is still a working order and must keep
+ // reserving capacity, whatever OCO id the NEW exit carries. Only a sibling the ENGINE retired because its OCO group completed is exempt.
+ static int WorkingSell(NinjaTrader.Cbi.Account a){return a.Orders.Where(o=>o.OrderAction==NinjaTrader.Cbi.OrderAction.Sell&&!NinjaTrader.Cbi.Order.IsTerminalState(o.OrderState)).Sum(o=>o.Quantity-o.Filled);}
+ static void LeaderCancelledUnackedExit(string xOco,string yOco,int held,bool partialFirst,int polls,string why){
+  var l=Acc("ocg lead "+why);var a=Acc("ocg follow "+why);a.AsyncCancel=true;
+  using(var e=Arm(l,a)){
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",held));Wait(()=>a.Submits==1,"entry "+why);Fill(a,held);Drain(e);
+   var x=LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,xOco,held,99);l.Emit(x);Wait(()=>a.Submits==2,"exit X "+why+"; "+Probe(a));Drain(e);
+   int open=held;
+   if(partialFirst){var fx=a.Orders[1];fx.Filled=1;fx.OrderState=NinjaTrader.Cbi.OrderState.PartFilled;a.Positions.Clear();a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=held-1,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});a.Emit(fx);Drain(e);open=held-1;}
+   x.OrderState=NinjaTrader.Cbi.OrderState.Cancelled;l.Emit(x);Drain(e);   // leader cancels X; follower cancel is async and never acknowledged
+   Check(WorkingSell(a)==open,"X must still be working and unacknowledged ("+why+"); open="+open+" "+Probe(a));
+   l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,yOco,open,98));Drain(e);
+   for(int k=0;k<polls;k++){e.Poll();Drain(e);}
+   Check(WorkingSell(a)<=open,"working exit quantity must never exceed the "+open+" lots still held ("+why+"); working="+WorkingSell(a)+" "+Probe(a));
+  }
+ }
+ static void UnackedCancelledExitDifferentOcoStillReserves(){LeaderCancelledUnackedExit("","ocg B",2,false,1,"noOco-vs-B");LeaderCancelledUnackedExit("ocg A","ocg B",2,false,1,"A-vs-B");LeaderCancelledUnackedExit("ocg A2","",2,false,1,"A-vs-none");}
+ static void UnackedCancelledExitNeverAckedStillReserves(){LeaderCancelledUnackedExit("ocg A3","ocg B3",2,false,5,"never-acked");}
+ static void UnackedCancelledPartiallyFilledExitStillReserves(){LeaderCancelledUnackedExit("ocg A4","ocg B4",2,true,1,"partial");}
  // F01 (Issue #2), scenario A: leader stop total 4; follower owned fill 2, wrapper already shows 4, Position reads 1.
  // Safety invariant: NO outbound Change may ever request a total below the 4 the stop was acknowledged at.
  static void F01PositionBehindOwnedNeverShrinksProtection(){
