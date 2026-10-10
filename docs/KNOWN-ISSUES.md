@@ -67,6 +67,9 @@ Custom-crypto/internal-verifier probes do not prove default production reachabil
 
 **Task:** define nested-disposal contract, authenticated scoped provider/operator evidence and every ambiguous-request resolution; integrate versioned recovery, restart, rotation and power-loss tests while preserving authorization latches and original fills. [Issue #6](https://github.com/Kinfxhk/KINFXTradeCopier/issues/6)
 
+### Per-account TP / SL after hand-tuning (not implemented)
+Follower TP / SL are mirrors of the leader's non-market exits. With ATM off a follower has no TP / SL of its own yet still copies a leader **market** exit, so a hand-tuned account is dragged out when the leader flattens. There is no self-managed exit mode or per-account TP / SL distance. Depends on #2, #3 and #9; do not add follower-owned protective orders first. [Issue #10](https://github.com/Kinfxhk/KINFXTradeCopier/issues/10)
+
 ## Keep non-product failures visible
 
 - **Pure SPEC:** final validator388 and contract191 PASS do not exercise the C# engine. semantic91 still has 89 PASS / 2 schema FAIL (`register_schema_session`, `register_schema_generation`). Registration-price hints, Cancel capacity and ACKs below positive fills have scoped validator corrections, not integrated dispatch acceptance. The preserved initial harness failures and corrected legal-prefix fixtures must remain separately identified. [E08, E09]

@@ -175,6 +175,6 @@ unchanged separately from this public-source proof.
 
 `32de3089…` above is the hold-hardening revision and the base for the recorded RED/GREEN runs. Later UI-only commits change the source hash but not the hold:
 
-- Bulk Tgt / DLL / ATM bar on the Copy tab (`BulkApply`, pure `BulkEdit.TryParseAmount`): SHA-256 `ff66994d4d0897b77cca7c34938acf32add77d08baae98b82e656ddd58bbd20b`.
+- Bulk Tgt / DLL / ATM bar and one-shot **From Leader** copy on the Copy tab (`BulkApply`, `BulkFromLeader`, pure `BulkEdit.TryParseAmount`): SHA-256 `63994edb3bc2d64cd4a01b39d71bc1895c53daaa7c8a0adc01f274dd3db3ce7a`.
 
 The bulk bar edits highlighted follower rows only, validates before mutating, never touches Ratio, the follow tick, latches or any engine path, and is disabled while attached. Start / Flatten / the old `batch` dialog remain held (`tests/test_production_hold.py` and `BulkUiTests.cs` `NeverTouchesFollowOrTrading`).

@@ -18,7 +18,7 @@ The intended later flow is Leader → tick followers → set each Ratio → Star
 
 Rendered from the real `DashboardView` in synthetic DEMO mode: no NinjaTrader account, no engine, no orders. Start/Flatten are disabled in this alpha. Names are fake. Source: [`docs/screenshots/Screenshots.cs`](docs/screenshots/Screenshots.cs). Balances/P&L are made-up demo values; unknown cash is shown as an unavailable dash. These are 1160x720 offscreen renders, not a real NinjaTrader window, so fonts/DPI can differ. An automated visual read suggested the Ratio column may be tight at this width; see [#8](https://github.com/Kinfxhk/KINFXTradeCopier/issues/8).
 
-Copy tab: per-account Ratio / Tgt / DLL / ATM / OFF are editable in each row, and the **Bulk** bar sets Tgt, DLL or ATM on all highlighted followers at once (Ratio and ticks are never touched).
+Copy tab: per-account Ratio / Tgt / DLL / ATM / OFF are editable in each row, and the **Bulk** bar sets Tgt, DLL or ATM on all highlighted followers at once, and **From Leader** copies the leader row's Tgt / DLL / ATM to them as a one-time default you can then fine-tune per row (Ratio and ticks are never touched). Self-managed per-account TP/SL is not implemented yet: [#10](https://github.com/Kinfxhk/KINFXTradeCopier/issues/10).
 
 | Copy | Risk | Logs |
 |---|---|---|

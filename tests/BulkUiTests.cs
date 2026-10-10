@@ -49,10 +49,53 @@ public static class BulkUiTests {
   Check(v.AccountGrid.Columns.Count==13,"13 Copy columns retained");
   Check(v.BulkBarPresent,"bulk bar must be on the Copy tab");
  }
+ static void SetLeader(DashboardView v,double tgt,double dll,bool atm){var l=v.Rows[0];l.Target=tgt;l.Loss=dll;l.CopyAtm=atm;}
+ static void FromLeaderCopiesToHighlighted(){
+  var v=Fresh();Check(v.Rows[3].CopyAtm,"fixture default is ATM on");SetLeader(v,2000,800,false);Select(v,1,2);
+  Check(v.BulkFromLeader()==null,"must apply");
+  Check(v.Rows[1].Target==2000&&v.Rows[1].Loss==800&&!v.Rows[1].CopyAtm,"row1 gets leader Tgt/DLL/ATM(off)");
+  Check(v.Rows[2].Target==2000&&v.Rows[2].Loss==800&&!v.Rows[2].CopyAtm,"row2 gets leader Tgt/DLL/ATM(off)");
+  Check(v.Rows[3].Target==1000&&v.Rows[3].Loss==500&&v.Rows[3].CopyAtm,"unhighlighted row untouched (ATM stays on)");
+ }
+ static void FromLeaderWithoutHighlightHitsAllVisibleFollowers(){
+  var v=Fresh();SetLeader(v,1500,600,true);v.AccountGrid.UnselectAll();
+  Check(v.BulkFromLeader()==null,"must apply");
+  Check(v.Rows.Skip(1).All(r=>r.Target==1500&&r.Loss==600&&r.CopyAtm),"all followers get leader values");
+  Check(v.Rows[0].Target==1500,"leader keeps its own values");
+ }
+ static void FromLeaderRespectsSearchFilter(){
+  var v=Fresh();SetLeader(v,1500,600,false);v.AccountGrid.UnselectAll();v.SearchText="Lucid";
+  Check(v.BulkFromLeader()==null,"must apply");
+  foreach(var r in v.Rows.Skip(1)){bool want=r.Group=="Lucid";Check((r.Target==1500)==want,"only visible (Lucid) rows change: "+r.Name);}
+  v.SearchText="";
+ }
+ static void FromLeaderKeepsRatioTickAndOtherFields(){
+  var v=Fresh();SetLeader(v,2000,800,true);v.Rows[1].Ratio=2.5;v.Rows[2].Ratio=0.5;bool tick=v.Rows[1].Enabled;int maxBefore=v.Rows[1].Settings.MaxContracts;string aliasBefore=v.Rows[1].Alias;Select(v,1,2);
+  Check(v.BulkFromLeader()==null,"must apply");
+  Check(v.Rows[1].Ratio==2.5&&v.Rows[2].Ratio==0.5,"each row keeps its own Ratio");
+  Check(v.Rows[1].Enabled==tick,"tick unchanged");Check(v.Rows[1].Settings.MaxContracts==maxBefore&&v.Rows[1].Alias==aliasBefore,"other fields unchanged");
+ }
+ static void ManualEditAfterwardsSticksAndNoLiveLink(){
+  var v=Fresh();SetLeader(v,2000,800,true);Select(v,1,2);Check(v.BulkFromLeader()==null,"apply");
+  v.Rows[1].Target=1234;Check(v.Rows[1].Target==1234,"manual fine-tune on one row");
+  Check(v.Rows[2].Target==2000,"sibling unaffected by that edit");
+  v.Rows[0].Target=9999;Check(v.Rows[1].Target==1234&&v.Rows[2].Target==2000,"changing the leader later must not rewrite followers (one-shot copy, no live link)");
+  Select(v,3);Check(v.BulkApply("DLL","111")==null,"normal bulk still works after");Check(v.Rows[1].Target==1234,"fine-tuned row still intact");
+ }
+ static void FromLeaderRefusedWhenLockedOrNoLeader(){
+  var v=Fresh();SetLeader(v,2000,800,true);Select(v,1);v.Editable(false);
+  Check(v.BulkFromLeader()!=null,"locked must refuse");Check(v.Rows[1].Target==1000,"unchanged when locked");
+  var w=Fresh();foreach(var r in w.Rows)r.Role="Follower";w.AccountGrid.UnselectAll();
+  Check(w.BulkFromLeader()!=null,"no leader must refuse");Check(w.Rows.All(r=>r.Target==1000),"unchanged without leader");
+ }
+ static void FromLeaderNeverTouchesFollowOrTrading(){
+  var v=Fresh();int follow=0;v.FollowRow=(r,on)=>follow++;SetLeader(v,2000,800,true);Select(v,1,2);v.BulkFromLeader();
+  Check(follow==0,"must not call follow/engine path");Check(!v.StartButton.IsEnabled,"Start stays held");
+ }
  [STAThread] public static int Main(string[] args){
   try{
    AppDomain.CurrentDomain.AssemblyResolve+=(s,e)=>{string n=e.Name.Split(',')[0];if(n.EndsWith(".resources"))return null;var loaded=AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a=>a.GetName().Name==n);if(loaded!=null)return loaded;string p=System.IO.Path.Combine("C:/Program Files/NinjaTrader 8/bin",n+".dll");return System.IO.File.Exists(p)?System.Reflection.Assembly.LoadFrom(p):null;};
-   var all=new Action[]{TargetAndLossApplyToSelectedOnly,ZeroTurnsLimitOff,RatioStaysIndependent,InvalidInputChangesNothing,NoSelectionIsRefused,LeaderIsNotEdited,AtmToggleBulk,LockedWhenNotEditable,NeverTouchesFollowOrTrading,BarIsOnCopyTabAndKeepsHolds};
+   var all=new Action[]{TargetAndLossApplyToSelectedOnly,ZeroTurnsLimitOff,RatioStaysIndependent,InvalidInputChangesNothing,NoSelectionIsRefused,LeaderIsNotEdited,AtmToggleBulk,LockedWhenNotEditable,NeverTouchesFollowOrTrading,BarIsOnCopyTabAndKeepsHolds,FromLeaderCopiesToHighlighted,FromLeaderWithoutHighlightHitsAllVisibleFollowers,FromLeaderRespectsSearchFilter,FromLeaderKeepsRatioTickAndOtherFields,ManualEditAfterwardsSticksAndNoLiveLink,FromLeaderRefusedWhenLockedOrNoLeader,FromLeaderNeverTouchesFollowOrTrading};
    int failed=0;foreach(var a in all){try{a();Console.WriteLine("PASS "+a.Method.Name);}catch(Exception ex){failed++;Console.WriteLine("FAIL "+a.Method.Name+" :: "+ex.Message);}}
    return failed==0?0:1;
   }catch(Exception ex){Console.WriteLine("HARNESS "+ex);return 2;}
