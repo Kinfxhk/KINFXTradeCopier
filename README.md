@@ -2,7 +2,47 @@
 
 **TRADING DISABLED. Not a working trade-copier release. Do not use for live, prop, Sim or Playback orders.**
 
+**English** · [廣東話／繁體中文](README.zh-HK.md)
+
 Original MIT-licensed NinjaTrader 8 AddOn by Kinfxhk, published early so people can review, reproduce failures and improve it together. We are not waiting for every feature before sharing the source. This repository is a development baseline, not an accepted integration of all researched fixes.
+
+## Status: what is done, what is not / 進度：已完成與未完成
+
+All numbers below are **offline, synthetic** (fake accounts, no NinjaTrader order was ever sent). They are not provider acceptance. 以下數字全部係**離線合成測試**（假帳戶，從未向 NinjaTrader 落過單），唔等於真實環境驗收。
+
+### Done (in this repository) / 已完成（已在本 repo）
+
+| English | 中文 |
+|---|---|
+| Three-tab dashboard (Copy / Risk / Logs) built for 10–30 accounts; per-account Ratio, Tgt (daily target), DLL (daily loss), ATM exit-mirroring and OFF in each row | 三個分頁（Copy／Risk／Logs），為 10–30 個帳戶設計；每行都有獨立 Ratio、Tgt（每日目標）、DLL（每日虧損）、ATM 出場跟隨、OFF |
+| Bulk edit of Tgt / DLL / ATM for highlighted accounts, and **From Leader** as a one-time default you can fine-tune per row | 批量改 Tgt／DLL／ATM（只改選中嘅帳戶），**From Leader** 一鍵以 Leader 做預設，之後可逐戶手動微調 |
+| Per-account **On divergence** setting (`Notify` default, `FlattenOnce` optional). **Stored only**: the engine never flattens by itself | 每戶「反向時反應」設定（預設只通知，可選平倉一次）。**只係儲存**，引擎唔會自動平倉 |
+| Settings warnings, locked-account count, draft protection for numeric fields | 設定警告、鎖定帳戶計數、數值欄位草稿保護 |
+| Safety policy decided for exits after ambiguous flat telemetry and after a thrown Flatten: lock, keep protection, never retry ([#9](https://github.com/Kinfxhk/KINFXTradeCopier/issues/9)) | 已定政策：持倉但讀到 flat、或 Flatten 拋例外後，鎖帳戶、保留保護單、唔重試（[#9](https://github.com/Kinfxhk/KINFXTradeCopier/issues/9)） |
+| Mailbox fix: a callback or poll refused by a stopped worker can no longer leave counters stuck ([#4](https://github.com/Kinfxhk/KINFXTradeCopier/issues/4), partial; independently reviewed) | Mailbox 修正：worker 停止後被拒絕嘅回報／輪詢唔再令計數卡死（[#4](https://github.com/Kinfxhk/KINFXTradeCopier/issues/4)，部分；已獨立覆核） |
+| Trading hold on every provider; reproducible test runner, CI, 12 tracked issues, screenshots, bilingual safety notes | 所有 provider 交易封鎖；可重現測試工具、CI、12 個 Issue、截圖、中英安全說明 |
+
+Latest published offline results / 最新已發佈離線結果: C# engine **106 PASS / 0 FAIL**, pure 12/12, independent review suite 24 PASS / 1 known FAIL ([#6](https://github.com/Kinfxhk/KINFXTradeCopier/issues/6)), dashboard UI 32/32, Python 450 OK, full AddOn compile-only OK. Details and caveats: [TEST-MATRIX](docs/TEST-MATRIX.md).
+
+### Not done / 未完成
+
+| English | 中文 |
+|---|---|
+| **No real NinjaTrader account test of any kind** (not even Sim or Playback): leader→follower with two demo accounts, real provider callbacks, disconnect/reconnect, slippage, workspace close and restart, real multi-monitor DPI, real 30-account latency | **完全未用真 NinjaTrader 帳戶測試**（連 Sim／Playback 都未）：兩個 Demo 帳戶 Leader→Follower、真實 provider 回報、斷線重連、滑點、關閉 workspace 及重啟、真實多螢幕 DPI、30 戶實際延遲 |
+| **Start and Flatten are disabled** for every account, so nothing is copied and there is no flatten-all | **Start 同 Flatten 全部封鎖**，所以冇任何跟單，亦冇一鍵全平 |
+| Coherent fill frontier before protective resize ([#2](https://github.com/Kinfxhk/KINFXTradeCopier/issues/2)) | 保護單改量前，成交資料一致性（[#2](https://github.com/Kinfxhk/KINFXTradeCopier/issues/2)） |
+| Group OCO completion and fractional exit allocation ([#3](https://github.com/Kinfxhk/KINFXTradeCopier/issues/3)): a narrow fix is written and under independent review, **not merged**; late fills across groups lock for manual recovery | 多組 OCO 完成判斷及出場分配（[#3](https://github.com/Kinfxhk/KINFXTradeCopier/issues/3)）：已寫窄範圍修正、獨立覆核中，**未合併**；跨組遲到成交會鎖帳戶要人手處理 |
+| One stalled follower can still block healthy ones; Dispose across several drain turns ([#4](https://github.com/Kinfxhk/KINFXTradeCopier/issues/4)) | 一個卡住嘅 follower 仍可能阻住其他戶；Dispose 跨多輪排乾（[#4](https://github.com/Kinfxhk/KINFXTradeCopier/issues/4)） |
+| All numeric drafts / settings publication ([#5](https://github.com/Kinfxhk/KINFXTradeCopier/issues/5)) | 全部數值草稿及設定發佈（[#5](https://github.com/Kinfxhk/KINFXTradeCopier/issues/5)） |
+| Journal and verified restart recovery ([#6](https://github.com/Kinfxhk/KINFXTradeCopier/issues/6)): **shelved by the maintainer**, not worked on now | Journal 及重啟後可驗證恢復（[#6](https://github.com/Kinfxhk/KINFXTradeCopier/issues/6)）：**維護者暫時擱置** |
+| Per-account self-managed TP/SL that does not follow the leader's exit ([#10](https://github.com/Kinfxhk/KINFXTradeCopier/issues/10)): not started | 每戶自管 TP／SL、唔跟 Leader 平倉（[#10](https://github.com/Kinfxhk/KINFXTradeCopier/issues/10)）：未開始 |
+| Adopt an existing position on a just-connected follower ([#11](https://github.com/Kinfxhk/KINFXTradeCopier/issues/11)): not built | 新連接帳戶承接現有倉位再跟方向（[#11](https://github.com/Kinfxhk/KINFXTradeCopier/issues/11)）：未做 |
+| The actual reaction to divergence, e.g. one-time flatten ([#12](https://github.com/Kinfxhk/KINFXTradeCopier/issues/12)): only the setting exists | 反向時真正嘅反應（例如平倉一次）（[#12](https://github.com/Kinfxhk/KINFXTradeCopier/issues/12)）：只有設定，冇行為 |
+| Native follower ATM cloning, installer, compiled release, prop-firm compliance checks | 原生 follower ATM 複製、安裝包、編譯版本、prop firm 合規檢查 |
+
+### What you can safely do now / 而家可以安全做嘅事
+
+Read the code, run the offline tests, review or reproduce failures, and send small focused PRs. Do **not** try to enable trading to "see if it works". 睇代碼、跑離線測試、覆核或重現失敗、提交細而專注嘅 PR。**唔好**為咗試下而強行解除交易封鎖。
 
 ## What is here
 
@@ -75,8 +115,8 @@ Some links on that page are **affiliate / referral links** (for example prop-fir
 
 [MIT](LICENSE), © 2026 Kinfxhk. Not affiliated with NinjaTrader, FlowBots/Replikanto, any broker or prop firm. No competitor code, vendor DLLs, downloaded research HTML, private account logs or credentials are included. Prop templates embedded in the source are historical editable metadata, not current rules or compliance certification.
 
-## 廣東話
+## 廣東話／繁體中文
 
-呢個係**公開共同開發 alpha，唔係可跟單正式版**。先分享原創source、可重現測試及已知FAIL，大家透過Issue／PR分工；唔再由一個人做晒全部功能先公開。真NT8帳戶（包括Sim／Playback）交易仍封鎖，Python SPEC PASS唔等於C# engine安全。
+完整中文版（進度、已完成、未完成、截圖、參與方式、披露）：**[README.zh-HK.md](README.zh-HK.md)**
 
-**聯絡／規則研究／工具連結：** <https://linktr.ee/kinfx>。其中部分係聯盟（affiliate）／推薦連結，用咗維護者可能會有佣金；同本軟件無關，代碼唔含推薦或追蹤邏輯。KinFx 非證監會持牌，內容非投資建議，考試帳戶多數係模擬。
+呢個係**公開共同開發 alpha，唔係可跟單正式版**。真 NT8 帳戶（包括 Sim／Playback）交易仍然封鎖。
