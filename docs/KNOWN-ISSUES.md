@@ -38,6 +38,10 @@ Also retain pending-amendment completion, partial terminal target, unequal sole-
 
 ### Mailbox, public Dispose and head-of-line blocking
 
+**Partly addressed in the public repo (source `db55c8ca…`):** `SerialWorker.Post` now returns whether the work was accepted. Four call sites raised state before Post and relied on the posted action to clear it, so a stopped mailbox left them stuck: the pending follower-callback counter (`CanClose` could never succeed), the poll-pending flag (every later Poll skipped), the follow request generation (UI row pending forever) and `suppressNew` in the fake-only Flatten path. Each was reproduced RED in `EngineSafetyTests` and is now GREEN: `RefusedFollowerCallbackDoesNotStrandPendingCounter`, `RefusedPollDoesNotStickPollPending`, `RefusedSetFollowingDoesNotStrandProcessedGeneration`, `RefusedFlattenDoesNotStickSuppressNew`; `RiskTests.WorkerRetention` covers accepted-work retention and refusal reporting. An independent reviewer reproduced RED on the base and GREEN on the new source, and found the last two call sites, which are now fixed. **Not addressed:** one stalled follower blocking healthy followers (head-of-line), Dispose across multiple drain turns, a `thread.Join(3000)` timeout leaving accepted tasks unrun (static reading only), and real NinjaTrader callback threading. A fill callback refused by a stopped mailbox is not applied to the ledger by design: `ledgerUnresolved` stays raised, which is fail-closed; the reviewer found it does not deadlock a detached session, but captured fill evidence for that one callback is lost once the session is gone.
+
+
+
 **Known fake-engine failures; real multi-account latency remains untested.** [E10, E13]
 
 Synthetic reproduction:

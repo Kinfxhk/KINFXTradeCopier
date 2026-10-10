@@ -354,6 +354,61 @@ class EngineSafetyTests {
    Check(stop.Quantity==2,"after Position agrees with owned the leader's reduction to 2 is applied; qty="+stop.Quantity+" sent="+Sent(a));
   }
  }
+ // Mailbox: a follower callback refused by a stopped worker must not leave the pending-callback counter raised forever.
+ static void RefusedFollowerCallbackDoesNotStrandPendingCounter(){
+  var l=Acc("mb lead");var a=Acc("mb follow");
+  var e=Arm(l,a);
+  l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",2));Wait(()=>a.Submits==1,"entry");
+  var wf=typeof(CopierEngine).GetField("worker",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic);
+  var worker=(SerialWorker)wf.GetValue(e);
+  var pf=typeof(CopierEngine).GetField("pendingFollowerCallbacks",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic);
+  worker.Dispose(); // mailbox stops: later Post calls are refused
+  int before=(int)pf.GetValue(e);
+  var o=a.Orders[0];o.Filled=1;o.OrderState=NinjaTrader.Cbi.OrderState.PartFilled;a.Emit(o);
+  Thread.Sleep(150);
+  int after=(int)pf.GetValue(e);
+  Check(after==before,"a callback the stopped mailbox refused must not stay counted as pending; before="+before+" after="+after);
+ }
+ // Mailbox: a Poll refused by a stopped worker must not leave the poll-pending flag stuck, or every later Poll is silently skipped.
+ static void RefusedPollDoesNotStickPollPending(){
+  var l=Acc("mbp lead");var a=Acc("mbp follow");
+  var e=Arm(l,a);
+  var worker=(SerialWorker)typeof(CopierEngine).GetField("worker",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(e);
+  var pp=typeof(CopierEngine).GetField("pollPending",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic);
+  worker.Dispose();
+  e.Poll();Thread.Sleep(100);
+  Check((int)pp.GetValue(e)==0,"a Poll the stopped mailbox refused must clear the pending flag; flag="+pp.GetValue(e));
+ }
+ // Mailbox: SetFollowing raises FollowGeneration before Post. If the stopped mailbox refuses it, the processed generation
+ // must still catch up, or the UI row stays pending forever. A refused request must never be treated as "following".
+ static void RefusedSetFollowingDoesNotStrandProcessedGeneration(){
+  var l=Acc("mbs lead");var a=Acc("mbs follow");
+  var e=Arm(l,a);
+  var worker=(SerialWorker)typeof(CopierEngine).GetField("worker",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(e);
+  worker.Dispose();
+  foreach(bool on in new[]{false,true}){
+   int request=e.SetFollowing(a.Name,on);Thread.Sleep(50);
+   var view=(System.Collections.IEnumerable)typeof(CopierEngine).GetField("followerView",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(e);
+   object f=null;foreach(var x in view){f=x;break;}
+   Check(f!=null,"follower view present");
+   var t=f.GetType();
+   int processed=(int)t.GetField("ProcessedFollowGeneration").GetValue(f);bool following=(bool)t.GetField("Following").GetValue(f);
+   Check(request>0,"request id returned: "+request);
+   Check(processed>=request,"refused request "+request+" (on="+on+") must still be marked processed; processed="+processed);
+   Check(!following,"a refused request must never leave the account following (on="+on+")");
+  }
+ }
+ // Mailbox: Flatten raises suppressNew before Post. A refused Flatten must restore it.
+ static void RefusedFlattenDoesNotStickSuppressNew(){
+  var l=Acc("mbf lead");var a=Acc("mbf follow");
+  var e=Arm(l,a);
+  var worker=(SerialWorker)typeof(CopierEngine).GetField("worker",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(e);
+  worker.Dispose();
+  e.Flatten(new[]{a},inst);Thread.Sleep(100);
+  bool sup=(bool)typeof(CopierEngine).GetField("suppressNew",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(e);
+  Check(!sup,"a Flatten the stopped mailbox refused must not leave suppressNew stuck at true");
+  Check(a.Flattens==0,"a refused Flatten must not have reached the account; flattens="+a.Flattens);
+ }
  // F01 (Issue #2), scenario A: leader stop total 4; follower owned fill 2, wrapper already shows 4, Position reads 1.
  // Safety invariant: NO outbound Change may ever request a total below the 4 the stop was acknowledged at.
  static void F01PositionBehindOwnedNeverShrinksProtection(){

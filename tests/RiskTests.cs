@@ -2,7 +2,7 @@ using System;
 using NinjaTrader.NinjaScript.AddOns.Kinfx;
 class RiskTests {
  static int Main(string[] args) {
-  try { Eq(false,DashboardSafety.CanExecute("start")); Eq(false,DashboardSafety.CanExecute("flattenSelected")); Eq(false,DashboardSafety.CanExecute("flattenAll")); Eq(false,DashboardSafety.CanExecute("batch")); Eq(true,DashboardSafety.CanExecute("refresh")); BulkAmount(); Console.WriteLine("PASS bulk amount grammar"); SettingsWarnings(); Console.WriteLine("PASS settings warnings"); Quantity(); Console.WriteLine("PASS quantity"); Risk(); Console.WriteLine("PASS risk latch / exits / finite / DST"); Persistence(); Console.WriteLine("PASS XML atomic roundtrip"); Worker(); Console.WriteLine("PASS serial reentrancy + ownership"); Ledger(); Console.WriteLine("PASS lifecycle decisions / dedupe / reservation"); Presets(); Console.WriteLine("PASS sourced editable presets"); ChangePolicy(); Console.WriteLine("PASS locked reductions / partial exit totals"); DurableLock(); Console.WriteLine("PASS durable global latches / unlock recheck / advisory"); return 0; }
+  try { Eq(false,DashboardSafety.CanExecute("start")); Eq(false,DashboardSafety.CanExecute("flattenSelected")); Eq(false,DashboardSafety.CanExecute("flattenAll")); Eq(false,DashboardSafety.CanExecute("batch")); Eq(true,DashboardSafety.CanExecute("refresh")); BulkAmount(); Console.WriteLine("PASS bulk amount grammar"); SettingsWarnings(); Console.WriteLine("PASS settings warnings"); WorkerRetention(); Console.WriteLine("PASS worker retains accepted work and reports rejection"); Quantity(); Console.WriteLine("PASS quantity"); Risk(); Console.WriteLine("PASS risk latch / exits / finite / DST"); Persistence(); Console.WriteLine("PASS XML atomic roundtrip"); Worker(); Console.WriteLine("PASS serial reentrancy + ownership"); Ledger(); Console.WriteLine("PASS lifecycle decisions / dedupe / reservation"); Presets(); Console.WriteLine("PASS sourced editable presets"); ChangePolicy(); Console.WriteLine("PASS locked reductions / partial exit totals"); DurableLock(); Console.WriteLine("PASS durable global latches / unlock recheck / advisory"); return 0; }
   catch(Exception ex) { Console.WriteLine("FAIL "+ex.Message); return 1; }
  }
  static void Eq(object want,object got) { if(!want.Equals(got)) throw new Exception("expected "+want+" got "+got); }
@@ -36,6 +36,32 @@ class RiskTests {
   Eq("",SettingsAdvice.For(noLimits,"Leader",2));
   // reference lot size must be positive: unknown reference gives no lot warning
   Eq("",SettingsAdvice.For(tiny,"Follower",0));
+ }
+ // Mailbox contract: every task accepted by Post must run before Dispose returns, and a task refused after
+ // Dispose must be visible to the caller (never a silent drop).
+ static void WorkerRetention() {
+  // 1) Accepted work queued behind a slow task still runs when Dispose is called.
+  var ran=new System.Collections.Generic.List<int>();var started=new System.Threading.ManualResetEvent(false);var release=new System.Threading.ManualResetEvent(false);
+  var w=new SerialWorker(ex=>{});
+  Eq(true,w.Post(()=>{started.Set();release.WaitOne(5000);}));
+  Eq(true,started.WaitOne(3000));
+  for(int i=1;i<=5;i++){int n=i;Eq(true,w.Post(()=>{lock(ran)ran.Add(n);}));}
+  var disposer=new System.Threading.Thread(()=>w.Dispose());disposer.Start();
+  System.Threading.Thread.Sleep(100);release.Set();disposer.Join(6000);
+  lock(ran)Eq("1,2,3,4,5",string.Join(",",ran));
+  // 2) After Dispose a Post is refused AND reports it.
+  Eq(false,w.Post(()=>{lock(ran)ran.Add(99);}));
+  System.Threading.Thread.Sleep(100);lock(ran)Eq(false,ran.Contains(99));
+  // 3) Accepted work posted from inside a running task during Dispose is still run (reentrant chain).
+  var chain=new System.Collections.Generic.List<int>();var go=new System.Threading.ManualResetEvent(false);var w2=new SerialWorker(ex=>{});
+  w2.Post(()=>{go.WaitOne(5000);bool ok=w2.Post(()=>{lock(chain)chain.Add(2);});lock(chain)chain.Add(ok?1:-1);});
+  var d2=new System.Threading.Thread(()=>w2.Dispose());d2.Start();System.Threading.Thread.Sleep(100);go.Set();d2.Join(6000);
+  // Post from inside a running task after Dispose began is REFUSED (-1), not retained: only work accepted BEFORE Dispose is guaranteed.
+  lock(chain)Eq("-1",string.Join(",",chain));
+  // 4) An exception in one task is reported and does not drop later accepted tasks.
+  int errors=0;var later=new System.Collections.Generic.List<int>();var w3=new SerialWorker(ex=>System.Threading.Interlocked.Increment(ref errors));
+  w3.Post(()=>{throw new InvalidOperationException("boom");});w3.Post(()=>{lock(later)later.Add(1);});w3.Dispose();
+  Eq(1,errors);lock(later)Eq("1",string.Join(",",later));
  }
  static void Risk() {
   var s = new RiskSettings { Target=100, Loss=50, MaxContracts=4 };

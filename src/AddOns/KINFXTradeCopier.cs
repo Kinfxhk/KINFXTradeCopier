@@ -211,7 +211,9 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         bool stopping;
         public SerialWorker(Action<Exception> errorHandler)
         { error=errorHandler; thread=new Thread(Run) { IsBackground=true, Name="KINFX serial copier" }; thread.Start(); }
-        public void Post(Action action) { lock(gate) { if(stopping)return; queue.Enqueue(action); Monitor.Pulse(gate); } }
+        // Returns true only when the action was accepted into the mailbox. A refusal after Dispose is reported, never silent.
+        // Everything accepted before Dispose still runs: Run() drains the queue before the thread exits.
+        public bool Post(Action action) { lock(gate) { if(stopping)return false; queue.Enqueue(action); Monitor.Pulse(gate); return true; } }
         void Run()
         {
             while(true)
@@ -766,7 +768,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             Order order=snapshot.Wrapper; OrderState eventState=snapshot.State;
             if(snapshot.Filled>0)ledgerUnresolved=true; // Never close across queued execution evidence.
             Interlocked.Increment(ref pendingFollowerCallbacks);
-            worker.Post(()=>
+            bool accepted=worker.Post(()=>
             {
                 try
                 {
@@ -823,6 +825,9 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 }
                 finally { Interlocked.Decrement(ref pendingFollowerCallbacks); ReconcileCloseEvidence(); }
             });
+            // A stopped mailbox refuses the work: drop the pending count so CanClose/Dispose cannot wait for it forever.
+            // The captured fill evidence (snapshot.Filled>0 => ledgerUnresolved) stays raised on purpose: the fill was never applied.
+            if(!accepted)Interlocked.Decrement(ref pendingFollowerCallbacks);
         }
         void ReconcileCloseEvidence()
         {
@@ -892,7 +897,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public void Poll()
         {
             if(Interlocked.Exchange(ref pollPending,1)!=0)return;
-            worker.Post(()=>{ try { if(attached) { if(!Connected(leader)){entries=false;foreach(var f in followers)Lock(f,"Leader disconnected — no catch-up");} foreach(var f in followers)try {CheckRisk(f);MaintainProtection(f);}catch(Exception ex){Lock(f,"Telemetry error: "+ex.Message);} } } finally {Interlocked.Exchange(ref pollPending,0);} });
+            if(!worker.Post(()=>{ try { if(attached) { if(!Connected(leader)){entries=false;foreach(var f in followers)Lock(f,"Leader disconnected — no catch-up");} foreach(var f in followers)try {CheckRisk(f);MaintainProtection(f);}catch(Exception ex){Lock(f,"Telemetry error: "+ex.Message);} } } finally {Interlocked.Exchange(ref pollPending,0);} }))Interlocked.Exchange(ref pollPending,0); // refused by a stopped mailbox: do not leave the flag stuck
         }
         void CancelEntries(EngineAccount f)
         {
@@ -917,7 +922,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             var f=followerView.FirstOrDefault(x=>x.Account.Name==accountName); if(f==null)return -1;
             int request;
             lock(controlGate) { request=++f.FollowGeneration; if(!enabled)f.Following=false; }
-            worker.Post(()=>
+            bool accepted=worker.Post(()=>
             {
                 if(!attached||!followers.Contains(f))return;
                 if(!enabled) { CancelEntries(f); lock(controlGate)f.ProcessedFollowGeneration=Math.Max(f.ProcessedFollowGeneration,request); Publish(f); return; }
@@ -932,6 +937,9 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 if(!clean)log(accountName+": Follow refused — clean, connected, unlocked session required");
                 Publish(f);
             });
+            // A stopped mailbox refused the request: it can never be applied, so never leave it pending and never follow.
+            // Following was already forced false for OFF above; an ON request is simply not honoured.
+            if(!accepted){lock(controlGate)f.ProcessedFollowGeneration=Math.Max(f.ProcessedFollowGeneration,request);}
             return request;
         }
         public void PauseAccount(string name,bool paused) { worker.Post(()=>{var f=followers.FirstOrDefault(x=>x.Account.Name==name);if(f!=null){f.Paused=paused;Publish(f);}}); }
@@ -960,7 +968,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             BlockEntries();log("ALL-ACCOUNT SAFETY HOLD — Flatten blocked for every account. No trading actions authorized.");return;
 #else
             BlockEntries();suppressNew=true; // block ALL new copies during the flatten request.
-            worker.Post(()=>
+            bool flattenAccepted=worker.Post(()=>
             {
                 if(!SessionOwnership.Acquire(targets.Select(a=>"account:"+a.Name),this)){suppressNew=false;log("Flatten blocked: another copier owns an account in this scope.");return;}
                 if(attached && targets.Contains(leader) && followers.Any(f=>!targets.Contains(f.Account) && !Clean(f.Account,instrument)))
@@ -975,6 +983,8 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 if(attached)suppressNew=false; // selected followers excluded; unflattened followers still need new protective exits.
                 if(!attached)SessionOwnership.Release(this);
             });
+            // Refused by a stopped mailbox: nothing will run to clear the flag, and nothing reached an account.
+            if(!flattenAccepted){suppressNew=false;log("Flatten refused: copier is stopped; no request was sent.");}
 #endif
         }
         // Manual provider reconciliation acknowledgement, NOT an autonomous timeout/retry.
