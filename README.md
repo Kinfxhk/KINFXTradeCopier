@@ -22,7 +22,7 @@ All numbers below are **offline, synthetic** (fake accounts, no NinjaTrader orde
 | Mailbox fix: a callback or poll refused by a stopped worker can no longer leave counters stuck ([#4](https://github.com/Kinfxhk/KINFXTradeCopier/issues/4), partial; independently reviewed) | Mailbox 修正：worker 停止後被拒絕嘅回報／輪詢唔再令計數卡死（[#4](https://github.com/Kinfxhk/KINFXTradeCopier/issues/4)，部分；已獨立覆核） |
 | Trading hold on every provider; reproducible test runner, CI, 12 tracked issues, screenshots, bilingual safety notes | 所有 provider 交易封鎖；可重現測試工具、CI、12 個 Issue、截圖、中英安全說明 |
 
-Latest published offline results / 最新已發佈離線結果: C# engine **111 PASS / 0 FAIL**, pure 12/12, independent review suite 24 PASS / 1 known FAIL ([#6](https://github.com/Kinfxhk/KINFXTradeCopier/issues/6)), dashboard UI 32/32, Python 450 OK, full AddOn compile-only OK. Details and caveats: [TEST-MATRIX](docs/TEST-MATRIX.md).
+Latest published offline results / 最新已發佈離線結果: C# engine **113 PASS / 0 FAIL**, pure 12/12, independent review suite 24 PASS / 1 known FAIL ([#6](https://github.com/Kinfxhk/KINFXTradeCopier/issues/6)), dashboard UI 32/32, Python 450 OK, full AddOn compile-only OK. Details and caveats: [TEST-MATRIX](docs/TEST-MATRIX.md).
 
 ### Not done / 未完成
 

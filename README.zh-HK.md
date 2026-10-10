@@ -27,7 +27,7 @@ Leader → 勾選 follower → 每戶設定 Ratio → Start。可選擇一併跟
 - Mailbox 修正（[#4](https://github.com/Kinfxhk/KINFXTradeCopier/issues/4)，部分）：worker 停止後被拒絕嘅回報、輪詢、跟單請求、平倉請求，唔再令計數或旗標卡死。已獨立覆核。
 - 所有 provider 交易封鎖；可重現測試工具、CI、12 個 Issue、截圖、中英安全說明。
 
-最新已發佈離線結果：C# engine **111 PASS／0 FAIL**；pure 12／12；獨立覆核套件 24 PASS／1 已知 FAIL（[#6](https://github.com/Kinfxhk/KINFXTradeCopier/issues/6)）；Dashboard UI 32／32；Python 450 OK；完整 AddOn 只編譯成功（從未載入執行）。詳情同限制見 [TEST-MATRIX](docs/TEST-MATRIX.md)。
+最新已發佈離線結果：C# engine **113 PASS／0 FAIL**；pure 12／12；獨立覆核套件 24 PASS／1 已知 FAIL（[#6](https://github.com/Kinfxhk/KINFXTradeCopier/issues/6)）；Dashboard UI 32／32；Python 450 OK；完整 AddOn 只編譯成功（從未載入執行）。詳情同限制見 [TEST-MATRIX](docs/TEST-MATRIX.md)。
 
 ### 未完成
 

@@ -472,6 +472,72 @@ class EngineSafetyTests {
  static void UnackedCancelledExitDifferentOcoStillReserves(){LeaderCancelledUnackedExit("","ocg B",2,false,1,"noOco-vs-B");LeaderCancelledUnackedExit("ocg A","ocg B",2,false,1,"A-vs-B");LeaderCancelledUnackedExit("ocg A2","",2,false,1,"A-vs-none");}
  static void UnackedCancelledExitNeverAckedStillReserves(){LeaderCancelledUnackedExit("ocg A3","ocg B3",2,false,5,"never-acked");}
  static void UnackedCancelledPartiallyFilledExitStillReserves(){LeaderCancelledUnackedExit("ocg A4","ocg B4",2,true,1,"partial");}
+ // Issue #2 property sweep. Entry 4 at the leader. The follower entry has captured fill c when the leader bracket arrives and the follower
+ // stop is acknowledged. Then the provider fills d MORE lots: that callback is either applied or still QUEUED, Position reads p, and the
+ // leader amends the exit to s2. TRUE filled = c+d. INVARIANTS on every outbound Change and on the final state:
+ //  (I1) no Change below the quantity already acknowledged while the Position view lags (stale evidence must not shrink protection);
+ //  (I2) NON-terminal exit quantity never exceeds TRUE filled lots (reversal risk), at every observation point;
+ //  (I3) once the callback is applied and Position agrees with truth, protection converges to min(s2, true filled).
+ static string FrontierCase(int c,int d,int p,int s2,bool queued){
+  string id=""+c+d+p+s2+(queued?"q":"n");
+  var l=Acc("fr lead "+id);var a=Acc("fr follow "+id);
+  using(var e=Arm(l,a)){
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",4));Wait(()=>a.Submits==1,"entry "+id);
+   var entry=a.Orders[0];
+   if(c>0){entry.Filled=c;entry.OrderState=NinjaTrader.Cbi.OrderState.PartFilled;a.Positions.Clear();a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=c,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});a.Emit(entry);Drain(e);}
+   var stopL=LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"fr bracket",4,99);l.Emit(stopL);
+   if(c>0){Wait(()=>a.Submits==2,"stop "+id);Drain(e);}else{Drain(e);}
+   int acked=a.Orders.Count>1?a.Orders[1].Quantity:0;
+   var worker=(SerialWorker)typeof(CopierEngine).GetField("worker",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(e);
+   var entered=new ManualResetEvent(false);var release=new ManualResetEvent(false);
+   if(queued){worker.Post(()=>{entered.Set();release.WaitOne();});entered.WaitOne(3000);}
+   int trueFilled=c+d;
+   if(d>0){entry.Filled=trueFilled;entry.OrderState=trueFilled>=4?NinjaTrader.Cbi.OrderState.Filled:NinjaTrader.Cbi.OrderState.PartFilled;a.Emit(entry);}
+   a.Positions.Clear();if(p>0)a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=p,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});
+   stopL.Quantity=s2;stopL.LimitPrice=98;l.Emit(stopL);
+   var bad=new List<string>();
+   Func<string,int> working=where=>{int w=a.Orders.Where(o=>o.OrderAction==NinjaTrader.Cbi.OrderAction.Sell&&!NinjaTrader.Cbi.Order.IsTerminalState(o.OrderState)).Sum(o=>o.Quantity-o.Filled);if(w>trueFilled)bad.Add("I2("+where+") working "+w+" > true filled "+trueFilled);return w;};
+   working("before release");
+   if(queued)release.Set();
+   Drain(e);working("after drain");e.Poll();Drain(e);working("after poll");
+   int[] sent;lock(a.ChangeQuantities)sent=a.ChangeQuantities.ToArray();
+   if(acked>0&&sent.Any(q=>q<acked&&q<c&&p<trueFilled))bad.Add("I1 change "+string.Join(",",sent)+" below acknowledged "+acked+"/captured "+c+" while Position lags (p="+p+")");
+   a.Positions.Clear();a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=trueFilled,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});
+   if(trueFilled==0)a.Positions.Clear();
+   e.Poll();Drain(e);e.Poll();Drain(e);
+   int fin=working("final");
+   int want=a.Orders.Count>1||trueFilled>0?Math.Min(s2,trueFilled):0;
+   if(trueFilled>0&&a.Orders.Count>1&&fin!=want)bad.Add("I3 after catch-up working "+fin+" want "+want);
+   Console.WriteLine("COMBO "+id+" acked="+acked+" changes=["+string.Join(",",sent)+"] final="+fin);
+   return bad.Count==0?null:"c="+c+" d="+d+" p="+p+" s2="+s2+" queued="+queued+" => "+string.Join("; ",bad)+" "+Probe(a);
+  }
+ }
+ static void FrontierPropertySweep(){
+  var fails=new List<string>();int ran=0;
+  foreach(int c in new[]{0,2})foreach(int d in new[]{0,1,2})foreach(int p in new[]{0,1,2,3,4})foreach(int s2 in new[]{1,2,4})foreach(bool q in new[]{false,true}){
+   if(c+d>4||(d==0&&q))continue;
+   ran++;string r=null;try{r=FrontierCase(c,d,p,s2,q);}catch(Exception ex){r="c="+c+" d="+d+" p="+p+" s2="+s2+" queued="+q+" EXC "+ex.Message;}
+   if(r!=null)fails.Add(r);
+  }
+  Console.WriteLine("SWEEP combos="+ran+" failures="+fails.Count);foreach(var f in fails.Take(40))Console.WriteLine("SWEEPFAIL "+f);
+  Check(ran>=100,"sweep must actually enumerate many combinations: "+ran);
+  Check(fails.Count==0,"frontier property sweep: "+fails.Count+" violating combinations; first: "+(fails.Count>0?fails[0]:""));
+ }
+ // Issue #2: TWO independent (non-OCO) exits 2+2 on 4 held lots. The leader then AMENDS one of them upward (to 4) and the other too.
+ // Total working exit quantity must never exceed the 4 lots held, for any Position reading, or the account can reverse.
+ static void TwoExitsAmendedUpNeverOverCover(){
+  foreach(int p in new[]{4,3,2,0}){
+   var l=Acc("two up lead "+p);var a=Acc("two up follow "+p);
+   using(var e=Arm(l,a)){
+    l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",4));Wait(()=>a.Submits==1,"entry");Fill(a,4);Drain(e);
+    var x=LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"",2,99);var y=LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"",2,110);
+    l.Emit(x);l.Emit(y);Wait(()=>a.Submits==3,"two exits; "+Probe(a));Drain(e);
+    a.Positions.Clear();if(p>0)a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=p,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});
+    x.Quantity=4;x.LimitPrice=98;l.Emit(x);Drain(e);y.Quantity=4;y.LimitPrice=111;l.Emit(y);Drain(e);e.Poll();Drain(e);e.Poll();Drain(e);
+    Check(WorkingSell(a)<=4,"total working exit quantity must never exceed the 4 lots held (position reads "+p+"); working="+WorkingSell(a)+" "+Probe(a));
+   }
+  }
+ }
  // F01 (Issue #2), scenario A: leader stop total 4; follower owned fill 2, wrapper already shows 4, Position reads 1.
  // Safety invariant: NO outbound Change may ever request a total below the 4 the stop was acknowledged at.
  static void F01PositionBehindOwnedNeverShrinksProtection(){
