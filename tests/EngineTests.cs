@@ -245,7 +245,7 @@ class EngineTests {
    var l=new NinjaTrader.Cbi.Account{Name="Fake ATM lead "+mirror};var a=new NinjaTrader.Cbi.Account{Name="Fake ATM follower "+mirror};
    using(var e=new CopierEngine(s=>{},t=>{},(attached,s)=>{},(n,r)=>{})){
     e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10},new RiskLatch())},mirror);Wait(()=>e.EntriesArmed,"ATM mode arm");l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Wait(()=>a.Submits==1,"ATM entry copy");
-    a.Orders[0].Filled=2;a.Orders[0].OrderState=NinjaTrader.Cbi.OrderState.Filled;lock(a.Positions)a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});
+    a.Orders[0].Filled=2;a.Orders[0].OrderState=NinjaTrader.Cbi.OrderState.Filled;lock(a.Positions)a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});a.Emit(a.Orders[0]);
     var exit=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"atm bracket");l.Emit(exit);Thread.Sleep(100);Check(a.Submits==(mirror?2:1),"ATM toggle controls nonmarket exit mirroring");
     if(!mirror){exit=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell);exit.OrderType=NinjaTrader.Cbi.OrderType.Market;l.Emit(exit);Wait(()=>a.Submits==2,"ATM off still copies market close");}
    }
@@ -257,7 +257,7 @@ class EngineTests {
    engine.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10,Target=100},new RiskLatch()),Tuple.Create(b,new RiskSettings{MaxContracts=10},new RiskLatch())});Wait(()=>engine.EntriesArmed,"arm");
    var entry=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy);l.Emit(entry);l.Emit(entry);Wait(()=>a.Submits==1&&b.Submits==1,"single submits");Thread.Sleep(100);Check(a.Submits==1,"dedupe");
    lock(a.Positions)a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});lock(b.Positions)b.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});
-   a.Orders[0].OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Orders[0].Filled=2;b.Orders[0].OrderState=NinjaTrader.Cbi.OrderState.Filled;b.Orders[0].Filled=2;
+   a.Orders[0].OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Orders[0].Filled=2;b.Orders[0].OrderState=NinjaTrader.Cbi.OrderState.Filled;b.Orders[0].Filled=2;a.Emit(a.Orders[0]);b.Emit(b.Orders[0]);
    var stop=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"OCO_LONG_"+new string('x',100));l.Emit(stop);Wait(()=>a.Submits==2&&b.Submits==2,"exit copy");
    var target=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,stop.Oco);target.LimitPrice=110;l.Emit(target);Wait(()=>a.Submits==3&&b.Submits==3,"OCO target");
    Check(a.Orders[1].Oco==a.Orders[2].Oco,"same follower stable OCO");Check(a.Orders[1].Oco!=b.Orders[1].Oco,"account isolated OCO");
@@ -285,7 +285,7 @@ class EngineTests {
   var l=new NinjaTrader.Cbi.Account{Name="Fake subset leader"};var a=new NinjaTrader.Cbi.Account{Name="Fake subset A"};var b=new NinjaTrader.Cbi.Account{Name="Fake subset B"};
   using(var e=new CopierEngine(s=>{},t=>{},(attached,s)=>{},(n,r)=>{})){
    e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10},new RiskLatch()),Tuple.Create(b,new RiskSettings{MaxContracts=10},new RiskLatch())});Wait(()=>e.EntriesArmed,"subset arm");var entry=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy);l.Emit(entry);Wait(()=>a.Submits==1&&b.Submits==1,"subset entry");
-   foreach(var f in new[]{a,b}){lock(f.Positions)f.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});f.Orders[0].OrderState=NinjaTrader.Cbi.OrderState.Filled;f.Orders[0].Filled=2;}
+   foreach(var f in new[]{a,b}){lock(f.Positions)f.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});f.Orders[0].OrderState=NinjaTrader.Cbi.OrderState.Filled;f.Orders[0].Filled=2;f.Emit(f.Orders[0]);}
    e.Flatten(new[]{a},inst);Wait(()=>a.Flattens==1,"subset flatten A");var exit=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"new protection");l.Emit(exit);Wait(()=>b.Submits==2,"unflattened follower retains NEW protective exits");Check(a.Submits==1,"flattened account excludes new exit");
   }
  }
