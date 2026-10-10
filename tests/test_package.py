@@ -27,6 +27,9 @@ class PublicPackage(unittest.TestCase):
     def test_common_sensitive_patterns_metadata_only(self):
         found = []
         for path, rel in public_files():
+            if path.suffix.lower() == '.png':
+                self.assertTrue(path.read_bytes().startswith(bytes([0x89]) + b'PNG'), str(rel))
+                continue
             text = path.read_text(encoding='utf-8-sig')
             for name, pattern in PATTERNS.items():
                 for match in pattern.finditer(text):
