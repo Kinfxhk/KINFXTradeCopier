@@ -445,6 +445,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         // Change commands dispatched but not yet returned from the provider, and the values the LAST one requested. While any is in flight the
         // "nothing to change" comparison must use these, not the order's applied values, or a revert to the old price is silently dropped.
         public int ChangesInFlight;
+        public readonly List<int> PendingChangeQuantities=new List<int>();
         public double SentLimit, SentStop; public int SentQty;
         public readonly HashSet<Order> Wrappers=new HashSet<Order>();
         public readonly List<FollowerSnapshot> ExecutionEvidence=new List<FollowerSnapshot>();
@@ -852,8 +853,8 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             // The requested values are captured NOW, in a command applied on the account's own thread. Writing them to the shared
             // Order object here and sending later would let a newer Change overwrite an older, still-queued one.
             double wantLimit=s.Limit,wantStop=s.Stop; int wantQty=qty;
-            link.SentQty=wantQty; link.SentLimit=wantLimit; link.SentStop=wantStop; Interlocked.Increment(ref link.ChangesInFlight);
-            Dispatch(f,()=>{ try { order.QuantityChanged=wantQty; order.LimitPriceChanged=wantLimit; order.StopPriceChanged=wantStop; f.Account.Change(new[]{order}); } finally { Interlocked.Decrement(ref link.ChangesInFlight); } },err=>{ if(err!=null)Lock(f,errPrefix+err.Message); });
+            link.SentQty=wantQty; link.SentLimit=wantLimit; link.SentStop=wantStop; Interlocked.Increment(ref link.ChangesInFlight);link.PendingChangeQuantities.Add(wantQty);
+            Dispatch(f,()=>{ try { order.QuantityChanged=wantQty; order.LimitPriceChanged=wantLimit; order.StopPriceChanged=wantStop; f.Account.Change(new[]{order}); } finally { Interlocked.Decrement(ref link.ChangesInFlight); } },err=>{ link.PendingChangeQuantities.Remove(wantQty);if(err!=null)Lock(f,errPrefix+err.Message); });
         }
         void FollowerUpdate(object sender,OrderEventArgs e,int generation,string subscribedInstrument)
         {
@@ -891,7 +892,10 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                         // Never release a larger reservation when the captured wrapper/dispatch intent
                         // still contradicts that reduction. These hints can refuse release, not certify acceptance.
                         bool reductionCoherent=snapshot.Quantity>=snapshot.WrapperQuantity&&snapshot.Quantity>=snapshot.WrapperQuantityChanged;
-                        link.ReservedQuantity=snapshot.Quantity==link.RequestedQuantity&&reductionCoherent?snapshot.Quantity:Math.Max(link.ReservedQuantity,snapshot.Quantity);
+                        // Mutable wrapper quantities cannot reveal a larger Change still queued on the dispatcher.
+                        // Engine-owned pending command intent can veto release, never certify acceptance.
+                        bool pendingLarger=link.PendingChangeQuantities.Any(q=>q>snapshot.Quantity);
+                        link.ReservedQuantity=snapshot.Quantity==link.RequestedQuantity&&reductionCoherent&&!pendingLarger?snapshot.Quantity:Math.Max(link.ReservedQuantity,snapshot.Quantity);
                     }
                     if(eventState==OrderState.Filled&&snapshot.Filled!=link.RequestedQuantity)
                         Lock(f,"Terminal fill quantity divergence — expected="+link.RequestedQuantity+", observed="+snapshot.Filled+"; no makeup / chase, manual reconciliation required");
