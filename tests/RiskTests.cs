@@ -2,7 +2,7 @@ using System;
 using NinjaTrader.NinjaScript.AddOns.Kinfx;
 class RiskTests {
  static int Main(string[] args) {
-  try { XmlDoubleRoundtripIsExact(); XmlDoubleRejectsGroupingCommas(); XmlBaselinePreservesSignedZeroAndIntent(); Console.WriteLine("PASS exact XML numeric persistence"); Eq(false,DashboardSafety.CanExecute("start")); Eq(false,DashboardSafety.CanExecute("flattenSelected")); Eq(false,DashboardSafety.CanExecute("flattenAll")); Eq(false,DashboardSafety.CanExecute("batch")); Eq(true,DashboardSafety.CanExecute("refresh")); BulkAmount(); Console.WriteLine("PASS bulk amount grammar"); SettingsWarnings(); Console.WriteLine("PASS settings warnings"); WorkerRetention(); Console.WriteLine("PASS worker retains accepted work and reports rejection"); DivergencePolicy(); Console.WriteLine("PASS divergence reaction setting"); Quantity(); Console.WriteLine("PASS quantity"); AccountSyncDiff(); Console.WriteLine("PASS account sync diff"); ContractRollQuarterly(); Console.WriteLine("PASS contract roll"); ContractInputNormalize(); Console.WriteLine("PASS contract input"); AccountSyncDecision(); Console.WriteLine("PASS account sync decision"); Risk(); Console.WriteLine("PASS risk latch / exits / finite / DST"); Persistence(); Console.WriteLine("PASS XML atomic roundtrip"); Worker(); Console.WriteLine("PASS serial reentrancy + ownership"); Ledger(); Console.WriteLine("PASS lifecycle decisions / dedupe / reservation"); Presets(); Console.WriteLine("PASS sourced editable presets"); ChangePolicy(); Console.WriteLine("PASS locked reductions / partial exit totals"); DurableLock(); Console.WriteLine("PASS durable global latches / unlock recheck / advisory"); return 0; }
+  try { XmlDoubleRoundtripIsExact(); XmlDoubleRejectsGroupingCommas(); XmlBaselinePreservesSignedZeroAndIntent(); Console.WriteLine("PASS exact XML numeric persistence"); Eq(false,DashboardSafety.CanExecute("start")); Eq(false,DashboardSafety.CanExecute("flattenSelected")); Eq(false,DashboardSafety.CanExecute("flattenAll")); Eq(false,DashboardSafety.CanExecute("batch")); Eq(true,DashboardSafety.CanExecute("refresh")); BulkAmount(); Console.WriteLine("PASS bulk amount grammar"); SettingsWarnings(); Console.WriteLine("PASS settings warnings"); WorkerRetention(); Console.WriteLine("PASS worker retains accepted work and reports rejection"); DivergencePolicy(); Console.WriteLine("PASS divergence reaction setting"); Quantity(); Console.WriteLine("PASS quantity"); AccountSyncDiff(); Console.WriteLine("PASS account sync diff"); ContractRollQuarterly(); Console.WriteLine("PASS contract roll"); ContractInputNormalize(); Console.WriteLine("PASS contract input"); AccountSyncDecision(); Console.WriteLine("PASS account sync decision"); RvDraftNeverPublishesNonFiniteOrOutOfRange(); Console.WriteLine("PASS RvDraftNeverPublishesNonFiniteOrOutOfRange"); RvDraftMinusZeroAndStrictFields(); Console.WriteLine("PASS RvDraftMinusZeroAndStrictFields"); RvDraftCultureIndependent(); Console.WriteLine("PASS RvDraftCultureIndependent"); RvDraftBuildAfterLoadWithInvalidRawStillRefuses(); Console.WriteLine("PASS RvDraftBuildAfterLoadWithInvalidRawStillRefuses"); RvDraftLoadedInvalidPresetCannotBuild(); Console.WriteLine("PASS RvDraftLoadedInvalidPresetCannotBuild"); Risk(); Console.WriteLine("PASS risk latch / exits / finite / DST"); Persistence(); Console.WriteLine("PASS XML atomic roundtrip"); Worker(); Console.WriteLine("PASS serial reentrancy + ownership"); Ledger(); Console.WriteLine("PASS lifecycle decisions / dedupe / reservation"); Presets(); Console.WriteLine("PASS sourced editable presets"); ChangePolicy(); Console.WriteLine("PASS locked reductions / partial exit totals"); DurableLock(); Console.WriteLine("PASS durable global latches / unlock recheck / advisory"); return 0; }
   catch(Exception ex) { Console.WriteLine("FAIL "+ex.Message); return 1; }
  }
  static void Eq(object want,object got) { if(want==null||got==null){ if(want!=got) throw new Exception("expected "+(want??"<null>")+" got "+(got??"<null>")); return; } if(!want.Equals(got)) throw new Exception("expected "+want+" got "+got); }
@@ -277,5 +277,45 @@ class RiskTests {
  static void SimTestDashboardCommandsOpenButNothingElse() {
   foreach(string command in new[]{"start","flattenSelected","flattenAll","batch","refresh"})
    if(!DashboardSafety.CanExecute(command))throw new Exception("SIM TEST build must allow "+command);
+ }
+
+ // ---- Added after independent review of PR #21 (reviewer-written regression cases).
+ static void RvDraftNeverPublishesNonFiniteOrOutOfRange(){
+  foreach(var f in typeof(RiskSettings).GetFields()){
+   if(f.FieldType!=typeof(double)&&f.FieldType!=typeof(int))continue;
+   foreach(string bad in new[]{"NaN","Infinity","-Infinity","1e309","-1e309","-1","2147483648","1e-400"}){
+    var d=new RiskSettingsDraft(new RiskSettings());bool ok=d.Set(f.Name,bad);
+    var s=d.Settings;
+    if(!ok){bool refused=false;try{d.Build(false);}catch(ArgumentException){refused=true;}Eq(true,refused);}
+    Eq(true,s.Valid());
+   }
+  }
+ }
+ static void RvDraftMinusZeroAndStrictFields(){
+  var d=new RiskSettingsDraft(new RiskSettings());
+  Eq(false,d.Set("Ratio","-0"));Eq(false,d.Set("Ratio","0"));Eq(false,d.Set("MaxContracts","0"));Eq(false,d.Set("MaxContracts","1.0"));Eq(false,d.Set("Consistency","100.0000001"));
+  Eq(true,d.HasErrors);
+  bool refused=false;try{d.Build(false);}catch(ArgumentException){refused=true;}Eq(true,refused);
+  foreach(var bad in new[]{new RiskSettings{Ratio=double.NaN},new RiskSettings{Target=double.PositiveInfinity},new RiskSettings{Loss=-1},new RiskSettings{Floor=double.NegativeInfinity},new RiskSettings{MaxContracts=0},new RiskSettings{Consistency=101},new RiskSettings{OnDivergence="Flatten"},new RiskSettings{Baseline=double.NaN},new RiskSettings{HighWater=double.NaN},new RiskSettings{BestDay=double.NaN},new RiskSettings{TotalProfit=double.PositiveInfinity}})Eq(false,bad.Valid());
+ }
+ static void RvDraftCultureIndependent(){
+  var old=System.Threading.Thread.CurrentThread.CurrentCulture;
+  try{
+   foreach(string c in new[]{"de-DE","fr-FR","tr-TR","ar-SA"}){
+    System.Threading.Thread.CurrentThread.CurrentCulture=new System.Globalization.CultureInfo(c);
+    var d=new RiskSettingsDraft(new RiskSettings());
+    Eq(true,d.Set("Ratio","0.5"));Eq(0.5,d.Settings.Ratio);Eq(false,d.Set("Target","0,5"));Eq(false,d.Set("Target","1,000"));Eq(true,d.Set("MaxContracts","12"));Eq("12",d.Text("MaxContracts"));
+    Eq(true,d.Set("Target","1E2"));Eq(100.0,d.Settings.Target);
+   }
+  } finally{System.Threading.Thread.CurrentThread.CurrentCulture=old;}
+ }
+ static void RvDraftBuildAfterLoadWithInvalidRawStillRefuses(){
+  var d=new RiskSettingsDraft(new RiskSettings());Eq(false,d.Set("Floor","abc"));
+  d.Load(new RiskSettings{Floor=5});Eq(true,d.HasErrors);bool refused=false;try{d.Build(false);}catch(ArgumentException){refused=true;}Eq(true,refused);
+  Eq(5.0,d.Settings.Floor);
+ }
+ static void RvDraftLoadedInvalidPresetCannotBuild(){
+  var d=new RiskSettingsDraft(new RiskSettings());d.Load(new RiskSettings{Ratio=0,Consistency=500});
+  Eq(false,d.HasErrors);bool refused=false;try{d.Build(false);}catch(ArgumentException){refused=true;}Eq(true,refused);
  }
 }
