@@ -639,6 +639,30 @@ class EngineSafetyTests {
    Check(a.Submits==5&&a.Flattens==0,"unknown activity is never adopted or automatically recovered");
   }
  }
+ static void OlderWorkingCallbackKeepsEntryOwnershipCertificate() {
+  var l=Acc("old entry proof leader");var a=Acc("old entry proof follower");
+  using(var e=Arm(l,a)) {
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Drain(e);Fill(a,2);Drain(e);var entry=a.Orders[0];
+   entry.Filled=0;entry.OrderState=NinjaTrader.Cbi.OrderState.Working;a.Emit(entry);Drain(e);
+   entry.Filled=2;entry.OrderState=NinjaTrader.Cbi.OrderState.Filled;
+   l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"old entry proof",2,98));Drain(e);
+   Check(a.Submits==2&&a.Orders[1].Quantity==2,"older zero-fill Working callback cannot destroy positive entry ownership");
+   Check(ExitLink(e,entry).ObservedFilled==2&&ClaimEntry(ExitLink(e,a.Orders[1]))==entry,"retain terminal positive proof and its fixed entry identity");
+  }
+ }
+ static void EntryAmendBeforeSubmitAckIsApplied() {
+  var l=Acc("early amend leader");var a=Acc("early amend follower");a.SubmitEntered=new ManualResetEvent(false);a.SubmitRelease=new ManualResetEvent(false);
+  using(var e=new CopierEngine(x=>{},x=>{},(x,y)=>{},(x,y)=>{})) {
+   try {
+    e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{Ratio=.25,MaxContracts=10},new RiskLatch())});Drain(e);
+    var entry=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",4);l.Emit(entry);Check(a.SubmitEntered.WaitOne(3000),"pending Submit barrier");
+    entry.Quantity=1;entry.Filled=1;entry.OrderState=NinjaTrader.Cbi.OrderState.PartFilled;l.Emit(entry);
+    var worker=(SerialWorker)typeof(CopierEngine).GetField("worker",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(e);var queued=new ManualResetEvent(false);worker.Post(()=>queued.Set());Check(queued.WaitOne(3000),"early amend captured before Submit ACK");
+    a.SubmitRelease.Set();Drain(e);
+    Check(a.Submits==1&&a.Cancels==1&&a.Orders[0].OrderState==NinjaTrader.Cbi.OrderState.Cancelled,"captured acceptance applies deferred zero-desired amend exactly once");
+   }finally{a.SubmitRelease.Set();}
+  }
+ }
  static int ClaimField(CopyLink link,string field) {
   object group=typeof(CopyLink).GetField("Group").GetValue(link);
   if(field=="Quota")return (int)group.GetType().GetField(field).GetValue(group);

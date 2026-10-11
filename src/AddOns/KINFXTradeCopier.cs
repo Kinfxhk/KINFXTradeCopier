@@ -479,13 +479,13 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public readonly string GroupId;
         public readonly int Session, Revision, Quota, EntryFilled, ExitFilled, Held, Future;
         public readonly long Frontier, LeaderFrontier;
-        public readonly bool Supported, Complete;
-        public GroupSupportCertificate(string groupId,int session,int revision,int quota,int entryFilled,int exitFilled,long frontier,long leaderFrontier,bool supported)
+        public readonly bool Supported, Complete, Settled;
+        public GroupSupportCertificate(string groupId,int session,int revision,int quota,int entryFilled,int exitFilled,long frontier,long leaderFrontier,bool supported,bool settled)
         {
             GroupId=groupId;
             Session=session;Revision=revision;Quota=quota;EntryFilled=entryFilled;ExitFilled=exitFilled;Frontier=frontier;LeaderFrontier=leaderFrontier;
             Held=Math.Max(0,entryFilled-exitFilled);Future=Math.Max(0,quota-entryFilled);
-            Supported=supported;Complete=supported&&quota>0&&entryFilled==quota&&exitFilled==quota;
+            Supported=supported;Settled=settled;Complete=supported&&settled&&quota>0&&entryFilled==quota&&exitFilled==quota;
         }
     }
     internal sealed class ProtectionPlan
@@ -810,16 +810,18 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 }
             }
         }
-        GroupSupportCertificate GroupCertificate(ExitGroup group)
+        GroupSupportCertificate GroupCertificate(ExitGroup group,bool requireSettledProof=true)
         {
             var f=group.Members[0].Follower;
             int entryFilled=group.Claims.Sum(x=>x.Captured),exitFilled=group.Members.Sum(x=>x.ObservedFilled);
-            long frontier=Volatile.Read(ref f.CapturedCallbacks);
+            long frontier=Volatile.Read(ref f.CapturedCallbacks),leaderFrontier=Volatile.Read(ref leaderCaptured);
+            bool settled=frontier==Volatile.Read(ref f.AppliedCallbacks)&&leaderFrontier==Volatile.Read(ref leaderApplied)
+                &&group.Members.All(x=>!x.SubmissionInFlight&&Volatile.Read(ref x.ChangesInFlight)==0&&x.RequestedQuantity==x.ReservedQuantity);
             bool supported=group.Session==Volatile.Read(ref sessionGeneration)&&!group.Frozen&&!f.ProviderFaulted&&!f.AllocationUncertain
-                &&frontier==Volatile.Read(ref f.AppliedCallbacks)&&Volatile.Read(ref leaderCaptured)==Volatile.Read(ref leaderApplied)&&group.Claims.Sum(x=>x.Count)==group.Quota
+                &&frontier==Volatile.Read(ref f.AppliedCallbacks)&&(!requireSettledProof||settled)&&group.Claims.Sum(x=>x.Count)==group.Quota
                 &&exitFilled<=entryFilled&&group.Claims.All(x=>!x.Entry.OwnershipUncertain&&x.Entry.Latest.Session==group.Session&&x.Entry.Latest.Id!=null)
                 &&group.Members.All(x=>!x.OwnershipUncertain&&x.Latest.Action==group.Members[0].Latest.Action)
-                &&group.Members.All(x=>Volatile.Read(ref x.ChangesInFlight)==0&&x.RequestedQuantity==x.ReservedQuantity);
+                ;
             // Every currently held group lot must still be supported by the captured account-owned net.
             int held=f.ExitGroups.Values.Sum(g=>Math.Max(0,g.Claims.Sum(x=>x.Captured)-g.Members.Sum(x=>x.ObservedFilled)));
             if(held>Math.Abs((long)OwnedPosition(f)))supported=false;
@@ -827,7 +829,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             {
                 int end=0;foreach(var claim in entry.OrderBy(x=>x.First)){if(claim.First<end||claim.First<0||claim.Count<=0)supported=false;end=claim.First+claim.Count;}
             }
-            return new GroupSupportCertificate(group.Id,group.Session,group.Revision,group.Quota,entryFilled,exitFilled,frontier,Volatile.Read(ref leaderCaptured),supported);
+            return new GroupSupportCertificate(group.Id,group.Session,group.Revision,group.Quota,entryFilled,exitFilled,frontier,leaderFrontier,supported,settled);
         }
         void ReconcileGroups(EngineAccount f)
         {
@@ -880,7 +882,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         ProtectionPlan ProtectionPlanFor(EngineAccount f)
         {
             var groups=f.ExitGroups.Values.OrderBy(x=>x.Members[0].EntrySequence).ToArray();
-            var certificates=groups.Select(GroupCertificate).ToArray();
+            var certificates=groups.Select(g=>GroupCertificate(g)).ToArray();
             int owned=Math.Abs(OwnedPosition(f)),covered=0;
             for(int i=0;i<groups.Length;i++)
             {
@@ -1009,9 +1011,9 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             if(!Connected(f.Account)) { link.Waiting=false; Lock(f,"Disconnected — no catch-up"); return; }
             if(!link.Exit && (!entries||!f.Following||f.Paused||f.Latch.Locked||link.Cancelled)) { link.Waiting=false; return; }
             if(link.Group!=null&&link.Desired==0){link.Waiting=false;return;}
-            if(link.Group!=null&&f.ExitCompleted&&link.Group.Members.Any(x=>x!=link&&(x.SubmissionInFlight||x.Order!=null&&!x.AcceptanceConfirmed&&!Order.IsTerminalState(x.ObservedState))))return;
-            var continuation=link.Exit&&f.ExitCompleted&&link.Group!=null?GroupCertificate(link.Group):null;
-            if(continuation!=null&&!CertifiedWaitingProtection(link))return;
+            if(link.Group!=null&&link.Group.Members.Any(x=>x!=link&&(x.SubmissionInFlight||x.Order!=null&&!x.AcceptanceConfirmed&&!Order.IsTerminalState(x.ObservedState))))return;
+            var authorization=link.Group!=null?GroupCertificate(link.Group):null;
+            if(authorization!=null&&!authorization.Supported)return;
             int qty=AllowedRemaining(link);
             if(qty<=0)
             {
@@ -1032,9 +1034,9 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             }
             Dispatch(f,()=>{
                 if(!link.Exit&&f.ProviderFaulted)throw new InvalidOperationException("entry not sent: an earlier provider call for this account failed");
-                if(continuation!=null)lock(controlGate)
+                if(authorization!=null)lock(controlGate)
                 {
-                    if(link.Cancelled||f.ProviderFaulted||f.AllocationUncertain||link.Group.Frozen||continuation.Session!=Volatile.Read(ref sessionGeneration)||continuation.Revision!=Volatile.Read(ref link.Group.Revision)||continuation.Frontier!=Volatile.Read(ref f.CapturedCallbacks)||continuation.LeaderFrontier!=Volatile.Read(ref leaderCaptured))
+                    if(link.Cancelled||f.ProviderFaulted||f.AllocationUncertain||link.Group.Frozen||authorization.Session!=Volatile.Read(ref sessionGeneration)||authorization.Revision!=Volatile.Read(ref link.Group.Revision)||authorization.Frontier!=Volatile.Read(ref f.CapturedCallbacks)||authorization.LeaderFrontier!=Volatile.Read(ref leaderCaptured))
                         throw new GroupSupportChangedException("waiting protection frontier changed before submit authorization; submission NOT sent");
                 }
                 f.Account.Submit(new[]{order});
@@ -1049,7 +1051,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                     }
                     else if(err==null)log("COPY "+f.Account.Name+" "+s.Action+" "+qty+" "+s.Type);else Lock(f,errPrefix+err.Message);
                 }
-                finally { lock(controlGate)link.SubmissionInFlight=false; RecomputeDisablePending(f);if(continuation!=null)MaintainProtection(f); }
+                finally { lock(controlGate)link.SubmissionInFlight=false; RecomputeDisablePending(f);if(authorization!=null)MaintainProtection(f); }
             });
         }
         void Change(CopyLink link,string errPrefix="Manage error: ")
@@ -1080,7 +1082,9 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             int accountClosable=closable;
             if(link.Group!=null)
             {
-                var support=GroupCertificate(link.Group);
+                // Existing amendments retain their ordered command stream and conservative reservation.
+                // Retirement/new submissions still require the fully settled certificate.
+                var support=GroupCertificate(link.Group,false);
                 if(!support.Supported)return; // No speculative resize/cancel of sole protection.
                 closable=Math.Min(closable,support.Held);
             }
@@ -1091,7 +1095,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             if(positionBehindOwned&&link.Exit&&qty<effectiveQty)qty=effectiveQty; // freeze quantity, keep price updates
             if(qty<=filled)
             {
-                if(link.Group!=null){var proof=GroupCertificate(link.Group);if(proof.Held>0||proof.Future>0)return;}
+                if(link.Group!=null){var proof=GroupCertificate(link.Group);if(!proof.Supported||proof.Held>0||proof.Future>0)return;}
                 link.Cancelled=true; link.Waiting=false; Dispatch(f,()=>f.Account.Cancel(new[]{order}),err=>{ if(err!=null)Lock(f,errPrefix+err.Message); });
                 if(link.Exit&&p==0&&OwnedPosition(f)!=0)Lock(f,"Flat Position conflicts with owned executions — exits cancelled to prevent reversal; review protection");
                 return;
@@ -1141,7 +1145,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                         link.ObservedState=eventState;
                         link.ReservedQuantity=snapshot.Quantity==link.RequestedQuantity?snapshot.Quantity:Math.Max(link.ReservedQuantity,snapshot.Quantity);
                     }
-                    if(terminalRegression||snapshot.Filled<prior||snapshot.Action!=link.SubmittedAction||snapshot.Type!=link.Latest.Type||(eventState==OrderState.Filled&&snapshot.Filled!=link.RequestedQuantity))
+                    if(snapshot.Action!=link.SubmittedAction||snapshot.Type!=link.Latest.Type||(eventState==OrderState.Filled&&snapshot.Filled!=link.RequestedQuantity))
                     {link.OwnershipUncertain=true;if(link.Group!=null)link.Group.Frozen=true;}
                     if(eventState==OrderState.Filled&&snapshot.Filled!=link.RequestedQuantity)
                         Lock(f,"Terminal fill quantity divergence — expected="+link.RequestedQuantity+", observed="+snapshot.Filled+"; no makeup / chase, manual reconciliation required");
@@ -1179,6 +1183,8 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 RecomputeDisablePending(f);
                 if(eventState==OrderState.Rejected) Lock(f,"Follower order rejected — review protection");
                 CheckRisk(f);
+                // An amend received before Submit acceptance must be applied after the captured ACK.
+                if(link!=null&&!link.Exit&&link.AcceptanceConfirmed&&link.Desired!=link.RequestedQuantity)Change(link);
                 MaintainProtection(f);
                 }
                 finally { Interlocked.Decrement(ref pendingFollowerCallbacks);if(capturedAccount!=null){Interlocked.Increment(ref capturedAccount.AppliedCallbacks);ReconcileGroups(capturedAccount);MaintainProtection(capturedAccount);} ReconcileCloseEvidence(); }
