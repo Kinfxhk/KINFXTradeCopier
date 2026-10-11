@@ -247,6 +247,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 try { action(); } catch(Exception ex) { error(ex); }
             }
         }
+        public bool IsCurrentThread {get{return Thread.CurrentThread==thread;}}
         public void Dispose() { lock(gate) { stopping=true; Monitor.PulseAll(gate); } if(Thread.CurrentThread!=thread) thread.Join(3000); }
     }
     public static class SessionOwnership
@@ -498,6 +499,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         readonly List<SerialWorker> dispatchers=new List<SerialWorker>();
         internal int ProviderCallsInFlight { get { return Volatile.Read(ref providerCallsInFlight); } }
         readonly object controlGate=new object();
+        readonly object admissionGate=new object();
         bool mirrorAtm=true;
         public bool Attached { get { return attached; } }
         public bool EntriesArmed { get { return entries; } }
@@ -860,8 +862,12 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             if(e.Order==null||account==null||e.Order.Account!=account||e.Order.Instrument==null||e.Order.Instrument.FullName!=subscribedInstrument)return;
             var snapshot=new FollowerSnapshot(account,e,generation);
             Order order=snapshot.Wrapper; OrderState eventState=snapshot.State;
-            if(snapshot.Filled>0)ledgerUnresolved=true; // Never close across queued execution evidence.
-            Interlocked.Increment(ref pendingFollowerCallbacks);
+            lock(admissionGate)
+            {
+                if(!attached||snapshot.Session!=Volatile.Read(ref sessionGeneration))return;
+                if(snapshot.Filled>0)ledgerUnresolved=true; // Never close across queued execution evidence.
+                Interlocked.Increment(ref pendingFollowerCallbacks);
+            }
             bool accepted=worker.Post(()=>
             {
                 try
@@ -927,7 +933,8 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         {
             if(Volatile.Read(ref pendingFollowerCallbacks)!=0)return;
             // Authorization remains durably latched after a proven clean session detaches.
-            ledgerUnresolved=followers.Any(f=>f.EvidenceUnresolved||persistenceFailed.Contains(f)||f.Flattening||OwnedPosition(f)!=0||HasPendingEntryWork(f)||links.Values.SelectMany(v=>v).Any(x=>x.Follower==f&&(x.SubmissionInFlight||(x.Order!=null&&!Order.IsTerminalState(x.ObservedState)))));
+            bool unresolved=followers.Any(f=>f.EvidenceUnresolved||persistenceFailed.Contains(f)||f.Flattening||OwnedPosition(f)!=0||HasPendingEntryWork(f)||links.Values.SelectMany(v=>v).Any(x=>x.Follower==f&&(x.SubmissionInFlight||(x.Order!=null&&!Order.IsTerminalState(x.ObservedState)))));
+            lock(admissionGate){if(pendingFollowerCallbacks==0)ledgerUnresolved=unresolved;}
         }
         void MaintainProtection(EngineAccount f)
         {
@@ -1043,15 +1050,28 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public void StopFlat()
         {
             BlockEntries();
-            worker.Post(()=>{ if(!attached)return; if(!CanClose()||followers.Any(f=>OwnedPosition(f)!=0)) { stateChanged(true,"GUARDED PAUSE — stop blocked until owned executions reconcile flat / no working orders");log("Stop refused: unresolved execution / order evidence. Manual reconciliation required; coverage is not guaranteed."); return;} Detach(); });
+            worker.Post(()=>{ if(!attached)return; if(!TryDetach()) { stateChanged(true,"GUARDED PAUSE — stop blocked until owned executions reconcile flat / no working orders");log("Stop refused: unresolved execution / order evidence. Manual reconciliation required; coverage is not guaranteed."); return;} });
+        }
+        bool TryDetach()
+        {
+            if(!CanClose())return false; // Collection reads stay outside the admission gate.
+            lock(admissionGate)
+            {
+                if(pendingFollowerCallbacks!=0||providerCallsInFlight!=0||ledgerUnresolved)return false;
+                entries=false;attached=false;Interlocked.Increment(ref sessionGeneration);followerView=new EngineAccount[0];
+            }
+            FinishDetach();return true;
         }
         void Detach()
         {
-            entries=false;
+            lock(admissionGate){entries=false;attached=false;Interlocked.Increment(ref sessionGeneration);followerView=new EngineAccount[0];}
+            FinishDetach();
+        }
+        void FinishDetach()
+        {
             if(leader!=null&&leaderHandler!=null)leader.OrderUpdate-=leaderHandler;
             foreach(var f in followers)if(followerHandler!=null)f.Account.OrderUpdate-=followerHandler;
-            Interlocked.Increment(ref sessionGeneration); followerView=new EngineAccount[0];
-            attached=false; SessionOwnership.Release(this); stateChanged(false,"DISARMED — explicit Start required");
+            SessionOwnership.Release(this);stateChanged(false,"DISARMED — explicit Start required");
         }
         public void Flatten(Account[] targets,Instrument inst)
         {
@@ -1118,7 +1138,22 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             return attached&&session==Volatile.Read(ref sessionGeneration)&&Volatile.Read(ref pendingFollowerCallbacks)==0
                 &&Volatile.Read(ref providerCallsInFlight)==0&&!ledgerUnresolved;
         }
-        public void Dispose() { if(disposed)return; BlockEntries(); if(!CanClose()){log("Close refused: owned executions / orders unresolved; callbacks and ownership retained. Resolve manually before closing.");return;} disposed=true; worker.Post(Detach);worker.Dispose();DisposeDispatchers(); }
+        public void Dispose()
+        {
+            if(disposed)return;BlockEntries();
+            if(!CanClose()){log("Close refused: owned executions / orders unresolved; callbacks and ownership retained. Resolve manually before closing.");return;}
+            Action close=()=>
+            {
+                if(disposed)return;
+                if(!TryDetach()){log("Close refused: owned executions / orders unresolved; callbacks and ownership retained. Resolve manually before closing.");return;}
+                disposed=true;worker.Dispose();DisposeDispatchers();
+            };
+            if(worker.IsCurrentThread){close();return;}
+            var complete=new ManualResetEvent(false);
+            if(!worker.Post(()=>{try{close();}finally{complete.Set();}}))return;
+            // A timeout never stops admission or discards accepted work; the queued decision still runs.
+            complete.WaitOne(3000);
+        }
     }
     public sealed class AccountRow : INotifyPropertyChanged
     {
