@@ -9,6 +9,18 @@ public static class BulkUiTests {
  static void Check(bool ok,string m){if(!ok)throw new Exception(m);}
  static DashboardView Fresh(){var v=new DashboardView(true);v.Editable(true);Layout(v);return v;}
  static void Select(DashboardView v,params int[] idx){v.AccountGrid.UnselectAll();foreach(int i in idx)v.AccountGrid.SelectedItems.Add(v.Rows[i]);}
+ static void RiskDialogInvalidDraftSurvivesPresetLoad() {
+  var initial=new RiskSettings{Floor=100};var dialog=new RiskSettingsDialog(initial,"MES",1);
+  try {
+   var boxes=(System.Collections.Generic.Dictionary<string,TextBox>)typeof(RiskSettingsDialog).GetField("boxes",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(dialog);
+   boxes["Floor"].Text="0,125";
+   Check(boxes["Floor"].BorderBrush==DashboardView.Bad&&boxes["Floor"].ToolTip!=null,"invalid draft immediately indicated");
+   Check(dialog.CurrentDraft.Floor==100&&initial.Floor==100,"invalid text never publishes accepted settings");
+   dialog.FirmChoice.SelectedIndex=1;dialog.LoadSelectedPreset();
+   Check(boxes["Floor"].Text=="0,125"&&boxes["Floor"].BorderBrush==DashboardView.Bad,"template refresh retains invalid typed text");
+   boxes["Floor"].Text="125";Check(dialog.CurrentDraft.Floor==125&&boxes["Floor"].BorderBrush==DashboardView.Line,"correction clears draft error");
+  } finally {dialog.Close();}
+ }
  static void TargetAndLossApplyToSelectedOnly(){
   var v=Fresh();Select(v,1,2,3);
   string r=v.BulkApply("Tgt","750");Check(r==null,"valid Tgt must apply: "+r);
