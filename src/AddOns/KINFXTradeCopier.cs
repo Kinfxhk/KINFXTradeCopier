@@ -503,6 +503,27 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             return null;
         }
     }
+    // Pure helpers shared by the dashboard and the offline tests. No Account, engine or UI access.
+    public static class DashboardChoices
+    {
+        // Default Leader when nothing was chosen before: the stock Sim101 account if present, else the first listed. Never returns null for a non-empty list.
+        public static string DefaultLeader(IEnumerable<string> names)
+        {
+            string first=null;
+            if(names!=null)foreach(var n in names){if(first==null)first=n;if(string.Equals(n,"Sim101",StringComparison.Ordinal))return n;}
+            return first;
+        }
+        // One line of sim-allow.txt = exact account name, optionally "= alias". Blank lines and # comments are ignored.
+        public static bool ParseAllowLine(string line,out string name,out string alias)
+        {
+            name="";alias="";if(line==null)return false;
+            string t=line.Trim();if(t.Length==0||t.StartsWith("#"))return false;
+            int eq=t.IndexOf('=');
+            if(eq<0){name=t;return true;}
+            name=t.Substring(0,eq).Trim();alias=t.Substring(eq+1).Trim();
+            return name.Length>0;
+        }
+    }
 // END KINFX PURE
     internal sealed class AccountTelemetry
     {
@@ -634,13 +655,6 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             log=logger; telemetry=onTelemetry; stateChanged=onState;durableLock=persistLatch;
             worker=new SerialWorker(ex=>{ entries=false; log("ENGINE ERROR: "+ex.Message+" — entries blocked; coverage unverified, manual recovery required"); stateChanged(attached,"Error — guarded pause; verify exposure manually"); });
         }
-        // Default Leader when nothing was chosen before: the stock Sim101 account if present, else the first listed. Pure; never returns null for a non-empty list.
-        public static string DefaultLeader(IEnumerable<string> names)
-        {
-            string first=null;
-            if(names!=null)foreach(var n in names){if(first==null)first=n;if(string.Equals(n,"Sim101",StringComparison.Ordinal))return n;}
-            return first;
-        }
         public static string AliasFor(string name)
         {
 #if KINFX_SIM_TEST
@@ -681,18 +695,8 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         {
             var d=new Dictionary<string,string>(StringComparer.Ordinal);
             if(!File.Exists(path))return d;
-            foreach(var line in File.ReadAllLines(path)){string name,alias;if(ParseAllowLine(line,out name,out alias))d[name]=alias;}
+            foreach(var line in File.ReadAllLines(path)){string name,alias;if(DashboardChoices.ParseAllowLine(line,out name,out alias))d[name]=alias;}
             return d;
-        }
-        // One line = exact account name, optionally "= alias". Blank lines and # comments are ignored. Pure.
-        public static bool ParseAllowLine(string line,out string name,out string alias)
-        {
-            name="";alias="";if(line==null)return false;
-            string t=line.Trim();if(t.Length==0||t.StartsWith("#"))return false;
-            int eq=t.IndexOf('=');
-            if(eq<0){name=t;return true;}
-            name=t.Substring(0,eq).Trim();alias=t.Substring(eq+1).Trim();
-            return name.Length>0;
         }
         public static string SimAlias(string name){string a;return name!=null&&simAlias.TryGetValue(name,out a)?a:"";}
         public static bool SimAllowed(string name){var h=Volatile.Read(ref simAllow);return name!=null&&h.Contains(name);}
@@ -1882,7 +1886,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                     SavedAccount stored;saved.TryGetValue(a.Name,out stored);
                     dashboard.Rows.Add(new AccountRow {Account=a,Name=a.Name,Role=a.Name==leaderName?"Leader":"Follower",Currency=a.Denomination.ToString(),Connection=a.Connection==null?"Disconnected":a.Connection.Status.ToString(),Status=stored!=null&&stored.Latch.Locked?stored.Latch.Reason:"Disarmed",Settings=stored==null?NewSettingsFor(a):stored.Settings.Clone(),Latch=stored==null?new RiskLatch():new RiskLatch {Locked=stored.Latch.Locked,Reason=stored.Latch.Reason}});
                 }
-                string keep=leaderName;dashboard.LeaderBox.ItemsSource=accounts.Where(CopierEngine.Sim).Select(a=>a.Name).ToArray();if(!string.IsNullOrEmpty(keep)&&accounts.Any(a=>a.Name==keep))dashboard.LeaderBox.SelectedItem=keep;else if(dashboard.LeaderBox.Items.Count>0)dashboard.LeaderBox.SelectedItem=CopierEngine.DefaultLeader(dashboard.LeaderBox.Items.Cast<string>());
+                string keep=leaderName;dashboard.LeaderBox.ItemsSource=accounts.Where(CopierEngine.Sim).Select(a=>a.Name).ToArray();if(!string.IsNullOrEmpty(keep)&&accounts.Any(a=>a.Name==keep))dashboard.LeaderBox.SelectedItem=keep;else if(dashboard.LeaderBox.Items.Count>0)dashboard.LeaderBox.SelectedItem=DashboardChoices.DefaultLeader(dashboard.LeaderBox.Items.Cast<string>());
                 dashboard.UpdateCards();
             }
             catch(Exception ex){Log("Refresh error: "+ex.Message);}finally{loading=false;}
