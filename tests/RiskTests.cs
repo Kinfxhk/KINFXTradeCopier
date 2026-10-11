@@ -38,6 +38,32 @@ class RiskTests {
    Eq(long.MinValue,BitConverter.DoubleToInt64Bits(back.Settings.Baseline));Eq(baselineSet,back.Settings.BaselineSet);
   }
  }
+ static void DialogDraftPreservesInvalidFieldsAcrossLoad() {
+  var initial=new RiskSettings{Floor=100,Baseline=-10,TrailDistance=20,HighWater=200,BestDay=30,TotalProfit=300,Consistency=50};
+  foreach(string name in new[]{"Ratio","Target","Loss","MaxContracts","Floor","Baseline","TrailDistance","HighWater","BestDay","TotalProfit","Consistency"}) {
+   var draft=new RiskSettingsDraft(initial);var field=typeof(RiskSettings).GetField(name);object before=field.GetValue(initial);
+   foreach(string bad in new[]{"","wrong","1,000","NaN","1e400"}) {
+    Eq(false,draft.Set(name,bad));Eq(true,draft.HasErrors);Eq(bad,draft.Text(name));Eq(before,field.GetValue(draft.Settings));
+    var preset=initial.Clone();preset.Target=900;draft.Load(preset);Eq(bad,draft.Text(name));
+    bool refused=false;try{draft.Build(false);}catch(ArgumentException){refused=true;}Eq(true,refused);
+    Eq(true,draft.Set(name,SettingsStore.FieldText(before)));Eq(false,draft.HasErrors);
+   }
+   Eq(before,field.GetValue(initial)); // caller's settings never mutated
+  }
+ }
+ static void DialogDraftBuildIsAtomicAndBitExact() {
+  var initial=new RiskSettings{Baseline=BitConverter.Int64BitsToDouble(long.MinValue)};var draft=new RiskSettingsDraft(initial);
+  Eq(true,draft.Set("Target","0.12345678901234566"));Eq(false,draft.Set("Floor","-1"));Eq(false,draft.Set("Consistency","101"));
+  Eq(0.0,initial.Target);Eq(true,draft.HasErrors);Eq(true,draft.Set("Floor","0"));Eq(true,draft.Set("Consistency","100"));
+  var result=draft.Build(false);Eq(BitConverter.DoubleToInt64Bits(0.12345678901234566),BitConverter.DoubleToInt64Bits(result.Target));Eq(long.MinValue,BitConverter.DoubleToInt64Bits(result.Baseline));Eq(true,result.BaselineSet);
+  result.Target=99;Eq(0.12345678901234566,draft.Settings.Target);
+  bool refused=false;try{draft.Build(true);}catch(ArgumentException){refused=true;}Eq(true,refused);
+  Eq(true,draft.Set("HighWater","100"));Eq(true,draft.Set("TrailDistance","10"));Eq(true,draft.Build(true).LocalTrail);
+ }
+ static void DialogDraftCanRepairMultipleInvalidPresetFields() {
+  var draft=new RiskSettingsDraft(new RiskSettings{Ratio=0,MaxContracts=0});
+  Eq(true,draft.Set("Ratio","1"));Eq(true,draft.Set("MaxContracts","2"));Eq(true,draft.Build(false).Valid());
+ }
  static void BulkAmount() {
   double v;
   Eq(true,BulkEdit.TryParseAmount("1000",out v)); Eq(1000.0,v);
