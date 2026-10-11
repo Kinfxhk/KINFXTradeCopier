@@ -194,6 +194,40 @@ public static class BulkUiTests {
   }
   row.Target=0;row.Loss=0;Check(row.Target==0&&row.Loss==0,"0 (= off) stays legal");row.Target=1234.5;Check(row.Target==1234.5,"normal value accepted");
  }
+ // Issue #5: the SAME draft rules for Ratio (positive finite) and Max (whole number >= 1). Typed junk is kept visible, blocks commit,
+ // and the accepted value stays the last valid one.
+ static TextBox CellBoxIn(DataGrid g,string header,AccountRow row){
+  var col=g.Columns.First(c=>(c.Header as string)==header);g.SelectedItem=row;g.CurrentCell=new DataGridCellInfo(row,col);
+  if(!g.BeginEdit())throw new Exception("grid refused to enter edit mode for "+header);Layout(Fresh0);
+  var cell=col.GetCellContent(row);return cell as TextBox??(cell==null?null:Visual<TextBox>(cell).FirstOrDefault());}
+ static DashboardView Fresh0;
+ static void BadRatioDraftSurvivesRefreshAndBlocksCommit(){
+  var v=Fresh();Fresh0=v;var row=v.Rows[1];double before=row.Ratio;var tb=CellBox(v,"Ratio",row);
+  TypeBad(tb,"1.5x");
+  Check(Validation.GetHasError(tb),"malformed Ratio must show a validation error right away");
+  row.Changed();v.UpdateCards();Layout(v);
+  var again=CellBox(v,"Ratio",row);
+  Check(again.Text=="1.5x","typed Ratio text must survive a refresh; shows '"+again.Text+"'");
+  Check(!v.TryCommitSettings(),"commit refused while a Ratio draft is invalid");
+  Check(row.Ratio==before,"accepted Ratio stays "+before+"; is "+row.Ratio);
+  var last=v.Rows[v.Rows.Count-1];v.AccountGrid.ScrollIntoView(last);Layout(v);v.AccountGrid.ScrollIntoView(last,v.AccountGrid.Columns.Last());Layout(v);
+  Check(!v.TryCommitSettings(),"commit still refused after the row was recycled out of view");
+  var back=CellBox(v,"Ratio",row);Check(back.Text=="1.5x","Ratio draft returns when scrolled back; shows '"+back.Text+"'");
+  back.Text="2";var be=back.GetBindingExpression(TextBox.TextProperty);if(be!=null)be.UpdateSource();Layout(v);
+  Check(row.Ratio==2&&v.TryCommitSettings(),"correcting the draft applies it and re-allows commit; ratio="+row.Ratio);
+ }
+ static void MaxContractsRejectsInvalidAndKeepsDraft(){
+  var v=Fresh();Fresh0=v;var row=v.Rows[1];int before=row.MaxContracts;
+  foreach(int bad in new[]{0,-1,-100}){bool threw=false;try{row.MaxContracts=bad;}catch(ArgumentException){threw=true;}Check(threw,"Max must reject "+bad);Check(row.MaxContracts==before,"Max unchanged after rejecting "+bad+"; is "+row.MaxContracts);}
+  v.Sections.SelectedIndex=1;Layout(v);
+  var tb=CellBoxIn(v.RiskGrid,"Max",row);
+  TypeBad(tb,"3.5");
+  Check(Validation.GetHasError(tb),"a non-whole Max must show a validation error");
+  row.Changed();v.UpdateCards();Layout(v);
+  Check(!v.TryCommitSettings(),"commit refused while a Max draft is invalid");
+  Check(row.MaxContracts==before,"accepted Max unchanged; is "+row.MaxContracts);
+  Check(row.Settings.Valid(),"the row's accepted settings must remain Valid(); a rejected Max must never leave them invalid");
+ }
  // Divergence / opposite-exposure handling today is notify-only: lock, red lamp, text and reason. It must be unmistakable.
  static void LockedAccountIsRedWithReasonAndCountedInFooter(){
   var v=Fresh();var row=v.Rows[4];
@@ -240,7 +274,7 @@ public static class BulkUiTests {
  [STAThread] public static int Main(string[] args){
   try{
    AppDomain.CurrentDomain.AssemblyResolve+=(s,e)=>{string n=e.Name.Split(',')[0];if(n.EndsWith(".resources"))return null;var loaded=AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a=>a.GetName().Name==n);if(loaded!=null)return loaded;string p=System.IO.Path.Combine("C:/Program Files/NinjaTrader 8/bin",n+".dll");return System.IO.File.Exists(p)?System.Reflection.Assembly.LoadFrom(p):null;};
-   var all=new Action[]{TargetAndLossApplyToSelectedOnly,ZeroTurnsLimitOff,RatioStaysIndependent,InvalidInputChangesNothing,NoSelectionIsRefused,LeaderIsNotEdited,AtmToggleBulk,LockedWhenNotEditable,NeverTouchesFollowOrTrading,BarIsOnCopyTabAndKeepsHolds,FromLeaderCopiesToHighlighted,FromLeaderWithoutHighlightHitsAllVisibleFollowers,FromLeaderRespectsSearchFilter,FromLeaderKeepsRatioTickAndOtherFields,ManualEditAfterwardsSticksAndNoLiveLink,FromLeaderRefusedWhenLockedOrNoLeader,FromLeaderNeverTouchesFollowOrTrading,AdviceShownPerRowAndCounted,AdviceUpdatesAfterBulkApply,AdviceNeverBlocksOrChangesSettings,RatioCellFitsCommonValuesAt1160,LogsReadableAndTopAligned,LogClearWorksAndIsEditableIndependent,BadTargetDraftSurvivesRefreshAndBlocksCommit,BadLossDraftSurvivesRefreshAndBlocksCommit,BadTargetDraftSurvivesRecyclingAndStillBlocksCommit,TargetAndLossSetterRejectInvalidNumbers,LockedAccountIsRedWithReasonAndCountedInFooter,LockedCountIgnoresLeaderAndNeverBlocksUi,DivergenceChoiceIsPerAccountDefaultsToNotify,DivergenceBulkAndFromLeaderAndNeverTrades,FlattenOnceShowsAWarningNote};
+   var all=new Action[]{TargetAndLossApplyToSelectedOnly,ZeroTurnsLimitOff,RatioStaysIndependent,InvalidInputChangesNothing,NoSelectionIsRefused,LeaderIsNotEdited,AtmToggleBulk,LockedWhenNotEditable,NeverTouchesFollowOrTrading,BarIsOnCopyTabAndKeepsHolds,FromLeaderCopiesToHighlighted,FromLeaderWithoutHighlightHitsAllVisibleFollowers,FromLeaderRespectsSearchFilter,FromLeaderKeepsRatioTickAndOtherFields,ManualEditAfterwardsSticksAndNoLiveLink,FromLeaderRefusedWhenLockedOrNoLeader,FromLeaderNeverTouchesFollowOrTrading,AdviceShownPerRowAndCounted,AdviceUpdatesAfterBulkApply,AdviceNeverBlocksOrChangesSettings,RatioCellFitsCommonValuesAt1160,LogsReadableAndTopAligned,LogClearWorksAndIsEditableIndependent,BadTargetDraftSurvivesRefreshAndBlocksCommit,BadLossDraftSurvivesRefreshAndBlocksCommit,BadTargetDraftSurvivesRecyclingAndStillBlocksCommit,TargetAndLossSetterRejectInvalidNumbers,LockedAccountIsRedWithReasonAndCountedInFooter,LockedCountIgnoresLeaderAndNeverBlocksUi,BadRatioDraftSurvivesRefreshAndBlocksCommit,MaxContractsRejectsInvalidAndKeepsDraft,DivergenceChoiceIsPerAccountDefaultsToNotify,DivergenceBulkAndFromLeaderAndNeverTrades,FlattenOnceShowsAWarningNote};
    int failed=0;foreach(var a in all){try{a();Console.WriteLine("PASS "+a.Method.Name);}catch(Exception ex){failed++;Console.WriteLine("FAIL "+a.Method.Name+" :: "+ex.Message);}}
    return failed==0?0:1;
   }catch(Exception ex){Console.WriteLine("HARNESS "+ex);return 2;}
