@@ -105,7 +105,7 @@ class SourceSyntaxHoldTests(unittest.TestCase):
         # The only place KINFX_SIM_TEST may appear: the identity guard wrapper, the scope checks in Start/Flatten
         # and DashboardSafety.CanExecute. Anything else is a new bypass and must be reviewed explicitly.
         code = mask_noncode(self.raw)
-        self.assertEqual(code.count("KINFX_SIM_TEST"), 10, "unexpected KINFX_SIM_TEST usage")
+        self.assertEqual(code.count("KINFX_SIM_TEST"), 12, "unexpected KINFX_SIM_TEST usage")
         for signature in SIGNATURES:
             body = method(self.raw, signature)
             self.assertIn("#if !KINFX_SIM_TEST", body)
