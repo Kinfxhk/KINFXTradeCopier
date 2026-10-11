@@ -22,7 +22,9 @@ namespace NinjaTrader.Cbi {
   public double Get(AccountItem i,Currency c){return i==AccountItem.RealizedProfitLoss?Pnl:i==AccountItem.UnrealizedProfitLoss?0:Equity;}
   public Order CreateOrder(Instrument i,OrderAction a,OrderType t,OrderEntry e,TimeInForce tif,int q,double l,double s,string oco,string n,DateTime g,object ignored){if(CreateEntered!=null){CreateEntered.Set();CreateRelease.WaitOne();}return new Order {Account=this,Instrument=i,OrderAction=a,OrderType=t,OrderEntry=e,TimeInForce=tif,Quantity=q,LimitPrice=l,StopPrice=s,Oco=oco,Name=n,Gtd=g};}
   public int SubmitAttempts;public ManualResetEvent ChangeEntered,ChangeRelease;public void Submit(Order[] orders){Interlocked.Increment(ref SubmitAttempts);if(SubmitEntered!=null){SubmitEntered.Set();SubmitRelease.WaitOne();}if(ThrowSubmit)throw new InvalidOperationException("Synthetic submit error");foreach(var o in orders){lock(Orders)Orders.Add(o);o.OrderState=OrderState.Working;Interlocked.Increment(ref Submits);Emit(o);}}
-  public System.Collections.Generic.List<int> ChangeQuantities=new System.Collections.Generic.List<int>();public System.Collections.Generic.List<int> ChangePrices=new System.Collections.Generic.List<int>();public void Change(Order[] orders){if(ChangeEntered!=null){ChangeEntered.Set();ChangeRelease.WaitOne();}foreach(var o in orders){Thread.Sleep(1);lock(ChangePrices)ChangePrices.Add((int)o.LimitPriceChanged);lock(ChangeQuantities)ChangeQuantities.Add(o.QuantityChanged);o.Quantity=o.QuantityChanged;o.LimitPrice=o.LimitPriceChanged;o.StopPrice=o.StopPriceChanged;Interlocked.Increment(ref Changes);Emit(o);}}
+  // Synthetic unknown acceptance: mutate the provider wrapper, but withhold its callback or throw AFTER applying.
+  public bool SuppressChangeAck,ThrowChangeAfterApply;
+  public System.Collections.Generic.List<int> ChangeQuantities=new System.Collections.Generic.List<int>();public System.Collections.Generic.List<int> ChangePrices=new System.Collections.Generic.List<int>();public void Change(Order[] orders){if(ChangeEntered!=null){ChangeEntered.Set();ChangeRelease.WaitOne();}foreach(var o in orders){Thread.Sleep(1);lock(ChangePrices)ChangePrices.Add((int)o.LimitPriceChanged);lock(ChangeQuantities)ChangeQuantities.Add(o.QuantityChanged);o.Quantity=o.QuantityChanged;o.LimitPrice=o.LimitPriceChanged;o.StopPrice=o.StopPriceChanged;Interlocked.Increment(ref Changes);if(ThrowChangeAfterApply)throw new InvalidOperationException("Synthetic change accepted then threw");if(!SuppressChangeAck)Emit(o);}}
   public void Cancel(Order[] orders){if(CancelEntered!=null){CancelEntered.Set();CancelRelease.WaitOne();}if(AsyncCancel){Interlocked.Add(ref Cancels,orders.Length);return;}if(ThrowCancel)throw new InvalidOperationException("Synthetic cancel error");foreach(var o in orders){o.OrderState=OrderState.Cancelled;Interlocked.Increment(ref Cancels);Emit(o);}}
   public void Flatten(Instrument[] inst){if(NoopFlatten){Interlocked.Increment(ref Flattens);return;}if(ThrowFlatten){if(FlattenWorkingBeforeThrow){var pending=CreateOrder(inst[0],OrderAction.Sell,OrderType.Market,OrderEntry.Manual,TimeInForce.Day,2,0,0,"","SyntheticPendingFlatten",DateTime.MaxValue,null);pending.OrderState=OrderState.Working;Orders.Add(pending);Emit(pending);}throw new InvalidOperationException("Synthetic flatten error");}Interlocked.Increment(ref Flattens);foreach(var o in Orders.ToArray())Cancel(new[]{o});lock(Positions)Positions.Clear();var fake=CreateOrder(inst[0],OrderAction.Sell,OrderType.Market,OrderEntry.Manual,TimeInForce.Day,1,0,0,"","SyntheticFlatten",DateTime.MaxValue,null);fake.OrderState=OrderState.Submitted;Emit(fake);}
   public void Emit(Order o){var h=OrderUpdate;if(h!=null)h(this,new OrderEventArgs {Order=o,OrderId=o.OrderId,OrderState=o.OrderState,Quantity=o.Quantity,Filled=o.Filled,LimitPrice=o.LimitPrice,StopPrice=o.StopPrice});}
@@ -373,6 +375,50 @@ class EngineSafetyTests {
    // Positive control: the current follower delegate must still reject unknown activity.
    a.Emit(late);Drain(e);Check(locks==1&&!e.CanClose(),"current unknown follower callback still locks");
   } finally {e.Dispose();}
+ }
+ static CopyLink ExitLink(CopierEngine e,NinjaTrader.Cbi.Order order) {
+  var links=(Dictionary<string,List<CopyLink>>)typeof(CopierEngine).GetField("links",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(e);
+  return links.Values.SelectMany(v=>v).Single(x=>x.Order==order);
+ }
+ // Issue #2: Position ahead of captured fills never authorizes adopting the excess lots.
+ static void PositionAheadProtectsOnlyCapturedOwnedLots() {
+  var l=Acc("frontier ahead lead");var a=Acc("frontier ahead follower");int locks=0;
+  using(var e=Arm(l,a,null,(n,r)=>Interlocked.Increment(ref locks))) {
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",4));Drain(e);
+   Fill(a,2);Drain(e);SetPos(a,4);
+   var stop=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"ahead protection",4);l.Emit(stop);Drain(e);
+   Check(a.Submits==2&&a.Orders[1].Quantity==2,"Position4 cannot authorize protection beyond captured owned2");
+   Check(locks==1,"unexplained excess Position locks the follower");
+   stop.Quantity=6;stop.LimitPrice=99;l.Emit(stop);Drain(e);
+   int[] sent;lock(a.ChangeQuantities)sent=a.ChangeQuantities.ToArray();
+   Check(sent.Length==1&&sent.All(q=>q==2),"every outbound Change stays within owned2; "+Sent(a));
+   Check(a.Submits==2&&a.Flattens==0,"no catch-up entry or flatten for unknown excess");
+  }
+ }
+ // Returning or throwing after Change is not a callback acknowledgement of released capacity.
+ static void NoAckChangeRetainsReservationUntilCallback() { UnknownChangeRetainsReservation(false); }
+ static void AcceptedThenThrowChangeRetainsReservation() { UnknownChangeRetainsReservation(true); }
+ static void UnknownChangeRetainsReservation(bool throws) {
+  var l=Acc("unknown change lead");var a=Acc("unknown change follower");int locks=0;
+  using(var e=Arm(l,a,null,(n,r)=>Interlocked.Increment(ref locks))) {
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",4));Drain(e);Fill(a,4);Drain(e);
+   var stop=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"first reserve",4);l.Emit(stop);Drain(e);
+   var link=ExitLink(e,a.Orders[1]);Check(link.ReservedQuantity==4,"initial acknowledged reserve4");
+   a.SuppressChangeAck=true;a.ThrowChangeAfterApply=throws;
+   stop.Quantity=2;stop.LimitPrice=99;l.Emit(stop);Drain(e);
+   Check(a.Changes==1&&a.Orders[1].Quantity==2,"fake accepted the 2-lot change without callback");
+   Check(link.RequestedQuantity==2&&link.ReservedQuantity==4,"mutable wrapper/return/throw must not release acknowledged reserve4");
+   var other=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"independent reserve",2);l.Emit(other);Drain(e);
+   for(int i=0;i<3;i++){e.Poll();Drain(e);}
+   Check(a.Submits==2,"independent exit cannot spend unacknowledged capacity");
+   Check(a.Changes==1&&a.Cancels==0&&a.Flattens==0,"poll never retries an uncertain reduction or cancels protection");
+   Check(locks==(throws?1:0),"accepted-then-throw locks; missing callback alone is not a new policy");
+   int[] sent;lock(a.ChangeQuantities)sent=a.ChangeQuantities.ToArray();Check(sent.Length==1&&sent[0]==2,"exact outbound quantity trace");
+   if(!throws) {
+    a.SuppressChangeAck=false;a.Emit(a.Orders[1]);Drain(e);
+    Check(link.ReservedQuantity==2&&a.Submits==3&&a.Orders[2].Quantity==2,"captured callback releases reserve and waiting protection converges");
+   } else Check(link.ReservedQuantity==4,"unknown accepted-then-throw keeps conservative reservation");
+  }
  }
  static CopierEngine Arm(NinjaTrader.Cbi.Account l,NinjaTrader.Cbi.Account a,Action<AccountTelemetry> tele=null,Action<string,string> persist=null){var e=new CopierEngine(s=>{},tele??(t=>{}),(attached,s)=>{},persist??((n,r)=>{}));e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10,Target=100},new RiskLatch())});Wait(()=>e.EntriesArmed,"arm");return e;}
  static void Drain(CopierEngine e){var f=typeof(CopierEngine).GetField("worker",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic);var w=(SerialWorker)f.GetValue(e);Action pump=()=>{var done=new ManualResetEvent(false);w.Post(()=>done.Set());Check(done.WaitOne(3000),"drain");};
