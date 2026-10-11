@@ -612,9 +612,39 @@ class EngineSafetyTests {
    Check(WorkingSell(a)==open,"X must still be working and unacknowledged ("+why+"); open="+open+" "+Probe(a));
    l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,yOco,open,98));Drain(e);
    for(int k=0;k<polls;k++){e.Poll();Drain(e);}
+   Check(a.Submits==2&&a.Cancels==1,"unacknowledged cancellation blocks replacement without repeated cancels ("+why+")");
    Check(WorkingSell(a)<=open,"working exit quantity must never exceed the "+open+" lots still held ("+why+"); working="+WorkingSell(a)+" "+Probe(a));
   }
  }
+ static void SameOcoCancellationDoesNotCancelExistingSibling() {
+  var l=Acc("same sibling leader");var a=Acc("same sibling follower");a.AsyncCancel=true;
+  using(var e=Arm(l,a)) {
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Drain(e);Fill(a,2);Drain(e);
+   var first=LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"shared sibling",2,99);l.Emit(first);
+   l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"shared sibling",2,98));Drain(e);
+   Check(a.Submits==3&&a.Orders[1].Oco==a.Orders[2].Oco,"ordinary active OCO siblings still share capacity");
+   first.OrderState=NinjaTrader.Cbi.OrderState.Cancelled;l.Emit(first);Drain(e);
+   l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"shared sibling",2,97));Drain(e);for(int i=0;i<3;i++){e.Poll();Drain(e);}
+   Check(a.Submits==3&&a.Cancels==1&&a.Orders[2].Quantity==2&&a.Orders[2].OrderState==NinjaTrader.Cbi.OrderState.Working,"block new member without cancelling/resizing existing sole sibling");
+  }
+ }
+ static void SameOcoCapturedCancelAckReleasesCapacityForExplicitNewExit() {
+  var l=Acc("same ack leader");var a=Acc("same ack follower");a.AsyncCancel=true;
+  using(var e=Arm(l,a)) {
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Drain(e);Fill(a,2);Drain(e);
+   var first=LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"shared ack",2,99);l.Emit(first);Drain(e);var old=a.Orders[1];
+   first.OrderState=NinjaTrader.Cbi.OrderState.Cancelled;l.Emit(first);Drain(e);
+   old.OrderState=NinjaTrader.Cbi.OrderState.Cancelled; // wrapper mutation alone is not an acknowledgement
+   l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"shared ack",2,98));Drain(e);
+   Check(a.Submits==2,"terminal wrapper without captured ACK still reserves capacity");
+   a.Emit(old);Drain(e);Check(a.Submits==2,"terminal exit policy retires waiting request; never autonomous retry");
+   l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"shared ack",2,97));Drain(e);
+   Check(a.Submits==3&&a.Orders[2].Quantity==2&&WorkingSell(a)==2,"captured cancel ACK permits a fresh explicit leader exit");
+  }
+ }
+ static void UnackedCancelledExitSameOcoStillReserves(){LeaderCancelledUnackedExit("same pending","same pending",2,false,1,"same-OCO");}
+ static void UnackedCancelledExitSameOcoNeverAckedStillReserves(){LeaderCancelledUnackedExit("same forever","same forever",2,false,5,"same-OCO never-acked");}
+ static void UnackedCancelledPartialExitSameOcoStillReserves(){LeaderCancelledUnackedExit("same partial","same partial",2,true,1,"same-OCO partial");}
  static void UnackedCancelledExitDifferentOcoStillReserves(){LeaderCancelledUnackedExit("","ocg B",2,false,1,"noOco-vs-B");LeaderCancelledUnackedExit("ocg A","ocg B",2,false,1,"A-vs-B");LeaderCancelledUnackedExit("ocg A2","",2,false,1,"A-vs-none");}
  static void UnackedCancelledExitNeverAckedStillReserves(){LeaderCancelledUnackedExit("ocg A3","ocg B3",2,false,5,"never-acked");}
  static void UnackedCancelledPartiallyFilledExitStillReserves(){LeaderCancelledUnackedExit("ocg A4","ocg B4",2,true,1,"partial");}
