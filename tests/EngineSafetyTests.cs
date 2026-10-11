@@ -1065,6 +1065,7 @@ class EngineSafetyTests {
 
  // ---- KINFX_SIM_TEST build only (run by `offline.py enginesim`): Simulator / Playback may trade, anything else never.
  static NinjaTrader.Cbi.Account ProvAcc(string name,NinjaTrader.Cbi.Provider p){var x=Acc(name);x.Provider=p;return x;}
+#if KINFX_SIM_TEST
  static void SimTestScopePolicy(){
   var sim=ProvAcc("scope sim",NinjaTrader.Cbi.Provider.Simulator);var pb=ProvAcc("scope pb",NinjaTrader.Cbi.Provider.Playback);var live=ProvAcc("scope live",NinjaTrader.Cbi.Provider.Live);
   Check(CopierEngine.SimScope(new[]{sim}),"Simulator alone is permitted");
@@ -1076,6 +1077,7 @@ class EngineSafetyTests {
   Check(!CopierEngine.SimScope(new NinjaTrader.Cbi.Account[]{sim,null}),"null member refused");
   Check(!CopierEngine.SimScope(new NinjaTrader.Cbi.Account[0]),"empty scope refused");
  }
+#endif
  static void SimTestSimAndPlaybackStartCopyFlatten(){
   foreach(var p in new[]{NinjaTrader.Cbi.Provider.Simulator,NinjaTrader.Cbi.Provider.Playback}){
    var l=ProvAcc("simtest lead "+p,p);var a=ProvAcc("simtest follow "+p,p);
@@ -1159,6 +1161,157 @@ class EngineSafetyTests {
    Check(e.Attached,"first (Sim) enumeration is a legal scope and attaches");
    l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Drain(e);
    Check(liveF.Submits==0,"a Live account smuggled in by a second enumeration is never submitted to");
+  }
+ }
+
+ // ---- Added after independent review of PR #17/#18/#19 (reviewer-written regression cases).
+ static T Fld<T>(object o,string n){return (T)o.GetType().GetField(n,System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Public).GetValue(o);}
+ static void Pump(CopierEngine e){var w=Fld<SerialWorker>(e,"worker");var d=new ManualResetEvent(false);Check(w.Post(()=>d.Set()),"pump post");Check(d.WaitOne(3000),"pump");}
+ static void RvSetup(out NinjaTrader.Cbi.Account l,out NinjaTrader.Cbi.Account a,out CopierEngine e,out NinjaTrader.Cbi.Order stop,out NinjaTrader.Cbi.Order exit,out CopyLink link,string tag){
+  l=Acc("rv leader "+tag);a=Acc("rv follower "+tag);e=Arm(l,a);
+  l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",4));Drain(e);Fill(a,4);Drain(e);
+  stop=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"rv stop "+tag,2);l.Emit(stop);Drain(e);exit=a.Orders[1];
+  var links=Fld<Dictionary<string,List<CopyLink>>>(e,"links");var ex=exit;link=links.Values.SelectMany(v=>v).Single(x=>x.Order==ex);
+ }
+ static void RvPendingNoLeakChangeThrowsBeforeApply(){
+  NinjaTrader.Cbi.Account l,a;CopierEngine e;NinjaTrader.Cbi.Order stop,exit;CopyLink link;RvSetup(out l,out a,out e,out stop,out exit,out link,"tb");
+  try{a.ChangeHook=o=>{throw new InvalidOperationException("before apply");};stop.Quantity=4;l.Emit(stop);Drain(e);
+   Check(link.PendingChangeQuantities.Count==0&&link.ChangesInFlight==0,"pending entry removed after provider throw before apply; count="+link.PendingChangeQuantities.Count);}
+  finally{e.Dispose();}
+ }
+ static void RvPendingNoLeakChangeThrowsAfterApply(){
+  NinjaTrader.Cbi.Account l,a;CopierEngine e;NinjaTrader.Cbi.Order stop,exit;CopyLink link;RvSetup(out l,out a,out e,out stop,out exit,out link,"ta");
+  try{a.SuppressChangeAck=true;a.ThrowChangeAfterApply=true;stop.Quantity=4;l.Emit(stop);Drain(e);
+   Check(link.PendingChangeQuantities.Count==0,"pending entry removed after throw after apply; count="+link.PendingChangeQuantities.Count);
+   Check(link.ReservedQuantity==4,"unknown acceptance keeps reservation 4");}
+  finally{e.Dispose();}
+ }
+ static void RvPendingNoLeakStoppedDispatcher(){
+  NinjaTrader.Cbi.Account l,a;CopierEngine e;NinjaTrader.Cbi.Order stop,exit;CopyLink link;RvSetup(out l,out a,out e,out stop,out exit,out link,"sd");
+  try{var fs=Fld<List<EngineAccount>>(e,"followers");fs[0].Dispatcher.Dispose();stop.Quantity=4;l.Emit(stop);Drain(e);
+   Check(a.Changes==0,"stopped dispatcher: no provider Change sent");
+   Check(link.PendingChangeQuantities.Count==0,"stopped dispatcher: pending entry removed; count="+link.PendingChangeQuantities.Count);
+   Check(e.ProviderCallsInFlight==0,"in-flight counter not leaked");}
+  finally{e.Dispose();}
+ }
+ static void RvPendingDuplicateValuesRemovedOnePerCompletion(){
+  NinjaTrader.Cbi.Account l,a;CopierEngine e;NinjaTrader.Cbi.Order stop,exit;CopyLink link;RvSetup(out l,out a,out e,out stop,out exit,out link,"dup");
+  try{a.ChangeEntered=new ManualResetEvent(false);a.ChangeRelease=new ManualResetEvent(false);
+   stop.Quantity=4;l.Emit(stop);Check(a.ChangeEntered.WaitOne(3000),"first blocked");
+   stop.Quantity=2;l.Emit(stop);Pump(e);stop.Quantity=4;l.Emit(stop);Pump(e);
+   Check(link.PendingChangeQuantities.Count==3&&link.PendingChangeQuantities.Count(q=>q==4)==2,"4,2,4 pending; got "+string.Join(",",link.PendingChangeQuantities));
+   a.ChangeRelease.Set();Drain(e);
+   Check(link.PendingChangeQuantities.Count==0,"all completions remove exactly one each; left="+string.Join(",",link.PendingChangeQuantities));
+   Check(exit.Quantity==4&&link.ReservedQuantity==4,"final 4/4; qty="+exit.Quantity+" res="+link.ReservedQuantity);}
+  finally{if(a.ChangeRelease!=null)a.ChangeRelease.Set();e.Dispose();}
+ }
+ static void RvDisposeFromEngineWorkerDoesNotDeadlock(){
+  var l=Acc("rv dw l");var a=Acc("rv dw a");var e=Arm(l,a);var w=Fld<SerialWorker>(e,"worker");var done=new ManualResetEvent(false);
+  long ms=-1;Check(w.Post(()=>{var sw=System.Diagnostics.Stopwatch.StartNew();e.Dispose();ms=sw.ElapsedMilliseconds;done.Set();}),"post");Check(done.WaitOne(6000),"Dispose on worker returned");Check(ms>=0&&ms<1000,"Dispose on engine worker must not self-wait; ms="+ms);
+  Wait(()=>!e.Attached,"detached");Check(!w.Post(()=>{}),"mailbox stopped");
+ }
+ static void RvConcurrentDisposeDetachesOnce(){
+  var l=Acc("rv cd l");var a=Acc("rv cd a");int offs=0;
+  var e=new CopierEngine(s=>{},t=>{},(att,s)=>{if(!att)Interlocked.Increment(ref offs);},(n,r)=>{});
+  e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10,Target=100},new RiskLatch())});Wait(()=>e.EntriesArmed,"arm");
+  var bar=new Barrier(3);var ts=Enumerable.Range(0,2).Select(i=>new Thread(()=>{bar.SignalAndWait();e.Dispose();})).ToList();ts.ForEach(t=>t.Start());bar.SignalAndWait();ts.ForEach(t=>Check(t.Join(6000),"dispose joined"));
+  Thread.Sleep(100);Check(!e.Attached,"detached");Check(offs==1,"stateChanged(false) exactly once; got "+offs);
+ }
+ static void RvStopFlatThenDisposeDetachesOnce(){
+  var l=Acc("rv sd l");var a=Acc("rv sd a");int offs=0;
+  var e=new CopierEngine(s=>{},t=>{},(att,s)=>{if(!att)Interlocked.Increment(ref offs);},(n,r)=>{});
+  e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10,Target=100},new RiskLatch())});Wait(()=>e.EntriesArmed,"arm");
+  e.StopFlat();Wait(()=>!e.Attached,"stopflat detached");Drain(e);e.Dispose();Thread.Sleep(100);
+  Check(offs==1,"Detach/FinishDetach once after StopFlat+Dispose; got "+offs);
+ }
+ static void RvStartImmediatelyAfterStopFlatSingleHandler(){
+  var l=Acc("rv sf l");var a=Acc("rv sf a");var e=Arm(l,a);
+  try{e.StopFlat();e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10,Target=100},new RiskLatch())});
+   Wait(()=>e.Attached&&e.EntriesArmed,"restart armed");Drain(e);
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",2));Drain(e);Thread.Sleep(100);Drain(e);
+   Check(a.Submits==1,"exactly one follower submit after restart; got "+a.Submits);}
+  finally{e.Dispose();}
+ }
+ static void RvDisposeTimeoutStillClosesAfterWorkerFrees(){
+  var l=Acc("rv dt l");var a=Acc("rv dt a");var e=Arm(l,a);var w=Fld<SerialWorker>(e,"worker");
+  var entered=new ManualResetEvent(false);var rel=new ManualResetEvent(false);
+  try{Check(w.Post(()=>{entered.Set();rel.WaitOne(8000);}),"barrier");Check(entered.WaitOne(3000),"blocked");
+   var sw=System.Diagnostics.Stopwatch.StartNew();e.Dispose();sw.Stop();Check(sw.ElapsedMilliseconds<4500,"Dispose bounded; ms="+sw.ElapsedMilliseconds);
+   Check(e.Attached&&!e.EntriesArmed,"half state during timeout: attached but entries blocked");
+   rel.Set();Wait(()=>!e.Attached,"queued close ran");Check(!w.Post(()=>{}),"mailbox stopped after late close");}
+  finally{rel.Set();}
+ }
+
+ // ---- KINFX_SIM_TEST build only: added after the second independent review (provider flips between call and worker, unknown enum values, queued Cancel).
+ static void HoldWorker(CopierEngine e,out ManualResetEvent release){
+  var f=typeof(CopierEngine).GetField("worker",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic);var w=(SerialWorker)f.GetValue(e);
+  var entered=new ManualResetEvent(false);var rel=new ManualResetEvent(false);release=rel;
+  w.Post(()=>{entered.Set();rel.WaitOne(5000);});Check(entered.WaitOne(3000),"worker held");
+ }
+ static void SimTestUnknownProviderEnumNeverAttachedOrFlattened(){
+  foreach(var v in new[]{99,-1,3,int.MaxValue}){
+   var p=(NinjaTrader.Cbi.Provider)v;
+   var l=ProvAcc("unk lead "+v,p);var a=ProvAcc("unk follow "+v,p);var s=ProvAcc("unk sim "+v,NinjaTrader.Cbi.Provider.Simulator);
+   using(var e=new CopierEngine(x=>{},t=>{},(b,x)=>{},(n,r)=>{})){
+    e.Start(s,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10},new RiskLatch())});Drain(e);Check(!e.Attached,"unknown follower provider "+v);
+    e.Start(l,inst,new[]{Tuple.Create(s,new RiskSettings{MaxContracts=10},new RiskLatch())});Drain(e);Check(!e.Attached,"unknown leader provider "+v);
+    e.Flatten(new[]{a},inst);e.Flatten(new[]{s,a},inst);Drain(e);Check(a.Flattens==0&&s.Flattens==0,"unknown provider flatten "+v);
+   }}
+ }
+ static void SimTestFlattenArrayMutatedAfterCallStillSafe(){
+  var sim=ProvAcc("mut sim",NinjaTrader.Cbi.Provider.Simulator);var live=ProvAcc("mut live",NinjaTrader.Cbi.Provider.Live);
+  using(var e=new CopierEngine(x=>{},t=>{},(b,x)=>{},(n,r)=>{})){
+   ManualResetEvent rel;HoldWorker(e,out rel);
+   var arr=new[]{sim};e.Flatten(arr,inst);arr[0]=live;rel.Set();Drain(e);
+   Check(live.Flattens==0,"caller mutating the array after Flatten returned must not redirect the call to a Live account (live.Flattens="+live.Flattens+")");
+  }
+ }
+ static void SimTestFlattenProviderFlipBetweenQueueAndWorkerNoSession(){
+  var sim=ProvAcc("flipq sim",NinjaTrader.Cbi.Provider.Simulator);
+  using(var e=new CopierEngine(x=>{},t=>{},(b,x)=>{},(n,r)=>{})){
+   ManualResetEvent rel;HoldWorker(e,out rel);
+   e.Flatten(new[]{sim},inst);sim.Provider=NinjaTrader.Cbi.Provider.Live;rel.Set();Drain(e);
+   Check(sim.Flattens==0,"account became Live after the request was queued: direct (non-follower) Flatten must not be sent");
+  }
+ }
+ static void SimTestFlattenFollowerFlipBetweenQueueAndWorker(){
+  var l=ProvAcc("flipqf lead",NinjaTrader.Cbi.Provider.Simulator);var a=ProvAcc("flipqf follow",NinjaTrader.Cbi.Provider.Simulator);
+  using(var e=Arm(l,a)){
+   ManualResetEvent rel;HoldWorker(e,out rel);
+   e.Flatten(new[]{a},inst);a.Provider=NinjaTrader.Cbi.Provider.Live;rel.Set();Drain(e);
+   Check(a.Flattens==0,"follower became Live after flatten queued: not sent");
+  }
+ }
+ static void SimTestStartProviderFlipBetweenCallAndWorker(){
+  var l=ProvAcc("flips lead",NinjaTrader.Cbi.Provider.Simulator);var a=ProvAcc("flips follow",NinjaTrader.Cbi.Provider.Simulator);
+  using(var e=new CopierEngine(x=>{},t=>{},(b,x)=>{},(n,r)=>{})){
+   ManualResetEvent rel;HoldWorker(e,out rel);
+   e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10},new RiskLatch())});a.Provider=NinjaTrader.Cbi.Provider.Live;rel.Set();Drain(e);
+   Check(!e.Attached,"follower flipped to Live between Start() and the worker running: must not attach");
+  }
+ }
+ static void SimTestQueuedCancelBehindBlockedSubmitNotSentAfterFlip(){
+  var l=ProvAcc("qc lead",NinjaTrader.Cbi.Provider.Simulator);var a=ProvAcc("qc follow",NinjaTrader.Cbi.Provider.Simulator);
+  using(var e=Arm(l,a)){
+   e.SetFollowing(a.Name,true);Drain(e);
+   a.SubmitEntered=new ManualResetEvent(false);a.SubmitRelease=new ManualResetEvent(false);
+   var o=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy);l.Emit(o);
+   Check(a.SubmitEntered.WaitOne(3000),"first submit is in flight");
+   o.OrderState=NinjaTrader.Cbi.OrderState.Cancelled;l.Emit(o);
+   Thread.Sleep(300);
+   a.Provider=NinjaTrader.Cbi.Provider.Live;
+   a.SubmitRelease.Set();Drain(e);
+   Check(a.Cancels==0,"a Cancel queued behind an in-flight Submit must not be sent after the account turned Live (Cancels="+a.Cancels+")");
+   Check(a.SubmitAttempts==1,"only the already-in-flight submit happened");
+  }
+ }
+ static void SimTestLiveFollowerNeverGetsCreateOrder(){
+  var l=ProvAcc("co lead",NinjaTrader.Cbi.Provider.Simulator);var a=ProvAcc("co follow",NinjaTrader.Cbi.Provider.Simulator);
+  using(var e=Arm(l,a)){
+   e.SetFollowing(a.Name,true);Drain(e);a.Provider=NinjaTrader.Cbi.Provider.Live;
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Drain(e);
+   Check(a.Submits==0&&a.SubmitAttempts==0,"no Submit attempt at all (attempts="+a.SubmitAttempts+")");
+   Check(a.Orders.Count==0,"no order wrapper in the account's order list");
   }
  }
 }

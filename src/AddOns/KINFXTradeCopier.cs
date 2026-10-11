@@ -629,6 +629,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             worker=new SerialWorker(ex=>{ entries=false; log("ENGINE ERROR: "+ex.Message+" — entries blocked; coverage unverified, manual recovery required"); stateChanged(attached,"Error — guarded pause; verify exposure manually"); });
         }
         public static bool Sim(Account a) { return a.Provider==Provider.Simulator || a.Provider==Provider.Playback; }
+#if KINFX_SIM_TEST
         // Scope check for the KINFX_SIM_TEST build. A scope is allowed only when it is non-empty, has no null member and EVERY account is
         // Simulator / Playback. One Live (or any other provider) account refuses the whole scope. Pure: reads Provider only.
         public static bool SimScope(IEnumerable<Account> scope)
@@ -638,6 +639,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             foreach(var a in scope){ if(a==null||!Sim(a))return false; n++; }
             return n>0;
         }
+#endif
         static bool Connected(Account a) { return a.Connection!=null && a.Connection.Status==ConnectionStatus.Connected; }
         public static int Position(Account a,Instrument inst)
         {
@@ -1208,6 +1210,8 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             if(!CanClose())return false; // Collection reads stay outside the admission gate.
             lock(admissionGate)
             {
+                // Already detached (for example StopFlat, then Dispose): the session is closed, report success but do not run the detach side effects a second time.
+                if(!attached)return true;
                 if(pendingFollowerCallbacks!=0||providerCallsInFlight!=0||ledgerUnresolved)return false;
                 entries=false;attached=false;Interlocked.Increment(ref sessionGeneration);followerView=new EngineAccount[0];
             }

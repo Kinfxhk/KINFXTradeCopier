@@ -105,7 +105,7 @@ class SourceSyntaxHoldTests(unittest.TestCase):
         # The only place KINFX_SIM_TEST may appear: the identity guard wrapper, the scope checks in Start/Flatten
         # and DashboardSafety.CanExecute. Anything else is a new bypass and must be reviewed explicitly.
         code = mask_noncode(self.raw)
-        self.assertEqual(code.count("KINFX_SIM_TEST"), 9, "unexpected KINFX_SIM_TEST usage")
+        self.assertEqual(code.count("KINFX_SIM_TEST"), 10, "unexpected KINFX_SIM_TEST usage")
         for signature in SIGNATURES:
             body = method(self.raw, signature)
             self.assertIn("#if !KINFX_SIM_TEST", body)
@@ -152,6 +152,10 @@ class SourceSyntaxHoldTests(unittest.TestCase):
         self.assertIn("!Sim(f.Account)", body)
         self.assertIn("!Sim(leaderAtQueue)", body)
         self.assertLess(body.index("!Sim(f.Account)"), body.index("call();"), "provider re-check must run before the provider call")
+
+    def test_default_build_has_no_simscope_member(self):
+        # The default build must be code-identical to main here: SimScope exists only when KINFX_SIM_TEST is defined.
+        self.assertNotIn("SimScope", mask_noncode(self.text))
 
     def test_default_view_drops_every_sim_block(self):
         # Compare CODE only (comments and string literals masked): the default build must not see the symbol at all.
