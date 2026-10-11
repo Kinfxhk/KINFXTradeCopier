@@ -650,6 +650,19 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             }
             // Filled links retained: follower fills may lag, and protective exits can arrive later.
         }
+        // Lots this copier owns that no non-terminal, non-cancelled exit order of this copier is covering. Never optimistic:
+        // an exit still shown Working counts only up to its remaining quantity, so the result can overstate but never understate the gap.
+        int UnprotectedLots(EngineAccount f)
+        {
+            int owned=Math.Abs(OwnedPosition(f));
+            int covered=links.Values.SelectMany(v=>v).Where(x=>x.Follower==f&&x.Exit&&x.Order!=null&&!x.Cancelled&&!Order.IsTerminalState(x.ObservedState)).Sum(x=>CapturedRemaining(x));
+            return Math.Max(0,owned-covered);
+        }
+        string UnprotectedText(EngineAccount f)
+        {
+            int n=UnprotectedLots(f);
+            return n>0?n+(n==1?" lot":" lots")+" UNPROTECTED (no protective exit working) — check NinjaTrader now and place or flatten by hand; this copier will not create it":"";
+        }
         int OwnedPosition(EngineAccount f)
         {
             long net=0;
@@ -881,9 +894,9 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                         CancelEntries(f);
                         foreach(var waiting in links.Values.SelectMany(v=>v).Where(x=>x.Follower==f&&x.Exit&&x.Waiting&&x.Order==null)) { waiting.Cancelled=true;waiting.Waiting=false; }
                         bool protectedElsewhere=links.Values.SelectMany(v=>v).Any(x=>x.Follower==f&&x.Exit&&x!=link&&x.Order!=null&&!Order.IsTerminalState(x.Order.OrderState)&&!x.Cancelled);
-                        if(OwnedPosition(f)!=0&&!protectedElsewhere)Lock(f,"Protective exit terminal with uncovered exposure — manual review required");
+                        if(OwnedPosition(f)!=0&&!protectedElsewhere)Lock(f,"Protective exit terminal with uncovered exposure — manual review required"+(UnprotectedLots(f)>0?" — "+UnprotectedText(f):""));
                     }
-                    if(!link.Exit&&snapshot.Filled>prior&&f.ExitCompleted)Lock(f,"Late uncovered entry fill after exit completion — manual recovery required; coverage not established");
+                    if(!link.Exit&&snapshot.Filled>prior&&f.ExitCompleted)Lock(f,"Late uncovered entry fill after exit completion — manual recovery required; coverage not established"+(UnprotectedLots(f)>0?" — "+UnprotectedText(f):""));
                 }
                 RecomputeDisablePending(f);
                 if(eventState==OrderState.Rejected) Lock(f,"Follower order rejected — review protection");

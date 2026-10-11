@@ -451,6 +451,10 @@ class EngineSafetyTests {
    a.Emit(a.Orders[1]);Drain(e);e.Poll();Drain(e);e.Poll();Drain(e);
    Check(latest.Locked&&!latest.Following,"late entry fill after an exit group completed must lock; "+Probe(a));
    Check(latest.Reason.Contains("manual"),"lock reason must say manual recovery is required: "+latest.Reason);
+   // Issue #3 decided policy (conservative): lock, never auto-create orders, and SAY how many lots are unprotected and what to do.
+   Check(latest.Reason.Contains("UNPROTECTED"),"the lock reason must say plainly that lots are unprotected: "+latest.Reason);
+   Check(latest.Reason.Contains("2 lots")||latest.Reason.Contains("2 lot"),"the lock reason must state how many lots hold no protective exit (2): "+latest.Reason);
+   Check(latest.Reason.Contains("NinjaTrader"),"the lock reason must tell the user to act in NinjaTrader: "+latest.Reason);
    Check(a.Submits==3,"no order is guessed or submitted after the lock; "+Probe(a));
    Check(a.Cancels==2,"no extra cancel: only A's stop and the entry remainder; "+Probe(a));
   }
@@ -715,6 +719,47 @@ class EngineSafetyTests {
    for(int i=0;i<20;i++){e.Poll();Drain(e);}
    int sent;lock(a.ChangeQuantities)sent=a.ChangeQuantities.Count;
    Check(sent<=4,"20 polls with nothing changing must not cause a stream of Change commands; sent="+sent+" in "+sw.ElapsedMilliseconds+"ms");
+  }finally{e.Dispose();}
+ }
+ // Issue #3 policy: the unprotected-lots text is computed from owned exposure minus working exit quantity, and is never optimistic.
+ static void UnprotectedLotsTextIsExactAndNeverOptimistic(){
+  var l=Acc("unprot lead");var a=Acc("unprot a");AccountTelemetry latest=null;
+  var e=new CopierEngine(s=>{},t=>latest=t,(att,s)=>{},(n,r)=>{});
+  try{
+   e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10,Target=100},new RiskLatch())});Wait(()=>e.EntriesArmed,"arm");
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",4));Wait(()=>a.Submits==1,"entry");Fill(a,2);Drain(e);
+   l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"unprot A",2,99));l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"unprot A",2,110));
+   Wait(()=>a.Submits==3,"A protected");Drain(e);
+   var aT=a.Orders[2];aT.Filled=2;aT.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Clear();a.Emit(aT);Drain(e);
+   var entry=a.Orders[0];entry.Filled=4;entry.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});a.Emit(entry);Drain(e);
+   a.Emit(a.Orders[1]);Drain(e);e.Poll();Drain(e);
+   Check(latest.Locked,"locked");
+   var r=latest.Reason;
+   Check(System.Text.RegularExpressions.Regex.IsMatch(r,@"2 lots? UNPROTECTED"),"exact count text '2 lots UNPROTECTED' expected; was: "+r);
+   Check(r.IndexOf("coverage not established",StringComparison.OrdinalIgnoreCase)>=0,"must still say coverage is not established: "+r);
+   Check(r.IndexOf("OK",StringComparison.Ordinal)<0&&r.IndexOf("protected by",StringComparison.OrdinalIgnoreCase)<0,"must never claim protection exists: "+r);
+  }finally{e.Dispose();}
+ }
+ // The unprotected-lots figure itself: exact, never optimistic (a cancelled or terminal exit covers nothing), never a false alarm.
+ static int UnprotectedNow(CopierEngine e){
+  var fl=(System.Collections.IEnumerable)typeof(CopierEngine).GetField("followerView",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(e);object f=null;foreach(var x in fl){f=x;break;}
+  var m=typeof(CopierEngine).GetMethod("UnprotectedLots",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic);
+  var box=new int[1];var done=new ManualResetEvent(false);var w=(SerialWorker)typeof(CopierEngine).GetField("worker",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(e);
+  w.Post(()=>{box[0]=(int)m.Invoke(e,new[]{f});done.Set();});Check(done.WaitOne(3000),"engine thread");return box[0];
+ }
+ static void UnprotectedLotsFigureIsExact(){
+  var l=Acc("upf lead");var a=Acc("upf a");
+  var e=ArmMany(l,new List<NinjaTrader.Cbi.Account>{a});
+  try{
+   Check(UnprotectedNow(e)==0,"no exposure: nothing unprotected; got "+UnprotectedNow(e));
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",4));Wait(()=>a.Submits==1,"entry");Fill(a,4);Drain(e);
+   Check(UnprotectedNow(e)==4,"4 lots held, no exit at all: 4 unprotected; got "+UnprotectedNow(e));
+   var x=LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"",2,99);l.Emit(x);Wait(()=>a.Submits==2,"exit 2");Drain(e);
+   Check(UnprotectedNow(e)==2,"4 held, a 2-lot exit working: 2 unprotected (partial cover); got "+UnprotectedNow(e));
+   var y=LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"",2,110);l.Emit(y);Wait(()=>a.Submits==3,"exit 2b");Drain(e);
+   Check(UnprotectedNow(e)==0,"two independent 2-lot exits cover 4: 0 unprotected (no false alarm); got "+UnprotectedNow(e));
+   a.AsyncCancel=true;x.OrderState=NinjaTrader.Cbi.OrderState.Cancelled;l.Emit(x);Drain(e);
+   Check(UnprotectedNow(e)==2,"a cancelled exit covers NOTHING even while the provider still shows it working: 2 unprotected; got "+UnprotectedNow(e));
   }finally{e.Dispose();}
  }
  // F01 (Issue #2), scenario A: leader stop total 4; follower owned fill 2, wrapper already shows 4, Position reads 1.
