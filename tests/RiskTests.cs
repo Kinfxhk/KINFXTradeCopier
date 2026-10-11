@@ -2,10 +2,42 @@ using System;
 using NinjaTrader.NinjaScript.AddOns.Kinfx;
 class RiskTests {
  static int Main(string[] args) {
-  try { Eq(false,DashboardSafety.CanExecute("start")); Eq(false,DashboardSafety.CanExecute("flattenSelected")); Eq(false,DashboardSafety.CanExecute("flattenAll")); Eq(false,DashboardSafety.CanExecute("batch")); Eq(true,DashboardSafety.CanExecute("refresh")); BulkAmount(); Console.WriteLine("PASS bulk amount grammar"); SettingsWarnings(); Console.WriteLine("PASS settings warnings"); WorkerRetention(); Console.WriteLine("PASS worker retains accepted work and reports rejection"); DivergencePolicy(); Console.WriteLine("PASS divergence reaction setting"); Quantity(); Console.WriteLine("PASS quantity"); Risk(); Console.WriteLine("PASS risk latch / exits / finite / DST"); Persistence(); Console.WriteLine("PASS XML atomic roundtrip"); Worker(); Console.WriteLine("PASS serial reentrancy + ownership"); Ledger(); Console.WriteLine("PASS lifecycle decisions / dedupe / reservation"); Presets(); Console.WriteLine("PASS sourced editable presets"); ChangePolicy(); Console.WriteLine("PASS locked reductions / partial exit totals"); DurableLock(); Console.WriteLine("PASS durable global latches / unlock recheck / advisory"); return 0; }
+  try { XmlDoubleRoundtripIsExact(); XmlDoubleRejectsGroupingCommas(); XmlBaselinePreservesSignedZeroAndIntent(); Console.WriteLine("PASS exact XML numeric persistence"); Eq(false,DashboardSafety.CanExecute("start")); Eq(false,DashboardSafety.CanExecute("flattenSelected")); Eq(false,DashboardSafety.CanExecute("flattenAll")); Eq(false,DashboardSafety.CanExecute("batch")); Eq(true,DashboardSafety.CanExecute("refresh")); BulkAmount(); Console.WriteLine("PASS bulk amount grammar"); SettingsWarnings(); Console.WriteLine("PASS settings warnings"); WorkerRetention(); Console.WriteLine("PASS worker retains accepted work and reports rejection"); DivergencePolicy(); Console.WriteLine("PASS divergence reaction setting"); Quantity(); Console.WriteLine("PASS quantity"); Risk(); Console.WriteLine("PASS risk latch / exits / finite / DST"); Persistence(); Console.WriteLine("PASS XML atomic roundtrip"); Worker(); Console.WriteLine("PASS serial reentrancy + ownership"); Ledger(); Console.WriteLine("PASS lifecycle decisions / dedupe / reservation"); Presets(); Console.WriteLine("PASS sourced editable presets"); ChangePolicy(); Console.WriteLine("PASS locked reductions / partial exit totals"); DurableLock(); Console.WriteLine("PASS durable global latches / unlock recheck / advisory"); return 0; }
   catch(Exception ex) { Console.WriteLine("FAIL "+ex.Message); return 1; }
  }
  static void Eq(object want,object got) { if(!want.Equals(got)) throw new Exception("expected "+want+" got "+got); }
+ // Issue #5: exercise the actual persistence methods, not a second serializer.
+ static void XmlDoubleRoundtripIsExact() {
+  foreach(var field in typeof(RiskSettings).GetFields()) {
+   if(field.FieldType!=typeof(double))continue;
+   foreach(double value in new[]{0.12345678901234566,1.2345678901234567,12.345678901234567}) {
+    var row=new SavedAccount{Name="Synthetic precision"};field.SetValue(row.Settings,value);
+    var xml=SettingsStore.ToXml(new[]{row},"MES 12-26","UTC",0);
+    var back=SettingsStore.FromXml(System.Xml.Linq.XElement.Parse(xml.ToString()))[0];
+    Eq(BitConverter.DoubleToInt64Bits(value),BitConverter.DoubleToInt64Bits((double)field.GetValue(back.Settings)));
+   }
+  }
+ }
+ static void XmlDoubleRejectsGroupingCommas() {
+  foreach(var field in typeof(RiskSettings).GetFields()) {
+   if(field.FieldType!=typeof(double))continue;
+   foreach(string value in new[]{"0,125","1,000","1,2,3"}) {
+    var xml=SettingsStore.ToXml(new[]{new SavedAccount{Name="Synthetic grammar"}},"MES 12-26","UTC",0);
+    xml.Element("Account").SetAttributeValue(field.Name,value);
+    bool refused=false;try{SettingsStore.FromXml(xml);}catch(FormatException){refused=true;}
+    Eq(true,refused);
+   }
+  }
+ }
+ static void XmlBaselinePreservesSignedZeroAndIntent() {
+  foreach(bool baselineSet in new[]{false,true}) {
+   var row=new SavedAccount{Name="Synthetic baseline"};
+   row.Settings.Baseline=BitConverter.Int64BitsToDouble(long.MinValue);row.Settings.BaselineSet=baselineSet;
+   var xml=SettingsStore.ToXml(new[]{row},"MES 12-26","UTC",0);
+   var back=SettingsStore.FromXml(System.Xml.Linq.XElement.Parse(xml.ToString()))[0];
+   Eq(long.MinValue,BitConverter.DoubleToInt64Bits(back.Settings.Baseline));Eq(baselineSet,back.Settings.BaselineSet);
+  }
+ }
  static void BulkAmount() {
   double v;
   Eq(true,BulkEdit.TryParseAmount("1000",out v)); Eq(1000.0,v);

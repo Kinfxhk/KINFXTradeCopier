@@ -14,16 +14,20 @@ namespace NinjaTrader.Cbi {
  // Deliberately fake sink: only counters and in-memory synthetic collections. No NT assembly or brokerage access.
  public class Account {
   public string Name;public Provider Provider=Provider.Simulator;public Connection Connection=new Connection();public Currency Denomination=Currency.Usd;
-  public List<Position> Positions=new List<Position>();public List<Order> Orders=new List<Order>();public event EventHandler<OrderEventArgs> OrderUpdate;
+  public List<Position> Positions=new List<Position>();
+  readonly List<Order> orders=new List<Order>();public Action OrdersReadHook;
+  public List<Order> Orders {get{var hook=OrdersReadHook;if(hook!=null)hook();return orders;}}
+  public event EventHandler<OrderEventArgs> OrderUpdate;
   public double Pnl,Equity=50000;public int Submits,Changes,Cancels,Flattens;public bool ThrowSubmit,ThrowCancel,ThrowFlatten;public ManualResetEvent CreateEntered,CreateRelease,SubmitEntered,SubmitRelease,CancelEntered,CancelRelease;public bool AsyncCancel,NoopFlatten,FlattenWorkingBeforeThrow;
   public double Get(AccountItem i,Currency c){return i==AccountItem.RealizedProfitLoss?Pnl:i==AccountItem.UnrealizedProfitLoss?0:Equity;}
   public Order CreateOrder(Instrument i,OrderAction a,OrderType t,OrderEntry e,TimeInForce tif,int q,double l,double s,string oco,string n,DateTime g,object ignored){if(CreateEntered!=null){CreateEntered.Set();CreateRelease.WaitOne();}return new Order {Account=this,Instrument=i,OrderAction=a,OrderType=t,OrderEntry=e,TimeInForce=tif,Quantity=q,LimitPrice=l,StopPrice=s,Oco=oco,Name=n,Gtd=g};}
   public int SubmitAttempts;public ManualResetEvent ChangeEntered,ChangeRelease;public void Submit(Order[] orders){Interlocked.Increment(ref SubmitAttempts);if(SubmitEntered!=null){SubmitEntered.Set();SubmitRelease.WaitOne();}if(ThrowSubmit)throw new InvalidOperationException("Synthetic submit error");foreach(var o in orders){lock(Orders)Orders.Add(o);o.OrderState=OrderState.Working;Interlocked.Increment(ref Submits);Emit(o);}}
-  public bool SuppressChangeAck;public int IgnoreChangeQuantity=-1;public Action<Order> ChangeHook;
+  public bool SuppressChangeAck,ThrowChangeAfterApply;public int IgnoreChangeQuantity=-1;public Action<Order> ChangeHook;
   public System.Collections.Generic.List<int> ChangeQuantities=new System.Collections.Generic.List<int>();public System.Collections.Generic.List<int> ChangePrices=new System.Collections.Generic.List<int>();
-  public void Change(Order[] orders){if(ChangeEntered!=null){ChangeEntered.Set();ChangeRelease.WaitOne();}foreach(var o in orders){var hook=ChangeHook;if(hook!=null)hook(o);Thread.Sleep(1);lock(ChangePrices)ChangePrices.Add((int)o.LimitPriceChanged);lock(ChangeQuantities)ChangeQuantities.Add(o.QuantityChanged);if(o.QuantityChanged!=IgnoreChangeQuantity){o.Quantity=o.QuantityChanged;o.LimitPrice=o.LimitPriceChanged;o.StopPrice=o.StopPriceChanged;}Interlocked.Increment(ref Changes);if(!SuppressChangeAck)Emit(o);}}
+  public void Change(Order[] orders){if(ChangeEntered!=null){ChangeEntered.Set();ChangeRelease.WaitOne();}foreach(var o in orders){var hook=ChangeHook;if(hook!=null)hook(o);Thread.Sleep(1);lock(ChangePrices)ChangePrices.Add((int)o.LimitPriceChanged);lock(ChangeQuantities)ChangeQuantities.Add(o.QuantityChanged);if(o.QuantityChanged!=IgnoreChangeQuantity){o.Quantity=o.QuantityChanged;o.LimitPrice=o.LimitPriceChanged;o.StopPrice=o.StopPriceChanged;}Interlocked.Increment(ref Changes);if(ThrowChangeAfterApply)throw new InvalidOperationException("Synthetic change accepted then threw");if(!SuppressChangeAck)Emit(o);}}
   // Deliver immutable quantities independently of the mutable wrapper, like a delayed provider callback.
   public void EmitCaptured(Order o,int quantity,int filled,OrderState state){var h=OrderUpdate;if(h!=null)h(this,new OrderEventArgs{Order=o,OrderId=o.OrderId,Quantity=quantity,Filled=filled,OrderState=state,LimitPrice=o.LimitPrice,StopPrice=o.StopPrice});}
+
   public void Cancel(Order[] orders){if(CancelEntered!=null){CancelEntered.Set();CancelRelease.WaitOne();}if(AsyncCancel){Interlocked.Add(ref Cancels,orders.Length);return;}if(ThrowCancel)throw new InvalidOperationException("Synthetic cancel error");foreach(var o in orders){o.OrderState=OrderState.Cancelled;Interlocked.Increment(ref Cancels);Emit(o);}}
   public void Flatten(Instrument[] inst){if(NoopFlatten){Interlocked.Increment(ref Flattens);return;}if(ThrowFlatten){if(FlattenWorkingBeforeThrow){var pending=CreateOrder(inst[0],OrderAction.Sell,OrderType.Market,OrderEntry.Manual,TimeInForce.Day,2,0,0,"","SyntheticPendingFlatten",DateTime.MaxValue,null);pending.OrderState=OrderState.Working;Orders.Add(pending);Emit(pending);}throw new InvalidOperationException("Synthetic flatten error");}Interlocked.Increment(ref Flattens);foreach(var o in Orders.ToArray())Cancel(new[]{o});lock(Positions)Positions.Clear();var fake=CreateOrder(inst[0],OrderAction.Sell,OrderType.Market,OrderEntry.Manual,TimeInForce.Day,1,0,0,"","SyntheticFlatten",DateTime.MaxValue,null);fake.OrderState=OrderState.Submitted;Emit(fake);}
   public void Emit(Order o){var h=OrderUpdate;if(h!=null)h(this,new OrderEventArgs {Order=o,OrderId=o.OrderId,OrderState=o.OrderState,Quantity=o.Quantity,Filled=o.Filled,LimitPrice=o.LimitPrice,StopPrice=o.StopPrice});}
@@ -338,6 +342,141 @@ class EngineSafetyTests {
    a.IgnoreChangeQuantity=-1;a.SuppressChangeAck=false;exit.Quantity=2;a.EmitCaptured(exit,2,phase==4?1:0,phase==4?NinjaTrader.Cbi.OrderState.PartFilled:NinjaTrader.Cbi.OrderState.Working);Drain(e);
    Check(link.ReservedQuantity==2&&a.Submits==3&&a.Orders[2].Quantity==2,"fresh coherent ACK permits waiting protection to converge to2+2");
   } finally {a.ChangeRelease?.Set();secondRelease.Set();callbackRelease.Set();e.Dispose();}
+ }
+ // Issue #4: callbacks admitted during a blocking cleanliness read invalidate its earlier frontier.
+ static void DisposeRechecksCallbacksAfterCleanRead() { CloseReadMustRetainCallbacks(true); }
+ static void StopFlatRechecksCallbacksAfterCleanRead() { CloseReadMustRetainCallbacks(false); }
+ static void DisposeRechecksAppliedFillAfterCleanRead() { CloseReadMustRetainCallbacks(true,false); }
+ static void CleanDisposeStillStopsMailbox() {
+  var l=Acc("clean dispose leader");var a=Acc("clean dispose follower");var e=Arm(l,a);
+  e.Dispose();Check(!e.Attached,"unchanged clean session still disposes");
+  var worker=(SerialWorker)typeof(CopierEngine).GetField("worker",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(e);
+  Check(!worker.Post(()=>{}),"successful clean dispose stops admission");e.Dispose();
+ }
+ static void CloseReadMustRetainCallbacks(bool dispose,bool holdWorker=true) {
+  var l=Acc("close frontier leader");var a=Acc("close frontier follower");var e=Arm(l,a);
+  var cleanEntered=new ManualResetEvent(false);var cleanRelease=new ManualResetEvent(false);
+  var workerEntered=new ManualResetEvent(false);var workerRelease=new ManualResetEvent(false);
+  Thread closer=null;Exception closeError=null;
+  try {
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Drain(e);
+   var entry=a.Orders[0];entry.OrderState=NinjaTrader.Cbi.OrderState.Cancelled;a.Emit(entry);Drain(e);
+   Check(e.CanClose(),"zero-fill terminal entry is initially clean");
+   var worker=(SerialWorker)typeof(CopierEngine).GetField("worker",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(e);
+   int readingThread=0,entered=0;
+   l.OrdersReadHook=()=>{if(Thread.CurrentThread.ManagedThreadId==Volatile.Read(ref readingThread)&&Interlocked.Exchange(ref entered,1)==0){cleanEntered.Set();Check(cleanRelease.WaitOne(5000),"release cleanliness read");}};
+   if(dispose) {
+    if(holdWorker){Check(worker.Post(()=>{workerEntered.Set();workerRelease.WaitOne(5000);}),"worker barrier admitted");Check(workerEntered.WaitOne(3000),"worker held");}
+    closer=new Thread(()=>{try{readingThread=Thread.CurrentThread.ManagedThreadId;e.Dispose();}catch(Exception ex){closeError=ex;}});closer.Start();
+   } else {
+    // StopFlat performs its cleanliness read on the worker itself.
+    Check(worker.Post(()=>readingThread=Thread.CurrentThread.ManagedThreadId),"reader identity admitted");e.StopFlat();
+   }
+   Check(cleanEntered.WaitOne(3000),"close reads clean accounts after its initial frontier check");
+   for(int i=0;i<130;i++) {
+    entry.Filled=2;entry.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Emit(entry);
+   }
+   var pending=typeof(CopierEngine).GetField("pendingFollowerCallbacks",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic);
+   if(holdWorker)Check((int)pending.GetValue(e)==130,"all 130 positive callback envelopes accepted while clean read is blocked");
+   else {
+    var beforeReturn=new ManualResetEvent(false);Check(worker.Post(()=>beforeReturn.Set()),"applied-fill marker admitted");Check(beforeReturn.WaitOne(3000),"all callbacks applied before cleanliness read returns");
+    Check((int)pending.GetValue(e)==0,"applied evidence must block close even with no pending callbacks");
+   }
+   cleanRelease.Set();workerRelease.Set();if(closer!=null)Check(closer.Join(6000),"Dispose returns without abandoning pending callbacks");
+   if(closeError!=null)throw closeError;
+   // A marker must still be admitted after a refused close; it runs behind all accepted envelopes.
+   var applied=new ManualResetEvent(false);Check(worker.Post(()=>applied.Set()),"refused close keeps mailbox accepting evidence");Check(applied.WaitOne(3000),"all queued callbacks applied");
+   var links=(Dictionary<string,List<CopyLink>>)typeof(CopierEngine).GetField("links",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(e);
+   var link=links.Values.SelectMany(v=>v).Single();
+   Check(e.Attached&&!e.EntriesArmed&&!e.CanClose(),"late positive evidence retains disarmed ownership/session");
+   Check(link.ObservedFilled==2&&link.ExecutionEvidence.Count(x=>x.Filled==2)==130,"every accepted immutable positive envelope retained");
+   Check((int)pending.GetValue(e)==0,"accepted callbacks finish their pending counters");
+  } finally {cleanRelease.Set();workerRelease.Set();l.OrdersReadHook=null;if(closer!=null)closer.Join(6000);e.Dispose();}
+ }
+ // Issue #4: supported shutdown paths cannot detach while provider completion is unresolved.
+ static void UnresolvedSubmitRefusesStopAndDispose() {
+  var l=Acc("completion lead");var a=Acc("completion follower");
+  a.SubmitEntered=new ManualResetEvent(false);a.SubmitRelease=new ManualResetEvent(false);
+  var e=Arm(l,a);int session=e.SessionGeneration;
+  try {
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));
+   Check(a.SubmitEntered.WaitOne(3000),"provider submit entered");
+   e.StopFlat();e.Dispose();
+   var worker=(SerialWorker)typeof(CopierEngine).GetField("worker",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(e);
+   var stopped=new ManualResetEvent(false);
+   Check(worker.Post(()=>stopped.Set()),"refused Dispose retains mailbox");Check(stopped.WaitOne(3000),"Stop processed");
+   Check(e.Attached&&e.SessionGeneration==session&&!e.EntriesArmed,"unresolved call retains the disarmed session");
+   Check(e.ProviderCallsInFlight==1&&!e.CanClose(),"provider completion still owns its in-flight count");
+   a.SubmitRelease.Set();Drain(e);
+   Check(e.ProviderCallsInFlight==0&&a.Submits==1,"accepted submit completes exactly once");
+   Check(e.Attached&&!e.CanClose(),"working order evidence still prevents detach after completion");
+   a.Orders[0].OrderState=NinjaTrader.Cbi.OrderState.Cancelled;a.Emit(a.Orders[0]);Drain(e);
+   e.StopFlat();Drain(e);Check(!e.Attached,"terminal acknowledgement permits stop");
+  } finally {a.SubmitRelease.Set();e.Dispose();}
+ }
+ // Retain an actual subscribed follower delegate, then invoke it after a supported clean restart.
+ // This is a late callback test, not a claim that forced detach during a provider call is supported.
+ static void DetachedFollowerCallbackCannotMutateRestart() {
+  var l=Acc("late callback lead");var a=Acc("late callback follower");int locks=0;
+  var e=Arm(l,a,null,(n,r)=>Interlocked.Increment(ref locks));
+  try {
+   var stale=(EventHandler<NinjaTrader.Cbi.OrderEventArgs>)typeof(NinjaTrader.Cbi.Account).GetField("OrderUpdate",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(a);
+   int oldSession=e.SessionGeneration;e.StopFlat();Drain(e);Check(!e.Attached,"clean stop");
+   e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10},new RiskLatch())});Drain(e);
+   Check(e.EntriesArmed&&e.SessionGeneration!=oldSession,"new session armed");
+   var late=LeaderOrder(a,NinjaTrader.Cbi.OrderAction.Buy);late.Filled=2;late.OrderState=NinjaTrader.Cbi.OrderState.Filled;
+   stale(a,new NinjaTrader.Cbi.OrderEventArgs{Order=late,OrderState=late.OrderState,Quantity=2,Filled=2});Drain(e);
+   Check(locks==0&&e.CanClose()&&e.ProviderCallsInFlight==0,"old callback cannot lock or dirty the new session");
+   Check(a.Submits==0&&a.Cancels==0&&a.Flattens==0,"old callback cannot issue commands");
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Drain(e);Check(a.Submits==1,"current leader callback still copies");
+   // Positive control: the current follower delegate must still reject unknown activity.
+   a.Emit(late);Drain(e);Check(locks==1&&!e.CanClose(),"current unknown follower callback still locks");
+  } finally {e.Dispose();}
+ }
+ static CopyLink ExitLink(CopierEngine e,NinjaTrader.Cbi.Order order) {
+  var links=(Dictionary<string,List<CopyLink>>)typeof(CopierEngine).GetField("links",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(e);
+  return links.Values.SelectMany(v=>v).Single(x=>x.Order==order);
+ }
+ // Issue #2: Position ahead of captured fills never authorizes adopting the excess lots.
+ static void PositionAheadProtectsOnlyCapturedOwnedLots() {
+  var l=Acc("frontier ahead lead");var a=Acc("frontier ahead follower");int locks=0;
+  using(var e=Arm(l,a,null,(n,r)=>Interlocked.Increment(ref locks))) {
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",4));Drain(e);
+   Fill(a,2);Drain(e);SetPos(a,4);
+   var stop=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"ahead protection",4);l.Emit(stop);Drain(e);
+   Check(a.Submits==2&&a.Orders[1].Quantity==2,"Position4 cannot authorize protection beyond captured owned2");
+   Check(locks==1,"unexplained excess Position locks the follower");
+   stop.Quantity=6;stop.LimitPrice=99;l.Emit(stop);Drain(e);
+   int[] sent;lock(a.ChangeQuantities)sent=a.ChangeQuantities.ToArray();
+   Check(sent.Length==1&&sent.All(q=>q==2),"every outbound Change stays within owned2; "+Sent(a));
+   Check(a.Submits==2&&a.Flattens==0,"no catch-up entry or flatten for unknown excess");
+  }
+ }
+ // Returning or throwing after Change is not a callback acknowledgement of released capacity.
+ static void NoAckChangeRetainsReservationUntilCallback() { UnknownChangeRetainsReservation(false); }
+ static void AcceptedThenThrowChangeRetainsReservation() { UnknownChangeRetainsReservation(true); }
+ static void UnknownChangeRetainsReservation(bool throws) {
+  var l=Acc("unknown change lead");var a=Acc("unknown change follower");int locks=0;
+  using(var e=Arm(l,a,null,(n,r)=>Interlocked.Increment(ref locks))) {
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",4));Drain(e);Fill(a,4);Drain(e);
+   var stop=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"first reserve",4);l.Emit(stop);Drain(e);
+   var link=ExitLink(e,a.Orders[1]);Check(link.ReservedQuantity==4,"initial acknowledged reserve4");
+   a.SuppressChangeAck=true;a.ThrowChangeAfterApply=throws;
+   stop.Quantity=2;stop.LimitPrice=99;l.Emit(stop);Drain(e);
+   Check(a.Changes==1&&a.Orders[1].Quantity==2,"fake accepted the 2-lot change without callback");
+   Check(link.RequestedQuantity==2&&link.ReservedQuantity==4,"mutable wrapper/return/throw must not release acknowledged reserve4");
+   var other=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"independent reserve",2);l.Emit(other);Drain(e);
+   for(int i=0;i<3;i++){e.Poll();Drain(e);}
+   Check(a.Submits==2,"independent exit cannot spend unacknowledged capacity");
+   Check(a.Changes==1&&a.Cancels==0&&a.Flattens==0,"poll never retries an uncertain reduction or cancels protection");
+   Check(locks==(throws?1:0),"accepted-then-throw locks; missing callback alone is not a new policy");
+   int[] sent;lock(a.ChangeQuantities)sent=a.ChangeQuantities.ToArray();Check(sent.Length==1&&sent[0]==2,"exact outbound quantity trace");
+   if(!throws) {
+    a.SuppressChangeAck=false;a.Emit(a.Orders[1]);Drain(e);
+    Check(link.ReservedQuantity==2&&a.Submits==3&&a.Orders[2].Quantity==2,"captured callback releases reserve and waiting protection converges");
+   } else Check(link.ReservedQuantity==4,"unknown accepted-then-throw keeps conservative reservation");
+  }
+
  }
  static CopierEngine Arm(NinjaTrader.Cbi.Account l,NinjaTrader.Cbi.Account a,Action<AccountTelemetry> tele=null,Action<string,string> persist=null){var e=new CopierEngine(s=>{},tele??(t=>{}),(attached,s)=>{},persist??((n,r)=>{}));e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10,Target=100},new RiskLatch())});Wait(()=>e.EntriesArmed,"arm");return e;}
  static void Drain(CopierEngine e){var f=typeof(CopierEngine).GetField("worker",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic);var w=(SerialWorker)f.GetValue(e);Action pump=()=>{var done=new ManualResetEvent(false);w.Post(()=>done.Set());Check(done.WaitOne(3000),"drain");};
