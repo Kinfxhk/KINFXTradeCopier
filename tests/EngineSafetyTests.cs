@@ -14,7 +14,10 @@ namespace NinjaTrader.Cbi {
  // Deliberately fake sink: only counters and in-memory synthetic collections. No NT assembly or brokerage access.
  public class Account {
   public string Name;public Provider Provider=Provider.Simulator;public Connection Connection=new Connection();public Currency Denomination=Currency.Usd;
-  public List<Position> Positions=new List<Position>();public List<Order> Orders=new List<Order>();public event EventHandler<OrderEventArgs> OrderUpdate;
+  public List<Position> Positions=new List<Position>();
+  readonly List<Order> orders=new List<Order>();public Action OrdersReadHook;
+  public List<Order> Orders {get{var hook=OrdersReadHook;if(hook!=null)hook();return orders;}}
+  public event EventHandler<OrderEventArgs> OrderUpdate;
   public double Pnl,Equity=50000;public int Submits,Changes,Cancels,Flattens;public bool ThrowSubmit,ThrowCancel,ThrowFlatten;public ManualResetEvent CreateEntered,CreateRelease,SubmitEntered,SubmitRelease,CancelEntered,CancelRelease;public bool AsyncCancel,NoopFlatten,FlattenWorkingBeforeThrow;
   public double Get(AccountItem i,Currency c){return i==AccountItem.RealizedProfitLoss?Pnl:i==AccountItem.UnrealizedProfitLoss?0:Equity;}
   public Order CreateOrder(Instrument i,OrderAction a,OrderType t,OrderEntry e,TimeInForce tif,int q,double l,double s,string oco,string n,DateTime g,object ignored){if(CreateEntered!=null){CreateEntered.Set();CreateRelease.WaitOne();}return new Order {Account=this,Instrument=i,OrderAction=a,OrderType=t,OrderEntry=e,TimeInForce=tif,Quantity=q,LimitPrice=l,StopPrice=s,Oco=oco,Name=n,Gtd=g};}
@@ -281,6 +284,56 @@ class EngineSafetyTests {
   var live=new NinjaTrader.Cbi.Account{Name="Fake live",Provider=NinjaTrader.Cbi.Provider.Live};using(var e=new CopierEngine(s=>{},t=>{},(attached,s)=>{},(n,r)=>{})){e.Start(live,inst,new[]{Tuple.Create(b,new RiskSettings(),new RiskLatch())});Thread.Sleep(100);Check(!e.Attached&&!e.EntriesArmed,"live forbidden");}
  }
  static NinjaTrader.Cbi.Account Acc(string name){return new NinjaTrader.Cbi.Account{Name=name};}
+ // Issue #4: callbacks admitted during a blocking cleanliness read invalidate its earlier frontier.
+ static void DisposeRechecksCallbacksAfterCleanRead() { CloseReadMustRetainCallbacks(true); }
+ static void StopFlatRechecksCallbacksAfterCleanRead() { CloseReadMustRetainCallbacks(false); }
+ static void DisposeRechecksAppliedFillAfterCleanRead() { CloseReadMustRetainCallbacks(true,false); }
+ static void CleanDisposeStillStopsMailbox() {
+  var l=Acc("clean dispose leader");var a=Acc("clean dispose follower");var e=Arm(l,a);
+  e.Dispose();Check(!e.Attached,"unchanged clean session still disposes");
+  var worker=(SerialWorker)typeof(CopierEngine).GetField("worker",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(e);
+  Check(!worker.Post(()=>{}),"successful clean dispose stops admission");e.Dispose();
+ }
+ static void CloseReadMustRetainCallbacks(bool dispose,bool holdWorker=true) {
+  var l=Acc("close frontier leader");var a=Acc("close frontier follower");var e=Arm(l,a);
+  var cleanEntered=new ManualResetEvent(false);var cleanRelease=new ManualResetEvent(false);
+  var workerEntered=new ManualResetEvent(false);var workerRelease=new ManualResetEvent(false);
+  Thread closer=null;Exception closeError=null;
+  try {
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Drain(e);
+   var entry=a.Orders[0];entry.OrderState=NinjaTrader.Cbi.OrderState.Cancelled;a.Emit(entry);Drain(e);
+   Check(e.CanClose(),"zero-fill terminal entry is initially clean");
+   var worker=(SerialWorker)typeof(CopierEngine).GetField("worker",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(e);
+   int readingThread=0,entered=0;
+   l.OrdersReadHook=()=>{if(Thread.CurrentThread.ManagedThreadId==Volatile.Read(ref readingThread)&&Interlocked.Exchange(ref entered,1)==0){cleanEntered.Set();Check(cleanRelease.WaitOne(5000),"release cleanliness read");}};
+   if(dispose) {
+    if(holdWorker){Check(worker.Post(()=>{workerEntered.Set();workerRelease.WaitOne(5000);}),"worker barrier admitted");Check(workerEntered.WaitOne(3000),"worker held");}
+    closer=new Thread(()=>{try{readingThread=Thread.CurrentThread.ManagedThreadId;e.Dispose();}catch(Exception ex){closeError=ex;}});closer.Start();
+   } else {
+    // StopFlat performs its cleanliness read on the worker itself.
+    Check(worker.Post(()=>readingThread=Thread.CurrentThread.ManagedThreadId),"reader identity admitted");e.StopFlat();
+   }
+   Check(cleanEntered.WaitOne(3000),"close reads clean accounts after its initial frontier check");
+   for(int i=0;i<130;i++) {
+    entry.Filled=2;entry.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Emit(entry);
+   }
+   var pending=typeof(CopierEngine).GetField("pendingFollowerCallbacks",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic);
+   if(holdWorker)Check((int)pending.GetValue(e)==130,"all 130 positive callback envelopes accepted while clean read is blocked");
+   else {
+    var beforeReturn=new ManualResetEvent(false);Check(worker.Post(()=>beforeReturn.Set()),"applied-fill marker admitted");Check(beforeReturn.WaitOne(3000),"all callbacks applied before cleanliness read returns");
+    Check((int)pending.GetValue(e)==0,"applied evidence must block close even with no pending callbacks");
+   }
+   cleanRelease.Set();workerRelease.Set();if(closer!=null)Check(closer.Join(6000),"Dispose returns without abandoning pending callbacks");
+   if(closeError!=null)throw closeError;
+   // A marker must still be admitted after a refused close; it runs behind all accepted envelopes.
+   var applied=new ManualResetEvent(false);Check(worker.Post(()=>applied.Set()),"refused close keeps mailbox accepting evidence");Check(applied.WaitOne(3000),"all queued callbacks applied");
+   var links=(Dictionary<string,List<CopyLink>>)typeof(CopierEngine).GetField("links",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(e);
+   var link=links.Values.SelectMany(v=>v).Single();
+   Check(e.Attached&&!e.EntriesArmed&&!e.CanClose(),"late positive evidence retains disarmed ownership/session");
+   Check(link.ObservedFilled==2&&link.ExecutionEvidence.Count(x=>x.Filled==2)==130,"every accepted immutable positive envelope retained");
+   Check((int)pending.GetValue(e)==0,"accepted callbacks finish their pending counters");
+  } finally {cleanRelease.Set();workerRelease.Set();l.OrdersReadHook=null;if(closer!=null)closer.Join(6000);e.Dispose();}
+ }
  static CopierEngine Arm(NinjaTrader.Cbi.Account l,NinjaTrader.Cbi.Account a,Action<AccountTelemetry> tele=null,Action<string,string> persist=null){var e=new CopierEngine(s=>{},tele??(t=>{}),(attached,s)=>{},persist??((n,r)=>{}));e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10,Target=100},new RiskLatch())});Wait(()=>e.EntriesArmed,"arm");return e;}
  static void Drain(CopierEngine e){var f=typeof(CopierEngine).GetField("worker",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic);var w=(SerialWorker)f.GetValue(e);Action pump=()=>{var done=new ManualResetEvent(false);w.Post(()=>done.Set());Check(done.WaitOne(3000),"drain");};
   // Provider calls run on per-account threads and complete back on the engine worker: settle both.
