@@ -160,6 +160,27 @@ class EngineSafetyTests {
    entry.Filled=4;entry.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});a.Emit(entry);Wait(()=>locked==1,"late uncovered fill must lock");e.Poll();Thread.Sleep(100);Check(a.Submits==2,"never resurrect stale completed bracket or replace entry");
   }
  }
+ // ---- Competitor-issue replay (Austin's Trade Copier #3): the follower's copy of a protective STOP is REJECTED by the exchange
+ // (price-limit error) after the leader's own stop already filled. Required: no silent open exposure, no resubmission / market fallback
+ // (competitors resubmit as Market; this copier must not), the account locks, and the warning counts the unprotected lots.
+ static void RejectedProtectiveStopLocksAndNeverResubmits(){
+  var l=new NinjaTrader.Cbi.Account{Name="Rejected stop lead"};var a=new NinjaTrader.Cbi.Account{Name="Rejected stop follow"};int locked=0;string reason="";
+  using(var e=new CopierEngine(s=>{},t=>{},(attached,s)=>{},(n,r)=>{Interlocked.Increment(ref locked);reason=r;})){
+   e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10},new RiskLatch())});Wait(()=>e.EntriesArmed,"rejected-stop arm");
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Wait(()=>a.Submits==1,"entry copied");
+   a.Orders[0].Filled=2;a.Orders[0].OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});a.Emit(a.Orders[0]);Drain(e);
+   // leader places its protective stop; the follower copy is submitted ...
+   var stop=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"bracket",2);stop.OrderType=NinjaTrader.Cbi.OrderType.StopMarket;stop.StopPrice=95;l.Emit(stop);
+   Wait(()=>a.Submits==2,"follower protective stop submitted");
+   // ... and the exchange rejects it (position stays open, nothing is protecting it)
+   var rejected=a.Orders[1];rejected.OrderState=NinjaTrader.Cbi.OrderState.Rejected;a.Emit(rejected);Drain(e);
+   Wait(()=>locked>=1,"rejected protective stop must lock the account");
+   Thread.Sleep(150);Drain(e);
+   Check(a.Submits==2,"no automatic resubmission and no market-order fallback after a rejected protective stop");
+   Check(a.Flattens==0,"the copier never flattens on its own after a rejection");
+   Check(reason.Length>0,"a lock reason is recorded");
+  }
+ }
  static void FailedFlattenKeepsProtection(){
   var l=new NinjaTrader.Cbi.Account{Name="Failed flatten lead"};var a=new NinjaTrader.Cbi.Account{Name="Failed flatten follow",ThrowFlatten=true};int locked=0;
   using(var e=new CopierEngine(s=>{},t=>{},(attached,s)=>{},(n,r)=>Interlocked.Increment(ref locked))){
@@ -1100,6 +1121,43 @@ class EngineSafetyTests {
   Check(!CopierEngine.SimScope(null),"null scope refused");
   Check(!CopierEngine.SimScope(new NinjaTrader.Cbi.Account[]{sim,null}),"null member refused");
   Check(!CopierEngine.SimScope(new NinjaTrader.Cbi.Account[0]),"empty scope refused");
+ }
+#endif
+#if KINFX_SIM_TEST
+ // ---- Dry run (SIM build only): the engine decides and logs every provider call, but the call is never sent.
+ static CopierEngine ArmDry(NinjaTrader.Cbi.Account l,NinjaTrader.Cbi.Account a,List<string> log){var e=new CopierEngine(s=>{lock(log)log.Add(s);},t=>{},(attached,s)=>{},(n,r)=>{});e.DryRun=true;e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10,Target=100},new RiskLatch())});Wait(()=>e.EntriesArmed,"arm");return e;}
+ static void SimTestDryRunSendsNothingButLogsTheDecision(){
+  var l=ProvAcc("dry lead",NinjaTrader.Cbi.Provider.Simulator);var a=ProvAcc("dry follow",NinjaTrader.Cbi.Provider.Simulator);var log=new List<string>();
+  using(var e=ArmDry(l,a,log)){
+   e.SetFollowing(a.Name,true);Drain(e);
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));
+   Wait(()=>{lock(log)return log.Any(x=>x.StartsWith("DRY RUN"));},"dry run decision is logged");Drain(e);
+   Check(a.Submits==0&&a.SubmitAttempts==0,"dry run must not call Account.Submit");
+   lock(log)Check(log.Any(x=>x.Contains("dry follow")&&x.Contains("Buy")),"log names the follower and the action it WOULD have sent");
+   Check(!log.Any(x=>x.StartsWith("COPY ")),"dry run never logs a real COPY");
+   e.Flatten(new[]{a},inst);Drain(e);
+   Check(a.Flattens==0,"dry run must not call Account.Flatten");
+   lock(log)Check(log.Any(x=>x.StartsWith("DRY RUN")&&x.Contains("Flatten")),"flatten is logged as a dry run");
+  }
+ }
+ static void SimTestDryRunOffStillSends(){
+  var l=ProvAcc("wet lead",NinjaTrader.Cbi.Provider.Simulator);var a=ProvAcc("wet follow",NinjaTrader.Cbi.Provider.Simulator);var log=new List<string>();
+  var e=new CopierEngine(s=>{lock(log)log.Add(s);},t=>{},(attached,s)=>{},(n,r)=>{});
+  using(e){
+   Check(!e.DryRun,"dry run is off by default");
+   e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10,Target=100},new RiskLatch())});Wait(()=>e.EntriesArmed,"arm");
+   e.SetFollowing(a.Name,true);Drain(e);
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Wait(()=>a.Submits==1,"normal copy still sent");
+   Check(!log.Any(x=>x.StartsWith("DRY RUN")),"no dry-run text when the mode is off");
+  }
+ }
+ static void SimTestDryRunCannotBeSwitchedOnMidSession(){
+  var l=ProvAcc("mid lead",NinjaTrader.Cbi.Provider.Simulator);var a=ProvAcc("mid follow",NinjaTrader.Cbi.Provider.Simulator);
+  using(var e=Arm(l,a)){
+   e.SetFollowing(a.Name,true);Drain(e);
+   bool threw=false;try{e.DryRun=true;}catch(InvalidOperationException){threw=true;}
+   Check(threw&&!e.DryRun,"the mode is fixed for the whole session: changing it while attached is refused");
+  }
  }
 #endif
  static void SimTestSimAndPlaybackStartCopyFlatten(){
