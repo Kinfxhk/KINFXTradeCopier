@@ -443,7 +443,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public readonly OrderAction Action;
         public readonly OrderType Type;
         public readonly OrderState State;
-        public readonly int Filled, Quantity, Session;
+        public readonly int Filled, Quantity, Session, WrapperQuantity, WrapperQuantityChanged;
         public readonly double Limit, Stop;
         public FollowerSnapshot(Account account,OrderEventArgs e,int session)
         {
@@ -451,6 +451,8 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             InstrumentName=Wrapper.Instrument==null?null:Wrapper.Instrument.FullName; ProviderId=e.OrderId;
             // Event payload is execution evidence; wrapper supplies only metadata absent from OrderEventArgs.
             Filled=e.Filled; Action=Wrapper.OrderAction; Type=Wrapper.OrderType;
+            // Contradiction hints only: neither wrapper value acknowledges acceptance or adds owned fills.
+            WrapperQuantity=Wrapper.Quantity;WrapperQuantityChanged=Wrapper.QuantityChanged;
         }
     }
     // All broker API calls are on one serial worker OUTSIDE queue/collection locks.
@@ -871,7 +873,11 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                     if(!terminalRegression)
                     {
                         link.ObservedState=eventState;
-                        link.ReservedQuantity=snapshot.Quantity==link.RequestedQuantity?snapshot.Quantity:Math.Max(link.ReservedQuantity,snapshot.Quantity);
+                        // An old ACK can equal the newest quantity after a 2 -> 4 -> 2 sequence.
+                        // Never release a larger reservation when the captured wrapper/dispatch intent
+                        // still contradicts that reduction. These hints can refuse release, not certify acceptance.
+                        bool reductionCoherent=snapshot.Quantity>=snapshot.WrapperQuantity&&snapshot.Quantity>=snapshot.WrapperQuantityChanged;
+                        link.ReservedQuantity=snapshot.Quantity==link.RequestedQuantity&&reductionCoherent?snapshot.Quantity:Math.Max(link.ReservedQuantity,snapshot.Quantity);
                     }
                     if(eventState==OrderState.Filled&&snapshot.Filled!=link.RequestedQuantity)
                         Lock(f,"Terminal fill quantity divergence — expected="+link.RequestedQuantity+", observed="+snapshot.Filled+"; no makeup / chase, manual reconciliation required");
