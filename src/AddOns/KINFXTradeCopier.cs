@@ -730,9 +730,10 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 // Issue #3: a sibling the engine retired because its OCO group completed no longer reserves capacity for ANOTHER group.
                 // Its stale captured Working state would otherwise make a still-open group look like it has no closable exposure and
                 // get its sole protection cancelled. Leader-cancelled links (Cancelled but not OcoRetired) still reserve until acknowledged.
-                // Same-OCO members are excluded again below by OCO id, so no same-group exception is needed here.
+                // A NEW exit cannot reuse capacity of a leader-cancelled same-OCO member before its terminal ACK.
+                // Existing siblings retain their shared reservation: do not resize/cancel sole protection merely because its peer is cancelling.
                 .Where(x=>!x.OcoRetired)
-                .Select(x=>Tuple.Create(x.Oco,CapturedRemaining(x))).ToList();
+                .Select(x=>Tuple.Create(current.Order==null&&x.Cancelled&&x.Oco==current.Oco?"":x.Oco,CapturedRemaining(x))).ToList();
             // Unknown manual work consumes capacity but is never adopted. Owned wrappers use captured evidence only.
             Order[] actual; lock(f.Account.Orders)actual=f.Account.Orders.ToArray();
             reservations.AddRange(actual.Where(o=>o.Instrument!=null&&o.Instrument.FullName==instrument.FullName&&o.OrderAction==current.Latest.Action&&!Order.IsTerminalState(o.OrderState)&&FindFollowerLink(f,o,o.OrderId)==null)
