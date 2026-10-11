@@ -540,13 +540,13 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             if(typeof(Account).Assembly!=typeof(CopierEngine).Assembly)
             { BlockEntries();log("PUBLIC ALPHA SAFETY HOLD — Start blocked for ALL providers, including Sim / Playback. Trading DISABLED.");return; }
 #endif
-#if !KINFX_OFFLINE_FAKE
+#if !KINFX_OFFLINE_FAKE && !KINFX_SIM_TEST
             BlockEntries();log("ALL-ACCOUNT SAFETY HOLD — Start blocked, including Simulator / Playback. UI preview only; provider acceptance unverified.");return;
 #else
 #if KINFX_SIM_TEST
             // SIM TEST BUILD: a scope is accepted only if EVERY account is Simulator / Playback. Anything else (Live, null, empty) is refused here, before any state changes.
             if(selected==null||selectedFollowers==null){ BlockEntries();log("SIM TEST: Start refused — missing leader or follower list.");return; }
-            var scopeCheck=selectedFollowers.ToArray();
+            var scopeCheck=selectedFollowers.ToArray();selectedFollowers=scopeCheck; // verified list == used list: enumerate once
             if(scopeCheck.Any(x=>x==null||x.Item1==null||x.Item2==null||x.Item3==null)||!SimScope(scopeCheck.Select(x=>x.Item1).Concat(new[]{selected}))){ BlockEntries();log("SIM TEST: Start refused — every account must be Simulator / Playback. Live accounts are never accepted.");return; }
 #endif
             var list=selectedFollowers.Select(x=>Tuple.Create(x.Item1,x.Item2.Clone(),new RiskLatch{Locked=x.Item3.Locked,Reason=x.Item3.Reason})).ToArray();
@@ -792,13 +792,21 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         // A refused post (engine stopping) never leaks the counter and is never reported as a successful send.
         void Dispatch(EngineAccount f,Action call,Action<Exception> done)
         {
+#if KINFX_SIM_TEST
+            var leaderAtQueue=leader;
+#endif
             Interlocked.Increment(ref providerCallsInFlight);
             Action<Exception> finish=err=>
             {
                 Action fin=()=>{ try { done(err); } catch(Exception ex) { log("PROVIDER COMPLETION ERROR: "+ex.Message); } finally { Interlocked.Decrement(ref providerCallsInFlight); } };
                 if(!worker.Post(fin)) { Interlocked.Decrement(ref providerCallsInFlight); if(err!=null)log(f.Account.Name+": provider call failed while engine stopping: "+err.Message); }
             };
-            if(!f.Dispatcher.Post(()=>{ Exception err=null; try { call(); } catch(Exception ex) { err=ex; f.ProviderFaulted=true; } finish(err); }))
+            if(!f.Dispatcher.Post(()=>{ Exception err=null; try {
+#if KINFX_SIM_TEST
+                // SIM TEST BUILD: provider is re-read when the call is actually sent, not only at Start. Fail closed: the call is NOT sent and the account is locked by the normal error path.
+                if(f.Account==null||!Sim(f.Account)||leaderAtQueue==null||!Sim(leaderAtQueue))throw new InvalidOperationException("SIM TEST: account is not Simulator / Playback at send time; call was NOT sent");
+#endif
+                call(); } catch(Exception ex) { err=ex; f.ProviderFaulted=true; } finish(err); }))
                 finish(new InvalidOperationException("provider dispatcher stopped; call was NOT sent"));
         }
         void Submit(CopyLink link,string errPrefix="Order error: ")
@@ -1082,11 +1090,13 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             if(typeof(Account).Assembly!=typeof(CopierEngine).Assembly)
             { BlockEntries();log("PUBLIC ALPHA SAFETY HOLD — Flatten blocked for ALL providers, including Sim / Playback. Trading DISABLED.");return; }
 #endif
-#if !KINFX_OFFLINE_FAKE
+#if !KINFX_OFFLINE_FAKE && !KINFX_SIM_TEST
             BlockEntries();log("ALL-ACCOUNT SAFETY HOLD — Flatten blocked for every account. No trading actions authorized.");return;
 #else
 #if KINFX_SIM_TEST
             // SIM TEST BUILD: one Live / null / unknown-provider account refuses the WHOLE request; nothing is flattened, not even the Sim accounts in it.
+            if(targets!=null)targets=(Account[])targets.Clone();
+            if(inst==null){ log("SIM TEST: Flatten refused — no instrument. Nothing was sent."); return; }
             if(!SimScope(targets)){ log("SIM TEST: Flatten refused — scope contains a non-Simulator/Playback or missing account. Nothing was sent."); return; }
 #endif
             BlockEntries();suppressNew=true; // block ALL new copies during the flatten request.

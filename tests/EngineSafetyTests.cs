@@ -1015,4 +1015,48 @@ class EngineSafetyTests {
    e.Flatten(null,inst);e.Flatten(new NinjaTrader.Cbi.Account[]{null},inst);Drain(e);Check(sim.Flattens==0,"null flatten scope refused");
   }
  }
+
+ static void SimTestProviderFlipsAfterStartFollowerNotSubmitted(){
+  var l=ProvAcc("flip f lead",NinjaTrader.Cbi.Provider.Simulator);var a=ProvAcc("flip f follow",NinjaTrader.Cbi.Provider.Simulator);
+  using(var e=Arm(l,a)){
+   e.SetFollowing(a.Name,true);Drain(e);
+   a.Provider=NinjaTrader.Cbi.Provider.Live;
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Drain(e);
+   Check(a.Submits==0,"engine must not submit to an account that is Live at submit time (Submits="+a.Submits+")");
+  }
+ }
+ static void SimTestProviderFlipsAfterStartLeaderNotCopied(){
+  var l=ProvAcc("flip l lead",NinjaTrader.Cbi.Provider.Simulator);var a=ProvAcc("flip l follow",NinjaTrader.Cbi.Provider.Simulator);
+  using(var e=Arm(l,a)){
+   e.SetFollowing(a.Name,true);Drain(e);
+   l.Provider=NinjaTrader.Cbi.Provider.Live;
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Drain(e);
+   Check(a.Submits==0,"leader turned Live after Start: follower copy should stop (Submits="+a.Submits+")");
+  }
+ }
+ static void SimTestFlattenWithoutSessionAndNullInstrument(){
+  var sim=ProvAcc("nullinst sim",NinjaTrader.Cbi.Provider.Simulator);
+  using(var e=new CopierEngine(s=>{},t=>{},(b,s)=>{},(n,r)=>{})){
+   e.Flatten(new[]{sim},null);Drain(e);
+   Check(sim.Flattens==0,"null instrument must not reach account.Flatten");
+   e.Flatten(new[]{sim},inst);Drain(e);
+   Check(sim.Flattens==1,"a Simulator account can still be flattened with a real instrument and no session");
+  }
+ }
+ // The scope that was VERIFIED must be the scope that is USED: a second enumeration of the follower list may not smuggle in a Live account.
+ static IEnumerable<Tuple<NinjaTrader.Cbi.Account,RiskSettings,RiskLatch>> Lazy(NinjaTrader.Cbi.Account first,NinjaTrader.Cbi.Account second,int[] calls){
+  calls[0]++;
+  yield return Tuple.Create(calls[0]==1?first:second,new RiskSettings{MaxContracts=10},new RiskLatch());
+ }
+ static void SimTestStartEnumeratesFollowersOnce(){
+  var l=ProvAcc("lazy lead",NinjaTrader.Cbi.Provider.Simulator);var simF=ProvAcc("lazy sim f",NinjaTrader.Cbi.Provider.Simulator);var liveF=ProvAcc("lazy live f",NinjaTrader.Cbi.Provider.Live);
+  var calls=new[]{0};
+  using(var e=new CopierEngine(s=>{},t=>{},(b,s)=>{},(n,r)=>{})){
+   e.Start(l,inst,Lazy(simF,liveF,calls));Drain(e);
+   Check(calls[0]==1,"followers enumerated "+calls[0]+" times; the verified list must be the used list");
+   Check(e.Attached,"first (Sim) enumeration is a legal scope and attaches");
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Drain(e);
+   Check(liveF.Submits==0,"a Live account smuggled in by a second enumeration is never submitted to");
+  }
+ }
 }
