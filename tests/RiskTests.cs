@@ -2,10 +2,10 @@ using System;
 using NinjaTrader.NinjaScript.AddOns.Kinfx;
 class RiskTests {
  static int Main(string[] args) {
-  try { XmlDoubleRoundtripIsExact(); XmlDoubleRejectsGroupingCommas(); XmlBaselinePreservesSignedZeroAndIntent(); Console.WriteLine("PASS exact XML numeric persistence"); Eq(false,DashboardSafety.CanExecute("start")); Eq(false,DashboardSafety.CanExecute("flattenSelected")); Eq(false,DashboardSafety.CanExecute("flattenAll")); Eq(false,DashboardSafety.CanExecute("batch")); Eq(true,DashboardSafety.CanExecute("refresh")); BulkAmount(); Console.WriteLine("PASS bulk amount grammar"); SettingsWarnings(); Console.WriteLine("PASS settings warnings"); WorkerRetention(); Console.WriteLine("PASS worker retains accepted work and reports rejection"); DivergencePolicy(); Console.WriteLine("PASS divergence reaction setting"); Quantity(); Console.WriteLine("PASS quantity"); Risk(); Console.WriteLine("PASS risk latch / exits / finite / DST"); Persistence(); Console.WriteLine("PASS XML atomic roundtrip"); Worker(); Console.WriteLine("PASS serial reentrancy + ownership"); Ledger(); Console.WriteLine("PASS lifecycle decisions / dedupe / reservation"); Presets(); Console.WriteLine("PASS sourced editable presets"); ChangePolicy(); Console.WriteLine("PASS locked reductions / partial exit totals"); DurableLock(); Console.WriteLine("PASS durable global latches / unlock recheck / advisory"); return 0; }
+  try { XmlDoubleRoundtripIsExact(); XmlDoubleRejectsGroupingCommas(); XmlBaselinePreservesSignedZeroAndIntent(); Console.WriteLine("PASS exact XML numeric persistence"); Eq(false,DashboardSafety.CanExecute("start")); Eq(false,DashboardSafety.CanExecute("flattenSelected")); Eq(false,DashboardSafety.CanExecute("flattenAll")); Eq(false,DashboardSafety.CanExecute("batch")); Eq(true,DashboardSafety.CanExecute("refresh")); BulkAmount(); Console.WriteLine("PASS bulk amount grammar"); SettingsWarnings(); Console.WriteLine("PASS settings warnings"); WorkerRetention(); Console.WriteLine("PASS worker retains accepted work and reports rejection"); DivergencePolicy(); Console.WriteLine("PASS divergence reaction setting"); Quantity(); Console.WriteLine("PASS quantity"); AccountSyncDiff(); Console.WriteLine("PASS account sync diff"); ContractRollQuarterly(); Console.WriteLine("PASS contract roll"); ContractInputNormalize(); Console.WriteLine("PASS contract input"); AccountSyncDecision(); Console.WriteLine("PASS account sync decision"); Risk(); Console.WriteLine("PASS risk latch / exits / finite / DST"); Persistence(); Console.WriteLine("PASS XML atomic roundtrip"); Worker(); Console.WriteLine("PASS serial reentrancy + ownership"); Ledger(); Console.WriteLine("PASS lifecycle decisions / dedupe / reservation"); Presets(); Console.WriteLine("PASS sourced editable presets"); ChangePolicy(); Console.WriteLine("PASS locked reductions / partial exit totals"); DurableLock(); Console.WriteLine("PASS durable global latches / unlock recheck / advisory"); return 0; }
   catch(Exception ex) { Console.WriteLine("FAIL "+ex.Message); return 1; }
  }
- static void Eq(object want,object got) { if(!want.Equals(got)) throw new Exception("expected "+want+" got "+got); }
+ static void Eq(object want,object got) { if(want==null||got==null){ if(want!=got) throw new Exception("expected "+(want??"<null>")+" got "+(got??"<null>")); return; } if(!want.Equals(got)) throw new Exception("expected "+want+" got "+got); }
  // Issue #5: exercise the actual persistence methods, not a second serializer.
  static void XmlDoubleRoundtripIsExact() {
   foreach(var field in typeof(RiskSettings).GetFields()) {
@@ -185,5 +185,66 @@ class RiskTests {
  static void Quantity() {
   Eq(3,RiskPolicy.Quantity(5,0.75)); Eq(0,RiskPolicy.Quantity(1,0.1));
   Eq(0,RiskPolicy.Quantity(5,-1)); Eq(0,RiskPolicy.Quantity(5,double.NaN)); Eq(0,RiskPolicy.Quantity(int.MaxValue,2));
+ }
+
+ static void SeqEq(string[] want,string[] got) { if(string.Join("|",want)!=string.Join("|",got)) throw new Exception("expected ["+string.Join("|",want)+"] got ["+string.Join("|",got)+"]"); }
+ static void AccountSyncDiff() {
+  var d=AccountSync.Diff(new[]{"Sim101","Sim102"},new[]{"Sim101","Sim102"});
+  Eq(false,d.Changed);
+  d=AccountSync.Diff(new[]{"Sim101"},new[]{"Sim101","Sim103","Sim102"});
+  Eq(true,d.Changed); SeqEq(new[]{"Sim102","Sim103"},d.Added); SeqEq(new string[0],d.Removed);
+  d=AccountSync.Diff(new[]{"Sim101","Sim102"},new[]{"Sim102"});
+  Eq(true,d.Changed); SeqEq(new string[0],d.Added); SeqEq(new[]{"Sim101"},d.Removed);
+  d=AccountSync.Diff(new[]{"Sim101","Sim102"},new[]{"sim101","Sim102"});
+  Eq(true,d.Changed); // account names are case-sensitive in NinjaTrader; a case change is a different account
+  d=AccountSync.Diff(null,new[]{"A","B"}); Eq(true,d.Changed); SeqEq(new[]{"A","B"},d.Added);
+  d=AccountSync.Diff(new[]{"A"},null); Eq(true,d.Changed); SeqEq(new[]{"A"},d.Removed);
+  d=AccountSync.Diff(new[]{"A","A"},new[]{"A"}); Eq(false,d.Changed); // duplicates never produce phantom changes
+  d=AccountSync.Diff(new[]{"A",null,""},new[]{"A"}); Eq(false,d.Changed); // blank / null names ignored
+ }
+ static void ContractRollQuarterly() {
+  // Quarterly equity-index / metal-less cycle: H M U Z = Mar Jun Sep Dec. Roll on the 8th trading-month rule is NOT assumed:
+  // the helper returns the first quarterly month whose expiry month is >= the current month (conservative, user can override).
+  Eq("MNQ 12-26",ContractRoll.Front("MNQ",new DateTime(2026,10,11)));
+  Eq("MNQ 12-26",ContractRoll.Front("MNQ",new DateTime(2026,12,1)));
+  Eq("MNQ 03-27",ContractRoll.Front("MNQ",new DateTime(2026,12,31).AddDays(1)));
+  Eq("ES 03-26",ContractRoll.Front("ES",new DateTime(2026,1,5)));
+  Eq("ES 06-26",ContractRoll.Front("ES",new DateTime(2026,4,2)));
+  Eq("MES 09-26",ContractRoll.Front("MES",new DateTime(2026,7,31)));
+  Eq("NQ 12-26",ContractRoll.Front("NQ",new DateTime(2026,10,11)));
+  Eq(null,ContractRoll.Front("ZZZ",new DateTime(2026,10,11)));   // unknown root: refuse, never guess
+  Eq(null,ContractRoll.Front("",new DateTime(2026,10,11)));
+  Eq(null,ContractRoll.Front(null,new DateTime(2026,10,11)));
+ }
+ static void ContractInputNormalize() {
+  var now=new DateTime(2026,10,11);
+  Eq("MNQ 12-26",ContractRoll.Normalize("mnq",now));          // bare root -> front contract
+  Eq("MNQ 12-26",ContractRoll.Normalize("  MNQ  ",now));
+  Eq("MNQ 12-26",ContractRoll.Normalize("MNQ 12-26",now));    // already exact: unchanged
+  Eq("MNQ 03-27",ContractRoll.Normalize("MNQ 03-27",now));    // an explicit different month is respected, never silently rolled
+  Eq("MNQ 12-26",ContractRoll.Normalize("MNQ1226",now));      // compact form
+  Eq("MNQ 12-26",ContractRoll.Normalize("MNQZ6",now));        // broker month-code form
+  Eq("ES 06-27",ContractRoll.Normalize("ESM7",now));
+  Eq(null,ContractRoll.Normalize("MNQ 13-26",now));           // impossible month
+  Eq(null,ContractRoll.Normalize("MNQ 00-26",now));
+  Eq(null,ContractRoll.Normalize("ZZZ",now));                 // unknown root
+  Eq(null,ContractRoll.Normalize("",now));
+  Eq(null,ContractRoll.Normalize(null,now));
+  Eq(null,ContractRoll.Normalize("MNQ 12-26; DROP",now));      // junk after a valid prefix is refused, not truncated
+ }
+
+ static void AccountSyncDecision() {
+  var same=AccountSync.Diff(new[]{"A"},new[]{"A"});
+  var added=AccountSync.Diff(new[]{"A"},new[]{"A","B"});
+  var removed=AccountSync.Diff(new[]{"A","B"},new[]{"A"});
+  Eq(AccountSyncAction.None,AccountSync.Decide(same,false,false));
+  Eq(AccountSyncAction.None,AccountSync.Decide(same,true,false));
+  Eq(AccountSyncAction.Reload,AccountSync.Decide(added,false,false));           // idle + changed -> refresh the table
+  Eq(AccountSyncAction.Reload,AccountSync.Decide(removed,false,false));
+  Eq(AccountSyncAction.Notify,AccountSync.Decide(added,true,false));            // copying: never touch the table, only tell the user
+  Eq(AccountSyncAction.Notify,AccountSync.Decide(removed,true,false));
+  Eq(AccountSyncAction.Defer,AccountSync.Decide(added,false,true));             // user is mid-edit (grid / ratio draft): do not discard their typing
+  Eq(AccountSyncAction.Notify,AccountSync.Decide(added,true,true));             // copying wins over editing
+  Eq(AccountSyncAction.None,AccountSync.Decide(null,false,false));              // no diff -> nothing, never throws
  }
 }
