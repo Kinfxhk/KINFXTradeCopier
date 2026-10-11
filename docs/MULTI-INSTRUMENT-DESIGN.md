@@ -11,7 +11,7 @@ Today one copier session manages **exactly one instrument**. `CopierEngine` hold
 - Cleanliness (`Clean`), owned-position and exposure checks look at the selected instrument only. Positions and working orders on another instrument are invisible to the engine.
 - A user who trades GC and NQ at the same time cannot copy both.
 
-Required by the maintainer (2026-10-11): **4–5 instruments at the same time, each with its own settings.**
+Requested by the maintainer (2026-10-11): several instruments at the same time, each with its own settings. First asked as 4–5; **revised the same day to a hard cap of 3 lanes** for stability and to keep resource use modest. The cap is deliberately low so nobody reads this feature as "open as many as you like". Each lane may also have **its own leader account** (decision D2 below).
 
 ## 2. Why "open several copier tabs" is rejected
 
@@ -28,10 +28,11 @@ Relaxing `SessionOwnership` to allow it is explicitly **not** proposed.
 
 ```
 Session (one per copier window)
- ├─ Leader account, Followers[]                       (unchanged)
+ ├─ Followers[]                                      (unchanged)
  ├─ Account-level risk: target / DLL / latch / pause  (unchanged, shared by all lanes)
- └─ Lane[] — one per instrument (max 5 in the first version)
-      ├─ Instrument, Ratio, MaxContracts, enabled     (per lane, per follower)
+ └─ Lane[] — one per instrument (HARD CAP 3)
+      ├─ Instrument, Leader account                   (per lane; leaders are NOT shared)
+      ├─ Ratio, MaxContracts, enabled                 (per lane, per follower)
       ├─ Order links, OCO groups, identity maps        (per lane)
       └─ Owned-position ledger, reserved exit capacity (per lane)
 ```
@@ -45,11 +46,15 @@ Session (one per copier window)
 5. **Per-lane failure isolation.** An uncertain acceptance, fill divergence or error locks the *account on that lane*; whether it also stops the other lanes is the Open question Q2.
 6. **Live accounts remain refused.** The Sim/Playback scope check is unchanged and applies to the union of accounts.
 7. **Adding or removing a lane while a session is attached is refused.** Lanes are fixed at Start, like accounts.
+8. **The lane count is capped at 3 in code, not in the UI only.** Start refuses a 4th lane; the limit is a constant covered by a test, so a settings file cannot raise it.
+9. **One role per account across all lanes.** An account is either the leader of exactly one lane or a follower; it can never lead one lane and follow another, and two lanes cannot share a leader account (D2). This keeps the account-level risk and the "no adoption" rule unambiguous. A scope that breaks this is refused at Start.
+10. **A leader's orders only ever feed its own lane.** An order from lane A's leader on lane B's instrument is unknown activity (logged, never copied).
 
 ### 3.2 Per-lane settings
 
 | Setting | Level | Why |
 |---|---|---|
+| Leader account | per lane (not shared between lanes) | Decision D2. Each instrument can follow a different leader. |
 | Ratio, MaxContracts, lane on/off | per follower **and** per lane | The requirement: each instrument separate. Default = follower's current value, so existing settings files keep working. |
 | Daily target, daily loss, DLL, latch | per **account** | Prop-firm rules apply to the account, not the instrument. |
 | ATM mirroring | per follower (unchanged) | |
@@ -65,23 +70,28 @@ Ratio is a **contract-count** multiplier, as today. The first version does **not
 
 Each step keeps all existing tests green and adds its own RED test first.
 
-1. **Introduce `Lane` and key all per-instrument dictionaries by `(account, instrument)`**, with exactly one lane. Behaviour must be byte-identical to today: the existing 135 engine cases are the oracle. No new feature in this step.
+1. **Introduce `Lane` and key all per-instrument dictionaries by `(account, instrument)`**, with exactly one lane and one leader. Behaviour must be byte-identical to today: the existing 135 engine cases are the oracle. No new feature in this step.
 2. **Lane-aware `Clean` / `OwnedPosition` / exposure** and the unknown-order rule (3.1 #2, #4). New tests: order on a non-lane instrument locks; position on a non-lane instrument is flagged but never copied.
-3. **Two lanes, one follower**: copy both, with cross-lane negative controls (an OCO id, an order id, or a fill on lane A must never affect lane B; exit budget of lane A never uses lane B's position).
+3. **Two lanes, one follower, two different leaders**: copy both, with cross-lane negative controls (an OCO id, an order id, or a fill on lane A must never affect lane B; exit budget of lane A never uses lane B's position).
 4. **Account-level risk across lanes**: loss on lane A latches the account and stops lane B on the same account; a lane cannot unlock it.
 5. **Persistence**: lane list in XML, old-file compatibility, corrupt-lane fail-closed.
-6. **UI**: lane table (instrument, Ratio, Max, on/off per follower), contract picker, max 5.
-7. **Scale tests** with 10/20/30 accounts × 5 lanes under the existing delayed, reordered and missing-callback fakes.
+6. **UI**: lane table (instrument, leader, Ratio, Max, on/off per follower), contract picker, at most 3 lanes with a clear "max 3" label.
+7. **Scale tests** with 10/20/30 accounts × 3 lanes under the existing delayed, reordered and missing-callback fakes.
 
 Steps 1–2 are the high-risk core. Independent review is required before step 3 starts and again before any enablement.
 
-## 5. Open questions (need a decision)
+## 5. Decisions and open questions
 
-- **Q1.** Is the lane limit 5 enough for the first version? (Proposed: yes, hard-coded, raised later.)
-- **Q2.** When one lane hits an uncertain state (unknown acceptance, divergence), should the account stop on **all lanes** (safest, proposed default) or only that lane?
-- **Q3.** Leader side: do all lanes follow the same leader account (proposed), or can a lane have its own leader?
+**Decided by the maintainer (2026-10-11):**
+- **D1.** Lane limit is **3**, hard-coded (stability and resource use; do not suggest unlimited use).
+- **D2.** Lanes **do not share a leader**: each lane has its own leader account. Consequence: invariants 9 and 10 above (one role per account, a leader feeds only its own lane).
+- **D3.** Ratio and MaxContracts are set **per instrument, per follower**.
+
+**Still open:**
+- **Q2.** When one lane hits an uncertain state (unknown acceptance, divergence), should the account stop on **all lanes** (proposed default, safest, because risk is account-wide) or only that lane? Until answered, the design assumes **all lanes**.
 - **Q4.** A follower with Ratio 0 on a lane means "skip this lane for this account" — confirm.
-- **Q5.** Should a leader order on a non-lane instrument produce a visible warning in the log (proposed: yes, rate-limited).
+- **Q5.** Should a leader order on a non-lane instrument produce a visible, rate-limited log warning (proposed: yes)?
+- **Q6.** Should the dashboard warn when the same machine runs several copier windows (proposed: a soft warning only; `SessionOwnership` already refuses overlapping accounts)?
 
 ## 6. Test evidence required before this can be called done
 
@@ -89,7 +99,7 @@ Offline and synthetic only, until a Sim acceptance protocol exists:
 
 - All existing engine, pure, independent and Python tests unchanged and green after step 1.
 - Per-lane isolation mutation tests: removing the `(account, instrument)` key from any one map must turn a test red.
-- 10/20/30 accounts × 1–5 lanes fault matrix: delayed, reordered, duplicated, missing callbacks; uncertain acceptance on one lane.
+- 10/20/30 accounts × 1–3 lanes fault matrix: delayed, reordered, duplicated, missing callbacks; uncertain acceptance on one lane.
 - Independent review of steps 1–2 (diff-level) and of the final candidate.
 - Nothing here is provider acceptance and nothing authorizes trading.
 
@@ -101,12 +111,14 @@ Offline and synthetic only, until a Sim acceptance protocol exists:
 
 **唔建議多開 TAB／多個 copier：** 引擎設計上同一帳戶只准一個 copier 持有（防雙重落單）；日虧損／目標係**帳戶級**，兩個 copier 會各自睇到合計虧損但只知自己嘅倉，無法正確鎖戶；`risk-latches.xml` 會互相覆蓋；「flat」檢查亦只查自己嘅商品。
 
-**建議：** 一個 session、一套帳戶級風控、多條「商品通道（lane）」，最多 5 條。每條通道有自己嘅訂單配對、OCO、持倉帳本同保留額度；Ratio／Max 張數**每個商品、每個 follower 分開設**；日目標／DLL／鎖戶仍然係**帳戶級**，任何通道觸發都停晒該帳戶。通道以外嘅持倉只顯示警告，絕不跟單、絕不當成自己嘅倉。
+**建議：** 一個 session、一套帳戶級風控、多條「商品通道（lane）」，最多 **3** 條（程式碼寫死，唔係淨係介面限制），每條通道有**自己嘅 leader**（唔共用）。每條通道有自己嘅訂單配對、OCO、持倉帳本同保留額度；Ratio／Max 張數**每個商品、每個 follower 分開設**；日目標／DLL／鎖戶仍然係**帳戶級**，任何通道觸發都停晒該帳戶。通道以外嘅持倉只顯示警告，絕不跟單、絕不當成自己嘅倉。
 
 **唔做：** 跨商品換算（例如 NQ→MNQ）留待之後獨立設計。Live 帳戶仍然全部拒絕。
 
 **步驟：** 先將所有以商品為鍵嘅資料改成 `(帳戶, 商品)`，只有一條通道，行為必須同今日完全一致，以現有 135 個引擎測試做標準；再逐步加通道、帳戶級風控、設定檔、介面同 10／20／30 戶壓力測試。第 1、2 步風險最高，要獨立覆核先可以做第 3 步。
 
-**待決定（Q1–Q5）：** 通道上限、單一通道出現不確定狀態時係咪停晒所有通道（建議停晒）、所有通道係咪共用同一個 leader、Ratio 0 嘅意思、非通道商品嘅警告。
+**已決定：** 上限 3 條；每條通道獨立 leader；Ratio／Max 每個商品、每個 follower 分開設。一個帳戶喺所有通道只可以有一個角色（要麼係某條通道嘅 leader，要麼係 follower），否則 Start 拒絕。
+
+**仲未決定：** 單一通道出現不確定狀態時，係咪停晒所有通道（暫時按「停晒」設計，因為風控係帳戶級）；Ratio 0 嘅意思；非通道商品嘅警告；同一部機開多個 copier 視窗時係咪加警告。
 
 **呢份文件冇改動任何引擎代碼，亦唔代表可以交易。**
