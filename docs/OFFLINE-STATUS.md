@@ -24,7 +24,7 @@ Four defects were found by independent review or by my own sweep in my own first
 
 None of these can be answered offline. 呢啲離線無法回答。
 
-1. **Two real NinjaTrader Sim or Playback accounts**, leader to follower, real provider callbacks ([#7](https://github.com/Kinfxhk/KINFXTradeCopier/issues/7)). Start and Flatten are blocked; unblocking is a separate reviewed decision, not part of this alpha.
+1. **Two real NinjaTrader Sim or Playback accounts**, leader to follower, real provider callbacks ([#7](https://github.com/Kinfxhk/KINFXTradeCopier/issues/7)). A step-by-step **plan** exists in [SIM-TEST-PLAN](SIM-TEST-PLAN.md); it is a plan only and does not lift the block. Start and Flatten are blocked; unblocking is a separate reviewed decision, not part of this alpha.
 2. **Thread rules for provider calls** (the per-account dispatch above). If NinjaTrader requires these calls on one thread, the design must change.
 3. **Disconnect, reconnect, late fills, slippage, replacement order identity.**
 4. **Window / workspace close and restart**, real multi-monitor DPI, native modal focus, IME input, clipboard paste ([#8](https://github.com/Kinfxhk/KINFXTradeCopier/issues/8)).

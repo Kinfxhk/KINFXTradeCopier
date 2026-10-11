@@ -69,6 +69,7 @@ python -B -m unittest discover -s tests -p 'test_*.py' -v
 
 - [測試矩陣：未測試／失敗／有限範圍證據](docs/TEST-MATRIX.md)
 - [**離線進度：已完成 vs 仍需真環境**](docs/OFFLINE-STATUS.md)
+- [雙帳戶 Sim 測試**計劃**（只係計劃，唔好跑；交易仍然封鎖）](docs/SIM-TEST-PLAN.md)
 - [已知問題](docs/KNOWN-ISSUES.md)
 - [**絕對唔好做嘅事**（軟件無法恢復嘅操作）](docs/DO-NOT-DO.md)
 - [安全封鎖](docs/SAFETY-HOLD.md)
