@@ -20,7 +20,7 @@ A completion cancel checks the same revision/session/frontiers at provider dispa
 
 `ProtectionPlanFor` snapshots group certificates plus owned, captured covered and uncovered lots. Working OCO alternatives count at most their group's held lots, never add together or conceal another group's uncovered allocation. Unacknowledged submissions are not coverage.
 
-Completing A stops new entries when the account is flat; it never certifies B complete. B's already-explicit, still-active waiting exit may protect B's subsequently captured allocated lots. This deliberately replaces the prior manual-only waiting-exit policy. No missing order is invented. Cancelled intent cannot resume. Waiting continuation checks its exact certificate again at dispatch and serializes group submissions across captured acceptance. A locally vetoed **unsent** Submit can be discarded and re-evaluated; a provider call with unknown acceptance cannot be retried. The account remains OFF/locked as applicable. Dynamic telemetry reports current uncovered lots, not a stale pre-acceptance warning. Without valid explicit protection the exact manual-action warning remains.
+Completing A stops new entries when the account is flat; it never certifies B complete. B's already-explicit, still-active waiting exit may protect B's subsequently captured allocated lots. This deliberately replaces the prior manual-only waiting-exit policy. No missing order is invented. Cancelled intent cannot resume. Every new group submission checks its exact certificate again at dispatch and serializes group submissions across captured acceptance. Existing amendments retain their ordered stream under conservative ownership bounds; pending commands cannot certify completion or release claims. A locally vetoed **unsent** Submit can be discarded and re-evaluated; a provider call with unknown acceptance cannot be retried. The account remains OFF/locked as applicable. Dynamic telemetry reports current uncovered lots, not a stale pre-acceptance warning. Without valid explicit protection the exact manual-action warning remains.
 
 ## Acceptance evidence
 
@@ -31,6 +31,7 @@ Completing A stops new entries when the account is flat; it never certifies B co
 | Partial exit, unequal target and sole stop | `UnequalTargetDoesNotRetireSoleStop`, `PartialTerminalDoesNotCancelSoleProtection` |
 | Release only acknowledged unused ownership | `GroupClaimReductionRequiresCapturedAck`, `CancelledGroupAckReleasesOnlyUnconsumedClaims` (partial and unfilled variants) |
 | Complete delayed protection and callback permutations | `CertifiedLateEntryFillProtectsWaitingGroup` (queued/sequential, entry-first/exit-first) |
+| Stale callbacks / amend before Submit ACK | `OlderWorkingCallbackKeepsEntryOwnershipCertificate`, `EntryAmendBeforeSubmitAckIsApplied` |
 | Exact frontier at dispatch | `GroupRetirementRechecksProviderDispatchFrontier`, `WaitingGroupSubmitRechecksLeaderFrontier` |
 | Unknown same-OCO work fails conservatively | `UnknownSameOcoActivityCannotCertifyGroupRetirement` |
 | Double-fill/reversal counterexamples | `GroupDoubleFillPermutationsRetainReversalEvidence` (both permutations) |
