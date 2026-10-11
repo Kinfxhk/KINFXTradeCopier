@@ -186,4 +186,10 @@ class RiskTests {
   Eq(3,RiskPolicy.Quantity(5,0.75)); Eq(0,RiskPolicy.Quantity(1,0.1));
   Eq(0,RiskPolicy.Quantity(5,-1)); Eq(0,RiskPolicy.Quantity(5,double.NaN)); Eq(0,RiskPolicy.Quantity(int.MaxValue,2));
  }
+
+ // KINFX_SIM_TEST build only (run by `offline.py puresim`).
+ static void SimTestDashboardCommandsOpenButNothingElse() {
+  foreach(string command in new[]{"start","flattenSelected","flattenAll","batch","refresh"})
+   if(!DashboardSafety.CanExecute(command))throw new Exception("SIM TEST build must allow "+command);
+ }
 }

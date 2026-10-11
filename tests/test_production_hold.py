@@ -27,6 +27,39 @@ def mask_noncode(text):
     return re.sub(pattern, lambda m: "".join("\n" if c == "\n" else " " for c in m[0]), text)
 
 
+SIM_DIRECTIVE = re.compile(r"^[ \t]*#(if !KINFX_SIM_TEST|if KINFX_SIM_TEST|else|endif)[^\n]*\n?", re.M)
+
+
+def default_build_view(text):
+    """Source as the DEFAULT build sees it: KINFX_SIM_TEST undefined.
+
+    Only `#if KINFX_SIM_TEST` / `#if !KINFX_SIM_TEST` blocks are resolved; every other directive (notably
+    `#if !KINFX_OFFLINE_FAKE`) is left in place so the existing hold checks still see the real structure.
+    A `#if KINFX_SIM_TEST ... #else ... #endif` keeps its #else branch; a plain `#if KINFX_SIM_TEST` block is dropped.
+    """
+    out, stack, keep = [], [], True
+    for line in text.splitlines(True):
+        stripped = line.strip()
+        if stripped.startswith("#if KINFX_SIM_TEST") or stripped.startswith("#if !KINFX_SIM_TEST"):
+            stack.append(("sim", stripped.startswith("#if !")))
+            keep = keep and (stripped.startswith("#if !"))
+            continue
+        if stack and stripped == "#else" and stack[-1][0] == "sim":
+            keep = not stack[-1][1]
+            continue
+        if stack and stripped.startswith("#endif") and stack[-1][0] == "sim":
+            stack.pop()
+            keep = True
+            continue
+        if stripped.startswith("#if"):
+            stack.append(("other", False))
+        elif stripped.startswith("#endif") and stack and stack[-1][0] == "other":
+            stack.pop()
+        if keep:
+            out.append(line)
+    return "".join(out)
+
+
 def method(text, signature):
     code = mask_noncode(text)
     matches = list(re.finditer(re.escape(signature), code))
@@ -61,7 +94,32 @@ class SourceSyntaxHoldTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.text = SOURCE.read_text(encoding="utf-8")
+        cls.raw = SOURCE.read_text(encoding="utf-8")
+        cls.text = default_build_view(cls.raw)
+
+    def test_sim_test_symbol_is_confined_to_known_blocks(self):
+        # The only place KINFX_SIM_TEST may appear: the identity guard wrapper, the scope checks in Start/Flatten
+        # and DashboardSafety.CanExecute. Anything else is a new bypass and must be reviewed explicitly.
+        code = mask_noncode(self.raw)
+        self.assertEqual(code.count("KINFX_SIM_TEST"), 5, "unexpected KINFX_SIM_TEST usage")
+        for signature in SIGNATURES:
+            body = method(self.raw, signature)
+            self.assertIn("#if !KINFX_SIM_TEST", body)
+            self.assertIn("SimScope(", body, "Sim scope check missing from " + signature[:30])
+        self.assertIn("SimScope", method(self.raw, "public static bool SimScope(IEnumerable<Account> scope)"))
+        sim = method(self.raw, "public static bool SimScope(IEnumerable<Account> scope)")
+        self.assertIn("Sim(a)", sim)
+        self.assertNotIn("Live", sim)
+        # No active #define of either symbol in the shipped source.
+        self.assertNotRegex(code, r"(?m)^\s*#define\s+KINFX_(SIM_TEST|OFFLINE_FAKE)")
+
+    def test_default_view_drops_every_sim_block(self):
+        # Compare CODE only (comments and string literals masked): the default build must not see the symbol at all.
+        code = mask_noncode(self.text)
+        self.assertNotIn("KINFX_SIM_TEST", code)
+        self.assertNotIn("SIM TEST:", self.text, "a Sim-test log line leaked into the default build")
+        self.assertNotIn("SimScope(selectedFollowers", code)
+        self.assertIn("command!=\"start\"", self.text)
 
     def test_external_identity_guard_is_first_and_outside_conditional(self):
         for signature in SIGNATURES:

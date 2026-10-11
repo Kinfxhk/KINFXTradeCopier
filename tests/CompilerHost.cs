@@ -38,21 +38,21 @@ public static class CompilerHost
     }
     static int Compile(string mode,string sourcesFile,string referencesFile,string output)
     {
-        if(mode!="full"&&mode!="fake"&&mode!="plain")throw new ArgumentException("mode rejected");
+        if(mode!="full"&&mode!="fake"&&mode!="plain"&&mode!="simtest"&&mode!="fullsim")throw new ArgumentException("mode rejected");
         var parse=new CSharpParseOptions(LanguageVersion.CSharp7_3,
-            preprocessorSymbols:mode=="fake"?new[]{"KINFX_OFFLINE_FAKE"}:new string[0]);
+            preprocessorSymbols:mode=="fake"?new[]{"KINFX_OFFLINE_FAKE"}:mode=="simtest"?new[]{"KINFX_SIM_TEST","KINFX_OFFLINE_FAKE"}:mode=="fullsim"?new[]{"KINFX_SIM_TEST"}:new string[0]);
         var trees=File.ReadAllLines(sourcesFile).Select(p=>CSharpSyntaxTree.ParseText(File.ReadAllText(p),parse,Path.GetFileName(p))).ToArray();
         // Run all gates before opening output. Active Unicode-escaped #define is decoded by Roslyn.
         if(mode=="full")foreach(var tree in trees) {
-            if(tree.Options.PreprocessorSymbolNames.Contains("KINFX_OFFLINE_FAKE"))throw new InvalidOperationException("fake option rejected");
+            if(tree.Options.PreprocessorSymbolNames.Contains("KINFX_OFFLINE_FAKE")||tree.Options.PreprocessorSymbolNames.Contains("KINFX_SIM_TEST"))throw new InvalidOperationException("fake option rejected");
             foreach(var d in tree.GetRoot().DescendantTrivia(null,true).Select(t=>t.GetStructure()).OfType<DefineDirectiveTriviaSyntax>())
-                if(d.IsActive&&d.Name.ValueText=="KINFX_OFFLINE_FAKE")throw new InvalidOperationException("fake directive rejected");
+                if(d.IsActive&&(d.Name.ValueText=="KINFX_OFFLINE_FAKE"||d.Name.ValueText=="KINFX_SIM_TEST"))throw new InvalidOperationException("fake directive rejected");
         }
         var refs=File.ReadAllLines(referencesFile).Select(p=>MetadataReference.CreateFromFile(p)).ToArray();
-        if(mode!="full")foreach(var p in File.ReadAllLines(referencesFile))
+        if(mode!="full"&&mode!="fullsim")foreach(var p in File.ReadAllLines(referencesFile))
             if(!new[]{"mscorlib.dll","System.dll","System.Core.dll","System.Xml.dll","System.Xml.Linq.dll"}.Contains(Path.GetFileName(p),StringComparer.OrdinalIgnoreCase))throw new InvalidOperationException("runtime reference rejected");
-        var options=new CSharpCompilationOptions(mode=="full"?OutputKind.DynamicallyLinkedLibrary:OutputKind.ConsoleApplication,
-            optimizationLevel:OptimizationLevel.Debug, mainTypeName:mode=="full"?null:"CompilerCaseRunner", allowUnsafe:false);
+        var options=new CSharpCompilationOptions(mode=="full"||mode=="fullsim"?OutputKind.DynamicallyLinkedLibrary:OutputKind.ConsoleApplication,
+            optimizationLevel:OptimizationLevel.Debug, mainTypeName:mode=="full"||mode=="fullsim"?null:"CompilerCaseRunner", allowUnsafe:false);
         var c=CSharpCompilation.Create(Path.GetFileNameWithoutExtension(output),trees,refs,options);
         using(var stream=new FileStream(output,FileMode.CreateNew,FileAccess.Write)) {
             var result=c.Emit(stream);

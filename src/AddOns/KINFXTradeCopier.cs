@@ -24,8 +24,13 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
     public static class DashboardSafety
     {
         // Quarantine after independent review: UI inspection only until fixes pass.
+#if KINFX_SIM_TEST
+        // SIM TEST BUILD ONLY: the dashboard commands are reachable, but the engine still refuses any non-Simulator/Playback account.
+        public static bool CanExecute(string command) { return true; }
+#else
         public static bool CanExecute(string command)
         { return command!="start" && command!="flattenSelected" && command!="flattenAll" && command!="batch"; }
+#endif
     }
     // Advisory text for settings that are legal but easy to misread. Pure: no account, engine or dispatch access.
     // Returns "" when there is nothing to say. Never blocks anything; it only informs.
@@ -508,6 +513,15 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             worker=new SerialWorker(ex=>{ entries=false; log("ENGINE ERROR: "+ex.Message+" — entries blocked; coverage unverified, manual recovery required"); stateChanged(attached,"Error — guarded pause; verify exposure manually"); });
         }
         public static bool Sim(Account a) { return a.Provider==Provider.Simulator || a.Provider==Provider.Playback; }
+        // Scope check for the KINFX_SIM_TEST build. A scope is allowed only when it is non-empty, has no null member and EVERY account is
+        // Simulator / Playback. One Live (or any other provider) account refuses the whole scope. Pure: reads Provider only.
+        public static bool SimScope(IEnumerable<Account> scope)
+        {
+            if(scope==null)return false;
+            int n=0;
+            foreach(var a in scope){ if(a==null||!Sim(a))return false; n++; }
+            return n>0;
+        }
         static bool Connected(Account a) { return a.Connection!=null && a.Connection.Status==ConnectionStatus.Connected; }
         public static int Position(Account a,Instrument inst)
         {
@@ -522,11 +536,19 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         {
             // PUBLIC ALPHA: trading DISABLED for ALL providers, including Sim / Playback.
             // Only same-artifact synthetic Account fixtures may reach offline paths; not a certified firewall.
+#if !KINFX_SIM_TEST
             if(typeof(Account).Assembly!=typeof(CopierEngine).Assembly)
             { BlockEntries();log("PUBLIC ALPHA SAFETY HOLD — Start blocked for ALL providers, including Sim / Playback. Trading DISABLED.");return; }
+#endif
 #if !KINFX_OFFLINE_FAKE
             BlockEntries();log("ALL-ACCOUNT SAFETY HOLD — Start blocked, including Simulator / Playback. UI preview only; provider acceptance unverified.");return;
 #else
+#if KINFX_SIM_TEST
+            // SIM TEST BUILD: a scope is accepted only if EVERY account is Simulator / Playback. Anything else (Live, null, empty) is refused here, before any state changes.
+            if(selected==null||selectedFollowers==null){ BlockEntries();log("SIM TEST: Start refused — missing leader or follower list.");return; }
+            var scopeCheck=selectedFollowers.ToArray();
+            if(scopeCheck.Any(x=>x==null||x.Item1==null||x.Item2==null||x.Item3==null)||!SimScope(scopeCheck.Select(x=>x.Item1).Concat(new[]{selected}))){ BlockEntries();log("SIM TEST: Start refused — every account must be Simulator / Playback. Live accounts are never accepted.");return; }
+#endif
             var list=selectedFollowers.Select(x=>Tuple.Create(x.Item1,x.Item2.Clone(),new RiskLatch{Locked=x.Item3.Locked,Reason=x.Item3.Reason})).ToArray();
             int request=Volatile.Read(ref controlGeneration);
             worker.Post(()=>
@@ -1055,12 +1077,18 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         }
         public void Flatten(Account[] targets,Instrument inst)
         {
-            // Unconditional external-Account hold, even with KINFX_OFFLINE_FAKE defined.
+            // Unconditional external-Account hold, even with KINFX_OFFLINE_FAKE defined. Only the explicit KINFX_SIM_TEST build lifts it, and then only for Simulator / Playback.
+#if !KINFX_SIM_TEST
             if(typeof(Account).Assembly!=typeof(CopierEngine).Assembly)
             { BlockEntries();log("PUBLIC ALPHA SAFETY HOLD — Flatten blocked for ALL providers, including Sim / Playback. Trading DISABLED.");return; }
+#endif
 #if !KINFX_OFFLINE_FAKE
             BlockEntries();log("ALL-ACCOUNT SAFETY HOLD — Flatten blocked for every account. No trading actions authorized.");return;
 #else
+#if KINFX_SIM_TEST
+            // SIM TEST BUILD: one Live / null / unknown-provider account refuses the WHOLE request; nothing is flattened, not even the Sim accounts in it.
+            if(!SimScope(targets)){ log("SIM TEST: Flatten refused — scope contains a non-Simulator/Playback or missing account. Nothing was sent."); return; }
+#endif
             BlockEntries();suppressNew=true; // block ALL new copies during the flatten request.
             bool flattenAccepted=worker.Post(()=>
             {
