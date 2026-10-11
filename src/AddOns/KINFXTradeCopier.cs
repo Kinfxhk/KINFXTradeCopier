@@ -1149,10 +1149,10 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 disposed=true;worker.Dispose();DisposeDispatchers();
             };
             if(worker.IsCurrentThread){close();return;}
-            var complete=new ManualResetEvent(false);
-            if(!worker.Post(()=>{try{close();}finally{complete.Set();}}))return;
+            var complete=new System.Threading.Tasks.TaskCompletionSource<bool>();
+            if(!worker.Post(()=>{try{close();}finally{complete.TrySetResult(true);}}))return;
             // A timeout never stops admission or discards accepted work; the queued decision still runs.
-            complete.WaitOne(3000);
+            complete.Task.Wait(3000);
         }
     }
     public sealed class AccountRow : INotifyPropertyChanged
