@@ -127,6 +127,40 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 && DivergenceChoice.IsValid(OnDivergence);
         }
     }
+    // The dialog owns this draft; no accepted row settings change until the whole form builds.
+    internal sealed class RiskSettingsDraft
+    {
+        RiskSettings current;
+        readonly Dictionary<string,string> invalid=new Dictionary<string,string>();
+        public RiskSettingsDraft(RiskSettings initial){current=initial.Clone();}
+        public RiskSettings Settings {get{return current.Clone();}}
+        public bool HasErrors {get{return invalid.Count!=0;}}
+        public bool IsInvalid(string name){return invalid.ContainsKey(name);}
+        public string Text(string name){string raw;return invalid.TryGetValue(name,out raw)?raw:SettingsStore.FieldText(typeof(RiskSettings).GetField(name).GetValue(current));}
+        public bool Set(string name,string text)
+        {
+            var field=typeof(RiskSettings).GetField(name);if(field==null)throw new ArgumentException("Unknown risk field");
+            try
+            {
+                var value=SettingsStore.FieldValue(text,field.FieldType);
+                var probe=new RiskSettings();field.SetValue(probe,value);
+                if(!probe.Valid())throw new ArgumentException("Invalid risk value");
+                var next=current.Clone();field.SetValue(next,value);
+                current=next;invalid.Remove(name);return true;
+            }
+            catch(FormatException){}catch(OverflowException){}catch(ArgumentException){}
+            invalid[name]=text??"";return false;
+        }
+        public void Load(RiskSettings preset){current=preset.Clone();} // Explicit template load keeps unresolved typed errors visible.
+        public RiskSettings Build(bool localTrail)
+        {
+            if(HasErrors)throw new ArgumentException("Correct the highlighted risk values before Apply.");
+            var next=current.Clone();next.LocalTrail=localTrail;next.BaselineSet=true;
+            if(!next.Valid())throw new ArgumentException("Every number must be finite; ratio / max quantity positive; monetary guards nonnegative.");
+            if(next.LocalTrail&&(next.HighWater<=0||next.TrailDistance<=0))throw new ArgumentException("Supply positive confirmed high-water and trail distance first.");
+            return next;
+        }
+    }
     public static class DivergenceChoice
     {
         public static bool IsValid(string value){return value=="Notify"||value=="FlattenOnce";}
@@ -156,14 +190,14 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
     public static class SettingsStore
     {
         static readonly object IoGate = new object();
-        static string FieldText(object value)
+        internal static string FieldText(object value)
         {
             if(!(value is double))return Convert.ToString(value,CultureInfo.InvariantCulture);
             double number=(double)value;
             // Framework's general format loses precision and its zero format loses the sign.
             return number==0&&BitConverter.DoubleToInt64Bits(number)<0?"-0":number.ToString("R",CultureInfo.InvariantCulture);
         }
-        static object FieldValue(string text,Type type)
+        internal static object FieldValue(string text,Type type)
         {
             if(type!=typeof(double))return Convert.ChangeType(text,type,CultureInfo.InvariantCulture);
             // Float permits invariant decimals/exponents, but never grouping commas (0,125 != 125).
@@ -1500,17 +1534,17 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         internal ComboBox FirmChoice {get{return firm;}}
         internal ComboBox PlanChoice {get{return plan;}}
         internal ComboBox SizeChoice {get{return size;}}
-        internal RiskSettings CurrentDraft {get{return current.Clone();}}
-        internal void LoadSelectedPreset() {var p=SelectedPreset();if(p==null)return;current=p.Apply(current,root,optional.IsChecked==true);LoadFields();}
+        internal RiskSettings CurrentDraft {get{return draft.Settings;}}
+        internal void LoadSelectedPreset() {var p=SelectedPreset();if(p==null)return;draft.Load(p.Apply(draft.Settings,root,optional.IsChecked==true));LoadFields();}
         readonly Dictionary<string,TextBox> boxes=new Dictionary<string,TextBox>();
         readonly CheckBox optional,trail;
         readonly ComboBox firm,plan,size;
         readonly TextBlock notes;
-        RiskSettings current;
+        readonly RiskSettingsDraft draft;
         readonly string root;
         public RiskSettingsDialog(RiskSettings initial,string instrumentRoot,int accountCount)
         {
-            current=initial.Clone();root=instrumentRoot;
+            draft=new RiskSettingsDraft(initial);root=instrumentRoot;
             Title="Risk settings — "+accountCount+" account(s)";Width=670;Height=840;WindowStartupLocation=WindowStartupLocation.CenterOwner;Background=DashboardView.Canvas;Foreground=DashboardView.Ink;
             var dock=new DockPanel {Margin=new Thickness(20)};Content=dock;
             var buttons=new StackPanel {Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,12,0,0)};DockPanel.SetDock(buttons,Dock.Bottom);dock.Children.Add(buttons);
@@ -1530,22 +1564,19 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             {
                 var row=new Grid {Margin=new Thickness(0,7,0,0)};row.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(260)});row.ColumnDefinitions.Add(new ColumnDefinition());
                 string label=field=="Target"?"Daily target (local observed P&L)":field=="Loss"?"Daily loss (positive amount)":field=="Floor"?"Confirmed absolute equity floor":field=="Baseline"?"P&L telemetry baseline (editable)":field=="HighWater"?"User / observed local high water":field=="MaxContracts"?"Max exact-instrument contracts":field;
-                row.Children.Add(new TextBlock {Text=label,VerticalAlignment=VerticalAlignment.Center,Foreground=DashboardView.Muted});var b=new TextBox {Padding=new Thickness(7,4,7,4),Background=DashboardView.Panel,Foreground=DashboardView.Ink,BorderBrush=DashboardView.Line};Grid.SetColumn(b,1);row.Children.Add(b);boxes[field]=b;panel.Children.Add(row);
+                row.Children.Add(new TextBlock {Text=label,VerticalAlignment=VerticalAlignment.Center,Foreground=DashboardView.Muted});var b=new TextBox {Padding=new Thickness(7,4,7,4),Background=DashboardView.Panel,Foreground=DashboardView.Ink,BorderBrush=DashboardView.Line};Grid.SetColumn(b,1);row.Children.Add(b);boxes[field]=b;b.TextChanged+=(sender,args)=>{draft.Set(field,b.Text);b.BorderBrush=draft.IsInvalid(field)?DashboardView.Bad:DashboardView.Line;b.ToolTip=draft.IsInvalid(field)?"Invalid value — retained until corrected; Apply is blocked.":null;};panel.Children.Add(row);
             }
-            trail=new CheckBox {Content="Enable LOCAL intraday high-water guard (not firm EOD calculation)",Foreground=DashboardView.Muted,Margin=new Thickness(0,12,0,6),IsChecked=current.LocalTrail};panel.Children.Add(trail);
+            trail=new CheckBox {Content="Enable LOCAL intraday high-water guard (not firm EOD calculation)",Foreground=DashboardView.Muted,Margin=new Thickness(0,12,0,6),IsChecked=draft.Settings.LocalTrail};panel.Children.Add(trail);
             panel.Children.Add(new TextBlock {Text="BestDay / TotalProfit are supplied history, used for consistency advisory only. To unlock a persisted latch use the separate confirmed reset while disarmed. Baseline is never automatically reset on restart.",Foreground=DashboardView.Muted,TextWrapping=TextWrapping.Wrap});LoadFields();
         }
         static ComboBox PresetCombo(double width) {return DashboardView.Combo(width);}
         Preset SelectedPreset() {return PresetCatalog.All.FirstOrDefault(p=>p.Firm==(string)firm.SelectedItem&&p.Plan==(string)plan.SelectedItem&&p.Size==(string)size.SelectedItem);}
-        void LoadFields() {foreach(var item in boxes){var field=typeof(RiskSettings).GetField(item.Key);item.Value.Text=Convert.ToString(field.GetValue(current),CultureInfo.InvariantCulture);}if(trail!=null)trail.IsChecked=current.LocalTrail;}
+        void LoadFields() {foreach(var item in boxes){item.Value.Text=draft.Text(item.Key);}if(trail!=null)trail.IsChecked=draft.Settings.LocalTrail;}
         void Apply()
         {
             try
             {
-                RiskSettings next=current.Clone();foreach(var item in boxes){var field=typeof(RiskSettings).GetField(item.Key);field.SetValue(next,Convert.ChangeType(item.Value.Text,field.FieldType,CultureInfo.InvariantCulture));}
-                next.LocalTrail=trail.IsChecked==true;next.BaselineSet=true;
-                if(!next.Valid())throw new ArgumentException("Every number must be finite; ratio / max quantity positive; monetary guards nonnegative.");
-                if(next.LocalTrail && (next.HighWater<=0 || next.TrailDistance<=0))throw new ArgumentException("Supply positive confirmed high-water and trail distance first.");
+                RiskSettings next=draft.Build(trail.IsChecked==true);
                 Result=next;DialogResult=true;
             }
             catch(Exception ex){MessageBox.Show(this,ex.Message,"Invalid settings",MessageBoxButton.OK,MessageBoxImage.Warning);}
