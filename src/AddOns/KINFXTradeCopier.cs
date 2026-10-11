@@ -1093,7 +1093,17 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 f.Flattening=false; Lock(f,"Manual flatten abandonment — entries locked; only explicit leader exits managed, no autonomous protection / provider guarantee");MaintainProtection(f);
             });
         }
-        public bool CanClose() { Account[] accounts=sessionAccounts;return !attached || (Volatile.Read(ref pendingFollowerCallbacks)==0&&Volatile.Read(ref providerCallsInFlight)==0&&!ledgerUnresolved&&instrument!=null && accounts.All(a=>Clean(a,instrument))); }
+        public bool CanClose()
+        {
+            if(!attached)return true;
+            int session=Volatile.Read(ref sessionGeneration);Account[] accounts=sessionAccounts;
+            if(Volatile.Read(ref pendingFollowerCallbacks)!=0||Volatile.Read(ref providerCallsInFlight)!=0||ledgerUnresolved||instrument==null)return false;
+            if(!accounts.All(a=>Clean(a,instrument)))return false;
+            // Provider collection reads can block while immutable callbacks are admitted or applied.
+            // The frontier checked BEFORE those reads cannot certify their eventual clean result.
+            return attached&&session==Volatile.Read(ref sessionGeneration)&&Volatile.Read(ref pendingFollowerCallbacks)==0
+                &&Volatile.Read(ref providerCallsInFlight)==0&&!ledgerUnresolved;
+        }
         public void Dispose() { if(disposed)return; BlockEntries(); if(!CanClose()){log("Close refused: owned executions / orders unresolved; callbacks and ownership retained. Resolve manually before closing.");return;} disposed=true; worker.Post(Detach);worker.Dispose();DisposeDispatchers(); }
     }
     public sealed class AccountRow : INotifyPropertyChanged
