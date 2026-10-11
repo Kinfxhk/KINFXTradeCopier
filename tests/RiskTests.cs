@@ -273,4 +273,9 @@ class RiskTests {
   Eq(AccountSyncAction.Notify,AccountSync.Decide(added,true,true));             // copying wins over editing
   Eq(AccountSyncAction.None,AccountSync.Decide(null,false,false));              // no diff -> nothing, never throws
  }
+ // KINFX_SIM_TEST build only (run by `offline.py puresim`).
+ static void SimTestDashboardCommandsOpenButNothingElse() {
+  foreach(string command in new[]{"start","flattenSelected","flattenAll","batch","refresh"})
+   if(!DashboardSafety.CanExecute(command))throw new Exception("SIM TEST build must allow "+command);
+ }
 }
