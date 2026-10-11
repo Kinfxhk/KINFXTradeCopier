@@ -23,8 +23,8 @@ namespace NinjaTrader.Cbi {
   public Order CreateOrder(Instrument i,OrderAction a,OrderType t,OrderEntry e,TimeInForce tif,int q,double l,double s,string oco,string n,DateTime g,object ignored){if(CreateEntered!=null){CreateEntered.Set();CreateRelease.WaitOne();}return new Order {Account=this,Instrument=i,OrderAction=a,OrderType=t,OrderEntry=e,TimeInForce=tif,Quantity=q,LimitPrice=l,StopPrice=s,Oco=oco,Name=n,Gtd=g};}
   public int SubmitAttempts;public ManualResetEvent ChangeEntered,ChangeRelease;public void Submit(Order[] orders){Interlocked.Increment(ref SubmitAttempts);if(SubmitEntered!=null){SubmitEntered.Set();SubmitRelease.WaitOne();}if(ThrowSubmit)throw new InvalidOperationException("Synthetic submit error");foreach(var o in orders){lock(Orders)Orders.Add(o);o.OrderState=OrderState.Working;Interlocked.Increment(ref Submits);Emit(o);}}
   // Synthetic unknown acceptance: mutate the provider wrapper, but withhold its callback or throw AFTER applying.
-  public bool SuppressChangeAck,ThrowChangeAfterApply;
-  public System.Collections.Generic.List<int> ChangeQuantities=new System.Collections.Generic.List<int>();public System.Collections.Generic.List<int> ChangePrices=new System.Collections.Generic.List<int>();public void Change(Order[] orders){if(ChangeEntered!=null){ChangeEntered.Set();ChangeRelease.WaitOne();}foreach(var o in orders){Thread.Sleep(1);lock(ChangePrices)ChangePrices.Add((int)o.LimitPriceChanged);lock(ChangeQuantities)ChangeQuantities.Add(o.QuantityChanged);o.Quantity=o.QuantityChanged;o.LimitPrice=o.LimitPriceChanged;o.StopPrice=o.StopPriceChanged;Interlocked.Increment(ref Changes);if(ThrowChangeAfterApply)throw new InvalidOperationException("Synthetic change accepted then threw");if(!SuppressChangeAck)Emit(o);}}
+  public bool SuppressChangeAck,ThrowChangeAfterApply;public int IgnoreChangeQuantity=-1;
+  public System.Collections.Generic.List<int> ChangeQuantities=new System.Collections.Generic.List<int>();public System.Collections.Generic.List<int> ChangePrices=new System.Collections.Generic.List<int>();public void Change(Order[] orders){if(ChangeEntered!=null){ChangeEntered.Set();ChangeRelease.WaitOne();}foreach(var o in orders){Thread.Sleep(1);lock(ChangePrices)ChangePrices.Add((int)o.LimitPriceChanged);lock(ChangeQuantities)ChangeQuantities.Add(o.QuantityChanged);if(o.QuantityChanged!=IgnoreChangeQuantity){o.Quantity=o.QuantityChanged;o.LimitPrice=o.LimitPriceChanged;o.StopPrice=o.StopPriceChanged;}Interlocked.Increment(ref Changes);if(ThrowChangeAfterApply)throw new InvalidOperationException("Synthetic change accepted then threw");if(!SuppressChangeAck)Emit(o);}}
   public void Cancel(Order[] orders){if(CancelEntered!=null){CancelEntered.Set();CancelRelease.WaitOne();}if(AsyncCancel){Interlocked.Add(ref Cancels,orders.Length);return;}if(ThrowCancel)throw new InvalidOperationException("Synthetic cancel error");foreach(var o in orders){o.OrderState=OrderState.Cancelled;Interlocked.Increment(ref Cancels);Emit(o);}}
   public void Flatten(Instrument[] inst){if(NoopFlatten){Interlocked.Increment(ref Flattens);return;}if(ThrowFlatten){if(FlattenWorkingBeforeThrow){var pending=CreateOrder(inst[0],OrderAction.Sell,OrderType.Market,OrderEntry.Manual,TimeInForce.Day,2,0,0,"","SyntheticPendingFlatten",DateTime.MaxValue,null);pending.OrderState=OrderState.Working;Orders.Add(pending);Emit(pending);}throw new InvalidOperationException("Synthetic flatten error");}Interlocked.Increment(ref Flattens);foreach(var o in Orders.ToArray())Cancel(new[]{o});lock(Positions)Positions.Clear();var fake=CreateOrder(inst[0],OrderAction.Sell,OrderType.Market,OrderEntry.Manual,TimeInForce.Day,1,0,0,"","SyntheticFlatten",DateTime.MaxValue,null);fake.OrderState=OrderState.Submitted;Emit(fake);}
   public void Emit(Order o){var h=OrderUpdate;if(h!=null)h(this,new OrderEventArgs {Order=o,OrderId=o.OrderId,OrderState=o.OrderState,Quantity=o.Quantity,Filled=o.Filled,LimitPrice=o.LimitPrice,StopPrice=o.StopPrice});}
@@ -419,6 +419,29 @@ class EngineSafetyTests {
     Check(link.ReservedQuantity==2&&a.Submits==3&&a.Orders[2].Quantity==2,"captured callback releases reserve and waiting protection converges");
    } else Check(link.ReservedQuantity==4,"unknown accepted-then-throw keeps conservative reservation");
   }
+ }
+ static void QueuedLargerChangeOldEqualAckRetainsCapacity() {
+  var l=Acc("queued leader");var a=Acc("queued follower");var e=Arm(l,a);
+  try {
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",4));Drain(e);Fill(a,4);Drain(e);
+   var stop=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"queued stop",2);l.Emit(stop);Drain(e);var exit=a.Orders[1];
+   a.SuppressChangeAck=true;a.IgnoreChangeQuantity=2;a.ChangeEntered=new ManualResetEvent(false);a.ChangeRelease=new ManualResetEvent(false);
+   stop.LimitPrice+=1;l.Emit(stop);Check(a.ChangeEntered.WaitOne(3000),"price-only Change holds dispatcher at quantity2");
+   stop.Quantity=4;l.Emit(stop);stop.Quantity=2;l.Emit(stop);
+   var worker=(SerialWorker)typeof(CopierEngine).GetField("worker",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(e);
+   Action pump=()=>{var done=new ManualResetEvent(false);Check(worker.Post(()=>done.Set()),"marker admitted");Check(done.WaitOne(3000),"marker processed");};pump();
+   var links=(Dictionary<string,List<CopyLink>>)typeof(CopierEngine).GetField("links",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(e);
+   var link=links.Values.SelectMany(v=>v).Single(x=>x.Order==exit);
+   Check(link.ChangesInFlight==3&&link.ReservedQuantity==4&&link.RequestedQuantity==2,"increase and reduction queued behind price Change");
+   Check(exit.Quantity==2&&exit.QuantityChanged==2,"neither mutable quantity reveals queued increase4");
+   a.Emit(exit);pump();bool retained=link.ReservedQuantity==4;
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"queued independent",2));pump();
+   a.ChangeRelease.Set();Drain(e);
+   Console.WriteLine("retained="+retained+" working="+a.Orders.Where(o=>o.OrderAction==NinjaTrader.Cbi.OrderAction.Sell).Sum(o=>o.Quantity-o.Filled));
+   Check(retained&&a.Submits==2,"old equal ACK cannot spend capacity reserved for queued larger Change");
+   a.IgnoreChangeQuantity=-1;a.SuppressChangeAck=false;exit.Quantity=2;a.Emit(exit);Drain(e);
+   Check(link.ReservedQuantity==2&&a.Submits==3,"consistent post-completion ACK releases waiting protection");
+  } finally {a.ChangeRelease?.Set();e.Dispose();}
  }
  static CopierEngine Arm(NinjaTrader.Cbi.Account l,NinjaTrader.Cbi.Account a,Action<AccountTelemetry> tele=null,Action<string,string> persist=null){var e=new CopierEngine(s=>{},tele??(t=>{}),(attached,s)=>{},persist??((n,r)=>{}));e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10,Target=100},new RiskLatch())});Wait(()=>e.EntriesArmed,"arm");return e;}
  static void Drain(CopierEngine e){var f=typeof(CopierEngine).GetField("worker",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic);var w=(SerialWorker)f.GetValue(e);Action pump=()=>{var done=new ManualResetEvent(false);w.Post(()=>done.Set());Check(done.WaitOne(3000),"drain");};
