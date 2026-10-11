@@ -2,7 +2,7 @@ using System;
 using NinjaTrader.NinjaScript.AddOns.Kinfx;
 class RiskTests {
  static int Main(string[] args) {
-  try { XmlDoubleRoundtripIsExact(); XmlDoubleRejectsGroupingCommas(); XmlBaselinePreservesSignedZeroAndIntent(); Console.WriteLine("PASS exact XML numeric persistence"); Eq(false,DashboardSafety.CanExecute("start")); Eq(false,DashboardSafety.CanExecute("flattenSelected")); Eq(false,DashboardSafety.CanExecute("flattenAll")); Eq(false,DashboardSafety.CanExecute("batch")); Eq(true,DashboardSafety.CanExecute("refresh")); BulkAmount(); Console.WriteLine("PASS bulk amount grammar"); SettingsWarnings(); Console.WriteLine("PASS settings warnings"); WorkerRetention(); Console.WriteLine("PASS worker retains accepted work and reports rejection"); DivergencePolicy(); Console.WriteLine("PASS divergence reaction setting"); Quantity(); Console.WriteLine("PASS quantity"); AccountSyncDiff(); Console.WriteLine("PASS account sync diff"); ContractRollQuarterly(); Console.WriteLine("PASS contract roll"); ContractInputNormalize(); Console.WriteLine("PASS contract input"); AccountSyncDecision(); Console.WriteLine("PASS account sync decision"); HeaderTextMatchesBuild(); Console.WriteLine("PASS header text matches build"); DefaultLeaderChoice(); Console.WriteLine("PASS default leader choice"); AllowFileLineParsing(); Console.WriteLine("PASS allow file line parsing"); RvDraftNeverPublishesNonFiniteOrOutOfRange(); Console.WriteLine("PASS RvDraftNeverPublishesNonFiniteOrOutOfRange"); RvDraftMinusZeroAndStrictFields(); Console.WriteLine("PASS RvDraftMinusZeroAndStrictFields"); RvDraftCultureIndependent(); Console.WriteLine("PASS RvDraftCultureIndependent"); RvDraftBuildAfterLoadWithInvalidRawStillRefuses(); Console.WriteLine("PASS RvDraftBuildAfterLoadWithInvalidRawStillRefuses"); RvDraftLoadedInvalidPresetCannotBuild(); Console.WriteLine("PASS RvDraftLoadedInvalidPresetCannotBuild"); Risk(); Console.WriteLine("PASS risk latch / exits / finite / DST"); Persistence(); Console.WriteLine("PASS XML atomic roundtrip"); Worker(); Console.WriteLine("PASS serial reentrancy + ownership"); Ledger(); Console.WriteLine("PASS lifecycle decisions / dedupe / reservation"); Presets(); Console.WriteLine("PASS sourced editable presets"); ChangePolicy(); Console.WriteLine("PASS locked reductions / partial exit totals"); DurableLock(); Console.WriteLine("PASS durable global latches / unlock recheck / advisory"); return 0; }
+  try { XmlDoubleRoundtripIsExact(); XmlDoubleRejectsGroupingCommas(); XmlBaselinePreservesSignedZeroAndIntent(); Console.WriteLine("PASS exact XML numeric persistence"); Eq(false,DashboardSafety.CanExecute("start")); Eq(false,DashboardSafety.CanExecute("flattenSelected")); Eq(false,DashboardSafety.CanExecute("flattenAll")); Eq(false,DashboardSafety.CanExecute("batch")); Eq(true,DashboardSafety.CanExecute("refresh")); BulkAmount(); Console.WriteLine("PASS bulk amount grammar"); SettingsWarnings(); Console.WriteLine("PASS settings warnings"); WorkerRetention(); Console.WriteLine("PASS worker retains accepted work and reports rejection"); DivergencePolicy(); Console.WriteLine("PASS divergence reaction setting"); Quantity(); Console.WriteLine("PASS quantity"); AccountSyncDiff(); Console.WriteLine("PASS account sync diff"); ContractRollQuarterly(); Console.WriteLine("PASS contract roll"); ContractInputNormalize(); Console.WriteLine("PASS contract input"); AccountSyncDecision(); Console.WriteLine("PASS account sync decision"); HeaderTextMatchesBuild(); Console.WriteLine("PASS header text matches build"); DefaultLeaderChoice(); Console.WriteLine("PASS default leader choice"); AllowFileLineParsing(); Console.WriteLine("PASS allow file line parsing"); StartSummaryListsLeaderRatioAndExpectedQuantity(); Console.WriteLine("PASS start summary"); RvDraftNeverPublishesNonFiniteOrOutOfRange(); Console.WriteLine("PASS RvDraftNeverPublishesNonFiniteOrOutOfRange"); RvDraftMinusZeroAndStrictFields(); Console.WriteLine("PASS RvDraftMinusZeroAndStrictFields"); RvDraftCultureIndependent(); Console.WriteLine("PASS RvDraftCultureIndependent"); RvDraftBuildAfterLoadWithInvalidRawStillRefuses(); Console.WriteLine("PASS RvDraftBuildAfterLoadWithInvalidRawStillRefuses"); RvDraftLoadedInvalidPresetCannotBuild(); Console.WriteLine("PASS RvDraftLoadedInvalidPresetCannotBuild"); Risk(); Console.WriteLine("PASS risk latch / exits / finite / DST"); Persistence(); Console.WriteLine("PASS XML atomic roundtrip"); Worker(); Console.WriteLine("PASS serial reentrancy + ownership"); Ledger(); Console.WriteLine("PASS lifecycle decisions / dedupe / reservation"); Presets(); Console.WriteLine("PASS sourced editable presets"); ChangePolicy(); Console.WriteLine("PASS locked reductions / partial exit totals"); DurableLock(); Console.WriteLine("PASS durable global latches / unlock recheck / advisory"); return 0; }
   catch(Exception ex) { Console.WriteLine("FAIL "+ex.Message); return 1; }
  }
  static void Eq(object want,object got) { if(want==null||got==null){ if(want!=got) throw new Exception("expected "+(want??"<null>")+" got "+(got??"<null>")); return; } if(!want.Equals(got)) throw new Exception("expected "+want+" got "+got); }
@@ -342,6 +342,24 @@ class RiskTests {
   Eq(false,DashboardChoices.ParseAllowLine("   ",out n,out a));
   Eq(false,DashboardChoices.ParseAllowLine(null,out n,out a));
   Eq(false,DashboardChoices.ParseAllowLine("= alias only",out n,out a));
+ }
+ static void StartSummaryListsLeaderRatioAndExpectedQuantity() {
+  var rows=new[]{
+   new StartSummaryRow{Name="Lucid 0059",Ratio=1},
+   new StartSummaryRow{Name="Tradeify 7695",Ratio=0.5},
+   new StartSummaryRow{Name="Sim102",Ratio=0.3}};
+  string s=DashboardChoices.StartSummary("Sim101","MES 12-26",2,rows,false);
+  Eq(true,s.Contains("Leader: Sim101"));
+  Eq(true,s.Contains("MES 12-26"));
+  Eq(true,s.Contains("Lucid 0059  ratio 1  → 2 lots when the leader trades 2"));
+  Eq(true,s.Contains("Tradeify 7695  ratio 0.5  → 1 lot when the leader trades 2"));
+  Eq(true,s.Contains("Sim102  ratio 0.3  → 0 lots when the leader trades 2 (would NOT copy)"));
+  Eq(false,s.Contains("DRY RUN"));
+  Eq(true,DashboardChoices.StartSummary("Sim101","MES 12-26",2,rows,true).StartsWith("*** DRY RUN"));
+  // never claims more than it knows
+  Eq(true,DashboardChoices.StartSummary("L","I",1,new StartSummaryRow[0],false).Contains("No followers"));
+  Eq(true,DashboardChoices.StartSummary(null,null,1,null,false).Contains("No followers"));
+  Eq(true,DashboardChoices.StartSummary("L","I",1,new[]{new StartSummaryRow{Name="X",Ratio=double.NaN}},false).Contains("ratio invalid"));
  }
  static void DefaultLeaderChoice() {
   Eq("Sim101",DashboardChoices.DefaultLeader(new[]{"Backtest","Sim101","Zed"}));
