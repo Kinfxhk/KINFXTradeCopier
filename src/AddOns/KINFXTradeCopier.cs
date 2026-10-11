@@ -156,11 +156,25 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
     public static class SettingsStore
     {
         static readonly object IoGate = new object();
+        static string FieldText(object value)
+        {
+            if(!(value is double))return Convert.ToString(value,CultureInfo.InvariantCulture);
+            double number=(double)value;
+            // Framework's general format loses precision and its zero format loses the sign.
+            return number==0&&BitConverter.DoubleToInt64Bits(number)<0?"-0":number.ToString("R",CultureInfo.InvariantCulture);
+        }
+        static object FieldValue(string text,Type type)
+        {
+            if(type!=typeof(double))return Convert.ChangeType(text,type,CultureInfo.InvariantCulture);
+            // Float permits invariant decimals/exponents, but never grouping commas (0,125 != 125).
+            double number=double.Parse(text,NumberStyles.Float,CultureInfo.InvariantCulture);
+            return number==0&&text.TrimStart().StartsWith("-",StringComparison.Ordinal)?BitConverter.Int64BitsToDouble(long.MinValue):number;
+        }
         public static XElement ToXml(IEnumerable<SavedAccount> rows, string instrument, string zone, int resetHour)
         {
             return new XElement("KINFX", new XAttribute("version",2), new XAttribute("instrument",instrument), new XAttribute("zone",zone), new XAttribute("resetHour",resetHour),
                 rows.Select(r => new XElement("Account", new XAttribute("name",r.Name), new XAttribute("locked",r.Latch.Locked),new XAttribute("reason",r.Latch.Reason ?? ""),
-                    typeof(RiskSettings).GetFields().Select(f => new XAttribute(f.Name, Convert.ToString(f.GetValue(r.Settings), CultureInfo.InvariantCulture))))));
+                    typeof(RiskSettings).GetFields().Select(f => new XAttribute(f.Name, FieldText(f.GetValue(r.Settings)))))));
         }
         public static List<SavedAccount> FromXml(XElement xml)
         {
@@ -171,7 +185,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 var r = new SavedAccount { Name=(string)e.Attribute("name") ?? "" };
                 foreach (var f in typeof(RiskSettings).GetFields())
                 {
-                    XAttribute a=e.Attribute(f.Name); if (a != null) f.SetValue(r.Settings, Convert.ChangeType(a.Value,f.FieldType,CultureInfo.InvariantCulture));
+                    XAttribute a=e.Attribute(f.Name); if (a != null) f.SetValue(r.Settings, FieldValue(a.Value,f.FieldType));
                 }
                 r.Latch.Locked=(bool?)e.Attribute("locked") ?? false; r.Latch.Reason=(string)e.Attribute("reason") ?? "Persisted lock";
                 if (!r.Settings.Valid()) throw new InvalidDataException("Invalid finite settings: " + r.Name);
@@ -1757,4 +1771,3 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public NTTabPage CreateTabPage(string typeName,bool isNew) {return new KINFXTradeCopierTab();}
     }
 }
-
