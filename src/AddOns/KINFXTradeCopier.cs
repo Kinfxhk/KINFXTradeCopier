@@ -504,8 +504,30 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         }
     }
     // Pure helpers shared by the dashboard and the offline tests. No Account, engine or UI access.
+    public sealed class StartSummaryRow { public string Name=""; public double Ratio=1; }
     public static class DashboardChoices
     {
+        // Text shown before Start: who leads, on what, and for each follower what the engine WILL do for a sample leader order.
+        // Uses RiskPolicy.Quantity, the same function the engine uses, so the preview cannot disagree with the behaviour.
+        public static string StartSummary(string leader,string instrument,int sampleLeaderQty,StartSummaryRow[] followers,bool dryRun)
+        {
+            var sb=new System.Text.StringBuilder();
+            if(dryRun)sb.Append("*** DRY RUN: nothing will be sent; decisions are only logged. ***\n\n");
+            sb.Append("Leader: ").Append(leader??"(none)").Append("   Instrument: ").Append(instrument??"(none)").Append("\n");
+            if(followers==null||followers.Length==0){sb.Append("No followers selected.");return sb.ToString();}
+            sb.Append(followers.Length).Append(followers.Length==1?" follower":" followers").Append(":\n");
+            foreach(var f in followers)
+            {
+                string name=f==null?"?":f.Name;
+                if(f==null||!RiskPolicy.Finite(f.Ratio)||f.Ratio<=0){sb.Append("  ").Append(name).Append("  ratio invalid — will NOT copy\n");continue;}
+                int q=RiskPolicy.Quantity(sampleLeaderQty,f.Ratio);
+                sb.Append("  ").Append(name).Append("  ratio ").Append(f.Ratio.ToString("R",System.Globalization.CultureInfo.InvariantCulture))
+                  .Append("  → ").Append(q).Append(q==1?" lot":" lots").Append(" when the leader trades ").Append(sampleLeaderQty);
+                if(q==0)sb.Append(" (would NOT copy)");
+                sb.Append("\n");
+            }
+            return sb.ToString().TrimEnd('\n');
+        }
         // Default Leader when nothing was chosen before: the stock Sim101 account if present, else the first listed. Never returns null for a non-empty list.
         public static string DefaultLeader(IEnumerable<string> names)
         {
@@ -1975,7 +1997,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             MergeLatches();foreach(var row in dashboard.Rows){SavedAccount stored;if(saved.TryGetValue(row.Name,out stored)&&stored.Latch.Locked)row.Latch=stored.Latch;}
             var selected=dashboard.Rows.Where(r=>r.Enabled&&r!=leader&&!r.Paused).ToArray();if(selected.Length==0){Log("Enable at least one unpaused follower.");return;}
             if(selected.Any(r=>!r.Settings.Valid()||r.Latch.Locked)){Log("Invalid finite settings or risk-latched follower. Review Settings / confirmed reset.");return;}
-            if(!Confirm(DryRunPrefix()+"Start simulation copying to exactly "+selected.Length+" follower account(s) on "+inst.FullName+"?\n"+string.Join("\n",selected.Select(r=>r.Name))+"\nLocal copier guards only. No adoption; all selected accounts must be flat / no working instrument orders."))return;
+            if(!Confirm("Start simulation copying to exactly "+selected.Length+" follower account(s) on "+inst.FullName+"?\n\n"+DashboardChoices.StartSummary(leader.Name,inst.FullName,2,selected.Select(r=>new StartSummaryRow{Name=string.IsNullOrEmpty(r.Settings.Alias)?r.Name:r.Settings.Alias+" ("+r.Name+")",Ratio=r.Settings.Ratio}).ToArray(),IsDryRun())+"\n\nLocal copier guards only. No adoption; all selected accounts must be flat / no working instrument orders."))return;
             // Explicit observed baseline initialization, persisted BEFORE subscriptions can arm.
             foreach(var r in selected)if(!r.Settings.BaselineSet){double raw=r.Account.Get(AccountItem.RealizedProfitLoss,r.Account.Denomination)+r.Account.Get(AccountItem.UnrealizedProfitLoss,r.Account.Denomination);if(!RiskPolicy.Finite(raw)){Log("Invalid baseline telemetry: "+r.Name);return;}r.Settings.Baseline=raw;r.Settings.BaselineSet=true;}
             Persist();if(settingsCorrupt)return;
@@ -2043,6 +2065,14 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             }
         }
         // Turns "mnq", "MNQZ6", "MNQ1226" into "MNQ 12-26". An explicit month is kept. Unknown text is left as typed and reported; Start still requires an exact instrument NinjaTrader knows.
+        bool IsDryRun()
+        {
+#if KINFX_SIM_TEST
+            return engine.DryRun||(dashboard.DryRunBox!=null&&dashboard.DryRunBox.IsChecked==true);
+#else
+            return false;
+#endif
+        }
         string DryRunPrefix()
         {
 #if KINFX_SIM_TEST
