@@ -648,6 +648,15 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         readonly object admissionGate=new object();
         bool mirrorAtm=true;
         public bool Attached { get { return attached; } }
+#if KINFX_SIM_TEST
+        // DRY RUN (SIM TEST build only): every provider call is decided and logged as "DRY RUN would ..." but never sent. Fixed for the whole session.
+        volatile bool dryRun;
+        public bool DryRun
+        {
+            get { return dryRun; }
+            set { if(attached)throw new InvalidOperationException("Dry run cannot be changed while a session is attached; stop flat first."); dryRun=value; }
+        }
+#endif
         public bool EntriesArmed { get { return entries; } }
         public int SessionGeneration {get{return Volatile.Read(ref sessionGeneration);}}
         public CopierEngine(Action<string> logger,Action<AccountTelemetry> onTelemetry,Action<bool,string> onState,Action<string,string> persistLatch)
@@ -862,7 +871,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                     if(s.State==OrderState.Cancelled || s.State==OrderState.Rejected)
                     {
                         link.Cancelled=true; link.Waiting=false;
-                        if(link.Order!=null && !Order.IsTerminalState(link.Order.OrderState)) { var cf=link.Follower; var co=link.Order; Dispatch(cf,()=>cf.Account.Cancel(new[]{co}),err=>{ if(err!=null)Lock(cf,"Manage error: "+err.Message); }); }
+                        if(link.Order!=null && !Order.IsTerminalState(link.Order.OrderState)) { var cf=link.Follower; var co=link.Order; Dispatch(cf,()=>cf.Account.Cancel(new[]{co}),err=>{ if(err!=null)Lock(cf,"Manage error: "+err.Message); },"Cancel "+co.OrderAction+" "+co.OrderType+" x"+co.Quantity); }
                         continue;
                     }
                     if(Alive(s.State))
@@ -979,7 +988,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         // Runs ONE provider call on the account's own thread. `done` runs on the ENGINE worker with null on success or the exception.
         // The call counts as in flight until `done` has run, so CanClose / Dispose refuse while any provider call is unresolved.
         // A refused post (engine stopping) never leaks the counter and is never reported as a successful send.
-        void Dispatch(EngineAccount f,Action call,Action<Exception> done)
+        void Dispatch(EngineAccount f,Action call,Action<Exception> done,string what=null)
         {
 #if KINFX_SIM_TEST
             var leaderAtQueue=leader;
@@ -994,6 +1003,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
 #if KINFX_SIM_TEST
                 // SIM TEST BUILD: provider is re-read when the call is actually sent, not only at Start. Fail closed: the call is NOT sent and the account is locked by the normal error path.
                 if(f.Account==null||!Sim(f.Account)||leaderAtQueue==null||!Sim(leaderAtQueue))throw new InvalidOperationException("SIM TEST: account is not Simulator / Playback at send time; call was NOT sent");
+                if(dryRun){ log("DRY RUN would send to "+f.Account.Name+": "+(what??"provider call")); finish(null); return; }
 #endif
                 call(); } catch(Exception ex) { err=ex; f.ProviderFaulted=true; } finish(err); }))
                 finish(new InvalidOperationException("provider dispatcher stopped; call was NOT sent"));
@@ -1023,9 +1033,13 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             }
             Dispatch(f,()=>{ if(!link.Exit&&f.ProviderFaulted)throw new InvalidOperationException("entry not sent: an earlier provider call for this account failed"); f.Account.Submit(new[]{order}); },err=>
             {
-                try { if(err==null)log("COPY "+f.Account.Name+" "+s.Action+" "+qty+" "+s.Type); else Lock(f,errPrefix+err.Message); }
+                try { if(err==null){
+#if KINFX_SIM_TEST
+                    if(!dryRun)
+#endif
+                    log("COPY "+f.Account.Name+" "+s.Action+" "+qty+" "+s.Type); } else Lock(f,errPrefix+err.Message); }
                 finally { lock(controlGate)link.SubmissionInFlight=false; RecomputeDisablePending(f); }
-            });
+            },"Submit "+s.Action+" "+qty+" "+s.Type+(s.Exit?" (exit)":" (entry)")+" on "+instrument.FullName);
         }
         void Change(CopyLink link,string errPrefix="Manage error: ")
         {
@@ -1059,7 +1073,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             if(positionBehindOwned&&link.Exit&&qty<effectiveQty)qty=effectiveQty; // freeze quantity, keep price updates
             if(qty<=filled)
             {
-                link.Cancelled=true; link.Waiting=false; Dispatch(f,()=>f.Account.Cancel(new[]{order}),err=>{ if(err!=null)Lock(f,errPrefix+err.Message); });
+                link.Cancelled=true; link.Waiting=false; Dispatch(f,()=>f.Account.Cancel(new[]{order}),err=>{ if(err!=null)Lock(f,errPrefix+err.Message); },"Cancel working order");
                 if(link.Exit&&p==0&&OwnedPosition(f)!=0)Lock(f,"Flat Position conflicts with owned executions — exits cancelled to prevent reversal; review protection");
                 return;
             }
@@ -1070,7 +1084,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             // Order object here and sending later would let a newer Change overwrite an older, still-queued one.
             double wantLimit=s.Limit,wantStop=s.Stop; int wantQty=qty;
             link.SentQty=wantQty; link.SentLimit=wantLimit; link.SentStop=wantStop; Interlocked.Increment(ref link.ChangesInFlight);link.PendingChangeQuantities.Add(wantQty);
-            Dispatch(f,()=>{ try { order.QuantityChanged=wantQty; order.LimitPriceChanged=wantLimit; order.StopPriceChanged=wantStop; f.Account.Change(new[]{order}); } finally { Interlocked.Decrement(ref link.ChangesInFlight); } },err=>{ link.PendingChangeQuantities.Remove(wantQty);if(err!=null)Lock(f,errPrefix+err.Message); });
+            Dispatch(f,()=>{ try { order.QuantityChanged=wantQty; order.LimitPriceChanged=wantLimit; order.StopPriceChanged=wantStop; f.Account.Change(new[]{order}); } finally { Interlocked.Decrement(ref link.ChangesInFlight); } },err=>{ link.PendingChangeQuantities.Remove(wantQty);if(err!=null)Lock(f,errPrefix+err.Message); },"Change protective order to qty "+wantQty);
         }
         void FollowerUpdate(object sender,OrderEventArgs e,int generation,string subscribedInstrument)
         {
@@ -1129,7 +1143,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                         foreach(var sibling in links.Values.SelectMany(v=>v).Where(x=>x.Follower==f&&x.Exit&&x!=link&&!string.IsNullOrEmpty(link.Oco)&&x.Oco==link.Oco).ToArray())
                         {
                             sibling.Cancelled=true; sibling.Waiting=false; sibling.OcoRetired=true;
-                            if(sibling.Order!=null&&!Order.IsTerminalState(sibling.Order.OrderState)) { var so=sibling.Order; Dispatch(f,()=>f.Account.Cancel(new[]{so}),err=>{ if(err!=null)Lock(f,"OCO cancellation unresolved: "+err.Message); }); }
+                            if(sibling.Order!=null&&!Order.IsTerminalState(sibling.Order.OrderState)) { var so=sibling.Order; Dispatch(f,()=>f.Account.Cancel(new[]{so}),err=>{ if(err!=null)Lock(f,"OCO cancellation unresolved: "+err.Message); },"Cancel OCO sibling"); }
                         }
                     }
                     if(link.Exit&&(eventState==OrderState.Cancelled||eventState==OrderState.Rejected))
@@ -1233,7 +1247,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             {
                 link.Cancelled=true; link.Waiting=false;
                 if(link.Order!=null&&!Order.IsTerminalState(link.ObservedState)&&!Order.IsTerminalState(link.Order.OrderState)&&!link.CancellationRequested)
-                    { link.CancellationRequested=true; var eo=link.Order; Dispatch(f,()=>f.Account.Cancel(new[]{eo}),err=>{ if(err!=null) { link.CancellationRequested=false; f.DisablePending=true; Lock(f,"Entry cancellation unresolved: "+err.Message); } }); }
+                    { link.CancellationRequested=true; var eo=link.Order; Dispatch(f,()=>f.Account.Cancel(new[]{eo}),err=>{ if(err!=null) { link.CancellationRequested=false; f.DisablePending=true; Lock(f,"Entry cancellation unresolved: "+err.Message); } },"Cancel entry (OFF)"); }
             }
             RecomputeDisablePending(f);
             } finally { f.Cancelling=false; }
@@ -1334,8 +1348,13 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                         log("FLATTEN FAILED "+target.Name+": "+ex.Message);
                     };
                     // A follower's Flatten goes through ITS dispatcher so it can never overtake a Submit/Change/Cancel already queued for the same account.
-                    if(tf!=null)Dispatch(tf,()=>target.Flatten(new[]{inst}),flattenDone);
-                    else { try { target.Flatten(new[]{inst}); flattenDone(null); } catch(Exception ex) { flattenDone(ex); } }
+                    if(tf!=null)Dispatch(tf,()=>target.Flatten(new[]{inst}),flattenDone,"Flatten "+inst.FullName);
+                    else {
+#if KINFX_SIM_TEST
+                        // No follower dispatcher for this account (the leader): the direct call must honour dry run too.
+                        if(dryRun){ log("DRY RUN would send to "+target.Name+": Flatten "+inst.FullName); flattenDone(null); continue; }
+#endif
+                        try { target.Flatten(new[]{inst}); flattenDone(null); } catch(Exception ex) { flattenDone(ex); } }
                 }
                 if(attached)suppressNew=false; // selected followers excluded; unflattened followers still need new protective exits.
                 if(!attached)SessionOwnership.Release(this);
@@ -1506,6 +1525,9 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         internal readonly Button StartButton;
         internal readonly TextBlock StatusText,SessionText,FollowCountText;
         internal readonly CheckBox ShowLive;
+#if KINFX_SIM_TEST
+        internal CheckBox DryRunBox;
+#endif
         internal Action<string> Command;
         internal Action<AccountRow,bool> PauseRow;
         internal Action<AccountRow> RowSettings;
@@ -1664,7 +1686,11 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             AccountGrid=GridTable();TickColumn(AccountGrid);AccountColumn(AccountGrid);Column(AccountGrid,"Alias","Alias",100,false,"Optional display alias");RatioColumn(AccountGrid);Column(AccountGrid,"Tgt","TargetText",78,false,"Independent daily local profit target · account CCY / 0 = off",null,true);Column(AccountGrid,"DLL","LossText",78,false,"Independent daily loss limit · positive amount / 0 = off",null,true);AtmColumn(AccountGrid);Column(AccountGrid,"Qty","Position",55,true,"Signed position · + long / − short",null,true);Column(AccountGrid,"P/L","Pnl",95,true,"Observed session P/L in account currency · baseline is not historical daily accounting","N2",true);Column(AccountGrid,"Bal","BalanceText",130,true,"CashValue in account currency; not NetLiquidation / net equity",null,true);((DataGridTextColumn)AccountGrid.Columns.Last()).ElementStyle.Setters.Add(new Setter(FrameworkElement.ToolTipProperty,new Binding("BalanceDetail")));((DataGridTextColumn)AccountGrid.Columns.Last()).ElementStyle.Setters.Add(new Setter(System.Windows.Automation.AutomationProperties.NameProperty,new Binding("BalanceDetail")));LightColumn(AccountGrid,"Conn","ConnLight","Connection");StateColumn(AccountGrid);OffColumn(AccountGrid);AccountGrid.FrozenColumnCount=2;ProportionalCopyColumns(AccountGrid);AddRow(copy,AccountGrid,1);Sections.Items.Add(new TabItem{Header="Copy",Content=copy});
             var risk=new Grid();risk.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});risk.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});risk.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});var tools=new WrapPanel{Margin=new Thickness(0,0,0,10)};
             var batch=Icon("\uE713",DashboardSafety.CanExecute("batch")?"Batch risk / presets":"Batch risk / presets · review hold","batch",()=>Send("batch"));batch.IsEnabled=DashboardSafety.CanExecute("batch");tools.Children.Add(batch);tools.Children.Add(Icon("\uE74E","Save settings","save",()=>Send("save")));tools.Children.Add(Icon("\uE787","Trading-day boundary / timezone","daySettings",()=>Send("daySettings")));tools.Children.Add(Icon("\uE769","Pause highlighted accounts","pauseSelected",()=>SetSelectedPause(true)));tools.Children.Add(Icon("\uE768","Resume highlighted accounts · latch unchanged / no auto-arm","resumeSelected",()=>SetSelectedPause(false)));var fs=Icon("\uE74D",DashboardSafety.CanExecute("flattenSelected")?"Flatten highlighted accounts (market-closes their positions)":"Flatten highlighted accounts · review hold","flattenSelected",()=>Send("flattenSelected"));fs.IsEnabled=DashboardSafety.CanExecute("flattenSelected");tools.Children.Add(fs);var fa=Icon("\uE7BA",DashboardSafety.CanExecute("flattenAll")?"Flatten ALL displayed accounts (market-closes every position shown)":"Flatten all displayed accounts · review hold","flattenAll",()=>Send("flattenAll"));fa.IsEnabled=DashboardSafety.CanExecute("flattenAll");tools.Children.Add(fa);
-            ShowLive=new CheckBox{Content="Live (RO)",Foreground=Muted,Margin=new Thickness(12,6,16,0),ToolTip="Display live accounts read-only · live copying blocked"};tools.Children.Add(ShowLive);var group=new CheckBox{Content="Grp",Foreground=Muted,Margin=new Thickness(0,6,0,0),ToolTip="Group account rows"};tools.Children.Add(group);AddRow(risk,tools,0);
+            ShowLive=new CheckBox{Content="Live (RO)",Foreground=Muted,Margin=new Thickness(12,6,16,0),ToolTip="Display live accounts read-only · live copying blocked"};tools.Children.Add(ShowLive);var group=new CheckBox{Content="Grp",Foreground=Muted,Margin=new Thickness(0,6,0,0),ToolTip="Group account rows"};tools.Children.Add(group);
+#if KINFX_SIM_TEST
+            DryRunBox=new CheckBox{Content="Dry run",Foreground=Warn,Margin=new Thickness(16,6,0,0),ToolTip="DRY RUN: decide and log every order, cancel and flatten as \"DRY RUN would send ...\" but send NOTHING. Fixed for the whole session: change it only while stopped."};tools.Children.Add(DryRunBox);
+#endif
+            AddRow(risk,tools,0);
             RiskGrid=GridTable();Column(RiskGrid,"Acct","Name",155,true,"Broker account");Column(RiskGrid,"Alias","Alias",115,false,"Display alias");Column(RiskGrid,"Grp","Group",90,false,"Account group");Column(RiskGrid,"Tgt","TargetText",85,false,"Daily local profit target · 0 = off",null,true);Column(RiskGrid,"DLL","LossText",85,false,"Daily loss limit · positive value / 0 = off",null,true);Column(RiskGrid,"Max","MaxText",60,false,"Maximum exact-instrument contracts",null,true);RatioColumn(RiskGrid);Column(RiskGrid,"P/L","Pnl",95,true,"Observed session P/L","N2",true);Column(RiskGrid,"CCY","Currency",55,true,"Account currency");Column(RiskGrid,"Tgt Δ","TargetRemaining",80,true,"Amount remaining to daily target",null,true);Column(RiskGrid,"DLL Δ","LossRemaining",80,true,"Loss headroom",null,true);Column(RiskGrid,"Qty","Position",50,true,"Signed position",null,true);Column(RiskGrid,"Conn","Connection",100,true,"Connection status");Column(RiskGrid,"St","Status",160,true,"Copier / risk state");Column(RiskGrid,"Preset","Preset",200,true,"Editable firm template");Column(RiskGrid,"Cons","ConsistencyAdvice",160,true,"Consistency advisory · not a broker guarantee");
             var action=new FrameworkElementFactory(typeof(Button));CompactCellButton(action,28);action.SetValue(Control.TemplateProperty,OffTemplate());action.SetValue(ContentControl.ContentProperty,"\uE713");action.SetValue(Control.FontFamilyProperty,new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"));action.SetValue(Control.BackgroundProperty,Panel);action.SetValue(Control.ForegroundProperty,Ink);action.SetValue(Control.BorderBrushProperty,Line);action.SetValue(Control.PaddingProperty,new Thickness(4,1,4,1));action.SetValue(FrameworkElement.ToolTipProperty,"Account risk / template / history");var gearStyle=new Style(typeof(Button));var gearLocked=new DataTrigger{Binding=new Binding("IsReadOnly"){RelativeSource=new RelativeSource(RelativeSourceMode.FindAncestor,typeof(DataGrid),1)},Value=true};gearLocked.Setters.Add(new Setter(UIElement.IsEnabledProperty,false));gearStyle.Triggers.Add(gearLocked);action.SetValue(FrameworkElement.StyleProperty,gearStyle);action.AddHandler(ButtonBase.ClickEvent,new RoutedEventHandler((s,e)=>{if(!editable){e.Handled=true;return;}var r=(s as FrameworkElement).DataContext as AccountRow;if(r!=null&&RowSettings!=null)RowSettings(r);}));RiskGrid.Columns.Add(new DataGridTemplateColumn{Header="⚙",Width=40,CellTemplate=new DataTemplate{VisualTree=action}});AddRow(risk,RiskGrid,1);
             AddRow(risk,new TextBlock{Text="OFF cancels owned entries, retains exits · Re-follow explicit / only when clean · ATM OFF may be unprotected · Local guards only",Foreground=Muted,FontSize=11,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,10,0,0)},2);Sections.Items.Add(new TabItem{Header="Risk",Content=risk});
@@ -1736,7 +1762,11 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public void UpdateCards(){if(summary==null)return;FollowCountText.Text="→  "+Rows.Count(r=>r.Enabled&&r.Role!="Leader")+" followers  ";var ccy=Rows.Select(r=>r.Currency).Where(s=>!string.IsNullOrEmpty(s)).Distinct().ToArray();summary.Text=Rows.Count(r=>r.Enabled&&r.Role!="Leader")+" TICKED  /  "+Rows.Count+" ACCTS     ·     P/L  "+(ccy.Length<=1?Rows.Sum(r=>RiskPolicy.Finite(r.Pnl)?r.Pnl:0).ToString("N2")+" "+ccy.FirstOrDefault():"Mixed CCY")+"";selection.Text=SelectedRows().Length+" sel / "+VisibleCount+" rows";if(adviceLine!=null)adviceLine.Text=AdviceText;if(lockedLine!=null)lockedLine.Text=LockedText;}
         internal bool TrySetSessionState(bool attached,string status,int callbackSession,int currentSession,bool currentAttached){if(callbackSession!=currentSession||attached!=currentAttached)return false;SetSessionState(attached,status);return true;}
         internal void SetSessionState(bool attached,string status){if(!attached)foreach(var row in Rows)row.InvalidateSessionActivity();SessionText.Text=DashboardSafety.CanExecute("start")?status:(attached?"REVIEW HOLD · unexpected attachment":"Disarmed");SessionText.ToolTip=status;Editable(!attached);UpdateCards();}
-        internal void Editable(bool canEdit){editable=canEdit;LeaderBox.IsEnabled=canEdit;InstrumentBox.IsEnabled=canEdit;ShowLive.IsEnabled=canEdit&&!demo;AccountGrid.IsReadOnly=!canEdit;RiskGrid.IsReadOnly=!canEdit;foreach(var b in editButtons)b.IsEnabled=canEdit;StartButton.IsEnabled=canEdit&&!demo&&DashboardSafety.CanExecute("start");}
+        internal void Editable(bool canEdit){editable=canEdit;LeaderBox.IsEnabled=canEdit;InstrumentBox.IsEnabled=canEdit;ShowLive.IsEnabled=canEdit&&!demo;AccountGrid.IsReadOnly=!canEdit;RiskGrid.IsReadOnly=!canEdit;foreach(var b in editButtons)b.IsEnabled=canEdit;
+#if KINFX_SIM_TEST
+            if(DryRunBox!=null)DryRunBox.IsEnabled=canEdit;
+#endif
+            StartButton.IsEnabled=canEdit&&!demo&&DashboardSafety.CanExecute("start");}
     }
     public class KINFXTradeCopier : AddOnBase
     {
@@ -1945,10 +1975,13 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             MergeLatches();foreach(var row in dashboard.Rows){SavedAccount stored;if(saved.TryGetValue(row.Name,out stored)&&stored.Latch.Locked)row.Latch=stored.Latch;}
             var selected=dashboard.Rows.Where(r=>r.Enabled&&r!=leader&&!r.Paused).ToArray();if(selected.Length==0){Log("Enable at least one unpaused follower.");return;}
             if(selected.Any(r=>!r.Settings.Valid()||r.Latch.Locked)){Log("Invalid finite settings or risk-latched follower. Review Settings / confirmed reset.");return;}
-            if(!Confirm("Start simulation copying to exactly "+selected.Length+" follower account(s) on "+inst.FullName+"?\n"+string.Join("\n",selected.Select(r=>r.Name))+"\nLocal copier guards only. No adoption; all selected accounts must be flat / no working instrument orders."))return;
+            if(!Confirm(DryRunPrefix()+"Start simulation copying to exactly "+selected.Length+" follower account(s) on "+inst.FullName+"?\n"+string.Join("\n",selected.Select(r=>r.Name))+"\nLocal copier guards only. No adoption; all selected accounts must be flat / no working instrument orders."))return;
             // Explicit observed baseline initialization, persisted BEFORE subscriptions can arm.
             foreach(var r in selected)if(!r.Settings.BaselineSet){double raw=r.Account.Get(AccountItem.RealizedProfitLoss,r.Account.Denomination)+r.Account.Get(AccountItem.UnrealizedProfitLoss,r.Account.Denomination);if(!RiskPolicy.Finite(raw)){Log("Invalid baseline telemetry: "+r.Name);return;}r.Settings.Baseline=raw;r.Settings.BaselineSet=true;}
             Persist();if(settingsCorrupt)return;
+#if KINFX_SIM_TEST
+            try{engine.DryRun=dashboard.DryRunBox!=null&&dashboard.DryRunBox.IsChecked==true;}catch(InvalidOperationException ex){Log("Start refused: "+ex.Message);return;}
+#endif
             engine.Start(leader.Account,inst,selected.Select(r=>Tuple.Create(r.Account,r.Settings.Clone(),new RiskLatch {Locked=r.Latch.Locked,Reason=r.Latch.Reason})));
         }
         void Follow(AccountRow row,bool following)
@@ -1987,7 +2020,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             if(rows.Length==0){Log("No accounts in flatten scope.");return;}var inst=Instrument.GetInstrument(InstrumentText(),false);if(inst==null){Log("Flatten: exact instrument unknown.");return;}
             var targets=rows.Where(r=>r.Account!=null).Select(r=>r.Account).Distinct().ToArray();
             if(targets.Any(a=>!CopierEngine.Sim(a))){Log("Flatten refused: live account in scope; v0.2 simulation only.");return;}
-            if(!Confirm("FLATTEN exactly "+targets.Length+" account(s), only "+inst.FullName+".\n"+string.Join("\n",targets.Select(a=>a.Name))+"\nNew copies will be blocked BEFORE flatten requests. This cancels working orders and closes positions on that instrument. Retry/error remains visible."))return;
+            if(!Confirm(DryRunPrefix()+"FLATTEN exactly "+targets.Length+" account(s), only "+inst.FullName+".\n"+string.Join("\n",targets.Select(a=>a.Name))+"\nNew copies will be blocked BEFORE flatten requests. This cancels working orders and closes positions on that instrument. Retry/error remains visible."))return;
             engine.Flatten(targets,inst);
         }
         void OnTelemetry(AccountTelemetry t)
@@ -2010,6 +2043,13 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             }
         }
         // Turns "mnq", "MNQZ6", "MNQ1226" into "MNQ 12-26". An explicit month is kept. Unknown text is left as typed and reported; Start still requires an exact instrument NinjaTrader knows.
+        string DryRunPrefix()
+        {
+#if KINFX_SIM_TEST
+            if(engine.DryRun||(dashboard.DryRunBox!=null&&dashboard.DryRunBox.IsChecked==true))return "*** DRY RUN: nothing will be sent; decisions are only logged. ***\n\n";
+#endif
+            return "";
+        }
         string InstrumentText(){var exact=ContractRoll.Normalize(dashboard.InstrumentBox.Text,DateTime.Now);return exact??dashboard.InstrumentBox.Text.Trim();}
         void NormalizeInstrumentBox()
         {

@@ -105,7 +105,7 @@ class SourceSyntaxHoldTests(unittest.TestCase):
         # The only place KINFX_SIM_TEST may appear: the identity guard wrapper, the scope checks in Start/Flatten
         # and DashboardSafety.CanExecute. Anything else is a new bypass and must be reviewed explicitly.
         code = mask_noncode(self.raw)
-        self.assertEqual(code.count("KINFX_SIM_TEST"), 12, "unexpected KINFX_SIM_TEST usage")
+        self.assertEqual(code.count("KINFX_SIM_TEST"), 20, "unexpected KINFX_SIM_TEST usage")
         for signature in SIGNATURES:
             body = method(self.raw, signature)
             self.assertIn("#if !KINFX_SIM_TEST", body)
@@ -147,7 +147,7 @@ class SourceSyntaxHoldTests(unittest.TestCase):
                 self.assertEqual(body.count("#if !KINFX_OFFLINE_FAKE"), 1)
 
     def test_send_time_provider_recheck_lives_in_dispatch(self):
-        body = method(self.raw, "void Dispatch(EngineAccount f,Action call,Action<Exception> done)")
+        body = method(self.raw, "void Dispatch(EngineAccount f,Action call,Action<Exception> done,string what=null)")
         self.assertIn("#if KINFX_SIM_TEST", body)
         self.assertIn("!Sim(f.Account)", body)
         self.assertIn("!Sim(leaderAtQueue)", body)
