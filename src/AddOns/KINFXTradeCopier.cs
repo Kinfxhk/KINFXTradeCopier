@@ -415,6 +415,83 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             new Preset("Take Profit Trader","Test","50K","$3,000","$2,000","—","EOD Trail","—","6"),
         };
     }
+    // Detects a changed account list. Pure: names only, no account / engine / dispatch access.
+    public sealed class AccountSyncResult { public bool Changed; public string[] Added=new string[0]; public string[] Removed=new string[0]; }
+    public enum AccountSyncAction { None, Reload, Notify, Defer }
+    public static class AccountSync
+    {
+        // Decision only (pure). Copying always wins: the table of a live session is never rebuilt, the user is only told.
+        // An in-progress edit is never discarded: the reload waits.
+        public static AccountSyncAction Decide(AccountSyncResult diff,bool attached,bool editing)
+        {
+            if(diff==null||!diff.Changed)return AccountSyncAction.None;
+            if(attached)return AccountSyncAction.Notify;
+            return editing?AccountSyncAction.Defer:AccountSyncAction.Reload;
+        }
+        static System.Collections.Generic.HashSet<string> Names(System.Collections.Generic.IEnumerable<string> x)
+        {
+            var set=new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal);
+            if(x!=null)foreach(var n in x)if(!string.IsNullOrEmpty(n))set.Add(n);   // NinjaTrader account names are case-sensitive
+            return set;
+        }
+        public static AccountSyncResult Diff(System.Collections.Generic.IEnumerable<string> current,System.Collections.Generic.IEnumerable<string> latest)
+        {
+            var a=Names(current);var b=Names(latest);
+            var added=b.Where(n=>!a.Contains(n)).OrderBy(n=>n,StringComparer.Ordinal).ToArray();
+            var removed=a.Where(n=>!b.Contains(n)).OrderBy(n=>n,StringComparer.Ordinal).ToArray();
+            return new AccountSyncResult{Changed=added.Length+removed.Length>0,Added=added,Removed=removed};
+        }
+    }
+    // Contract-name helper. A convenience only: Instrument.GetInstrument stays the final authority, and an explicit month is never silently rolled.
+    // Front() answers only for roots whose expiry cycle is quarterly (a safe default); metals / energy have no safe default, so the user types the month.
+    public static class ContractRoll
+    {
+        sealed class Spec { public int[] Months; public bool SafeFront; }
+        static readonly int[] Quarterly=new[]{3,6,9,12};
+        static readonly System.Collections.Generic.Dictionary<string,Spec> Roots=BuildRoots();
+        static System.Collections.Generic.Dictionary<string,Spec> BuildRoots()
+        {
+            var d=new System.Collections.Generic.Dictionary<string,Spec>(StringComparer.Ordinal);
+            foreach(var r in new[]{"ES","MES","NQ","MNQ","YM","MYM","RTY","M2K"})d[r]=new Spec{Months=Quarterly,SafeFront=true};
+            foreach(var r in new[]{"GC","MGC"})d[r]=new Spec{Months=new[]{2,4,6,8,10,12},SafeFront=false};
+            foreach(var r in new[]{"CL","MCL"})d[r]=new Spec{Months=new[]{1,2,3,4,5,6,7,8,9,10,11,12},SafeFront=false};
+            return d;
+        }
+        const string Codes="FGHJKMNQUVXZ";
+        static string Format(string root,int month,int year){return root+" "+month.ToString("00",CultureInfo.InvariantCulture)+"-"+(year%100).ToString("00",CultureInfo.InvariantCulture);}
+        static string Clean(string s){return string.IsNullOrWhiteSpace(s)?"":s.Trim().ToUpperInvariant();}
+        public static string Front(string root,DateTime now)
+        {
+            Spec spec;var r=Clean(root);
+            if(r.Length==0||!Roots.TryGetValue(r,out spec)||!spec.SafeFront)return null;
+            var start=new DateTime(now.Year,now.Month,1);
+            for(int add=0;add<=24;add++){var d=start.AddMonths(add);if(spec.Months.Contains(d.Month))return Format(r,d.Month,d.Year);}
+            return null;
+        }
+        static string Explicit(string root,int month,int year)
+        {
+            Spec spec;
+            if(!Roots.TryGetValue(root,out spec)||month<1||month>12||!spec.Months.Contains(month)||year<2000||year>2099)return null;
+            return Format(root,month,year);
+        }
+        public static string Normalize(string text,DateTime now)
+        {
+            var t=Clean(text);
+            if(t.Length==0)return null;
+            if(Roots.ContainsKey(t))return Front(t,now);
+            var rx=System.Text.RegularExpressions.Regex.Match(t,@"^([A-Z0-9]+) (\d{2})-(\d{2})$");
+            if(!rx.Success)rx=System.Text.RegularExpressions.Regex.Match(t,@"^([A-Z0-9]+?)(\d{2})(\d{2})$");
+            if(rx.Success)return Explicit(rx.Groups[1].Value,int.Parse(rx.Groups[2].Value,CultureInfo.InvariantCulture),2000+int.Parse(rx.Groups[3].Value,CultureInfo.InvariantCulture));
+            var code=System.Text.RegularExpressions.Regex.Match(t,@"^([A-Z0-9]+?)([FGHJKMNQUVXZ])(\d)$");
+            if(code.Success)
+            {
+                int year=(now.Year/10)*10+int.Parse(code.Groups[3].Value,CultureInfo.InvariantCulture);
+                if(year<now.Year)year+=10;
+                return Explicit(code.Groups[1].Value,Codes.IndexOf(code.Groups[2].Value[0])+1,year);
+            }
+            return null;
+        }
+    }
 // END KINFX PURE
     internal sealed class AccountTelemetry
     {
@@ -1645,7 +1722,9 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             dashboard.Command=Command;dashboard.BulkNotice=Log;dashboard.PauseRow=Pause;dashboard.RowSettings=r=>Edit(new[]{r});dashboard.FollowRow=Follow;
             dashboard.LeaderBox.SelectionChanged+=(s,e)=>{if(engine.Attached)return;leaderName=dashboard.LeaderBox.SelectedItem as string ?? "";foreach(var row in dashboard.Rows){row.Role=row.Name==leaderName?"Leader":"Follower";if(row.Role=="Leader")row.Enabled=false;row.Changed();}};
             dashboard.AccountGrid.RowEditEnding+=(s,e)=>Dispatch(()=>{foreach(var row in dashboard.Rows){row.Changed();}dashboard.UpdateCards();});
-            LoadDefault();Refresh();
+            dashboard.InstrumentBox.LostKeyboardFocus+=(s,e)=>NormalizeInstrumentBox();
+            dashboard.InstrumentBox.KeyDown+=(s,e)=>{if(e.Key==System.Windows.Input.Key.Enter){NormalizeInstrumentBox();e.Handled=true;}};
+            LoadDefault();Refresh();syncNames=CurrentAccountNames();
             timer=new DispatcherTimer(TimeSpan.FromSeconds(1),DispatcherPriority.Background,(s,e)=>Tick(),Dispatcher);timer.Start();
         }
         void Dispatch(Action action) {if(!cleaned)Dispatcher.BeginInvoke(action);}
@@ -1748,7 +1827,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             if(settingsCorrupt){Log("Start blocked: settings persistence error. Review / reset while disarmed.");return;}
             var leader=dashboard.Rows.FirstOrDefault(r=>r.Name==(string)dashboard.LeaderBox.SelectedItem);
             if(leader==null){Log("Choose a simulation leader.");return;}
-            var inst=Instrument.GetInstrument(dashboard.InstrumentBox.Text.Trim(),false);if(inst==null){Log("Unknown exact instrument.");return;}
+            var inst=Instrument.GetInstrument(InstrumentText(),false);if(inst==null){Log("Unknown exact instrument.");return;}
             MergeLatches();foreach(var row in dashboard.Rows){SavedAccount stored;if(saved.TryGetValue(row.Name,out stored)&&stored.Latch.Locked)row.Latch=stored.Latch;}
             var selected=dashboard.Rows.Where(r=>r.Enabled&&r!=leader&&!r.Paused).ToArray();if(selected.Length==0){Log("Enable at least one unpaused follower.");return;}
             if(selected.Any(r=>!r.Settings.Valid()||r.Latch.Locked)){Log("Invalid finite settings or risk-latched follower. Review Settings / confirmed reset.");return;}
@@ -1781,7 +1860,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         {
             try
             {
-                var a=row.Account;var inst=Instrument.GetInstrument(dashboard.InstrumentBox.Text.Trim(),false);
+                var a=row.Account;var inst=Instrument.GetInstrument(InstrumentText(),false);
                 if(inst==null||!CopierEngine.Clean(a,inst))throw new InvalidOperationException("Unlock requires selected instrument flat / no working orders.");
                 double raw=a.Get(AccountItem.RealizedProfitLoss,a.Denomination)+a.Get(AccountItem.UnrealizedProfitLoss,a.Denomination),equity=a.Get(AccountItem.NetLiquidation,a.Denomination);
                 if(!RiskPolicy.CanUnlock(row.Settings,raw-row.Settings.Baseline,equity,a.Connection!=null&&a.Connection.Status==ConnectionStatus.Connected))throw new InvalidOperationException("Current telemetry / floor / local high-water still blocks unlock.");
@@ -1791,7 +1870,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         }
         void Flatten(AccountRow[] rows)
         {
-            if(rows.Length==0){Log("No accounts in flatten scope.");return;}var inst=Instrument.GetInstrument(dashboard.InstrumentBox.Text.Trim(),false);if(inst==null){Log("Flatten: exact instrument unknown.");return;}
+            if(rows.Length==0){Log("No accounts in flatten scope.");return;}var inst=Instrument.GetInstrument(InstrumentText(),false);if(inst==null){Log("Flatten: exact instrument unknown.");return;}
             var targets=rows.Where(r=>r.Account!=null).Select(r=>r.Account).Distinct().ToArray();
             if(targets.Any(a=>!CopierEngine.Sim(a))){Log("Flatten refused: live account in scope; v0.2 simulation only.");return;}
             if(!Confirm("FLATTEN exactly "+targets.Length+" account(s), only "+inst.FullName+".\n"+string.Join("\n",targets.Select(a=>a.Name))+"\nNew copies will be blocked BEFORE flatten requests. This cancels working orders and closes positions on that instrument. Retry/error remains visible."))return;
@@ -1816,8 +1895,42 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 row.CashBalance=cash;row.Changed();
             }
         }
+        // Turns "mnq", "MNQZ6", "MNQ1226" into "MNQ 12-26". An explicit month is kept. Unknown text is left as typed and reported; Start still requires an exact instrument NinjaTrader knows.
+        string InstrumentText(){var exact=ContractRoll.Normalize(dashboard.InstrumentBox.Text,DateTime.Now);return exact??dashboard.InstrumentBox.Text.Trim();}
+        void NormalizeInstrumentBox()
+        {
+            if(engine.Attached)return;
+            string typed=dashboard.InstrumentBox.Text;
+            string exact=ContractRoll.Normalize(typed,DateTime.Now);
+            if(exact==null){if(!string.IsNullOrWhiteSpace(typed)&&Instrument.GetInstrument(typed.Trim(),false)==null)Log("Instrument \""+typed.Trim()+"\" not recognised. Examples: MNQ, ES 12-26, NQZ6.");return;}
+            if(exact!=typed.Trim()){dashboard.InstrumentBox.Text=exact;}
+            if(Instrument.GetInstrument(exact,false)==null)Log("Instrument "+exact+" is not available in this NinjaTrader (check the contract month / Instrument Manager).");
+        }
+        string[] syncNames=new string[0];string syncNoticeKey="";
+        // Names of the accounts the dashboard WOULD list right now (same filter as Refresh). Read-only: touches no account state.
+        string[] CurrentAccountNames()
+        {
+            Account[] accounts;lock(Account.All)accounts=Account.All.Where(a=>dashboard.ShowLive.IsChecked==true||CopierEngine.Sim(a)).ToArray();
+            return accounts.Select(a=>a.Name).ToArray();
+        }
+        bool EditingNow()
+        {
+            if(dashboard.AccountGrid.IsKeyboardFocusWithin&&!dashboard.AccountGrid.IsReadOnly&&System.Windows.Input.Keyboard.FocusedElement is TextBox)return true;
+            if(dashboard.RiskGrid.IsKeyboardFocusWithin&&!dashboard.RiskGrid.IsReadOnly&&System.Windows.Input.Keyboard.FocusedElement is TextBox)return true;
+            return false;
+        }
+        void SyncAccounts()
+        {
+            var diff=AccountSync.Diff(syncNames,CurrentAccountNames());
+            var action=AccountSync.Decide(diff,engine.Attached,EditingNow());
+            if(action==AccountSyncAction.None){syncNoticeKey="";return;}
+            string key=string.Join(",",diff.Added)+"|"+string.Join(",",diff.Removed);
+            if(action==AccountSyncAction.Reload){Refresh();syncNames=CurrentAccountNames();syncNoticeKey="";Log("Account list updated: "+(diff.Added.Length>0?"+"+string.Join(", +",diff.Added)+" ":"")+(diff.Removed.Length>0?"-"+string.Join(", -",diff.Removed):"").Trim());return;}
+            if(syncNoticeKey!=key){syncNoticeKey=key;Log(action==AccountSyncAction.Notify?"Account list changed ("+(diff.Added.Length>0?"+"+string.Join(", +",diff.Added)+" ":"")+(diff.Removed.Length>0?"-"+string.Join(", -",diff.Removed):"").Trim()+") — not applied while copying. Stop when flat, then the list refreshes.":"Account list changed — will refresh when you finish editing.");}
+        }
         void Tick()
         {
+            try{SyncAccounts();}catch(Exception ex){Log("Account sync error: "+ex.Message);}
             if(engine.Attached)engine.Poll();
             PollCashBalances(dashboard.Rows,
                 r=>r.Account!=null&&CopierEngine.Sim(r.Account),
