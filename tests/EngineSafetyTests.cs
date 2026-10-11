@@ -420,6 +420,26 @@ class EngineSafetyTests {
    } else Check(link.ReservedQuantity==4,"unknown accepted-then-throw keeps conservative reservation");
   }
  }
+ static void DisposeRechecksEvidenceQueuedAfterCallerCheck() {
+  var l=Acc("dispose commit leader");var a=Acc("dispose commit follower");var e=Arm(l,a);
+  var entered=new ManualResetEvent(false);var release=new ManualResetEvent(false);var finished=new ManualResetEvent(false);
+  try {
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Drain(e);var entry=a.Orders[0];entry.OrderState=NinjaTrader.Cbi.OrderState.Cancelled;a.Emit(entry);Drain(e);
+   Check(e.CanClose(),"clean before caller Dispose check");
+   var worker=(SerialWorker)typeof(CopierEngine).GetField("worker",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(e);
+   Check(worker.Post(()=>{entered.Set();release.WaitOne(5000);}),"worker barrier");Check(entered.WaitOne(3000),"worker blocked");
+   var closer=new Thread(()=>{e.Dispose();finished.Set();});closer.Start();
+   var queue=(Queue<Action>)typeof(SerialWorker).GetField("queue",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(worker);
+   var gate=typeof(SerialWorker).GetField("gate",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(worker);
+   Wait(()=>{lock(gate)return queue.Count>0;},"Dispose continuation queued after caller check");
+   // Even a callback refused by an already-stopped mailbox must invalidate closure, not erase ownership.
+   entry.Filled=2;a.Emit(entry);release.Set();Check(finished.WaitOne(4000),"Dispose returns");Thread.Sleep(50);
+   Check(e.Attached&&!e.EntriesArmed&&!e.CanClose(),"late positive evidence retains session and ownership");
+   Check(worker.Post(()=>{}),"refused close keeps mailbox admission alive");
+   Drain(e);var links=(Dictionary<string,List<CopyLink>>)typeof(CopierEngine).GetField("links",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(e);
+   Check(links.Values.SelectMany(v=>v).Single(x=>x.Order==entry).ObservedFilled==2,"accepted late fill applied");
+  } finally {release.Set();e.Dispose();}
+ }
  static CopierEngine Arm(NinjaTrader.Cbi.Account l,NinjaTrader.Cbi.Account a,Action<AccountTelemetry> tele=null,Action<string,string> persist=null){var e=new CopierEngine(s=>{},tele??(t=>{}),(attached,s)=>{},persist??((n,r)=>{}));e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10,Target=100},new RiskLatch())});Wait(()=>e.EntriesArmed,"arm");return e;}
  static void Drain(CopierEngine e){var f=typeof(CopierEngine).GetField("worker",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic);var w=(SerialWorker)f.GetValue(e);Action pump=()=>{var done=new ManualResetEvent(false);w.Post(()=>done.Set());Check(done.WaitOne(3000),"drain");};
   // Provider calls run on per-account threads and complete back on the engine worker: settle both.
