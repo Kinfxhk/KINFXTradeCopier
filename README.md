@@ -77,6 +77,7 @@ These portable checks test packaging/holds and a separate SPEC; they do **not** 
 ## Read before testing
 
 - [Test matrix: untested vs failed vs scoped evidence](docs/TEST-MATRIX.md)
+- [**Offline status: done vs needs a real environment**](docs/OFFLINE-STATUS.md)
 - [Known issues](docs/KNOWN-ISSUES.md)
 - [**Do NOT do these things** (actions the software cannot recover from)](docs/DO-NOT-DO.md)
 - [Safety hold](docs/SAFETY-HOLD.md)
