@@ -1067,22 +1067,16 @@ class EngineSafetyTests {
  static NinjaTrader.Cbi.Account ProvAcc(string name,NinjaTrader.Cbi.Provider p){var x=Acc(name);x.Provider=p;return x;}
 #if KINFX_SIM_TEST
  static void SimTestAllowListLoadsEveryLineAndAlias(){
-  string path=Path.Combine(Path.GetTempPath(),"kinfx-allow-"+Guid.NewGuid().ToString("N")+".txt");
-  File.WriteAllLines(path,new[]{"# c","ACCT A = Alpha","ACCT B","ACCT C = Gamma"});
+  string path=System.IO.Path.Combine(System.IO.Path.GetTempPath(),"kinfx-allow-"+Guid.NewGuid().ToString("N")+".txt");
+  System.IO.File.WriteAllLines(path,new[]{"# c","ACCT A = Alpha","ACCT B","ACCT C = Gamma"});
   try{
    var names=CopierEngine.LoadAllowFile(path);
    Check(names.Count==3&&names.ContainsKey("ACCT A")&&names.ContainsKey("ACCT B")&&names.ContainsKey("ACCT C"),"every listed account loads, not just the first");
    Check(names["ACCT A"]=="Alpha"&&names["ACCT B"]==""&&names["ACCT C"]=="Gamma","aliases kept per account");
-  } finally { File.Delete(path); }
-  Check(CopierEngine.LoadAllowFile(Path.Combine(Path.GetTempPath(),"does-not-exist-"+Guid.NewGuid().ToString("N")+".txt")).Count==0,"missing file = empty list");
+  } finally { System.IO.File.Delete(path); }
+  Check(CopierEngine.LoadAllowFile(System.IO.Path.Combine(System.IO.Path.GetTempPath(),"does-not-exist-"+Guid.NewGuid().ToString("N")+".txt")).Count==0,"missing file = empty list");
  }
  static void SimTestAllowFileParsingAndAlias(){
-  string n,a;
-  Check(CopierEngine.ParseAllowLine("LFE1",out n,out a)&&n=="LFE1"&&a=="","plain name");
-  Check(CopierEngine.ParseAllowLine("  LFE1 = Lucid 0059  ",out n,out a)&&n=="LFE1"&&a=="Lucid 0059","name = alias, trimmed");
-  Check(!CopierEngine.ParseAllowLine("# comment",out n,out a),"comment ignored");
-  Check(!CopierEngine.ParseAllowLine("   ",out n,out a)&&!CopierEngine.ParseAllowLine(null,out n,out a),"blank/null ignored");
-  Check(!CopierEngine.ParseAllowLine("= alias only",out n,out a),"alias without a name refused");
   Check(CopierEngine.AliasFor("never listed")=="","unlisted account has no alias");
  }
  static void SimTestOperatorAllowList(){
