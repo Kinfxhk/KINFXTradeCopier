@@ -334,6 +334,46 @@ class EngineSafetyTests {
    Check((int)pending.GetValue(e)==0,"accepted callbacks finish their pending counters");
   } finally {cleanRelease.Set();workerRelease.Set();l.OrdersReadHook=null;if(closer!=null)closer.Join(6000);e.Dispose();}
  }
+ // Issue #4: supported shutdown paths cannot detach while provider completion is unresolved.
+ static void UnresolvedSubmitRefusesStopAndDispose() {
+  var l=Acc("completion lead");var a=Acc("completion follower");
+  a.SubmitEntered=new ManualResetEvent(false);a.SubmitRelease=new ManualResetEvent(false);
+  var e=Arm(l,a);int session=e.SessionGeneration;
+  try {
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));
+   Check(a.SubmitEntered.WaitOne(3000),"provider submit entered");
+   e.StopFlat();e.Dispose();
+   var worker=(SerialWorker)typeof(CopierEngine).GetField("worker",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(e);
+   var stopped=new ManualResetEvent(false);
+   Check(worker.Post(()=>stopped.Set()),"refused Dispose retains mailbox");Check(stopped.WaitOne(3000),"Stop processed");
+   Check(e.Attached&&e.SessionGeneration==session&&!e.EntriesArmed,"unresolved call retains the disarmed session");
+   Check(e.ProviderCallsInFlight==1&&!e.CanClose(),"provider completion still owns its in-flight count");
+   a.SubmitRelease.Set();Drain(e);
+   Check(e.ProviderCallsInFlight==0&&a.Submits==1,"accepted submit completes exactly once");
+   Check(e.Attached&&!e.CanClose(),"working order evidence still prevents detach after completion");
+   a.Orders[0].OrderState=NinjaTrader.Cbi.OrderState.Cancelled;a.Emit(a.Orders[0]);Drain(e);
+   e.StopFlat();Drain(e);Check(!e.Attached,"terminal acknowledgement permits stop");
+  } finally {a.SubmitRelease.Set();e.Dispose();}
+ }
+ // Retain an actual subscribed follower delegate, then invoke it after a supported clean restart.
+ // This is a late callback test, not a claim that forced detach during a provider call is supported.
+ static void DetachedFollowerCallbackCannotMutateRestart() {
+  var l=Acc("late callback lead");var a=Acc("late callback follower");int locks=0;
+  var e=Arm(l,a,null,(n,r)=>Interlocked.Increment(ref locks));
+  try {
+   var stale=(EventHandler<NinjaTrader.Cbi.OrderEventArgs>)typeof(NinjaTrader.Cbi.Account).GetField("OrderUpdate",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(a);
+   int oldSession=e.SessionGeneration;e.StopFlat();Drain(e);Check(!e.Attached,"clean stop");
+   e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10},new RiskLatch())});Drain(e);
+   Check(e.EntriesArmed&&e.SessionGeneration!=oldSession,"new session armed");
+   var late=LeaderOrder(a,NinjaTrader.Cbi.OrderAction.Buy);late.Filled=2;late.OrderState=NinjaTrader.Cbi.OrderState.Filled;
+   stale(a,new NinjaTrader.Cbi.OrderEventArgs{Order=late,OrderState=late.OrderState,Quantity=2,Filled=2});Drain(e);
+   Check(locks==0&&e.CanClose()&&e.ProviderCallsInFlight==0,"old callback cannot lock or dirty the new session");
+   Check(a.Submits==0&&a.Cancels==0&&a.Flattens==0,"old callback cannot issue commands");
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Drain(e);Check(a.Submits==1,"current leader callback still copies");
+   // Positive control: the current follower delegate must still reject unknown activity.
+   a.Emit(late);Drain(e);Check(locks==1&&!e.CanClose(),"current unknown follower callback still locks");
+  } finally {e.Dispose();}
+ }
  static CopierEngine Arm(NinjaTrader.Cbi.Account l,NinjaTrader.Cbi.Account a,Action<AccountTelemetry> tele=null,Action<string,string> persist=null){var e=new CopierEngine(s=>{},tele??(t=>{}),(attached,s)=>{},persist??((n,r)=>{}));e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10,Target=100},new RiskLatch())});Wait(()=>e.EntriesArmed,"arm");return e;}
  static void Drain(CopierEngine e){var f=typeof(CopierEngine).GetField("worker",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic);var w=(SerialWorker)f.GetValue(e);Action pump=()=>{var done=new ManualResetEvent(false);w.Post(()=>done.Set());Check(done.WaitOne(3000),"drain");};
   // Provider calls run on per-account threads and complete back on the engine worker: settle both.
