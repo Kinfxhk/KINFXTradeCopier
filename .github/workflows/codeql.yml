@@ -1,0 +1,29 @@
+name: CodeQL (static analysis only, not engine acceptance)
+# C# source scan without a build: the AddOn needs NinjaTrader assemblies that a hosted runner does not have, so this
+# CANNOT compile or run the engine tests. Those run in a Windows machine with NinjaTrader installed (docs/BUILD.md).
+on:
+  push:
+    branches: [main, release-candidate]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '23 7 * * 1'
+  workflow_dispatch:
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+jobs:
+  analyze:
+    name: Analyze (csharp, build-mode none)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d # v4
+        with:
+          languages: csharp
+          build-mode: none
+          queries: security-extended
+      - uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d # v4
+        with:
+          category: "/language:csharp"
