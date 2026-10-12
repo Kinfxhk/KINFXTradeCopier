@@ -56,6 +56,51 @@ public static class BulkUiTests {
   Check(follow==0,"bulk settings must not call the follow/engine path");Check(v.Rows[1].Enabled==enabledBefore,"bulk settings must not change the tick");
   Check(!v.StartButton.IsEnabled,"Start must stay held");
  }
+ // Pixel-level check: render a control on a dark host and measure the average luminance of its own area. Template triggers (hover / disabled) are only visible this way.
+ // Render the WHOLE real dashboard (this is what R.exe proved renders correctly off-screen) and measure only the pixels covered by `el`.
+ static double Luma(FrameworkElement el){
+  var root=el;while(root.Parent as FrameworkElement!=null)root=(FrameworkElement)root.Parent;
+  var host=root as DashboardView;if(host==null)throw new Exception("control is not inside a DashboardView");
+  Layout(host);var origin=el.TransformToAncestor(host).Transform(new Point(0,0));
+  int W=(int)host.ActualWidth,H=(int)Math.Min(host.ActualHeight,400);
+  var rtb=new System.Windows.Media.Imaging.RenderTargetBitmap(W,H,96,96,System.Windows.Media.PixelFormats.Pbgra32);rtb.Render(host);
+  var px=new byte[W*H*4];rtb.CopyPixels(px,W*4,0);
+  int x0=(int)origin.X,y0=(int)origin.Y,w=(int)el.ActualWidth,h=(int)el.ActualHeight;double best=0;
+  for(int by=y0;by+8<=Math.Min(H,y0+h);by+=4)for(int bx=x0;bx+8<=Math.Min(W,x0+w);bx+=4){double sum=0;int n=0;
+   for(int y=by;y<by+8;y+=2)for(int x=bx;x<bx+8;x+=2){int i=(y*W+x)*4;sum+=0.2126*px[i+2]+0.7152*px[i+1]+0.0722*px[i];n++;}
+   double avg=sum/n;if(avg>best)best=avg;}
+  return best;}
+ static T FindDescendant<T>(DependencyObject root) where T:DependencyObject{
+  int n=System.Windows.Media.VisualTreeHelper.GetChildrenCount(root);
+  for(int i=0;i<n;i++){var c=System.Windows.Media.VisualTreeHelper.GetChild(root,i);var t=c as T;if(t!=null)return t;var d=FindDescendant<T>(c);if(d!=null)return d;}
+  return null;}
+ static double HoverLuma(System.Windows.Controls.Primitives.ToggleButton toggle,FrameworkElement measured){
+  // IsMouseOver is read-only; setting it through WPF's internal key runs the same template triggers a real hover does.
+  var key=typeof(UIElement).GetField("IsMouseOverPropertyKey",System.Reflection.BindingFlags.Static|System.Reflection.BindingFlags.NonPublic);
+  Check(key!=null,"IsMouseOverPropertyKey reachable");
+  var k=(DependencyPropertyKey)key.GetValue(null);toggle.SetValue(k,true);double l=Luma(measured);toggle.ClearValue(k);return l;}
+ static void ComboAndInputStayDarkWhenDisabledOrHovered(){
+  // Real NinjaTrader keeps these controls in the app's dark colours in EVERY state. WPF's default templates turn them white on hover / disabled.
+  var v=Fresh();var lead=v.LeaderBox;var inst=v.InstrumentBox;
+  var toggle=FindDescendant<System.Windows.Controls.Primitives.ToggleButton>(lead);Check(toggle!=null,"leader selector has its toggle");
+  double normal=Luma(lead),instNormal=Luma(inst);
+  v.Editable(false);Layout(v);double leadDisabled=Luma(lead),instDisabled=Luma(inst);v.Editable(true);Layout(v);
+  double leadHover=HoverLuma(toggle,lead);
+  Check(normal<175,"leader selector normal is dark, brightest block="+normal);
+  Check(leadDisabled<175,"leader selector DISABLED (session armed) stays dark, brightest block="+leadDisabled);
+  Check(leadHover<175,"leader selector HOVER stays dark, brightest block="+leadHover);
+  Check(instNormal<175&&instDisabled<175,"instrument box stays dark normal/disabled: "+instNormal+"/"+instDisabled);
+  // The "All" account-state filter (Copy tab) uses the same Combo(); hover it like a real mouse: the combo and its toggle both get IsMouseOver.
+  var filter=(ComboBox)typeof(DashboardView).GetField("filter",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(v);
+  Check(filter!=null&&filter.SelectedItem as string=="All","the All filter exists and shows All");
+  var key=(DependencyPropertyKey)typeof(UIElement).GetField("IsMouseOverPropertyKey",System.Reflection.BindingFlags.Static|System.Reflection.BindingFlags.NonPublic).GetValue(null);
+  var ft=FindDescendant<System.Windows.Controls.Primitives.ToggleButton>(filter);
+  double allNormal=Luma(filter);filter.SetValue(key,true);ft.SetValue(key,true);double allHover=Luma(filter);ft.ClearValue(key);filter.ClearValue(key);
+  filter.IsEnabled=false;double allDisabled=Luma(filter);filter.IsEnabled=true;
+  Check(allNormal<175,"All filter normal is dark, brightest block="+allNormal);
+  Check(allHover<175,"All filter HOVER stays dark (was white), brightest block="+allHover);
+  Check(allDisabled<175,"All filter DISABLED stays dark, brightest block="+allDisabled);
+ }
  static void BarIsOnCopyTabAndKeepsHolds(){
   var v=Fresh();Layout(v);
   Check(v.AccountGrid.Columns.Count==13,"13 Copy columns retained");
@@ -295,7 +340,7 @@ public static class BulkUiTests {
  [STAThread] public static int Main(string[] args){
   try{
    AppDomain.CurrentDomain.AssemblyResolve+=(s,e)=>{string n=e.Name.Split(',')[0];if(n.EndsWith(".resources"))return null;var loaded=AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a=>a.GetName().Name==n);if(loaded!=null)return loaded;string p=System.IO.Path.Combine("C:/Program Files/NinjaTrader 8/bin",n+".dll");return System.IO.File.Exists(p)?System.Reflection.Assembly.LoadFrom(p):null;};
-   var all=new Action[]{TargetAndLossApplyToSelectedOnly,ZeroTurnsLimitOff,RatioStaysIndependent,InvalidInputChangesNothing,NoSelectionIsRefused,LeaderIsNotEdited,AtmToggleBulk,LockedWhenNotEditable,NeverTouchesFollowOrTrading,BarIsOnCopyTabAndKeepsHolds,FromLeaderCopiesToHighlighted,FromLeaderWithoutHighlightHitsAllVisibleFollowers,FromLeaderRespectsSearchFilter,FromLeaderKeepsRatioTickAndOtherFields,ManualEditAfterwardsSticksAndNoLiveLink,FromLeaderRefusedWhenLockedOrNoLeader,FromLeaderNeverTouchesFollowOrTrading,AdviceShownPerRowAndCounted,AdviceUpdatesAfterBulkApply,AdviceNeverBlocksOrChangesSettings,RatioCellFitsCommonValuesAt1160,LogsReadableAndTopAligned,LogClearWorksAndIsEditableIndependent,BadTargetDraftSurvivesRefreshAndBlocksCommit,BadLossDraftSurvivesRefreshAndBlocksCommit,BadTargetDraftSurvivesRecyclingAndStillBlocksCommit,TargetAndLossSetterRejectInvalidNumbers,LockedAccountIsRedWithReasonAndCountedInFooter,LockedCountIgnoresLeaderAndNeverBlocksUi,BadRatioDraftSurvivesRefreshAndBlocksCommit,UnprotectedReasonReachesRowAndDetail,MaxContractsRejectsInvalidAndKeepsDraft,DivergenceChoiceIsPerAccountDefaultsToNotify,DivergenceBulkAndFromLeaderAndNeverTrades,FlattenOnceShowsAWarningNote};
+   var all=new Action[]{ComboAndInputStayDarkWhenDisabledOrHovered,TargetAndLossApplyToSelectedOnly,ZeroTurnsLimitOff,RatioStaysIndependent,InvalidInputChangesNothing,NoSelectionIsRefused,LeaderIsNotEdited,AtmToggleBulk,LockedWhenNotEditable,NeverTouchesFollowOrTrading,BarIsOnCopyTabAndKeepsHolds,FromLeaderCopiesToHighlighted,FromLeaderWithoutHighlightHitsAllVisibleFollowers,FromLeaderRespectsSearchFilter,FromLeaderKeepsRatioTickAndOtherFields,ManualEditAfterwardsSticksAndNoLiveLink,FromLeaderRefusedWhenLockedOrNoLeader,FromLeaderNeverTouchesFollowOrTrading,AdviceShownPerRowAndCounted,AdviceUpdatesAfterBulkApply,AdviceNeverBlocksOrChangesSettings,RatioCellFitsCommonValuesAt1160,LogsReadableAndTopAligned,LogClearWorksAndIsEditableIndependent,BadTargetDraftSurvivesRefreshAndBlocksCommit,BadLossDraftSurvivesRefreshAndBlocksCommit,BadTargetDraftSurvivesRecyclingAndStillBlocksCommit,TargetAndLossSetterRejectInvalidNumbers,LockedAccountIsRedWithReasonAndCountedInFooter,LockedCountIgnoresLeaderAndNeverBlocksUi,BadRatioDraftSurvivesRefreshAndBlocksCommit,UnprotectedReasonReachesRowAndDetail,MaxContractsRejectsInvalidAndKeepsDraft,DivergenceChoiceIsPerAccountDefaultsToNotify,DivergenceBulkAndFromLeaderAndNeverTrades,FlattenOnceShowsAWarningNote};
    int failed=0;foreach(var a in all){try{a();Console.WriteLine("PASS "+a.Method.Name);}catch(Exception ex){failed++;Console.WriteLine("FAIL "+a.Method.Name+" :: "+ex.Message);}}
    return failed==0?0:1;
   }catch(Exception ex){Console.WriteLine("HARNESS "+ex);return 2;}

@@ -573,6 +573,10 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public volatile bool ProviderFaulted;
         public string EvidenceReason;
         public readonly HashSet<string> Ignored=new HashSet<string>();
+        // Orders that were already terminal when the session started (the platform reloads today's filled orders after a restart). They are history, never unknown live activity.
+        public readonly HashSet<Order> PreSessionTerminal=new HashSet<Order>();
+        // When the last follower fill evidence arrived. NinjaTrader raises the order Filled callback ~10 ms BEFORE the PositionUpdate, so for a moment the ledger and Position disagree.
+        public DateTime LastFillUtc=DateTime.MinValue;
         public double HighWater;
     }
     internal sealed class OrderSnapshot
@@ -604,6 +608,8 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public bool OcoRetired;
         public DateTime WaitingSince=DateTime.UtcNow;
         public string Oco, ProviderId;
+        // True while ProviderId is only the client-side id NinjaTrader assigns before submission (event state Initialized). It may be replaced ONCE by the exchange id.
+        public bool ProviderIdPreSubmit;
         public int Desired, ObservedFilled, RequestedQuantity, ReservedQuantity;
         public OrderAction SubmittedAction;
         public OrderState ObservedState;
@@ -788,6 +794,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                     leader=selected; instrument=inst;mirrorAtm=copyAtm;sessionAccounts=accounts; DisposeDispatchers(); followers.Clear(); links.Clear(); tombstones.Clear();
                     lock(identityGate) { identities.Clear(); providerIdentities.Clear(); wrapperProviderIds.Clear(); }
                     foreach(var item in list) followers.Add(new EngineAccount { Dispatcher=NewDispatcher(),Account=item.Item1,Settings=item.Item2.Clone(),Latch=new RiskLatch {Locked=item.Item3.Locked,Reason=item.Item3.Reason},HighWater=item.Item2.HighWater });
+                    foreach(var f in followers){ Order[] existing; lock(f.Account.Orders)existing=f.Account.Orders.ToArray(); foreach(var o in existing)if(o!=null&&o.Instrument!=null&&o.Instrument.FullName==inst.FullName&&Order.IsTerminalState(o.OrderState))f.PreSessionTerminal.Add(o); }
                     foreach(var f in followers.Where(x=>!x.Settings.CopyAtm||!copyAtm))log(f.Account.Name+": ATM exit mirroring OFF — nonmarket exits skipped; market closes only. No native ATM clone / autonomous protection.");
                     followerView=followers.ToArray();
                     attached=true; entries=false;suppressNew=false;
@@ -1131,8 +1138,10 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 if(link==null&&!f.Flattening)Lock(f,"Unknown follower order activity — no adoption / manual review");
                 if(link!=null)
                 {
-                    if(!string.IsNullOrEmpty(link.ProviderId)&&snapshot.ProviderId!=link.ProviderId) { Lock(f,"Follower provider identity transition ambiguous — captured fill evidence retained, manual recovery required"); }
-                    else if(!string.IsNullOrEmpty(snapshot.ProviderId))link.ProviderId=snapshot.ProviderId;
+                    // Real providers replace the pre-submit client id (state Initialized) by the exchange id exactly once. Any other change stays ambiguous.
+                    bool preSubmitReplacement=link.ProviderIdPreSubmit&&!string.IsNullOrEmpty(snapshot.ProviderId)&&eventState!=OrderState.Initialized;
+                    if(!string.IsNullOrEmpty(link.ProviderId)&&snapshot.ProviderId!=link.ProviderId&&!preSubmitReplacement) { Lock(f,"Follower provider identity transition ambiguous — captured fill evidence retained, manual recovery required"); }
+                    else if(!string.IsNullOrEmpty(snapshot.ProviderId)){link.ProviderId=snapshot.ProviderId;link.ProviderIdPreSubmit=eventState==OrderState.Initialized;}
                     link.Wrappers.Add(order);link.Order=order;
                     if(eventState==OrderState.Accepted||eventState==OrderState.Working||eventState==OrderState.TriggerPending||eventState==OrderState.PartFilled||snapshot.Filled>0)link.AcceptanceConfirmed=true;
                     int prior=link.ObservedFilled;
@@ -1140,6 +1149,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                     if(snapshot.Filled<prior||snapshot.Action!=link.SubmittedAction||snapshot.Type!=link.Latest.Type)Lock(f,"Follower execution metadata divergence — manual recovery required");
                     bool terminalRegression=(link.ObservedState==OrderState.Filled&&eventState!=OrderState.Filled)||(Order.IsTerminalState(link.ObservedState)&&!Order.IsTerminalState(eventState));
                     if(terminalRegression)Lock(f,"Follower terminal-state evidence divergence — older active state cannot revoke terminal acknowledgement; manual recovery required");
+                    if(snapshot.Filled!=prior)f.LastFillUtc=DateTime.UtcNow;
                     link.ObservedFilled=Math.Max(prior,snapshot.Filled);
                     if(!terminalRegression)
                     {
@@ -1217,6 +1227,8 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             try { durableLock(f.Account.Name,f.Latch.Reason); }
             catch(Exception ex) { persistenceFailed.Add(f); BlockEntries(); f.Latch.Reason="PERSISTENCE FAILURE — lock not durable; manual recovery required: "+ex.Message+" | "+f.Latch.Reason; log(f.Account.Name+": "+f.Latch.Reason); }
         }
+        // A Position update that trails the order fill by a few milliseconds is normal. Only a divergence that outlives this window is unknown exposure.
+        static readonly TimeSpan PositionLagGrace=TimeSpan.FromSeconds(3);
         void CheckRisk(EngineAccount f)
         {
             if(f.Flattening)
@@ -1227,11 +1239,11 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             if(!f.Flattening)
             {
                 Order[] actual; lock(f.Account.Orders)actual=f.Account.Orders.ToArray();
-                if(actual.Any(o=>o.Instrument!=null&&o.Instrument.FullName==instrument.FullName&&(!Order.IsTerminalState(o.OrderState)||o.Filled>0)&&FindFollowerLink(f,o,o.OrderId)==null))Lock(f,"Unknown follower order / terminal fill evidence — no adoption; manual recovery required");
+                if(actual.Any(o=>o.Instrument!=null&&o.Instrument.FullName==instrument.FullName&&(!Order.IsTerminalState(o.OrderState)||o.Filled>0)&&!f.PreSessionTerminal.Contains(o)&&FindFollowerLink(f,o,o.OrderId)==null))Lock(f,"Unknown follower order / terminal fill evidence — no adoption; manual recovery required");
                 if(Volatile.Read(ref pendingFollowerCallbacks)==0&&links.Values.SelectMany(v=>v).Any(x=>x.Follower==f&&x.Order!=null&&(x.Order.Filled!=x.ObservedFilled||(Order.IsTerminalState(x.Order.OrderState)&&x.Order.OrderState!=x.ObservedState))))
                     Lock(f,"Provider wrapper diverges from captured order / fill evidence — reservations retained; manual recovery required");
                 int position=Position(f.Account,instrument), execution=OwnedPosition(f);
-                if(Volatile.Read(ref pendingFollowerCallbacks)<=1&&position!=0&&(execution==0||Math.Sign(position)!=Math.Sign(execution)||Math.Abs((long)position)>Math.Abs((long)execution)))Lock(f,"Position diverges from owned execution ledger — manual recovery required");
+                if(Volatile.Read(ref pendingFollowerCallbacks)<=1&&position!=0&&(execution==0||Math.Sign(position)!=Math.Sign(execution)||Math.Abs((long)position)>Math.Abs((long)execution))&&(DateTime.UtcNow-f.LastFillUtc)>PositionLagGrace)Lock(f,"Position diverges from owned execution ledger — manual recovery required");
             }
             double raw=f.Account.Get(AccountItem.RealizedProfitLoss,f.Account.Denomination)+f.Account.Get(AccountItem.UnrealizedProfitLoss,f.Account.Denomination);
             double equity=f.Account.Get(AccountItem.NetLiquidation,f.Account.Denomination);
@@ -1590,11 +1602,22 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             System.Windows.Automation.AutomationProperties.SetName(b,tip);ToolTipService.SetShowOnDisabled(b,true);editButtons.Add(b);return b;
         }
         static TextBox Input(string text,double width){return new TextBox{Style=new Style(typeof(TextBox)),MinWidth=0,MinHeight=0,FontSize=13,Text=text,Width=width,Padding=new Thickness(8,5,8,5),Margin=new Thickness(0,0,8,0),Background=Panel,Foreground=Ink,BorderBrush=Line,VerticalContentAlignment=VerticalAlignment.Center};}
+        // Flat dark template for the drop-down arrow. WPF's default template paints a white / light-blue fill on hover and when disabled; NinjaTrader's own controls never do.
+        static ControlTemplate ComboToggleTemplate()
+        {
+            var t=new ControlTemplate(typeof(System.Windows.Controls.Primitives.ToggleButton));
+            var b=new FrameworkElementFactory(typeof(Border),"Face");b.SetValue(Border.BackgroundProperty,Panel);b.SetValue(Border.BorderBrushProperty,Line);b.SetValue(Border.BorderThicknessProperty,new Thickness(1));
+            var p=new FrameworkElementFactory(typeof(ContentPresenter));p.SetValue(FrameworkElement.HorizontalAlignmentProperty,HorizontalAlignment.Right);p.SetValue(FrameworkElement.VerticalAlignmentProperty,VerticalAlignment.Center);p.SetValue(FrameworkElement.MarginProperty,new Thickness(0,0,8,0));
+            b.AppendChild(p);t.VisualTree=b;
+            var hover=new Trigger{Property=UIElement.IsMouseOverProperty,Value=true};hover.Setters.Add(new Setter(Border.BorderBrushProperty,Accent,"Face"));t.Triggers.Add(hover);
+            var off=new Trigger{Property=UIElement.IsEnabledProperty,Value=false};off.Setters.Add(new Setter(Control.ForegroundProperty,Muted));t.Triggers.Add(off);
+            return t;
+        }
         internal static ComboBox Combo(double width)
         {
             var c=new ComboBox{Style=new Style(typeof(ComboBox)),MinWidth=0,MinHeight=0,FontSize=13,Width=width,Margin=new Thickness(0,0,8,0),Padding=new Thickness(8,5,8,5),Background=Panel,Foreground=Ink,BorderBrush=Line};
             var t=new ControlTemplate(typeof(ComboBox));var g=new FrameworkElementFactory(typeof(Grid));
-            var toggle=new FrameworkElementFactory(typeof(ToggleButton));toggle.SetValue(Control.BackgroundProperty,Panel);toggle.SetValue(Control.BorderBrushProperty,Line);toggle.SetValue(Control.ForegroundProperty,Ink);toggle.SetValue(ContentControl.ContentProperty,"▾");toggle.SetValue(Control.HorizontalContentAlignmentProperty,HorizontalAlignment.Right);toggle.SetValue(Control.PaddingProperty,new Thickness(8,5,8,5));toggle.SetBinding(ToggleButton.IsCheckedProperty,new Binding("IsDropDownOpen"){RelativeSource=new RelativeSource(RelativeSourceMode.TemplatedParent),Mode=BindingMode.TwoWay});g.AppendChild(toggle);
+            var toggle=new FrameworkElementFactory(typeof(ToggleButton));toggle.SetValue(Control.BackgroundProperty,Panel);toggle.SetValue(Control.BorderBrushProperty,Line);toggle.SetValue(Control.ForegroundProperty,Ink);toggle.SetValue(ContentControl.ContentProperty,"▾");toggle.SetValue(Control.TemplateProperty,ComboToggleTemplate());toggle.SetValue(Control.HorizontalContentAlignmentProperty,HorizontalAlignment.Right);toggle.SetValue(Control.PaddingProperty,new Thickness(8,5,8,5));toggle.SetBinding(ToggleButton.IsCheckedProperty,new Binding("IsDropDownOpen"){RelativeSource=new RelativeSource(RelativeSourceMode.TemplatedParent),Mode=BindingMode.TwoWay});g.AppendChild(toggle);
             var selected=new FrameworkElementFactory(typeof(ContentPresenter));selected.SetValue(FrameworkElement.MarginProperty,new Thickness(9,5,25,5));selected.SetValue(UIElement.IsHitTestVisibleProperty,false);selected.SetBinding(ContentPresenter.ContentProperty,new Binding("SelectionBoxItem"){RelativeSource=new RelativeSource(RelativeSourceMode.TemplatedParent)});g.AppendChild(selected);
             var popup=new FrameworkElementFactory(typeof(Popup),"PART_Popup");popup.SetValue(Popup.PlacementProperty,PlacementMode.Bottom);popup.SetValue(Popup.AllowsTransparencyProperty,true);popup.SetBinding(Popup.IsOpenProperty,new Binding("IsDropDownOpen"){RelativeSource=new RelativeSource(RelativeSourceMode.TemplatedParent)});
             var border=new FrameworkElementFactory(typeof(Border));border.SetValue(Border.BackgroundProperty,Panel);border.SetValue(Border.BorderBrushProperty,Line);border.SetValue(Border.BorderThicknessProperty,new Thickness(1));border.SetBinding(FrameworkElement.MinWidthProperty,new Binding("ActualWidth"){RelativeSource=new RelativeSource(RelativeSourceMode.TemplatedParent)});var scroll=new FrameworkElementFactory(typeof(ScrollViewer));scroll.SetValue(FrameworkElement.MaxHeightProperty,300.0);scroll.AppendChild(new FrameworkElementFactory(typeof(ItemsPresenter)));border.AppendChild(scroll);popup.AppendChild(border);g.AppendChild(popup);t.VisualTree=g;c.Template=t;return c;
