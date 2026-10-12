@@ -79,6 +79,36 @@ public static class BulkUiTests {
   var key=typeof(UIElement).GetField("IsMouseOverPropertyKey",System.Reflection.BindingFlags.Static|System.Reflection.BindingFlags.NonPublic);
   Check(key!=null,"IsMouseOverPropertyKey reachable");
   var k=(DependencyPropertyKey)key.GetValue(null);toggle.SetValue(k,true);double l=Luma(measured);toggle.ClearValue(k);return l;}
+ static int WhitePx(FrameworkElement el){
+  var host=el;while(host.Parent as FrameworkElement!=null)host=(FrameworkElement)host.Parent;var dv=host as DashboardView;if(dv==null)throw new Exception("not inside a DashboardView");
+  Layout(dv);var o=el.TransformToAncestor(dv).Transform(new Point(0,0));int W=1500,H=950;
+  var rtb=new System.Windows.Media.Imaging.RenderTargetBitmap(W,H,96,96,System.Windows.Media.PixelFormats.Pbgra32);rtb.Render(dv);var px=new byte[W*H*4];rtb.CopyPixels(px,W*4,0);
+  int x0=(int)o.X,y0=(int)o.Y,w=(int)el.ActualWidth,h=(int)el.ActualHeight,n=0;
+  for(int y=y0;y<Math.Min(H,y0+h);y++)for(int x=x0;x<Math.Min(W,x0+w);x++){int i=(y*W+x)*4;if(px[i]>=240&&px[i+1]>=240&&px[i+2]>=240)n++;}
+  return n;}
+ static void PlainCheckBoxesStayDark(){
+  // Live (RO) / Grp / Dry run (Risk tab) used WPF's default CheckBox template: a pure-white square in NinjaTrader's dark window, in every state.
+  var v=Fresh();
+  var key=(DependencyPropertyKey)typeof(UIElement).GetField("IsMouseOverPropertyKey",System.Reflection.BindingFlags.Static|System.Reflection.BindingFlags.NonPublic).GetValue(null);
+  v.Sections.SelectedIndex=1;Layout(v);   // Sections holds Copy, Risk, Logs (the Dashboard title tab is outside it)
+  // every plain (non-row) check box on the Risk tab: found by walking the real visual tree, not by field name
+  var boxes=new System.Collections.Generic.List<CheckBox>();
+  Action<DependencyObject> walk=null;walk=d=>{int n=System.Windows.Media.VisualTreeHelper.GetChildrenCount(d);for(int i=0;i<n;i++){var c=System.Windows.Media.VisualTreeHelper.GetChild(d,i);var cb=c as CheckBox;if(cb!=null&&cb.ActualWidth>5&&!boxes.Contains(cb)&&cb.Content is string)boxes.Add(cb);walk(c);}};
+  walk(v);
+  Check(boxes.Count>=3,"found Live (RO), Grp and Dry run among the Risk tab check boxes ("+boxes.Count+")");
+  Check(boxes.Contains(v.ShowLive)&&boxes.Contains(v.DryRunBox),"the walk reaches Live (RO) and Dry run");
+  foreach(var b in boxes){
+   string name=""+b.Content;
+   int normal=WhitePx(b);b.SetValue(key,true);int hover=WhitePx(b);b.ClearValue(key);
+   b.IsChecked=true;Layout(v);int ticked=WhitePx(b);b.IsChecked=false;Layout(v);
+   bool was=b.IsEnabled;b.IsEnabled=false;int dis=WhitePx(b);b.IsEnabled=was;
+   // WPF's default CheckBox draws a pure-white square (about 130 near-white pixels). Text is anti-aliased and stays far below this.
+   Check(normal<40,name+" normal: near-white pixels="+normal);
+   Check(hover<40,name+" hover: near-white pixels="+hover);
+   Check(ticked<40,name+" ticked: near-white pixels="+ticked);
+   Check(dis<40,name+" disabled: near-white pixels="+dis);
+  }
+ }
  static void ComboAndInputStayDarkWhenDisabledOrHovered(){
   // Real NinjaTrader keeps these controls in the app's dark colours in EVERY state. WPF's default templates turn them white on hover / disabled.
   var v=Fresh();var lead=v.LeaderBox;var inst=v.InstrumentBox;
@@ -340,7 +370,7 @@ public static class BulkUiTests {
  [STAThread] public static int Main(string[] args){
   try{
    AppDomain.CurrentDomain.AssemblyResolve+=(s,e)=>{string n=e.Name.Split(',')[0];if(n.EndsWith(".resources"))return null;var loaded=AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a=>a.GetName().Name==n);if(loaded!=null)return loaded;string p=System.IO.Path.Combine("C:/Program Files/NinjaTrader 8/bin",n+".dll");return System.IO.File.Exists(p)?System.Reflection.Assembly.LoadFrom(p):null;};
-   var all=new Action[]{ComboAndInputStayDarkWhenDisabledOrHovered,TargetAndLossApplyToSelectedOnly,ZeroTurnsLimitOff,RatioStaysIndependent,InvalidInputChangesNothing,NoSelectionIsRefused,LeaderIsNotEdited,AtmToggleBulk,LockedWhenNotEditable,NeverTouchesFollowOrTrading,BarIsOnCopyTabAndKeepsHolds,FromLeaderCopiesToHighlighted,FromLeaderWithoutHighlightHitsAllVisibleFollowers,FromLeaderRespectsSearchFilter,FromLeaderKeepsRatioTickAndOtherFields,ManualEditAfterwardsSticksAndNoLiveLink,FromLeaderRefusedWhenLockedOrNoLeader,FromLeaderNeverTouchesFollowOrTrading,AdviceShownPerRowAndCounted,AdviceUpdatesAfterBulkApply,AdviceNeverBlocksOrChangesSettings,RatioCellFitsCommonValuesAt1160,LogsReadableAndTopAligned,LogClearWorksAndIsEditableIndependent,BadTargetDraftSurvivesRefreshAndBlocksCommit,BadLossDraftSurvivesRefreshAndBlocksCommit,BadTargetDraftSurvivesRecyclingAndStillBlocksCommit,TargetAndLossSetterRejectInvalidNumbers,LockedAccountIsRedWithReasonAndCountedInFooter,LockedCountIgnoresLeaderAndNeverBlocksUi,BadRatioDraftSurvivesRefreshAndBlocksCommit,UnprotectedReasonReachesRowAndDetail,MaxContractsRejectsInvalidAndKeepsDraft,DivergenceChoiceIsPerAccountDefaultsToNotify,DivergenceBulkAndFromLeaderAndNeverTrades,FlattenOnceShowsAWarningNote};
+   var all=new Action[]{PlainCheckBoxesStayDark,ComboAndInputStayDarkWhenDisabledOrHovered,TargetAndLossApplyToSelectedOnly,ZeroTurnsLimitOff,RatioStaysIndependent,InvalidInputChangesNothing,NoSelectionIsRefused,LeaderIsNotEdited,AtmToggleBulk,LockedWhenNotEditable,NeverTouchesFollowOrTrading,BarIsOnCopyTabAndKeepsHolds,FromLeaderCopiesToHighlighted,FromLeaderWithoutHighlightHitsAllVisibleFollowers,FromLeaderRespectsSearchFilter,FromLeaderKeepsRatioTickAndOtherFields,ManualEditAfterwardsSticksAndNoLiveLink,FromLeaderRefusedWhenLockedOrNoLeader,FromLeaderNeverTouchesFollowOrTrading,AdviceShownPerRowAndCounted,AdviceUpdatesAfterBulkApply,AdviceNeverBlocksOrChangesSettings,RatioCellFitsCommonValuesAt1160,LogsReadableAndTopAligned,LogClearWorksAndIsEditableIndependent,BadTargetDraftSurvivesRefreshAndBlocksCommit,BadLossDraftSurvivesRefreshAndBlocksCommit,BadTargetDraftSurvivesRecyclingAndStillBlocksCommit,TargetAndLossSetterRejectInvalidNumbers,LockedAccountIsRedWithReasonAndCountedInFooter,LockedCountIgnoresLeaderAndNeverBlocksUi,BadRatioDraftSurvivesRefreshAndBlocksCommit,UnprotectedReasonReachesRowAndDetail,MaxContractsRejectsInvalidAndKeepsDraft,DivergenceChoiceIsPerAccountDefaultsToNotify,DivergenceBulkAndFromLeaderAndNeverTrades,FlattenOnceShowsAWarningNote};
    int failed=0;foreach(var a in all){try{a();Console.WriteLine("PASS "+a.Method.Name);}catch(Exception ex){failed++;Console.WriteLine("FAIL "+a.Method.Name+" :: "+ex.Message);}}
    return failed==0?0:1;
   }catch(Exception ex){Console.WriteLine("HARNESS "+ex);return 2;}
