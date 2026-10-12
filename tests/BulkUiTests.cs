@@ -99,9 +99,11 @@ public static class BulkUiTests {
   Check(boxes.Contains(v.ShowLive)&&boxes.Contains(v.DryRunBox),"the walk reaches Live (RO) and Dry run");
   foreach(var b in boxes){
    string name=""+b.Content;
+   // Live (RO) is disabled in a fresh view: enable it first, otherwise normal/hover/ticked would only ever measure the disabled look.
+   bool was=b.IsEnabled;b.IsEnabled=true;
    int normal=WhitePx(b);b.SetValue(key,true);int hover=WhitePx(b);b.ClearValue(key);
    b.IsChecked=true;Layout(v);int ticked=WhitePx(b);b.IsChecked=false;Layout(v);
-   bool was=b.IsEnabled;b.IsEnabled=false;int dis=WhitePx(b);b.IsEnabled=was;
+   b.IsEnabled=false;int dis=WhitePx(b);b.IsEnabled=was;
    // WPF's default CheckBox draws a pure-white square (about 130 near-white pixels). Text is anti-aliased and stays far below this.
    Check(normal<40,name+" normal: near-white pixels="+normal);
    Check(hover<40,name+" hover: near-white pixels="+hover);
