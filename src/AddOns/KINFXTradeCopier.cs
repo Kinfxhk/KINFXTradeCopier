@@ -1705,11 +1705,14 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         static void ProportionalCopyColumns(DataGrid g)
         {
             // Star allocation across ALL data columns; fixed toggles/status lamps never stretch.
-            var minimums=new Dictionary<string,double>{{"Acct",170},{"Alias",95},{"Ratio",60},{"Tgt",75},{"DLL",75},{"Qty",50},{"P/L",95},{"Bal",130},{"State",96}};
+            // Minimums are the worst-case content widths measured from the real window (Bal "1,250,000.00 USD" ~119 px, State "Rechecking" ~87 px, P/L "-123,456.78" ~97 px).
+            // Extra width goes to the identity columns (Acct, Alias) that actually fill up, not evenly to short numeric columns. Weights are relative star sizes.
+            var minimums=new Dictionary<string,double>{{"Acct",170},{"Alias",95},{"Ratio",60},{"Tgt",75},{"DLL",75},{"Qty",50},{"P/L",100},{"Bal",120},{"State",90}};
+            var weights=new Dictionary<string,double>{{"Acct",5},{"Alias",3},{"Ratio",1},{"Tgt",1},{"DLL",1},{"Qty",1},{"P/L",1},{"Bal",1},{"State",1}};
             foreach(var c in g.Columns)
             {
                 double minimum;
-                if(minimums.TryGetValue((string)c.Header,out minimum)){c.MinWidth=minimum;c.Width=new DataGridLength(minimum,DataGridLengthUnitType.Star);}
+                if(minimums.TryGetValue((string)c.Header,out minimum)){c.MinWidth=minimum;c.Width=new DataGridLength(weights[(string)c.Header],DataGridLengthUnitType.Star);}
                 else {double width=c.Width.Value;c.MinWidth=width;c.MaxWidth=width;}
             }
             g.HorizontalScrollBarVisibility=ScrollBarVisibility.Auto;
