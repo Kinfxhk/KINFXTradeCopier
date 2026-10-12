@@ -579,6 +579,10 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public readonly HashSet<Order> PreSessionGhost=new HashSet<Order>();
         // When the last follower fill evidence arrived. NinjaTrader raises the order Filled callback ~10 ms BEFORE the PositionUpdate, so for a moment the ledger and Position disagree.
         public DateTime LastFillUtc=DateTime.MinValue;
+        // Per-account Flat (user pressed Flat): when the request was queued, when the provider call RETURNED (not threw), and the last follower order event.
+        // FlatOffset credits the ledger once the provider proves the account flat: the close order is not a copier link, so without it owned exposure never returns to 0.
+        public DateTime FlattenRequestedUtc=DateTime.MinValue, FlattenAcceptedUtc=DateTime.MinValue, LastOrderEventUtc=DateTime.MinValue;
+        public int FlatOffset;
         public double HighWater;
     }
     internal sealed class OrderSnapshot
@@ -971,6 +975,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             {
                 net+=(x.SubmittedAction==OrderAction.Buy||x.SubmittedAction==OrderAction.BuyToCover?1L:-1L)*x.ObservedFilled;
             }
+            net+=f.FlatOffset;
             if(net>int.MaxValue||net<int.MinValue) { Lock(f,"Exposure ledger overflow"); return int.MaxValue; }
             return (int)net;
         }
@@ -1175,7 +1180,8 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 if(!attached||snapshot.Session!=Volatile.Read(ref sessionGeneration)||snapshot.InstrumentName!=instrument.FullName)return;
                 var f=followers.FirstOrDefault(x=>x.Account==snapshot.Account); if(f==null)return;
                 var link=FindFollowerLink(f,order,snapshot.ProviderId);
-                if(link==null&&!f.Flattening)Lock(f,"Unknown follower order activity — no adoption / manual review");
+                f.LastOrderEventUtc=DateTime.UtcNow;
+                if(link==null&&!f.Flattening&&!f.PreSessionTerminal.Contains(order))Lock(f,"Unknown follower order activity — no adoption / manual review");
                 if(link!=null)
                 {
                     // Real providers replace the pre-submit client id (state Initialized) by the exchange id exactly once. Any other change stays ambiguous.
@@ -1224,7 +1230,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                         CancelEntries(f);
                         foreach(var waiting in links.Values.SelectMany(v=>v).Where(x=>x.Follower==f&&x.Exit&&x.Waiting&&x.Order==null)) { waiting.Cancelled=true;waiting.Waiting=false; }
                         bool protectedElsewhere=links.Values.SelectMany(v=>v).Any(x=>x.Follower==f&&x.Exit&&x!=link&&x.Order!=null&&!Order.IsTerminalState(x.Order.OrderState)&&!x.Cancelled);
-                        if(OwnedPosition(f)!=0&&!protectedElsewhere)Lock(f,"Protective exit terminal with uncovered exposure — manual review required"+(UnprotectedLots(f)>0?" — "+UnprotectedText(f):""));
+                        if(OwnedPosition(f)!=0&&!protectedElsewhere&&!f.Flattening)Lock(f,"Protective exit terminal with uncovered exposure — manual review required"+(UnprotectedLots(f)>0?" — "+UnprotectedText(f):""));
                     }
                     if(!link.Exit&&snapshot.Filled>prior&&f.ExitCompleted)Lock(f,"Late uncovered entry fill after exit completion — manual recovery required; coverage not established"+(UnprotectedLots(f)>0?" — "+UnprotectedText(f):""));
                 }
@@ -1269,12 +1275,37 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         }
         // A Position update that trails the order fill by a few milliseconds is normal. Only a divergence that outlives this window is unknown exposure.
         static readonly TimeSpan PositionLagGrace=TimeSpan.FromSeconds(3);
+        internal static TimeSpan FlattenConfirmTimeout=TimeSpan.FromSeconds(20);
+        bool FlatConfirmable(EngineAccount f)
+        {
+            if(!Connected(f.Account)||!Clean(f.Account,instrument)||HasPendingEntryWork(f)||Volatile.Read(ref pendingFollowerCallbacks)!=0)return false;
+            if(links.Values.SelectMany(v=>v).Any(x=>x.Follower==f&&(x.SubmissionInFlight||x.ChangesInFlight>0)))return false;
+            var last=f.FlattenAcceptedUtc; if(f.LastFillUtc>last)last=f.LastFillUtc; if(f.LastOrderEventUtc>last)last=f.LastOrderEventUtc;
+            return DateTime.UtcNow-last>PositionLagGrace;
+        }
+        void ConfirmFlat(EngineAccount f)
+        {
+            int raw=OwnedPosition(f); f.FlatOffset-=raw;
+            foreach(var link in links.Values.SelectMany(v=>v).Where(x=>x.Follower==f)) { link.Cancelled=true; link.Waiting=false; }
+            Order[] seen; lock(f.Account.Orders)seen=f.Account.Orders.ToArray();
+            foreach(var o in seen)if(o!=null&&o.Instrument!=null&&o.Instrument.FullName==instrument.FullName)f.PreSessionTerminal.Add(o); // the close order is history, never unknown activity
+            lock(controlGate){ f.Flattening=false; f.ExitCompleted=true; f.Following=false; }
+            flattenConfirmations[f]="Confirmed flat";
+            RecomputeDisablePending(f);
+            log(f.Account.Name+": Flat confirmed (position 0, nothing working) — OFF; re-follow explicitly to copy again");
+            ReconcileCloseEvidence();
+        }
         void CheckRisk(EngineAccount f)
         {
             if(f.Flattening)
             {
-                if(Clean(f.Account,instrument)&&OwnedPosition(f)==0&&!HasPendingEntryWork(f))flattenConfirmations[f]="Confirmed flat";
-                else { flattenConfirmations[f]="Awaiting provider flat / order confirmation"; Lock(f,"Flatten unconfirmed — no concurrent recovery exits authorized; verify provider state manually before explicit abandonment"); }
+                // A user Flat is confirmed ONLY by provider evidence: the call returned (did not throw), Position is 0, nothing is working, and the account has been quiet longer
+                // than the position-lag grace. Then the ledger is credited once (FlatOffset), the account stays OFF and must be re-followed explicitly. Until then entries/exits for it stay blocked.
+                // If the provider has not shown flat within FlattenConfirmTimeout the account locks for manual review; a thrown Flatten locks at once (see flattenDone) and is never retried.
+                if(f.FlattenAcceptedUtc!=DateTime.MinValue&&FlatConfirmable(f))ConfirmFlat(f);
+                else if(DateTime.UtcNow-f.FlattenRequestedUtc>FlattenConfirmTimeout)
+                { flattenConfirmations[f]="Awaiting provider flat / order confirmation"; Lock(f,"Flatten unconfirmed — no concurrent recovery exits authorized; verify provider state manually before explicit abandonment"); }
+                else if(!flattenConfirmations.ContainsKey(f)||flattenConfirmations[f]=="Requested")flattenConfirmations[f]=f.FlattenAcceptedUtc==DateTime.MinValue?"Requested":"Awaiting provider flat / order confirmation";
             }
             if(!f.Flattening)
             {
@@ -1403,13 +1434,23 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             if(inst==null){ log("SIM TEST: Flatten refused — no instrument. Nothing was sent."); return; }
             if(!SimScope(targets)){ log("SIM TEST: Flatten refused — scope contains a non-Simulator/Playback or missing account. Nothing was sent."); return; }
 #endif
-            BlockEntries();suppressNew=true; // block ALL new copies during the flatten request.
+            // Per-account Flat: when the scope holds only FOLLOWERS of a live session, nothing about the leader changes, so the other followers keep copying; only the targeted
+            // accounts are switched OFF and blocked. A scope that includes the leader (or any session-less call) keeps the old rule: block ALL new copies during the request.
+            var leaderNow=leader; bool followerOnly=attached&&targets!=null&&leaderNow!=null&&!targets.Contains(leaderNow);
+            if(!followerOnly){BlockEntries();suppressNew=true;} // block ALL new copies during the flatten request.
             bool flattenAccepted=worker.Post(()=>
             {
-                if(!SessionOwnership.Acquire(targets.Select(a=>"account:"+a.Name),this)){suppressNew=false;log("Flatten blocked: another copier owns an account in this scope.");return;}
+                if(followerOnly&&!attached)followerOnly=false;
+                if(!followerOnly&&!suppressNew){BlockEntries();suppressNew=true;}
+                if(!SessionOwnership.Acquire(targets.Select(a=>"account:"+a.Name),this)){if(!followerOnly)suppressNew=false;log("Flatten blocked: another copier owns an account in this scope.");return;}
                 if(attached && targets.Contains(leader) && followers.Any(f=>!targets.Contains(f.Account) && !Clean(f.Account,instrument)))
                 {suppressNew=false;log("Flatten leader blocked: other managed followers still have exposure/working orders. Include all managed followers or flatten followers first.");return;}
-                foreach(var f in followers.Where(f=>targets.Contains(f.Account))) { f.Flattening=true;flattenConfirmations[f]="Requested"; }
+                foreach(var f in followers.Where(f=>targets.Contains(f.Account)))
+                {
+                    lock(controlGate){ f.Flattening=true; f.Following=false; f.FlattenRequestedUtc=DateTime.UtcNow; f.FlattenAcceptedUtc=DateTime.MinValue; }
+                    flattenConfirmations[f]="Requested";
+                    CancelEntries(f); Publish(f);
+                }
                 stateChanged(attached,"FLATTEN requested — new entries blocked; verify flat status");
                 foreach(var account in targets)
                 {
@@ -1417,7 +1458,8 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                     var target=account; var tf=followers.FirstOrDefault(x=>x.Account==target);
                     Action<Exception> flattenDone=ex=>
                     {
-                        if(ex==null){log("Flatten request: "+target.Name+" / "+inst.FullName+" — verify flat, retry manually if error");return;}
+                        if(ex==null){if(tf!=null)tf.FlattenAcceptedUtc=DateTime.UtcNow;log("Flatten request: "+target.Name+" / "+inst.FullName+" — verify flat, retry manually if error");return;}
+                        BlockEntries(); // a thrown Flatten is an uncertain state: whatever the scope, stop new copies engine-wide (guarded pause); never retried.
                         if(tf!=null) { flattenConfirmations[tf]="Request threw — provider acceptance unknown"; Lock(tf,"Flatten acceptance uncertain — existing protection retained; duplicate reductions blocked until explicit provider reconciliation: "+ex.Message); }
                         log("FLATTEN FAILED "+target.Name+": "+ex.Message);
                     };
@@ -1431,10 +1473,11 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                         try { target.Flatten(new[]{inst}); flattenDone(null); } catch(Exception ex) { flattenDone(ex); } }
                 }
                 if(attached)suppressNew=false; // selected followers excluded; unflattened followers still need new protective exits.
+                if(followerOnly)log("Flat requested for "+targets.Length+" follower account(s); other accounts keep copying.");
                 if(!attached)SessionOwnership.Release(this);
             });
             // Refused by a stopped mailbox: nothing will run to clear the flag, and nothing reached an account.
-            if(!flattenAccepted){suppressNew=false;log("Flatten refused: copier is stopped; no request was sent.");}
+            if(!flattenAccepted){if(!followerOnly)suppressNew=false;log("Flatten refused: copier is stopped; no request was sent.");}
 #endif
         }
         // Manual provider reconciliation acknowledgement, NOT an autonomous timeout/retry.
