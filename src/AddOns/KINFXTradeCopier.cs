@@ -1084,9 +1084,11 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             if(qty<=0)
             {
                 // Only retain delayed protection if THIS copier has an entry link; never adopt an unrelated later position.
-                if(link.Exit && !f.ExitCompleted && links.Values.SelectMany(x=>x).Any(x=>x.Follower==f&&!x.Exit&&x.Order!=null&&(!x.Cancelled||x.ObservedFilled>0)))
+                // Wait only while this copier has something that can still become closable: an entry that is in flight / not terminal, or owned exposure that Position has not caught up with.
+                // A filled entry link from an EARLIER round trip stays in `links` for the whole session; counting it made a leader exit with nothing to close lock a flat follower after 10s.
+                if(link.Exit && !f.ExitCompleted && (HasPendingEntryWork(f)||OwnedPosition(f)!=0) && links.Values.SelectMany(x=>x).Any(x=>x.Follower==f&&!x.Exit&&x.Order!=null&&(!x.Cancelled||x.ObservedFilled>0)))
                 { if(DateTime.UtcNow-link.WaitingSince>TimeSpan.FromSeconds(10)){link.Waiting=false;Lock(f,"Exit could not obtain closable exposure within 10s — review protection");}else link.Waiting=true;return; }
-                link.Waiting=false; if(!link.Exit) log(f.Account.Name+": entry skipped, projected cap / floor quantity"); return;
+                link.Waiting=false; if(link.Exit)log(f.Account.Name+": leader exit ignored, nothing to close"); else log(f.Account.Name+": entry skipped, projected cap / floor quantity"); return;
             }
             var s=link.Latest;
             if(!(s.Type==OrderType.Market||s.Type==OrderType.Limit||s.Type==OrderType.StopMarket||s.Type==OrderType.StopLimit||s.Type==OrderType.MIT)) { Lock(f,"Unsupported order type"); link.Waiting=false; return; }
