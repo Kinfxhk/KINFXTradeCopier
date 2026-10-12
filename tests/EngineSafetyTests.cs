@@ -1174,6 +1174,19 @@ class EngineSafetyTests {
    // the leftover order now actually fills: that is real, unowned exposure and must lock, never be waved through as history
    g.Filled=1;g.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Emit(g);Drain(e);
    Wait(()=>latest!=null&&latest.Locked,"a ghost that later fills must lock the follower");}}
+ static void GhostBuyDoesNotStarveTheCoverOfAShort(){var l=Acc("ghostcover lead");var a=Acc("ghostcover follow");AccountTelemetry latest=null;
+  // A never-sent copier Buy left in Initialized (dry run residue) must not count as "unknown manual work" that reserves closable exposure,
+  // otherwise the real cover Buy of a copied short gets 0 lots and the follower locks after 10s with the short still open.
+  var g=a.CreateOrder(inst,NinjaTrader.Cbi.OrderAction.Buy,NinjaTrader.Cbi.OrderType.Market,NinjaTrader.Cbi.OrderEntry.Manual,NinjaTrader.Cbi.TimeInForce.Day,1,0,0,"","KTC>ghost3",DateTime.MaxValue,null);
+  g.OrderState=NinjaTrader.Cbi.OrderState.Initialized;
+  ((List<NinjaTrader.Cbi.Order>)typeof(NinjaTrader.Cbi.Account).GetField("orders",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(a)).Add(g);
+  using(var e=Arm(l,a,t=>latest=t)){
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"",1));Wait(()=>a.Submits==1,"short entry copied");
+   var f=a.Orders.Last();f.Filled=1;f.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=1,MarketPosition=NinjaTrader.Cbi.MarketPosition.Short});a.Emit(f);Drain(e);
+   l.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=1,MarketPosition=NinjaTrader.Cbi.MarketPosition.Short});
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",1));Wait(()=>a.Submits==2,"cover Buy must be submitted with 1 lot even though a never-sent KTC> Buy is lying in the account");
+   Check(a.Orders.Last().Quantity==1,"cover sized 1, got "+a.Orders.Last().Quantity);
+   Check(latest==null||!latest.Locked,"no lock");}}
  static void ExitFillBeforePositionUpdateDoesNotLock(){var l=Acc("exitlag lead");var a=Acc("exitlag follow");AccountTelemetry latest=null;
   using(var e=Arm(l,a,t=>latest=t)){l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Wait(()=>a.Submits==1,"entry");Fill(a,2);Drain(e);
    l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"exitlag close"));Wait(()=>a.Submits==2,"exit");Drain(e);

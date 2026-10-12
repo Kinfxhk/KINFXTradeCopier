@@ -1022,7 +1022,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 .Select(x=>Tuple.Create(x.Oco,CapturedRemaining(x))).ToList();
             // Unknown manual work consumes capacity but is never adopted. Owned wrappers use captured evidence only.
             Order[] actual; lock(f.Account.Orders)actual=f.Account.Orders.ToArray();
-            reservations.AddRange(actual.Where(o=>o.Instrument!=null&&o.Instrument.FullName==instrument.FullName&&o.OrderAction==current.Latest.Action&&!Order.IsTerminalState(o.OrderState)&&FindFollowerLink(f,o,o.OrderId)==null)
+            reservations.AddRange(actual.Where(o=>o.Instrument!=null&&o.Instrument.FullName==instrument.FullName&&o.OrderAction==current.Latest.Action&&!Order.IsTerminalState(o.OrderState)&&!(f.PreSessionGhost.Contains(o)&&o.OrderState==OrderState.Initialized&&o.Filled==0)&&FindFollowerLink(f,o,o.OrderId)==null)
                 .Select(o=>Tuple.Create(o.Oco,Math.Max(0,o.Quantity-o.Filled))));
             return reservations.Where(x=>string.IsNullOrEmpty(x.Item1)).Sum(x=>x.Item2)+
                 reservations.Where(x=>!string.IsNullOrEmpty(x.Item1)&&x.Item1!=current.Oco).GroupBy(x=>x.Item1).Sum(g=>g.Max(x=>x.Item2));
