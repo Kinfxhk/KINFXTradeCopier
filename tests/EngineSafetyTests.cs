@@ -1102,15 +1102,21 @@ class EngineSafetyTests {
    manual.OrderId="695407369001";manual.Filled=1;manual.OrderState=NinjaTrader.Cbi.OrderState.Filled;lock(a.Orders)a.Orders.Add(manual);e.Poll();Drain(e);Check(latest!=null&&latest.Locked,"a filled order created after Start that this copier did not place must lock");}}
  // History means TERMINAL at Start only. An order that was still working when the session began is never excused, even if it later fills.
  static void WorkingOrderBeforeStartIsNeverHistory(){var l=Acc("workhist lead");var a=Acc("workhist follow");AccountTelemetry latest=null;
-  // A working order can appear on the provider thread AFTER Start's Clean() check but BEFORE its history snapshot (reads 1-2 = Clean, 3-4 = snapshot; every access reads twice).
-  // It is unknown live activity: it must NEVER be excused as history, so the follower must lock.
+  // Start reads the follower's Orders in this order: 1-2 first Clean(), 3-4 pre-session history snapshot, 5-6 post-subscribe Clean() recheck.
+  // A WORKING order that is present at the snapshot is live activity and must never be recorded as pre-session history. Make it fill between the
+  // snapshot and the recheck while the position callback lags (position still 0): the recheck passes, so only the history rule can still catch it.
   var w=a.CreateOrder(inst,NinjaTrader.Cbi.OrderAction.Buy,NinjaTrader.Cbi.OrderType.Limit,NinjaTrader.Cbi.OrderEntry.Manual,NinjaTrader.Cbi.TimeInForce.Day,1,50,0,"","manual-working",DateTime.MaxValue,null);
   w.OrderId="695407369500";w.OrderState=NinjaTrader.Cbi.OrderState.Working;
   var backing=(List<NinjaTrader.Cbi.Order>)typeof(NinjaTrader.Cbi.Account).GetField("orders",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(a);
-  int reads=0;a.OrdersReadHook=()=>{ if(System.Threading.Interlocked.Increment(ref reads)==3){ lock(backing)backing.Add(w); } };
-  var e=new CopierEngine(x=>{},t=>latest=t,(att,st)=>{},(n,r)=>{});using(e){e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10,Target=100},new RiskLatch())});Drain(e);Thread.Sleep(150);Drain(e);e.Poll();Drain(e);
-   Check(reads>=4,"the hook ran inside Start (reads="+reads+")");
-   Check(!e.Attached||(latest!=null&&latest.Locked),"working order that appeared during Start must refuse Start or lock the follower; it must not be treated as history");}}
+  int reads=0;a.OrdersReadHook=()=>{ int n=System.Threading.Interlocked.Increment(ref reads);
+    if(n==3){ lock(backing)backing.Add(w); }                                   // present when the history snapshot runs
+    if(n==5){ w.Filled=1;w.OrderState=NinjaTrader.Cbi.OrderState.Filled; } };    // filled before the recheck; Position() still 0
+  string refusal="";var e=new CopierEngine(x=>{},t=>latest=t,(att,st)=>{},(n,r)=>{});
+  using(e){try{e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10,Target=100},new RiskLatch())});}catch(InvalidOperationException ex){refusal=ex.Message;}
+   Drain(e);a.OrdersReadHook=null;e.Poll();Drain(e);
+   Check(reads>=6,"the fill landed between snapshot and recheck (reads="+reads+")");
+   Check(refusal.IndexOf("latched",StringComparison.OrdinalIgnoreCase)>=0||(latest!=null&&latest.Locked),
+     "a working order that filled during Start is unknown live exposure: Start must be refused by the risk latch or the follower must lock (refusal='"+refusal+"')");}}
  static void ExitFillBeforePositionUpdateDoesNotLock(){var l=Acc("exitlag lead");var a=Acc("exitlag follow");AccountTelemetry latest=null;
   using(var e=Arm(l,a,t=>latest=t)){l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Wait(()=>a.Submits==1,"entry");Fill(a,2);Drain(e);
    l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"exitlag close"));Wait(()=>a.Submits==2,"exit");Drain(e);
