@@ -1187,6 +1187,48 @@ class EngineSafetyTests {
    l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",1));Wait(()=>a.Submits==2,"cover Buy must be submitted with 1 lot even though a never-sent KTC> Buy is lying in the account");
    Check(a.Orders.Last().Quantity==1,"cover sized 1, got "+a.Orders.Last().Quantity);
    Check(latest==null||!latest.Locked,"no lock");}}
+ static void ExitAfterCancelledLimitAndSkippedEntryDoesNotLock(){var l=Acc("skipexit lead");var a=Acc("skipexit follow");AccountTelemetry latest=null;
+  // Real-NT sequence (Sim101 -> Lucid/Tradeify, cap 1 lot): leader parks a passive Buy Limit (copied), cancels it (follower cancelled), then buys 2 (above the cap:
+  // entry skipped, no order) and sells 1. The follower owns nothing, so that exit has nothing to close and must be ignored; a 10s lock strands a flat follower.
+  var e=new CopierEngine(m=>{},t=>latest=t,(att,m)=>{},(n,r)=>{});
+  try{e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=1,Target=100},new RiskLatch())});Wait(()=>e.EntriesArmed,"arm");
+   var o=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",1);o.OrderType=NinjaTrader.Cbi.OrderType.Limit;o.LimitPrice=30700;o.OrderId="lim-1";l.Emit(o);Wait(()=>a.Submits==1,"limit copied");
+   var fo=a.Orders.Last();fo.OrderState=NinjaTrader.Cbi.OrderState.Working;a.Emit(fo);Drain(e);
+   o.OrderState=NinjaTrader.Cbi.OrderState.Cancelled;l.Emit(o);Drain(e);
+   fo.OrderState=NinjaTrader.Cbi.OrderState.Cancelled;a.Emit(fo);Drain(e);
+   int before=a.Submits;
+   var b2=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",2);b2.OrderId="buy-2";l.Emit(b2);Drain(e);
+   Check(a.Submits==before,"2-lot entry is above the 1-lot cap and must be skipped");
+   l.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});
+   var s1=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"",1);s1.OrderId="sell-1";l.Emit(s1);Drain(e);
+   System.Threading.Thread.Sleep(11500);e.Poll();Drain(e);
+   Check(a.Submits==before,"nothing to close: no follower order");
+   Check(latest==null||!latest.Locked,"flat follower must not be locked by the leader's exit after a skipped entry; reason: "+(latest==null?"":latest.Reason));}finally{e.Dispose();}}
+ static void ExitAfterEarlierRoundTripsAndSkippedEntryDoesNotLock(){var l=Acc("rt2 lead");var a=Acc("rt2 follow");AccountTelemetry latest=null;
+  // Real-NT sequence behind the OPEN ISSUE: TWO completed round trips in the same session (each ends with ExitCompleted and Following=false; the user re-ticks),
+  // then a passive Limit that is cancelled, a Buy 2 above the 1-lot cap (skipped) and a leader Sell 1. The old filled entry links must not make that last exit "wait for
+  // closable exposure" and lock a flat follower after 10s.
+  var e=new CopierEngine(m=>{},t=>latest=t,(att,m)=>{},(n,r)=>{});
+  try{e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=1,Target=100},new RiskLatch())});Wait(()=>e.EntriesArmed,"arm");
+   for(int rt=0;rt<2;rt++){
+    var en=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",1);en.OrderId="rt-in-"+rt;l.Emit(en);Wait(()=>a.Submits==rt*2+1,"entry copied "+rt);
+    var fi=a.Orders.Last();fi.Filled=1;fi.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=1,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});a.Emit(fi);Drain(e);
+    l.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=1,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});
+    var ex=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"",1);ex.OrderId="rt-out-"+rt;l.Emit(ex);Wait(()=>a.Submits==rt*2+2,"exit copied "+rt);
+    var fx=a.Orders.Last();fx.Filled=1;fx.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Clear();a.Emit(fx);Drain(e);l.Positions.Clear();
+    e.SetFollowing(a.Name,true);Drain(e);Check(latest!=null&&latest.Following&&!latest.Locked,"re-followed after round trip "+rt);}
+   int before=a.Submits;
+   var o=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",1);o.OrderType=NinjaTrader.Cbi.OrderType.Limit;o.LimitPrice=30700;o.OrderId="rt-lim";l.Emit(o);Wait(()=>a.Submits==before+1,"limit copied");
+   var fo=a.Orders.Last();fo.OrderState=NinjaTrader.Cbi.OrderState.Working;a.Emit(fo);Drain(e);
+   o.OrderState=NinjaTrader.Cbi.OrderState.Cancelled;l.Emit(o);Drain(e);fo.OrderState=NinjaTrader.Cbi.OrderState.Cancelled;a.Emit(fo);Drain(e);
+   before=a.Submits;
+   var b2=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",2);b2.OrderId="rt-buy2";l.Emit(b2);Drain(e);
+   Check(a.Submits==before,"2-lot entry is above the 1-lot cap and must be skipped");
+   l.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});
+   var s1=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"",1);s1.OrderId="rt-sell1";l.Emit(s1);Drain(e);
+   System.Threading.Thread.Sleep(11500);e.Poll();Drain(e);
+   Check(a.Submits==before,"nothing to close: no follower order");
+   Check(latest==null||!latest.Locked,"flat follower must not be locked by the leader's exit after earlier round trips and a skipped entry; reason: "+(latest==null?"":latest.Reason));}finally{e.Dispose();}}
  static void ExitFillBeforePositionUpdateDoesNotLock(){var l=Acc("exitlag lead");var a=Acc("exitlag follow");AccountTelemetry latest=null;
   using(var e=Arm(l,a,t=>latest=t)){l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Wait(()=>a.Submits==1,"entry");Fill(a,2);Drain(e);
    l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"exitlag close"));Wait(()=>a.Submits==2,"exit");Drain(e);
