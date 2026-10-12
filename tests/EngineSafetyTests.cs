@@ -30,7 +30,9 @@ namespace NinjaTrader.Cbi {
   public void EmitCaptured(Order o,int quantity,int filled,OrderState state){var h=OrderUpdate;if(h!=null)h(this,new OrderEventArgs{Order=o,OrderId=o.OrderId,Quantity=quantity,Filled=filled,OrderState=state,LimitPrice=o.LimitPrice,StopPrice=o.StopPrice});}
 
   public void Cancel(Order[] orders){if(CancelEntered!=null){CancelEntered.Set();CancelRelease.WaitOne();}if(AsyncCancel){Interlocked.Add(ref Cancels,orders.Length);return;}if(ThrowCancel)throw new InvalidOperationException("Synthetic cancel error");foreach(var o in orders){o.OrderState=OrderState.Cancelled;Interlocked.Increment(ref Cancels);Emit(o);}}
-  public void Flatten(Instrument[] inst){if(NoopFlatten){Interlocked.Increment(ref Flattens);return;}if(ThrowFlatten){if(FlattenWorkingBeforeThrow){var pending=CreateOrder(inst[0],OrderAction.Sell,OrderType.Market,OrderEntry.Manual,TimeInForce.Day,2,0,0,"","SyntheticPendingFlatten",DateTime.MaxValue,null);pending.OrderState=OrderState.Working;Orders.Add(pending);Emit(pending);}throw new InvalidOperationException("Synthetic flatten error");}Interlocked.Increment(ref Flattens);foreach(var o in Orders.ToArray())Cancel(new[]{o});lock(Positions)Positions.Clear();var fake=CreateOrder(inst[0],OrderAction.Sell,OrderType.Market,OrderEntry.Manual,TimeInForce.Day,1,0,0,"","SyntheticFlatten",DateTime.MaxValue,null);fake.OrderState=OrderState.Submitted;Emit(fake);}
+  // Real NinjaTrader Flatten cancels WORKING orders only; it never rewrites an already Filled order to Cancelled.
+  static bool OrderStateIsTerminal(OrderState s){return s==OrderState.Filled||s==OrderState.Cancelled||s==OrderState.Rejected;}
+  public void Flatten(Instrument[] inst){if(NoopFlatten){Interlocked.Increment(ref Flattens);return;}if(ThrowFlatten){if(FlattenWorkingBeforeThrow){var pending=CreateOrder(inst[0],OrderAction.Sell,OrderType.Market,OrderEntry.Manual,TimeInForce.Day,2,0,0,"","SyntheticPendingFlatten",DateTime.MaxValue,null);pending.OrderState=OrderState.Working;Orders.Add(pending);Emit(pending);}throw new InvalidOperationException("Synthetic flatten error");}Interlocked.Increment(ref Flattens);foreach(var o in Orders.ToArray().Where(x=>!OrderStateIsTerminal(x.OrderState)))Cancel(new[]{o});lock(Positions)Positions.Clear();var fake=CreateOrder(inst[0],OrderAction.Sell,OrderType.Market,OrderEntry.Manual,TimeInForce.Day,1,0,0,"","SyntheticFlatten",DateTime.MaxValue,null);fake.OrderState=OrderState.Submitted;Emit(fake);}
   public void Emit(Order o){var h=OrderUpdate;if(h!=null)h(this,new OrderEventArgs {Order=o,OrderId=o.OrderId,OrderState=o.OrderState,Quantity=o.Quantity,Filled=o.Filled,LimitPrice=o.LimitPrice,StopPrice=o.StopPrice});}
  }
 }
@@ -1301,6 +1303,69 @@ class EngineSafetyTests {
    Thread.Sleep(300);e.Poll();Drain(e);
    Check(a.Submits==1,"the copier must never place a make-up order for the missing 2 lots");
    Check(latest!=null&&latest.Locked,"a terminal quantity shortfall locks for manual review (no makeup / chase)");}}
+ // ---- Per-account Flat. A user Flatten of ONE follower that the provider then confirms flat (Position 0, nothing working, quiet for longer than the position-lag grace)
+ // must leave that account unlocked, off and re-followable, must not touch the other follower, and must not leave the session undetachable.
+ static CopierEngine ArmTwo(NinjaTrader.Cbi.Account l,NinjaTrader.Cbi.Account a,NinjaTrader.Cbi.Account b,Dictionary<string,AccountTelemetry> tele,List<string> log=null){
+  var e=new CopierEngine(s=>{if(log!=null)lock(log)log.Add(s);},t=>{lock(tele)tele[t.Name]=t;},(att,s)=>{},(n,r)=>{});
+  e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10,Target=100},new RiskLatch()),Tuple.Create(b,new RiskSettings{MaxContracts=10,Target=100},new RiskLatch())});Wait(()=>e.EntriesArmed,"arm two");return e;}
+ static void BothFilled(CopierEngine e,NinjaTrader.Cbi.Account l,NinjaTrader.Cbi.Account a,NinjaTrader.Cbi.Account b,int qty){
+  l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",qty));Wait(()=>a.Submits==1&&b.Submits==1,"both entries copied");
+  foreach(var f in new[]{a,b})Fill(f,qty);Drain(e);
+  l.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=qty,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});}
+ static void FlatOneFollowerConfirmedFlatLeavesItUnlockedAndOtherUntouched(){var l=Acc("flat1 lead");var a=Acc("flat1 a");var b=Acc("flat1 b");var tele=new Dictionary<string,AccountTelemetry>();
+  var e=ArmTwo(l,a,b,tele);
+  try{BothFilled(e,l,a,b,2);
+   e.Flatten(new[]{a},inst);Wait(()=>a.Flattens==1,"A flatten requested");Drain(e);
+   Check(b.Flattens==0,"B must not be flattened by A's Flat");
+   Thread.Sleep(3600);e.Poll();Drain(e);e.Poll();Drain(e);
+   lock(tele){Check(!tele["flat1 a"].Locked,"A was flattened by the user and the provider confirms flat: A must not be locked; reason: "+tele["flat1 a"].Reason);
+    Check(!tele["flat1 a"].Following,"A is off after Flat (explicit re-follow required)");
+    Check(!tele["flat1 b"].Locked,"B must not be locked by A's Flat");}
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"",2));Wait(()=>b.Submits==2,"B still copies the leader exit");Drain(e);
+   Check(a.Submits==1,"A gets nothing more after its Flat");
+  }finally{e.Dispose();}}
+ static void FlatOneFollowerThenSessionCanStopAndAccountCanBeRefollowed(){var l=Acc("flat2 lead");var a=Acc("flat2 a");var b=Acc("flat2 b");var tele=new Dictionary<string,AccountTelemetry>();
+  var e=ArmTwo(l,a,b,tele);
+  try{BothFilled(e,l,a,b,1);
+   // B exits normally (copied exit filled), A is flattened by hand: afterwards the whole session is flat and must be detachable.
+   e.Flatten(new[]{a},inst);Wait(()=>a.Flattens==1,"A flatten");Drain(e);
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"",1));Wait(()=>b.Submits==2,"B exit");var xb=b.Orders.Last();xb.Filled=1;xb.OrderState=NinjaTrader.Cbi.OrderState.Filled;b.Positions.Clear();b.Emit(xb);Drain(e);
+   Thread.Sleep(3600);e.Poll();Drain(e);e.Poll();Drain(e);
+   lock(tele)Check(!tele["flat2 a"].Locked&&!tele["flat2 b"].Locked,"nobody locked after a normal exit plus a user Flat");
+   l.Positions.Clear();
+   e.SetFollowing(a.Name,true);Drain(e);
+   lock(tele)Check(tele["flat2 a"].Following,"A can be re-followed once confirmed flat");
+   e.StopFlat();Thread.Sleep(300);Drain(e);
+   Check(!e.Attached,"Stop must detach a session whose accounts are all confirmed flat (it used to stay attached forever after a Flatten)");
+  }finally{e.Dispose();}}
+ static void FlatThatIsNotConfirmedStaysLockedAndNeverAutoRetries(){var l=Acc("flat3 lead");var a=Acc("flat3 a");var b=Acc("flat3 b");var tele=new Dictionary<string,AccountTelemetry>();
+  var e=ArmTwo(l,a,b,tele);var oldTimeout=CopierEngine.FlattenConfirmTimeout;
+  try{BothFilled(e,l,a,b,2);
+   a.NoopFlatten=true;                                        // provider accepts the call but nothing closes: position stays 2
+   CopierEngine.FlattenConfirmTimeout=TimeSpan.FromSeconds(2);
+   e.Flatten(new[]{a},inst);Wait(()=>a.Flattens==1,"A flatten");Drain(e);
+   e.Poll();Drain(e);
+   lock(tele)Check(!tele["flat3 a"].Locked,"a Flat that is merely slow must NOT lock inside the confirmation window (real NT needs a few hundred ms)");
+   Thread.Sleep(2300);e.Poll();Drain(e);
+   lock(tele){Check(tele["flat3 a"].Locked,"an unconfirmed Flat must lock A for manual review after the window; reason: "+tele["flat3 a"].Reason);Check(!tele["flat3 b"].Locked,"B untouched");}
+   Thread.Sleep(300);e.Poll();Drain(e);
+   Check(a.Flattens==1&&b.Flattens==0,"never retried automatically; B never flattened");
+  }finally{CopierEngine.FlattenConfirmTimeout=oldTimeout;e.Dispose();}}
+ static void FlatOneFollowerLeavesOtherFollowerCopyingNewEntries(){var l=Acc("flat4 lead");var a=Acc("flat4 a");var b=Acc("flat4 b");var tele=new Dictionary<string,AccountTelemetry>();
+  var e=ArmTwo(l,a,b,tele);
+  try{BothFilled(e,l,a,b,1);
+   e.Flatten(new[]{a},inst);Wait(()=>a.Flattens==1,"A flatten");Drain(e);
+   Check(e.EntriesArmed,"flattening ONE follower must not pause the whole session");
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"",1));Wait(()=>b.Submits==2,"B copies the leader exit while A is flattening");
+   Check(a.Submits==1,"A is excluded while flattening");
+  }finally{e.Dispose();}}
+ static void FlatOfTheLeaderStillBlocksEveryNewCopy(){var l=Acc("flat5 lead");var a=Acc("flat5 a");var b=Acc("flat5 b");var tele=new Dictionary<string,AccountTelemetry>();
+  var e=ArmTwo(l,a,b,tele);
+  try{e.Flatten(new[]{l},inst);Drain(e);
+   Check(!e.EntriesArmed,"a scope containing the leader keeps the old rule: entries blocked");
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",1));Drain(e);Thread.Sleep(150);
+   Check(a.Submits==0&&b.Submits==0,"no copies while the leader is being flattened");
+  }finally{e.Dispose();}}
  static void ExitFillBeforePositionUpdateDoesNotLock(){var l=Acc("exitlag lead");var a=Acc("exitlag follow");AccountTelemetry latest=null;
   using(var e=Arm(l,a,t=>latest=t)){l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Wait(()=>a.Submits==1,"entry");Fill(a,2);Drain(e);
    l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"exitlag close"));Wait(()=>a.Submits==2,"exit");Drain(e);
