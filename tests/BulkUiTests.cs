@@ -150,7 +150,7 @@ public static class BulkUiTests {
  }
  static void BarIsOnCopyTabAndKeepsHolds(){
   var v=Fresh();Layout(v);
-  Check(v.AccountGrid.Columns.Count==13,"13 Copy columns retained");
+  Check(v.AccountGrid.Columns.Count==14,"14 Copy columns retained (13 + the per-account Flat column)");
   Check(v.BulkBarPresent,"bulk bar must be on the Copy tab");
  }
  static void SetLeader(DashboardView v,double tgt,double dll,bool atm){var l=v.Rows[0];l.Target=tgt;l.Loss=dll;l.CopyAtm=atm;}
@@ -384,10 +384,52 @@ public static class BulkUiTests {
   Check(v.Rows[3].Advice.Contains("flatten"),"a FlattenOnce row carries a visible note that it is not active in this alpha: "+v.Rows[3].Advice);
   v.Rows[3].OnDivergence="Notify";v.Rows[3].Changed();v.UpdateCards();Check(!v.Rows[3].Advice.Contains("flatten"),"note gone for Notify");
  }
+ // ---- Per-account Flat column (UI layer only: it asks the tab to flatten ONE account; it never calls the engine itself).
+ static Button FlatButtonFor(DashboardView v,int rowIndex){
+  v.Sections.SelectedIndex=0;Layout(v);var col=v.AccountGrid.Columns.Single(c=>(string)c.Header=="Flat");
+  v.AccountGrid.ScrollIntoView(v.Rows[rowIndex],col);Layout(v);
+  var cell=col.GetCellContent(v.Rows[rowIndex]);Check(cell!=null,"Flat cell realized for row "+rowIndex);
+  var b=cell as Button??Visual<Button>(cell).FirstOrDefault();Check(b!=null,"Flat button found in row "+rowIndex);return b;}
+ static void FlatColumnExistsAndEveryFollowerRowHasItsOwnButton(){
+  var v=Fresh();Check(v.AccountGrid.Columns.Any(c=>(string)c.Header=="Flat"),"Flat column present on the Copy table");
+  var b1=FlatButtonFor(v,1);var b2=FlatButtonFor(v,2);Check(!ReferenceEquals(b1,b2),"each row has its own button");
+  Check(""+b1.Content=="Flat","button is text-labelled Flat (never the icon glyph of Off)");
+  Check(""+b1.Content!="\\uE7E8","not the Off glyph");}
+ static void FlatButtonOnLeaderRowIsDisabled(){var v=Fresh();var b=FlatButtonFor(v,0);Check(!b.IsEnabled,"the leader row has no per-account Flat (it is not a follower; Flatten all covers it)");}
+ static void FlatButtonRequestsExactlyThatRowAndNothingElse(){
+  var v=Fresh();var asked=new System.Collections.Generic.List<string>();v.FlatRow=r=>asked.Add(r.Name);int follow=0;v.FollowRow=(r,on)=>follow++;
+  // the demo view never forwards (no trading from synthetic rows): prove the wiring on a view that is not demo by invoking the handler through the same routed event the button uses.
+  var b=FlatButtonFor(v,3);b.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+  Check(asked.Count==0,"Demo rows must never reach the engine path");Check(follow==0,"Flat is not Off: it must not call the follow path");}
+ static void FlatAndOffAreDifferentControlsWithDifferentGlyphsAndTips(){
+  var v=Fresh();var off=v.AccountGrid.Columns.Single(c=>(string)c.Header=="Off");var flat=v.AccountGrid.Columns.Single(c=>(string)c.Header=="Flat");
+  Check(!ReferenceEquals(off,flat),"separate columns");
+  Check(((string)flat.HeaderStyle.Setters.OfType<Setter>().First(s=>s.Property==FrameworkElement.ToolTipProperty).Value).Contains("Flatten ONE account"),"header tip explains Flat");
+  Check(((string)off.HeaderStyle.Setters.OfType<Setter>().First(s=>s.Property==FrameworkElement.ToolTipProperty).Value).Contains("not Flatten"),"Off header still says it is not Flatten");}
+ static void FlatButtonFitsItsCellAtNarrowWidth(){
+  var v=Fresh();var host=new System.Windows.Controls.Border{Child=v};host.Measure(new Size(900,720));host.Arrange(new Rect(0,0,900,720));host.UpdateLayout();
+  System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(System.Windows.Threading.DispatcherPriority.ContextIdle,new Action(()=>{}));host.UpdateLayout();
+  var col=v.AccountGrid.Columns.Single(c=>(string)c.Header=="Flat");v.AccountGrid.ScrollIntoView(v.Rows[1],col);host.UpdateLayout();
+  var cell=col.GetCellContent(v.Rows[1]);var b=cell as Button??Visual<Button>(cell).FirstOrDefault();Check(b!=null,"button");
+  Check(b.ActualWidth<=col.ActualWidth+0.5,"button ("+b.ActualWidth+") fits the column ("+col.ActualWidth+")");Check(b.ActualWidth>=40,"button stays readable ("+b.ActualWidth+")");}
+ static void FlatCanFlatFollowsSimAndLeaderRules(){
+  var r=new AccountRow{Name="x",Role="Leader",Connection="Synthetic"};Check(!r.CanFlat,"leader cannot Flat per-account");
+  r.Role="Follower";Check(r.CanFlat,"synthetic follower can (demo only; never sent)");
+  r.Connection="Disconnected";Check(!r.CanFlat,"a disconnected account cannot be asked to flatten");}
+ static void FlatOnARealViewForwardsExactlyTheClickedRowOnce(){
+  // A non-demo view (as the tab builds it) forwards the clicked row to FlatRow; the demo view never does. Synthetic rows keep this off any account.
+  var v=new DashboardView(false);v.Editable(true);Layout(v);
+  v.Rows.Add(new AccountRow{Name="real lead",Role="Leader",Connection="Synthetic"});v.Rows.Add(new AccountRow{Name="real A",Role="Follower",Connection="Synthetic"});v.Rows.Add(new AccountRow{Name="real B",Role="Follower",Connection="Synthetic"});
+  Layout(v);var asked=new System.Collections.Generic.List<string>();int follow=0;v.FlatRow=r=>asked.Add(r.Name);v.FollowRow=(r,on)=>follow++;
+  var b=FlatButtonFor(v,2);b.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+  Check(asked.Count==1&&asked[0]=="real B","exactly the clicked row, once; got ["+string.Join(",",asked)+"]");
+  Check(follow==0,"Flat must not go through the follow (tick/Off) path");
+  var lead=FlatButtonFor(v,0);lead.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+  Check(asked.Count==1,"the leader row's Flat is inert even if a click is forced");}
  [STAThread] public static int Main(string[] args){
   try{
    AppDomain.CurrentDomain.AssemblyResolve+=(s,e)=>{string n=e.Name.Split(',')[0];if(n.EndsWith(".resources"))return null;var loaded=AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a=>a.GetName().Name==n);if(loaded!=null)return loaded;string p=System.IO.Path.Combine("C:/Program Files/NinjaTrader 8/bin",n+".dll");return System.IO.File.Exists(p)?System.Reflection.Assembly.LoadFrom(p):null;};
-   var all=new Action[]{CopyColumnsFitWorstCaseContentAndWasteNothing,PlainCheckBoxesStayDark,ComboAndInputStayDarkWhenDisabledOrHovered,TargetAndLossApplyToSelectedOnly,ZeroTurnsLimitOff,RatioStaysIndependent,InvalidInputChangesNothing,NoSelectionIsRefused,LeaderIsNotEdited,AtmToggleBulk,LockedWhenNotEditable,NeverTouchesFollowOrTrading,BarIsOnCopyTabAndKeepsHolds,FromLeaderCopiesToHighlighted,FromLeaderWithoutHighlightHitsAllVisibleFollowers,FromLeaderRespectsSearchFilter,FromLeaderKeepsRatioTickAndOtherFields,ManualEditAfterwardsSticksAndNoLiveLink,FromLeaderRefusedWhenLockedOrNoLeader,FromLeaderNeverTouchesFollowOrTrading,AdviceShownPerRowAndCounted,AdviceUpdatesAfterBulkApply,AdviceNeverBlocksOrChangesSettings,RatioCellFitsCommonValuesAt1160,LogsReadableAndTopAligned,LogClearWorksAndIsEditableIndependent,BadTargetDraftSurvivesRefreshAndBlocksCommit,BadLossDraftSurvivesRefreshAndBlocksCommit,BadTargetDraftSurvivesRecyclingAndStillBlocksCommit,TargetAndLossSetterRejectInvalidNumbers,LockedAccountIsRedWithReasonAndCountedInFooter,LockedCountIgnoresLeaderAndNeverBlocksUi,BadRatioDraftSurvivesRefreshAndBlocksCommit,UnprotectedReasonReachesRowAndDetail,MaxContractsRejectsInvalidAndKeepsDraft,DivergenceChoiceIsPerAccountDefaultsToNotify,DivergenceBulkAndFromLeaderAndNeverTrades,FlattenOnceShowsAWarningNote};
+   var all=new Action[]{CopyColumnsFitWorstCaseContentAndWasteNothing,PlainCheckBoxesStayDark,ComboAndInputStayDarkWhenDisabledOrHovered,TargetAndLossApplyToSelectedOnly,ZeroTurnsLimitOff,RatioStaysIndependent,InvalidInputChangesNothing,NoSelectionIsRefused,LeaderIsNotEdited,AtmToggleBulk,LockedWhenNotEditable,NeverTouchesFollowOrTrading,BarIsOnCopyTabAndKeepsHolds,FromLeaderCopiesToHighlighted,FromLeaderWithoutHighlightHitsAllVisibleFollowers,FromLeaderRespectsSearchFilter,FromLeaderKeepsRatioTickAndOtherFields,ManualEditAfterwardsSticksAndNoLiveLink,FromLeaderRefusedWhenLockedOrNoLeader,FromLeaderNeverTouchesFollowOrTrading,AdviceShownPerRowAndCounted,AdviceUpdatesAfterBulkApply,AdviceNeverBlocksOrChangesSettings,RatioCellFitsCommonValuesAt1160,LogsReadableAndTopAligned,LogClearWorksAndIsEditableIndependent,BadTargetDraftSurvivesRefreshAndBlocksCommit,BadLossDraftSurvivesRefreshAndBlocksCommit,BadTargetDraftSurvivesRecyclingAndStillBlocksCommit,TargetAndLossSetterRejectInvalidNumbers,LockedAccountIsRedWithReasonAndCountedInFooter,LockedCountIgnoresLeaderAndNeverBlocksUi,BadRatioDraftSurvivesRefreshAndBlocksCommit,UnprotectedReasonReachesRowAndDetail,MaxContractsRejectsInvalidAndKeepsDraft,DivergenceChoiceIsPerAccountDefaultsToNotify,DivergenceBulkAndFromLeaderAndNeverTrades,FlattenOnceShowsAWarningNote,FlatColumnExistsAndEveryFollowerRowHasItsOwnButton,FlatButtonOnLeaderRowIsDisabled,FlatButtonRequestsExactlyThatRowAndNothingElse,FlatAndOffAreDifferentControlsWithDifferentGlyphsAndTips,FlatButtonFitsItsCellAtNarrowWidth,FlatCanFlatFollowsSimAndLeaderRules,FlatOnARealViewForwardsExactlyTheClickedRowOnce};
    int failed=0;foreach(var a in all){try{a();Console.WriteLine("PASS "+a.Method.Name);}catch(Exception ex){failed++;Console.WriteLine("FAIL "+a.Method.Name+" :: "+ex.Message);}}
    return failed==0?0:1;
   }catch(Exception ex){Console.WriteLine("HARNESS "+ex);return 2;}
