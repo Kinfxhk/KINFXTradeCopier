@@ -575,6 +575,8 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public readonly HashSet<string> Ignored=new HashSet<string>();
         // Orders that were already terminal when the session started (the platform reloads today's filled orders after a restart). They are history, never unknown live activity.
         public readonly HashSet<Order> PreSessionTerminal=new HashSet<Order>();
+        // Copier orders left in Initialized before Start (never sent). Exempt from the unknown-order lock ONLY while they stay Initialized and unfilled.
+        public readonly HashSet<Order> PreSessionGhost=new HashSet<Order>();
         // When the last follower fill evidence arrived. NinjaTrader raises the order Filled callback ~10 ms BEFORE the PositionUpdate, so for a moment the ledger and Position disagree.
         public DateTime LastFillUtc=DateTime.MinValue;
         public double HighWater;
@@ -756,10 +758,26 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         {
             lock(a.Positions) { var p=a.Positions.FirstOrDefault(x=>x.Instrument.FullName==inst.FullName); return p==null ? 0 : p.Quantity*(p.MarketPosition==MarketPosition.Long?1:p.MarketPosition==MarketPosition.Short?-1:0); }
         }
+        // Names every account that blocks Start and why, so the user can flatten / cancel the right one instead of guessing.
+        public static string DirtyReport(IEnumerable<Account> accounts,Instrument inst)
+        {
+            var parts=new List<string>();
+            foreach(var a in accounts)
+            {
+                if(Clean(a,inst))continue;
+                int p=Position(a,inst); string w="";
+                lock(a.Orders){var open=a.Orders.Where(o=>BlocksStart(o,inst)).ToArray();if(open.Length>0)w=open.Length+" open order(s) ["+string.Join(",",open.Select(o=>o.OrderAction+" "+o.OrderState))+"]";}
+                parts.Add(a.Name+": "+(p!=0?"position "+p.ToString("+0;-0"):"")+(p!=0&&w.Length>0?", ":"")+w);
+            }
+            return "Blocked by "+string.Join("; ",parts)+".";
+        }
+        // A COPIER order (Name "KTC>...") still in state Initialized was created but never sent (left behind by a dry run or a failed submit). It is not on the market and cannot fill,
+        // so it must not block a new session. Any other Initialized order (manual / another tool) still blocks: it may be about to submit.
+        static bool BlocksStart(Order o,Instrument inst){return o.Instrument!=null&&o.Instrument.FullName==inst.FullName&&!Order.IsTerminalState(o.OrderState)&&!(o.OrderState==OrderState.Initialized&&o.Name!=null&&o.Name.StartsWith("KTC>",StringComparison.Ordinal));}
         public static bool Clean(Account a,Instrument inst)
         {
             if(Position(a,inst)!=0)return false;
-            lock(a.Orders) return !a.Orders.Any(o=>o.Instrument!=null && o.Instrument.FullName==inst.FullName && !Order.IsTerminalState(o.OrderState));
+            lock(a.Orders) return !a.Orders.Any(o=>BlocksStart(o,inst));
         }
         public void Start(Account selected,Instrument inst,IEnumerable<Tuple<Account,RiskSettings,RiskLatch>> selectedFollowers,bool copyAtm=true)
         {
@@ -792,12 +810,12 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 if(!SessionOwnership.Acquire(accounts.Select(a=>"account:"+a.Name),this)) { log("Start refused: another copier window owns one of these accounts."); return; }
                 try
                 {
-                    if(accounts.Any(a=>!Clean(a,inst))) throw new InvalidOperationException("Selected instrument already has a position / working order. No adoption or catch-up.");
+                    if(accounts.Any(a=>!Clean(a,inst))) throw new InvalidOperationException("Selected instrument already has a position / working order. No adoption or catch-up. "+DirtyReport(accounts,inst));
                     Interlocked.Increment(ref sessionGeneration);
                     leader=selected; instrument=inst;mirrorAtm=copyAtm;sessionAccounts=accounts; DisposeDispatchers(); followers.Clear(); links.Clear(); tombstones.Clear();
                     lock(identityGate) { identities.Clear(); providerIdentities.Clear(); wrapperProviderIds.Clear(); }
                     foreach(var item in list) followers.Add(new EngineAccount { Dispatcher=NewDispatcher(),Account=item.Item1,Settings=item.Item2.Clone(),Latch=new RiskLatch {Locked=item.Item3.Locked,Reason=item.Item3.Reason},HighWater=item.Item2.HighWater });
-                    foreach(var f in followers){ Order[] existing; lock(f.Account.Orders)existing=f.Account.Orders.ToArray(); foreach(var o in existing)if(o!=null&&o.Instrument!=null&&o.Instrument.FullName==inst.FullName&&Order.IsTerminalState(o.OrderState))f.PreSessionTerminal.Add(o); }
+                    foreach(var f in followers){ Order[] existing; lock(f.Account.Orders)existing=f.Account.Orders.ToArray(); foreach(var o in existing){ if(o==null||o.Instrument==null||o.Instrument.FullName!=inst.FullName)continue; if(Order.IsTerminalState(o.OrderState))f.PreSessionTerminal.Add(o); else if(o.OrderState==OrderState.Initialized&&o.Name!=null&&o.Name.StartsWith("KTC>",StringComparison.Ordinal))f.PreSessionGhost.Add(o); } }
                     foreach(var f in followers.Where(x=>!x.Settings.CopyAtm||!copyAtm))log(f.Account.Name+": ATM exit mirroring OFF — nonmarket exits skipped; market closes only. No native ATM clone / autonomous protection.");
                     followerView=followers.ToArray();
                     attached=true; entries=false;suppressNew=false;
@@ -1259,7 +1277,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             if(!f.Flattening)
             {
                 Order[] actual; lock(f.Account.Orders)actual=f.Account.Orders.ToArray();
-                if(actual.Any(o=>o.Instrument!=null&&o.Instrument.FullName==instrument.FullName&&(!Order.IsTerminalState(o.OrderState)||o.Filled>0)&&!f.PreSessionTerminal.Contains(o)&&FindFollowerLink(f,o,o.OrderId)==null))Lock(f,"Unknown follower order / terminal fill evidence — no adoption; manual recovery required");
+                if(actual.Any(o=>o.Instrument!=null&&o.Instrument.FullName==instrument.FullName&&(!Order.IsTerminalState(o.OrderState)||o.Filled>0)&&!f.PreSessionTerminal.Contains(o)&&!(f.PreSessionGhost.Contains(o)&&o.OrderState==OrderState.Initialized&&o.Filled==0)&&FindFollowerLink(f,o,o.OrderId)==null))Lock(f,"Unknown follower order / terminal fill evidence — no adoption; manual recovery required");
                 if(Volatile.Read(ref pendingFollowerCallbacks)==0&&links.Values.SelectMany(v=>v).Any(x=>x.Follower==f&&x.Order!=null&&(x.Order.Filled!=x.ObservedFilled||(Order.IsTerminalState(x.Order.OrderState)&&x.Order.OrderState!=x.ObservedState))))
                     Lock(f,"Provider wrapper diverges from captured order / fill evidence — reservations retained; manual recovery required");
                 int position=Position(f.Account,instrument), execution=OwnedPosition(f);
@@ -2180,11 +2198,13 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 r=>r.Account.Connection!=null&&r.Account.Connection.Status==ConnectionStatus.Connected,
                 r=>{var a=r.Account;r.Currency=a.Denomination.ToString();return a.Get(AccountItem.CashValue,a.Denomination);});
             {
+                // Qty must show the real signed position for every row this loop owns (the leader, un-ticked accounts, and every account before Start); the engine only publishes ticked followers.
+                Instrument qtyInst=null;try{qtyInst=Instrument.GetInstrument(InstrumentText(),false);}catch{}
                 foreach(var r in dashboard.Rows.Where(r=>!engine.Attached || r.Role=="Leader" || !r.Enabled))
                 {
                     try
                     {
-                        var a=r.Account;r.Realized=a.Get(AccountItem.RealizedProfitLoss,a.Denomination);r.Unrealized=a.Get(AccountItem.UnrealizedProfitLoss,a.Denomination);r.Equity=a.Get(AccountItem.NetLiquidation,a.Denomination);r.Sod=a.Get(AccountItem.SodLiquidatingValue,a.Denomination);r.Pnl=r.Realized+r.Unrealized-(r.Settings.BaselineSet?r.Settings.Baseline:0);r.Connection=a.Connection==null?"Disconnected":a.Connection.Status.ToString();r.Changed();
+                        var a=r.Account;r.Position=qtyInst==null?0:CopierEngine.Position(a,qtyInst);r.Realized=a.Get(AccountItem.RealizedProfitLoss,a.Denomination);r.Unrealized=a.Get(AccountItem.UnrealizedProfitLoss,a.Denomination);r.Equity=a.Get(AccountItem.NetLiquidation,a.Denomination);r.Sod=a.Get(AccountItem.SodLiquidatingValue,a.Denomination);r.Pnl=r.Realized+r.Unrealized-(r.Settings.BaselineSet?r.Settings.Baseline:0);r.Connection=a.Connection==null?"Disconnected":a.Connection.Status.ToString();r.Changed();
                     }
                     catch(Exception ex){r.Status="Telemetry error";Log(r.Name+": "+ex.Message);}
                 }
