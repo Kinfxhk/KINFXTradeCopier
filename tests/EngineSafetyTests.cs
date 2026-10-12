@@ -1366,6 +1366,50 @@ class EngineSafetyTests {
    l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",1));Drain(e);Thread.Sleep(150);
    Check(a.Submits==0&&b.Submits==0,"no copies while the leader is being flattened");
   }finally{e.Dispose();}}
+ // ---- Cases from the independent review of the exit-wait change and the follower-only Flat (each reproduced RED first).
+ static void WaitingExitIsNotSubmittedWhileThatAccountIsFlattening(){var l=Acc("rvA lead");var a=Acc("rvA a");var tele=new Dictionary<string,AccountTelemetry>();
+  var e=new CopierEngine(m=>{},t=>{lock(tele)tele[t.Name]=t;},(att,m)=>{},(n,r)=>{});
+  try{e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10,Target=100},new RiskLatch())});Wait(()=>e.EntriesArmed,"arm");
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",2));Wait(()=>a.Submits==1,"entry copied (still unfilled for the follower)");Drain(e);
+   l.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});
+   var ex=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"",2);ex.OrderId="rvA-exit";l.Emit(ex);Drain(e);
+   Check(a.Submits==1,"fixture: the exit is waiting for closable exposure (entry not filled yet)");
+   a.NoopFlatten=true;e.Flatten(new[]{a},inst);Wait(()=>a.Flattens==1,"flatten sent");Drain(e);
+   Fill(a,2);Drain(e);                                         // entry fill arrives while the Flatten is in flight: the waiting exit could now be sent
+   ex.OrderState=NinjaTrader.Cbi.OrderState.Working;ex.LimitPrice=101;l.Emit(ex);Drain(e);   // leader modifies the exit: this used to re-run Submit for the waiting link
+   Check(a.Submits==1,"a leader order update must not send a reducing order to an account that is being flattened (two closes can reverse it); submits="+a.Submits);
+  }finally{e.Dispose();}}
+ static void ExitIgnoredAsNothingToCloseThenBrokerCancelledEntryFillsLateLocks(){var l=Acc("rvC lead");var a=Acc("rvC a");AccountTelemetry latest=null;
+  using(var e=Arm(l,a,t=>latest=t)){
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",2));Wait(()=>a.Submits==1,"entry");
+   var o=a.Orders[0];o.Filled=0;o.OrderState=NinjaTrader.Cbi.OrderState.Cancelled;a.Emit(o);Drain(e);   // broker cancels (not the leader): link.Cancelled stays false
+   l.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"",2));Drain(e);
+   Check(a.Submits==1,"fixture: the exit had nothing to close and was ignored");Check(latest==null||!latest.Locked,"fixture: ignoring it does not lock");
+   o.Filled=1;a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=1,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});a.Emit(o);Drain(e);   // a fill that was already in flight arrives late
+   Check(latest!=null&&latest.Locked,"a late entry fill AFTER an exit was ignored leaves a position with no exit: the account must lock (fail closed)");
+   Check(latest.Reason.Contains("UNPROTECTED"),"the lock text says how many lots have no exit; got: "+latest.Reason);
+   Check(a.Submits==1,"the copier never creates the missing exit itself");}}
+ static void ExitIgnoredAfterOffThenLateEntryFillLocks(){var l=Acc("rvB lead");var a=Acc("rvB a");AccountTelemetry latest=null;
+  using(var e=Arm(l,a,t=>latest=t)){
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",2));Wait(()=>a.Submits==1,"entry");
+   a.AsyncCancel=true;e.SetFollowing(a.Name,false);Drain(e);   // OFF: cancellation requested, order still working at the broker
+   l.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"",2));Drain(e);Check(a.Submits==1,"fixture: exit ignored");
+   Fill(a,2);Drain(e);                                       // the cancel lost the race: the entry filled anyway
+   Check(latest!=null&&latest.Locked,"entry filled after OFF and after the exit was ignored: the account must lock, not sit unprotected silently");
+   Check(a.Submits==1,"no automatic exit");}}
+ static void LateEntryFillAfterConfirmedFlatLocksAndLedgerIsNotTrusted(){var l=Acc("flat6 lead");var a=Acc("flat6 a");var b=Acc("flat6 b");var tele=new Dictionary<string,AccountTelemetry>();
+  var e=ArmTwo(l,a,b,tele);
+  try{l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",2));Wait(()=>a.Submits==1&&b.Submits==1,"entries");
+   // A never got its fill before the user pressed Flat (Flatten cancels the working order in the fake); confirmed flat after the quiet period.
+   Fill(b,2);Drain(e);
+   e.Flatten(new[]{a},inst);Wait(()=>a.Flattens==1,"flat A");Drain(e);Thread.Sleep(3600);e.Poll();Drain(e);e.Poll();Drain(e);
+   lock(tele)Check(!tele["flat6 a"].Locked,"fixture: A confirmed flat and unlocked");
+   var o=a.Orders[0];o.Filled=2;o.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Clear();a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});a.Emit(o);Drain(e);e.Poll();Drain(e);
+   lock(tele)Check(tele["flat6 a"].Locked,"a fill that arrives after the account was confirmed flat is real exposure: lock; reason: "+tele["flat6 a"].Reason);
+   Check(a.Submits==1,"nothing is sent to A automatically");
+  }finally{e.Dispose();}}
  static void ExitFillBeforePositionUpdateDoesNotLock(){var l=Acc("exitlag lead");var a=Acc("exitlag follow");AccountTelemetry latest=null;
   using(var e=Arm(l,a,t=>latest=t)){l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Wait(()=>a.Submits==1,"entry");Fill(a,2);Drain(e);
    l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"exitlag close"));Wait(()=>a.Submits==2,"exit");Drain(e);

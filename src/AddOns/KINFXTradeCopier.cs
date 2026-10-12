@@ -583,6 +583,8 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         // FlatOffset credits the ledger once the provider proves the account flat: the close order is not a copier link, so without it owned exposure never returns to 0.
         public DateTime FlattenRequestedUtc=DateTime.MinValue, FlattenAcceptedUtc=DateTime.MinValue, LastOrderEventUtc=DateTime.MinValue;
         public int FlatOffset;
+        // Set when a leader exit was dropped as "nothing to close". A fill of an entry that arrives LATER means the account now holds lots that no copied exit covers.
+        public bool ExitDroppedNothingToClose;
         public double HighWater;
     }
     internal sealed class OrderSnapshot
@@ -948,7 +950,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                     if(Alive(s.State))
                     {
                         link.Desired=RiskPolicy.Quantity(s.Quantity,link.Follower.Settings.Ratio);
-                        if(link.Waiting)Submit(link); else Change(link);
+                        if(link.Waiting){ if(!link.Follower.Flattening)Submit(link); } else Change(link);
                     }
                 }
                 catch(Exception ex) { Lock(link.Follower,"Manage error: "+ex.Message); }
@@ -1093,7 +1095,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 // A filled entry link from an EARLIER round trip stays in `links` for the whole session; counting it made a leader exit with nothing to close lock a flat follower after 10s.
                 if(link.Exit && !f.ExitCompleted && (HasPendingEntryWork(f)||OwnedPosition(f)!=0) && links.Values.SelectMany(x=>x).Any(x=>x.Follower==f&&!x.Exit&&x.Order!=null&&(!x.Cancelled||x.ObservedFilled>0)))
                 { if(DateTime.UtcNow-link.WaitingSince>TimeSpan.FromSeconds(10)){link.Waiting=false;Lock(f,"Exit could not obtain closable exposure within 10s — review protection");}else link.Waiting=true;return; }
-                link.Waiting=false; if(link.Exit)log(f.Account.Name+": leader exit ignored, nothing to close"); else log(f.Account.Name+": entry skipped, projected cap / floor quantity"); return;
+                link.Waiting=false; if(link.Exit){f.ExitDroppedNothingToClose=true;log(f.Account.Name+": leader exit ignored, nothing to close");} else log(f.Account.Name+": entry skipped, projected cap / floor quantity"); return;
             }
             var s=link.Latest;
             if(!(s.Type==OrderType.Market||s.Type==OrderType.Limit||s.Type==OrderType.StopMarket||s.Type==OrderType.StopLimit||s.Type==OrderType.MIT)) { Lock(f,"Unsupported order type"); link.Waiting=false; return; }
@@ -1232,6 +1234,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                         bool protectedElsewhere=links.Values.SelectMany(v=>v).Any(x=>x.Follower==f&&x.Exit&&x!=link&&x.Order!=null&&!Order.IsTerminalState(x.Order.OrderState)&&!x.Cancelled);
                         if(OwnedPosition(f)!=0&&!protectedElsewhere&&!f.Flattening)Lock(f,"Protective exit terminal with uncovered exposure — manual review required"+(UnprotectedLots(f)>0?" — "+UnprotectedText(f):""));
                     }
+                    if(!link.Exit&&snapshot.Filled>prior&&f.ExitDroppedNothingToClose&&!f.Flattening&&!f.Latch.Locked)Lock(f,"Entry fill arrived AFTER the leader exit was ignored as 'nothing to close' — no copied exit covers it; manual recovery required; coverage not established"+(UnprotectedLots(f)>0?" — "+UnprotectedText(f):""));
                     if(!link.Exit&&snapshot.Filled>prior&&f.ExitCompleted)Lock(f,"Late uncovered entry fill after exit completion — manual recovery required; coverage not established"+(UnprotectedLots(f)>0?" — "+UnprotectedText(f):""));
                 }
                 RecomputeDisablePending(f);
@@ -1375,7 +1378,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 lock(controlGate)
                 {
                     if(request!=f.FollowGeneration)return;
-                    if(clean) { lock(identityGate)foreach(var id in identities.Values)f.Ignored.Add(id); f.ExitCompleted=false; f.Following=true; }
+                    if(clean) { lock(identityGate)foreach(var id in identities.Values)f.Ignored.Add(id); f.ExitCompleted=false; f.ExitDroppedNothingToClose=false; f.Following=true; }
                     f.ProcessedFollowGeneration=request;
                 }
                 if(!clean)log(accountName+": Follow refused — clean, connected, unlocked session required");
