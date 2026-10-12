@@ -36,3 +36,18 @@ Fix (SIM TEST build only): an operator allow-list `Documents\NinjaTrader 8\templ
 ## Test limits / 限制
 - The author host has no C# compiler; the C# suites run in the VM (see above). Python guard tests: 11 OK (1 skipped).
 - Trading in the default build remains disabled. This log does not lift the hold.
+
+## Real NinjaTrader 8.1.8.3 (KinTest VM), 2026-10-13, source `28bc4bb3bc47` + `#define KINFX_SIM_TEST` / 真 NT 實測
+Leader `Sim101` (simulated feed) -> followers Lucid `…0059` and Tradeify `…7695` (full account names withheld) (operator-attested in `sim-allow.txt`). Ratio 1, Max 1, no Dry run (the Start dialog was read first: 2 followers, MNQZ6, no `DRY RUN`). Offline suites on the VM at the same source hash: enginesim 207/207, puresim 32/32, independent 24 PASS + 1 known FAIL (`ExplicitManualFlatReconciliationAvailable`), compilesim OK. The SIM TEST build compiled in NinjaTrader (DLL timestamp moved) and the Dashboard reloaded with a new **Flat** column.
+
+Observed (trace `Cbi.Account.*` lines are the evidence, not the UI):
+- **Buy 1 market on Sim101:** both followers submitted Buy 1 within ~0.1 s of the leader fill and filled ~0.45 s later; both followers Long 1.
+- **Per-account Flat on Lucid only** (button -> confirmation text `FLAT ONE ACCOUNT. FLATTEN exactly 1 account(s), only MNQZ6 | <the Lucid account name>`, answered Yes only after the text matched): exactly one `Close` Sell 1 Market was created for Lucid, filled in ~0.25 s; Lucid went Flat; **Tradeify was untouched and stayed `Copying`**; no latch was written; Lucid read `Off`.
+- **Leader Sell 1 afterwards:** only Tradeify received the copied exit (Sell 1 market, filled, Flat). Lucid got nothing, as designed. After the exit Tradeify also reads `Off` (the existing "re-tick after an exit" behaviour).
+- **Flat with a working order:** a leader passive Buy Limit 30700 was copied to both followers (Working). Flat on Lucid cancelled **only Lucid's** `KTC>` Limit (Cancel0 -> CancelPending -> Cancelled); Tradeify's stayed Working until the leader order was cancelled, which was then mirrored to Tradeify. No locks at any point.
+- **Declined confirmation:** answering No to the Flat dialog sent nothing (no `Close` order created for that account).
+- The stale `Exit could not obtain closable exposure within 10s` latches left by the earlier build were unlocked through the normal prompt (account name and unlock wording matched) before Start.
+
+**The original lock sequence was then replayed on real NT** (same build): Buy 1 / Sell 1 twice, a passive Buy Limit 30700 (copied, then cancelled by the leader and mirrored), Buy 2 market (followers sent nothing: above the 1-lot cap), Sell 1. Both followers stayed `Copying` and flat with no latch after more than 10 s; the trace shows no follower order for the Buy 2 and none for the Sell 1. On the previous build this ended in `Exit could not obtain closable exposure within 10s` on both followers.
+
+Not covered by this run: Flat while a protective TP/SL exists, a Flat that the provider rejects, a disconnect during Flat and a real reconnect were not exercised. Each remains "offline-tested only". The 20 s confirmation window was not stressed on a slow connection.
