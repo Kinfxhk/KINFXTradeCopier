@@ -1229,6 +1229,78 @@ class EngineSafetyTests {
    System.Threading.Thread.Sleep(11500);e.Poll();Drain(e);
    Check(a.Submits==before,"nothing to close: no follower order");
    Check(latest==null||!latest.Locked,"flat follower must not be locked by the leader's exit after earlier round trips and a skipped entry; reason: "+(latest==null?"":latest.Reason));}finally{e.Dispose();}}
+// ---- Disconnect / reconnect (no catch-up, per-account isolation) and partial fills. Fake sink only.
+ static void Disc(NinjaTrader.Cbi.Account a){a.Connection.Status=NinjaTrader.Cbi.ConnectionStatus.Disconnected;}
+ static void Reco(NinjaTrader.Cbi.Account a){a.Connection.Status=NinjaTrader.Cbi.ConnectionStatus.Connected;}
+ static void LeaderDisconnectLocksFollowersAndNothingIsCaughtUpAfterReconnect(){var l=Acc("ldisc lead");var a=Acc("ldisc a");var b=Acc("ldisc b");int locks=0;
+  using(var e=new CopierEngine(s=>{},t=>{},(att,s)=>{},(n,r)=>Interlocked.Increment(ref locks))){
+   e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10,Target=100},new RiskLatch()),Tuple.Create(b,new RiskSettings{MaxContracts=10,Target=100},new RiskLatch())});Wait(()=>e.EntriesArmed,"arm");
+   Disc(l);e.Poll();Wait(()=>locks==2,"both followers latched when the leader disconnects");
+   Check(!e.EntriesArmed,"entries stop when the leader is gone");
+   Reco(l);l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Drain(e);e.Poll();Drain(e);
+   Check(a.Submits==0&&b.Submits==0,"a leader order after the reconnect is not copied: the sessions stay locked until the user restarts");}}
+ static void FollowerDisconnectLocksOnlyThatFollowerAndMissedOrdersAreNeverCaughtUp(){var l=Acc("fdisc lead");var a=Acc("fdisc a");var b=Acc("fdisc b");var locked=new List<string>();
+  using(var e=new CopierEngine(s=>{},t=>{},(att,s)=>{},(n,r)=>{lock(locked)locked.Add(n);})){
+   e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10,Target=100},new RiskLatch()),Tuple.Create(b,new RiskSettings{MaxContracts=10,Target=100},new RiskLatch())});Wait(()=>e.EntriesArmed,"arm");
+   Disc(a);e.Poll();Wait(()=>{lock(locked)return locked.Contains(a.Name);},"A latched on disconnect");
+   lock(locked)Check(!locked.Contains(b.Name),"B must not be locked by A's disconnect");
+   var gap=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",1);gap.OrderId="gap-1";l.Emit(gap);Wait(()=>b.Submits==1,"B still copies while A is down");Drain(e);
+   Check(a.Submits==0,"nothing is sent to a disconnected follower");
+   Reco(a);e.Poll();Drain(e);
+   Check(a.Submits==0,"A is not caught up with the entry it missed");
+   var later=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",1);later.OrderId="after-1";l.Emit(later);Drain(e);
+   Check(a.Submits==0,"A stays locked after the reconnect: a latch is cleared only by an explicit validated unlock");}}
+ static void FollowerDisconnectedWhileHoldingKeepsPositionLockedAndDoesNotAutoExit(){var l=Acc("fdisch lead");var a=Acc("fdisch a");AccountTelemetry latest=null;
+  using(var e=Arm(l,a,t=>latest=t)){
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",2));Wait(()=>a.Submits==1,"entry");Fill(a,2);Drain(e);
+   Disc(a);e.Poll();Drain(e);Check(latest!=null&&latest.Locked,"disconnect locks the holding follower");
+   l.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"",2));Drain(e);
+   Reco(a);e.Poll();Drain(e);
+   Check(a.Submits==1,"the exit the follower missed while disconnected is not sent automatically; the user flattens it by hand");
+   Check(latest.Locked&&!latest.Following,"still locked and not following after the reconnect");}}
+ static void ProtectiveOrderSurvivesFollowerDisconnectAndReconnect(){var l=Acc("fdiscp lead");var a=Acc("fdiscp a");AccountTelemetry latest=null;
+  using(var e=Arm(l,a,t=>latest=t)){
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",2));Wait(()=>a.Submits==1,"entry");Fill(a,2);Drain(e);
+   l.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});
+   l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"oco-d",2,110));Wait(()=>a.Submits==2,"protective target");Drain(e);
+   var tgt=a.Orders[1];
+   Disc(a);e.Poll();Drain(e);Reco(a);e.Poll();Drain(e);
+   Check(tgt.OrderState==NinjaTrader.Cbi.OrderState.Working&&a.Cancels==0,"an existing protective order is never cancelled by a disconnect or reconnect");
+   Check(a.Submits==2,"no new order after the reconnect");}}
+ static void PartialEntryFillThenLeaderExitIsSizedToWhatWasFilled(){var l=Acc("pf1 lead");var a=Acc("pf1 a");AccountTelemetry latest=null;
+  using(var e=Arm(l,a,t=>latest=t)){
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",4));Wait(()=>a.Submits==1,"entry 4");Fill(a,2);Drain(e);
+   Check(a.Orders[0].OrderState==NinjaTrader.Cbi.OrderState.PartFilled,"fixture: entry is part filled 2 of 4");
+   l.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=4,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"",4));Wait(()=>a.Submits>=2,"exit copied");Drain(e);
+   var ex=a.Orders.Skip(1).First();
+   Check(ex.OrderAction==NinjaTrader.Cbi.OrderAction.Sell,"exit is a Sell");
+   Check(ex.Quantity<=2,"the exit must not exceed the 2 lots actually filled (that would reverse the account), got "+ex.Quantity);
+   Check(latest==null||!latest.Locked,"a part-filled entry followed by an exit is normal and must not lock; "+(latest==null?"":latest.Reason));}}
+ static void PartialEntryFillThenCancelledRemainderThenExitClosesTheFilledPart(){var l=Acc("pf2 lead");var a=Acc("pf2 a");AccountTelemetry latest=null;
+  using(var e=Arm(l,a,t=>latest=t)){
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",4));Wait(()=>a.Submits==1,"entry 4");Fill(a,2);Drain(e);
+   var o=a.Orders[0];o.OrderState=NinjaTrader.Cbi.OrderState.Cancelled;a.Emit(o);Drain(e);
+   Check(latest==null||!latest.Locked,"a cancelled remainder after a partial fill is not a divergence by itself; "+(latest==null?"":latest.Reason));
+   l.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"",2));Wait(()=>a.Submits==2,"exit for the filled 2");Drain(e);
+   Check(a.Orders[1].Quantity==2,"exit sized to the 2 filled lots, got "+a.Orders[1].Quantity);}}
+ static void PartialEntryFillThenRemainderFillsLaterEndsFullyOwned(){var l=Acc("pf3 lead");var a=Acc("pf3 a");AccountTelemetry latest=null;
+  using(var e=Arm(l,a,t=>latest=t)){
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",4));Wait(()=>a.Submits==1,"entry 4");Fill(a,1);Drain(e);Fill(a,3);Drain(e);Fill(a,4);Drain(e);
+   Check(a.Orders[0].OrderState==NinjaTrader.Cbi.OrderState.Filled,"fixture: filled");
+   a.Positions.Clear();a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=4,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});e.Poll();Drain(e);
+   Check(latest!=null&&!latest.Locked,"three cumulative partial fills adding up to the requested 4 do not lock; "+(latest==null?"":latest.Reason));
+   l.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=4,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"",4));Wait(()=>a.Submits==2,"exit");Check(a.Orders[1].Quantity==4,"exit sized 4, got "+a.Orders[1].Quantity);}}
+ static void PartialFillShortfallNeverMakesUpTheMissingLots(){var l=Acc("pf4 lead");var a=Acc("pf4 a");AccountTelemetry latest=null;
+  using(var e=Arm(l,a,t=>latest=t)){
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",4));Wait(()=>a.Submits==1,"entry 4");Fill(a,2);Drain(e);
+   var o=a.Orders[0];o.Filled=2;o.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Emit(o);Drain(e);
+   Thread.Sleep(300);e.Poll();Drain(e);
+   Check(a.Submits==1,"the copier must never place a make-up order for the missing 2 lots");
+   Check(latest!=null&&latest.Locked,"a terminal quantity shortfall locks for manual review (no makeup / chase)");}}
  static void ExitFillBeforePositionUpdateDoesNotLock(){var l=Acc("exitlag lead");var a=Acc("exitlag follow");AccountTelemetry latest=null;
   using(var e=Arm(l,a,t=>latest=t)){l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Wait(()=>a.Submits==1,"entry");Fill(a,2);Drain(e);
    l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"exitlag close"));Wait(()=>a.Submits==2,"exit");Drain(e);
