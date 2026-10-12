@@ -86,6 +86,21 @@ public static class BulkUiTests {
   int x0=(int)o.X,y0=(int)o.Y,w=(int)el.ActualWidth,h=(int)el.ActualHeight,n=0;
   for(int y=y0;y<Math.Min(H,y0+h);y++)for(int x=x0;x<Math.Min(W,x0+w);x++){int i=(y*W+x)*4;if(px[i]>=240&&px[i+1]>=240&&px[i+2]>=240)n++;}
   return n;}
+ static void CopyColumnsFitWorstCaseContentAndWasteNothing(){
+  // Measured from the real window: Bal (141) / State (104) / P/L (103) were mostly empty. Pin the worst-case text widths so a shrink can never truncate real content.
+  var v=Fresh();v.Sections.SelectedIndex=0;Layout(v);
+  Func<string,double,string,double> textW=(txt,size,fam)=>{var t=new System.Windows.Media.Typeface(new System.Windows.Media.FontFamily(fam),FontStyles.Normal,FontWeights.Normal,FontStretches.Normal);return new System.Windows.Media.FormattedText(txt,System.Globalization.CultureInfo.InvariantCulture,FlowDirection.LeftToRight,t,size,System.Windows.Media.Brushes.White).WidthIncludingTrailingWhitespace;};
+  var worst=new System.Collections.Generic.Dictionary<string,double>{
+   {"Bal",textW("1,250,000.00 USD",13,"Segoe UI")+18},          // BalanceText cell, 9px margins
+   {"State",textW("Rechecking",13,"Segoe UI")+22},               // longest StateLabel + lamp/padding
+   {"P/L",textW("-123,456.78",13,"Consolas")+18}};
+  foreach(var c in v.AccountGrid.Columns){
+   string h=""+c.Header;if(!worst.ContainsKey(h))continue;
+   double actual=c.ActualWidth;
+   Check(actual+0.5>=worst[h],h+" column ("+actual+" px) must fit its worst-case content ("+Math.Round(worst[h])+" px)");
+   Check(actual<=worst[h]+60,h+" column ("+actual+" px) wastes more than 60 px over its worst-case content ("+Math.Round(worst[h])+" px)");
+  }
+ }
  static void PlainCheckBoxesStayDark(){
   // Live (RO) / Grp / Dry run (Risk tab) used WPF's default CheckBox template: a pure-white square in NinjaTrader's dark window, in every state.
   var v=Fresh();
@@ -372,7 +387,7 @@ public static class BulkUiTests {
  [STAThread] public static int Main(string[] args){
   try{
    AppDomain.CurrentDomain.AssemblyResolve+=(s,e)=>{string n=e.Name.Split(',')[0];if(n.EndsWith(".resources"))return null;var loaded=AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a=>a.GetName().Name==n);if(loaded!=null)return loaded;string p=System.IO.Path.Combine("C:/Program Files/NinjaTrader 8/bin",n+".dll");return System.IO.File.Exists(p)?System.Reflection.Assembly.LoadFrom(p):null;};
-   var all=new Action[]{PlainCheckBoxesStayDark,ComboAndInputStayDarkWhenDisabledOrHovered,TargetAndLossApplyToSelectedOnly,ZeroTurnsLimitOff,RatioStaysIndependent,InvalidInputChangesNothing,NoSelectionIsRefused,LeaderIsNotEdited,AtmToggleBulk,LockedWhenNotEditable,NeverTouchesFollowOrTrading,BarIsOnCopyTabAndKeepsHolds,FromLeaderCopiesToHighlighted,FromLeaderWithoutHighlightHitsAllVisibleFollowers,FromLeaderRespectsSearchFilter,FromLeaderKeepsRatioTickAndOtherFields,ManualEditAfterwardsSticksAndNoLiveLink,FromLeaderRefusedWhenLockedOrNoLeader,FromLeaderNeverTouchesFollowOrTrading,AdviceShownPerRowAndCounted,AdviceUpdatesAfterBulkApply,AdviceNeverBlocksOrChangesSettings,RatioCellFitsCommonValuesAt1160,LogsReadableAndTopAligned,LogClearWorksAndIsEditableIndependent,BadTargetDraftSurvivesRefreshAndBlocksCommit,BadLossDraftSurvivesRefreshAndBlocksCommit,BadTargetDraftSurvivesRecyclingAndStillBlocksCommit,TargetAndLossSetterRejectInvalidNumbers,LockedAccountIsRedWithReasonAndCountedInFooter,LockedCountIgnoresLeaderAndNeverBlocksUi,BadRatioDraftSurvivesRefreshAndBlocksCommit,UnprotectedReasonReachesRowAndDetail,MaxContractsRejectsInvalidAndKeepsDraft,DivergenceChoiceIsPerAccountDefaultsToNotify,DivergenceBulkAndFromLeaderAndNeverTrades,FlattenOnceShowsAWarningNote};
+   var all=new Action[]{CopyColumnsFitWorstCaseContentAndWasteNothing,PlainCheckBoxesStayDark,ComboAndInputStayDarkWhenDisabledOrHovered,TargetAndLossApplyToSelectedOnly,ZeroTurnsLimitOff,RatioStaysIndependent,InvalidInputChangesNothing,NoSelectionIsRefused,LeaderIsNotEdited,AtmToggleBulk,LockedWhenNotEditable,NeverTouchesFollowOrTrading,BarIsOnCopyTabAndKeepsHolds,FromLeaderCopiesToHighlighted,FromLeaderWithoutHighlightHitsAllVisibleFollowers,FromLeaderRespectsSearchFilter,FromLeaderKeepsRatioTickAndOtherFields,ManualEditAfterwardsSticksAndNoLiveLink,FromLeaderRefusedWhenLockedOrNoLeader,FromLeaderNeverTouchesFollowOrTrading,AdviceShownPerRowAndCounted,AdviceUpdatesAfterBulkApply,AdviceNeverBlocksOrChangesSettings,RatioCellFitsCommonValuesAt1160,LogsReadableAndTopAligned,LogClearWorksAndIsEditableIndependent,BadTargetDraftSurvivesRefreshAndBlocksCommit,BadLossDraftSurvivesRefreshAndBlocksCommit,BadTargetDraftSurvivesRecyclingAndStillBlocksCommit,TargetAndLossSetterRejectInvalidNumbers,LockedAccountIsRedWithReasonAndCountedInFooter,LockedCountIgnoresLeaderAndNeverBlocksUi,BadRatioDraftSurvivesRefreshAndBlocksCommit,UnprotectedReasonReachesRowAndDetail,MaxContractsRejectsInvalidAndKeepsDraft,DivergenceChoiceIsPerAccountDefaultsToNotify,DivergenceBulkAndFromLeaderAndNeverTrades,FlattenOnceShowsAWarningNote};
    int failed=0;foreach(var a in all){try{a();Console.WriteLine("PASS "+a.Method.Name);}catch(Exception ex){failed++;Console.WriteLine("FAIL "+a.Method.Name+" :: "+ex.Message);}}
    return failed==0?0:1;
   }catch(Exception ex){Console.WriteLine("HARNESS "+ex);return 2;}
