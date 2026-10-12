@@ -1117,6 +1117,41 @@ class EngineSafetyTests {
    Check(reads>=6,"the fill landed between snapshot and recheck (reads="+reads+")");
    Check(refusal.IndexOf("latched",StringComparison.OrdinalIgnoreCase)>=0||(latest!=null&&latest.Locked),
      "a working order that filled during Start is unknown live exposure: Start must be refused by the risk latch or the follower must lock (refusal='"+refusal+"')");}}
+ static void LeaderSellFromFlatOpensShortAndIsCopied(){var l=Acc("short lead");var a=Acc("short follow");AccountTelemetry latest=null;
+  // NinjaTrader's Order Ticket / Chart Trader send OrderAction.Sell even when the leader is FLAT and the order opens a SHORT (the platform has no SellShort for manual orders).
+  // A Sell with no leader position to reduce is an ENTRY, not an exit: the follower must copy it as a Sell entry (and later close it), never silently ignore it.
+  using(var e=Arm(l,a,t=>latest=t)){
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"",1));
+   Wait(()=>a.Submits==1,"a Sell from a flat leader must be copied as a short entry");
+   Check(a.Orders[0].OrderAction==NinjaTrader.Cbi.OrderAction.Sell||a.Orders[0].OrderAction==NinjaTrader.Cbi.OrderAction.SellShort,"follower order is a sell");
+   Check(latest==null||!latest.Locked,"copying a short entry must not lock the follower");}}
+ static void LeaderBuyCoversShortIsCopiedAsExit(){var l=Acc("cover lead");var a=Acc("cover follow");AccountTelemetry latest=null;
+  // Short round trip as NinjaTrader's ticket sends it: Sell (opens short) then Buy (covers). The Buy must be an EXIT: sized to the follower's short, never a new long entry.
+  using(var e=Arm(l,a,t=>latest=t)){
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"",2));Wait(()=>a.Submits==1,"short entry copied");
+   var f=a.Orders[0];f.Filled=2;f.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Short});a.Emit(f);Drain(e);
+   // the leader is now short 2 (fixture position), then covers
+   l.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Short});
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",2));Wait(()=>a.Submits==2,"cover copied");
+   Check(a.Orders[1].OrderAction==NinjaTrader.Cbi.OrderAction.Buy,"follower cover is a Buy");
+   Check(a.Orders[1].Quantity==2,"cover is sized to the follower's short (2), got "+a.Orders[1].Quantity);
+   Check(latest==null||!latest.Locked,"a normal short round trip must not lock");}}
+ static void LeaderSellClosingALongStaysAnExit(){var l=Acc("longexit lead");var a=Acc("longexit follow");AccountTelemetry latest=null;
+  // Regression guard for the legacy meaning: leader long, then Sell => exit (sized to the follower's long), not a new short.
+  using(var e=Arm(l,a,t=>latest=t)){
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",2));Wait(()=>a.Submits==1,"long entry");Fill(a,2);Drain(e);
+   l.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"",2));Wait(()=>a.Submits==2,"exit copied");
+   Check(a.Orders[1].Quantity==2,"exit sized to the follower's long (2), got "+a.Orders[1].Quantity);
+   Check(latest==null||!latest.Locked,"normal long round trip must not lock");}}
+ static void LaterEventsOfAShortOpeningOrderCreateNoSecondFollowerOrder(){var l=Acc("stick lead");var a=Acc("stick follow");
+  // A Sell from a flat leader is an ENTRY (short). Later events of the SAME leader order (Working, Filled) arrive while the leader's Position changes; none may create another follower order.
+  using(var e=Arm(l,a)){
+   var o=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"",1);o.OrderId="stick-1";l.Emit(o);Wait(()=>a.Submits==1,"entry copied");
+   l.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=1,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});
+   o.OrderState=NinjaTrader.Cbi.OrderState.Working;l.Emit(o);Drain(e);
+   o.Filled=1;o.OrderState=NinjaTrader.Cbi.OrderState.Filled;l.Emit(o);Drain(e);
+   Check(a.Submits==1,"later events of the same leader order must not create another follower order (submits="+a.Submits+")");}}
  static void ExitFillBeforePositionUpdateDoesNotLock(){var l=Acc("exitlag lead");var a=Acc("exitlag follow");AccountTelemetry latest=null;
   using(var e=Arm(l,a,t=>latest=t)){l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Wait(()=>a.Submits==1,"entry");Fill(a,2);Drain(e);
    l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"exitlag close"));Wait(()=>a.Submits==2,"exit");Drain(e);

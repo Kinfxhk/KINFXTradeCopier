@@ -594,7 +594,10 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public DateTime Gtd;
         public int Quantity;
         public double Limit, Stop;
-        public bool Exit { get { return Action==OrderAction.Sell || Action==OrderAction.BuyToCover; } }
+        // NinjaTrader's Order Ticket / Chart Trader send Sell to OPEN a short and Buy to COVER one, so the action alone cannot say entry vs exit.
+        // ExitResolved is set once per leader order (first sight) by CopierEngine.ClassifyLeaderOrder; until then the legacy rule applies.
+        public bool? ExitResolved;
+        public bool Exit { get { return ExitResolved.HasValue ? ExitResolved.Value : (Action==OrderAction.Sell || Action==OrderAction.BuyToCover); } }
     }
     internal sealed class CopyLink
     {
@@ -850,10 +853,27 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             worker.Post(()=>Process(s));
         }
         static bool Alive(OrderState s) { return s==OrderState.Submitted || s==OrderState.Accepted || s==OrderState.Working || s==OrderState.TriggerPending || s==OrderState.PartFilled; }
+        // Entry or exit? Evaluated on every leader event but only USED when the order is first seen: it fixes CopyLink.Exit, and later events of the same order
+        // take the update path, which never reads Exit again (so a Position change mid-order cannot re-classify it).
+        // Bracket legs (any OCO) keep the legacy rule. A plain Sell/Buy is an exit only when it reduces exposure: the leader's own position decides; if the leader shows no
+        // position (callback lag, synthetic fixtures) the followers' owned exposure decides. No exposure anywhere => the order OPENS a position and is copied as an entry.
+        bool ClassifyLeaderOrder(OrderSnapshot s)
+        {
+            bool exit=s.Action==OrderAction.Sell||s.Action==OrderAction.BuyToCover;
+            if(string.IsNullOrEmpty(s.Oco)&&(s.Action==OrderAction.Sell||s.Action==OrderAction.Buy))
+            {
+                int dir=s.Action==OrderAction.Sell?1:-1;              // exposure sign that this order would reduce
+                int lp=Position(leader,instrument);
+                if(lp!=0)exit=Math.Sign(lp)==dir;
+                else exit=followers.Any(f=>Math.Sign(OwnedPosition(f))==dir);
+            }
+            return exit;
+        }
         void Process(OrderSnapshot s)
         {
             if(!attached||s.Origin!=leader||s.Source.Account!=leader||s.Session!=Volatile.Read(ref sessionGeneration)||s.InstrumentName!=instrument.FullName)return;
             if(s.Id==null) { BlockEntries();foreach(var f in followers)Lock(f,"Ambiguous provider order identity / transition — no catch-up, manual recovery required");return; }
+            s.ExitResolved=ClassifyLeaderOrder(s);
             if(!s.Exit&&s.Execution!=Volatile.Read(ref controlGeneration)) { tombstones.Add(s.Id); return; }
             // Session-frozen mode. Market closes still mirror when bracket copying is off.
             if(s.Exit&&s.Type!=OrderType.Market&&!mirrorAtm)return;
@@ -999,7 +1019,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             }
             bool opposite;
             opposite=links.Values.SelectMany(v=>v).Any(x=>x.Follower==link.Follower&&x!=link&&!x.Exit&&x.Order!=null&&CapturedRemaining(x)>0&&x.SubmittedAction!=link.Latest.Action);
-            if(opposite||(link.Latest.Action==OrderAction.Buy && p<0)||(link.Latest.Action==OrderAction.SellShort && p>0)) { Lock(link.Follower,"Ambiguous reversal blocked"); return 0; }
+            if(opposite||(link.Latest.Action==OrderAction.Buy && p<0)||((link.Latest.Action==OrderAction.SellShort||link.Latest.Action==OrderAction.Sell) && p>0)) { Lock(link.Follower,"Ambiguous reversal blocked"); return 0; }
             int remaining=link.Desired-link.ObservedFilled;
             return RiskPolicy.CanEnter(link.Follower.Settings,link.Follower.Latch,p,PendingEntries(link.Follower,link.Order),remaining) ? remaining : 0;
         }
