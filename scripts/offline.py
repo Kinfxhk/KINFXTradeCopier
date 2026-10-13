@@ -84,7 +84,7 @@ def case_directory(folder, index):
 
 def parser():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument('mode', choices=('verify', 'pure', 'engine', 'independent', 'compile'))
+    p.add_argument('mode', choices=('verify', 'pure', 'engine', 'enginesim', 'puresim', 'independent', 'compile', 'compilesim'))
     p.add_argument('--nt-bin', type=Path, help='read-only installed NinjaTrader bin directory')
     p.add_argument('--artifacts-root', type=Path, default=ROOT, help='parent of unique .artifacts/ outputs')
     return p
@@ -164,7 +164,7 @@ def compile_artifact(tools, folder, sources, mode, references=None):
     sources_file, refs_file = folder / 'sources.txt', folder / 'references.txt'
     sources_file.write_text('\n'.join(str(p.resolve()) for p in sources), encoding='utf-8')
     refs_file.write_text('\n'.join(str(p.resolve()) for p in (references or tools['framework_refs'])), encoding='utf-8')
-    output = folder / ('artifact.dll' if mode == 'full' else 'artifact.exe')
+    output = folder / ('artifact.dll' if mode in ('full', 'fullsim') else 'artifact.exe')
     cmd = [tools['CompilerHost'], tools['nt_bin'], mode, sources_file, refs_file, output]
     if command(cmd, folder, 'compile') != 0:
         raise ValueError('artifact compilation failed; private diagnostics retained')
@@ -260,12 +260,12 @@ def main(argv=None):
         snapshot = run / 'production.cs'
         snapshot.write_bytes(source_bytes)
         tools = build_tools(args.nt_bin, run)
-        if args.mode == 'compile':
+        if args.mode in ('compile', 'compilesim'):
             fw = tools['framework']
             refs = tools['framework_refs'] + [fw / 'WPF' / (n + '.dll') for n in ('WindowsBase', 'PresentationCore', 'PresentationFramework')]
             refs += [fw / (n + '.dll') for n in ('System.Xaml', 'System.ComponentModel.DataAnnotations')]
             refs += [args.nt_bin.resolve() / (n + '.dll') for n in ('NinjaTrader.Core', 'NinjaTrader.Gui')]
-            output = compile_artifact(tools, run, [snapshot], 'full', refs)
+            output = compile_artifact(tools, run, [snapshot], 'full' if args.mode == 'compile' else 'fullsim', refs)
             report['compile_only'] = True
             report['artifact_sha256'] = digest(output.read_bytes())
             report['references'] = metadata(output.read_bytes())['references']
@@ -276,14 +276,14 @@ def main(argv=None):
             print('COMPILE_ONLY_OK')
         else:
             text = source_bytes.decode('utf-8-sig').replace('\r\n', '\n')
-            body = extract(text, 'pure' if args.mode == 'pure' else 'engine')
+            body = extract(text, 'pure' if args.mode in ('pure', 'puresim') else 'engine')
             header = 'using System;using System.Collections.Generic;using System.Globalization;using System.IO;using System.Linq;using System.Threading;using System.Xml.Linq;'
-            if args.mode != 'pure':
+            if args.mode not in ('pure', 'puresim'):
                 header += 'using NinjaTrader.Cbi;'
             extracted = run / 'extracted.cs'
             extracted.write_text(header + '\nnamespace NinjaTrader.NinjaScript.AddOns.Kinfx {\n' + body + '\n}', encoding='utf-8')
             report['extracted_sha256'] = digest(extracted.read_bytes())
-            fixtures = ['RiskTests.cs'] if args.mode == 'pure' else ['EngineTests.cs', 'EngineSafetyTests.cs'] if args.mode == 'engine' else ['EngineIndependentReview.cs']
+            fixtures = ['RiskTests.cs'] if args.mode in ('pure', 'puresim') else ['EngineTests.cs', 'EngineSafetyTests.cs'] if args.mode in ('engine', 'enginesim') else ['EngineIndependentReview.cs']
             report['fixture_sha256'] = {}
             for fixture in fixtures:
                 raw = (ROOT / 'tests' / fixture).read_bytes()
@@ -291,7 +291,13 @@ def main(argv=None):
                 fixture_text = raw.decode('utf-8-sig')
                 class_name = re.findall(r'\bclass\s+(RiskTests|EngineTests|EngineSafetyTests)\s*\{', fixture_text)[0]
                 names = case_names(fixture_text)
-                modes = [(n, 'plain' if args.mode == 'pure' or n in ('ProductionQuarantine', 'ProductionAllProvidersCannotEnable') else 'fake') for n in names]
+                held = ('ProductionQuarantine', 'ProductionAllProvidersCannotEnable')
+                if args.mode in ('enginesim', 'puresim'):
+                    # KINFX_SIM_TEST build: every case except the default-build production-hold cases.
+                    modes = [(n, 'simtest') for n in names if n not in held]
+                else:
+                    # Default builds never run SimTest* cases (they need the KINFX_SIM_TEST symbol).
+                    modes = [(n, 'plain' if args.mode == 'pure' or n in held else 'fake') for n in names if not n.startswith('SimTest')]
                 # Compile once per fixture/define, run each independent case in a fresh directory/process.
                 for compile_mode in sorted({m for _, m in modes}):
                     folder = run / (Path(fixture).stem + '-' + compile_mode)

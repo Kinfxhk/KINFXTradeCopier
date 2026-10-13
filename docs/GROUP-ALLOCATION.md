@@ -22,6 +22,10 @@ A completion cancel checks the same revision/session/frontiers at provider dispa
 
 Completing A stops new entries when the account is flat; it never certifies B complete. B's already-explicit, still-active waiting exit may protect B's subsequently captured allocated lots. This deliberately replaces the prior manual-only waiting-exit policy. No missing order is invented. Cancelled intent cannot resume. Every new group submission checks its exact certificate again at dispatch and serializes group submissions across captured acceptance. Existing amendments retain their ordered stream under conservative ownership bounds; pending commands cannot certify completion or release claims. A locally vetoed **unsent** Submit can be discarded and re-evaluated; a provider call with unknown acceptance cannot be retried. The account remains OFF/locked as applicable. Dynamic telemetry reports current uncovered lots, not a stale pre-acceptance warning. Without valid explicit protection the exact manual-action warning remains.
 
+## Independent exits without OCO
+
+No OCO identity is inferred from a stop/target shape. Independent exits reserve separately. When acknowledged protection already covers owned/actual exposure and no entry or protection quantity/cancel command is pending, an excess unsubmitted non-market exit is visibly refused without cancelling sole protection or locking an otherwise healthy follower after 10 seconds. The refused intent is not retried by polling or amendment. Pending ACKs and future entry fills still use the existing conservative waiting path. Explicit market closes retain upstream #24 sizing and orphan-protection cancellation behavior.
+
 ## Acceptance evidence
 
 | Requirement | Actual engine regression |
@@ -36,6 +40,7 @@ Completing A stops new entries when the account is flat; it never certifies B co
 | Unknown same-OCO work fails conservatively | `UnknownSameOcoActivityCannotCertifyGroupRetirement` |
 | Double-fill/reversal counterexamples | `GroupDoubleFillPermutationsRetainReversalEvidence` (both permutations) |
 | Unacknowledged same-OCO cancellation; existing sibling preservation | All original PR #22 same-OCO cases and controls retained |
+| Independent no-OCO excess intent / pending ACKs | `StopAndTargetWithoutOcoDoNotLockFollower`, `IndependentExitWaitsForCapturedReductionAck`, `UnackedCancelledIndependentExitStillWaits` |
 | Missing intent and actual coverage accounting | `UnprotectedLotsTextIsExactAndNeverOptimistic`, `UnprotectedLotsFigureIsExact` |
 
 Run the repository's audited offline runner as documented in BUILD.md. Linux Mono results are supplemental evidence only. Official Windows Framework/full NT8 compilation and real provider cancel timing/atomicity are not verified here. Those limits remain explicit and do not reduce the implemented issue scope or authorize trading. Merge and release remain upstream maintainer decisions.
