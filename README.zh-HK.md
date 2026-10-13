@@ -7,11 +7,11 @@
 
 | | |
 |---|---|
-| **Demo／模擬帳戶** | **可以，屬早期測試版。** SIM TEST 版支援跟單。已喺真 NinjaTrader 8.1.8.3 測試：1 個 Leader ＋ 2 個 Follower、1 個合約、市價單同限價單。完成度約 **66%**，見下面清單。 |
-| **Prop Firm 帳戶** | **只限你自己確認過係「模擬／評估」嘅 Prop Firm 帳戶，而且只用嚟測試。** 已測 2 個呢類帳戶。**未測 funded 帳戶**。完成度約 **59%**。請先睇清楚你間公司對跟單工具嘅規則：本軟件唔保證合規。 |
+| **Demo／模擬帳戶** | **可以，屬早期測試版。** SIM TEST 版支援跟單。已喺真 NinjaTrader 8.1.8.3 測試：1 個 Leader ＋ 2 個 Follower、1 個合約、市價單同限價單。完成度約 **69%**，見下面清單。 |
+| **Prop Firm 帳戶** | **只限你自己確認過係「模擬／評估」嘅 Prop Firm 帳戶，而且只用嚟測試。** 已測 2 個呢類帳戶。**未測 funded 帳戶**。完成度約 **62%**。請先睇清楚你間公司對跟單工具嘅規則：本軟件唔保證合規。 |
 | **Funded／實盤帳戶** | **唔可以。** 預設版封鎖。請勿加入 allow-list。 |
 
-使用前請知道：呢個係 **alpha**。斷線重連、止損被拒或 Flatten 被拒、止損＋止盈但冇共用 OCO（會鎖帳戶）、10–30 個帳戶、重啟恢復，**未喺真 NinjaTrader 測過**（或者以鎖帳戶方式安全失敗）。請由 **1 手、1 個 Follower、開 Dry run** 開始，並一直開住 NinjaTrader 自己嘅 Orders／Positions 分頁：以嗰度為準，唔係以本視窗為準。佢攔唔到你手動落嘅單，亦唔保證成交。
+使用前請知道：呢個係 **alpha**。Follower 斷線重連已喺真 NinjaTrader 測過（只鎖嗰個帳戶，重連後唔補單）；未測：Leader 自己斷線、止損被拒或 Flatten 被拒、止損＋止盈但冇共用 OCO（會鎖帳戶）、10–30 個帳戶、重啟恢復，**未喺真 NinjaTrader 測過**（或者以鎖帳戶方式安全失敗）。請由 **1 手、1 個 Follower、開 Dry run** 開始，並一直開住 NinjaTrader 自己嘅 Orders／Positions 分頁：以嗰度為準，唔係以本視窗為準。佢攔唔到你手動落嘅單，亦唔保證成交。
 
 ## 5 步安裝（Windows ＋ NinjaTrader 8）
 
@@ -56,11 +56,11 @@ Leader → 勾選 follower → 每戶設定 Ratio → Start。可選擇一併跟
 ### 成就：Demo／Prop Firm 跟單完成度
 
 ```text
-Demo         ████████████████████░░░░░░░░░░  65.5%
-Prop firm    ██████████████████░░░░░░░░░░░░  59.1%
+Demo         █████████████████████░░░░░░░░░  68.9%
+Prop firm    ███████████████████░░░░░░░░░░░  62.1%
 ```
 
-✅ 真 NinjaTrader 已測 · 🟡 只有離線測試 · ⬜ 未做。必要項目 ✅：Demo 5/14 · Prop 5/15。
+✅ 真 NinjaTrader 已測 · 🟡 只有離線測試 · ⬜ 未做。必要項目 ✅：Demo 6/14 · Prop 6/15。
 
 - ✅ 核心跟單：入場／平倉／取消／改單
 - ✅ 每戶 Ratio ＋ 最大手數
@@ -69,7 +69,7 @@ Prop firm    ██████████████████░░░░�
 - 🟡 批量／全部 Flatten
 - ✅ TP／SL 跟隨 ＋ OCO
 - 🟡 異常自動鎖帳戶、唔自動重試
-- 🟡 斷線重連安全
+- ✅ 斷線重連安全
 - 🟡 部分成交處理
 - 🟡 改量前成交一致 (#2)
 - 🟡 一戶卡住唔影響其他 (#4)
@@ -104,7 +104,7 @@ Prop firm    ██████████████████░░░░�
 
 ### 未完成
 
-- **真 NinjaTrader 測試仍然好少**：1 個 Leader、2 個 Follower、1 個合約（MNQ）、市價、限價同止損單（含每戶 Flat 配 TP／SL，以及 Leader 市價平倉時取消 follower 嘅 TP／SL）。未真測：斷線重連、部分成交、止損＋止盈但冇共用 OCO（會鎖帳戶）、Flatten 被拒、滑點、關閉 workspace 及重啟、多螢幕 DPI、10–30 個帳戶：兩個 Demo 帳戶 Leader→Follower、真實 provider 回報、斷線重連、滑點、關閉 workspace 及重啟、真實多螢幕 DPI、30 戶實際延遲。
+- **真 NinjaTrader 測試仍然好少**：1 個 Leader、2 個 Follower、1 個合約（MNQ）、市價、限價同止損單（含每戶 Flat 配 TP／SL，以及 Leader 市價平倉時取消 follower 嘅 TP／SL）。未真測：Leader 斷線、部分成交、止損＋止盈但冇共用 OCO（會鎖帳戶）、Flatten 被拒、滑點、關閉 workspace 及重啟、多螢幕 DPI、10–30 個帳戶：兩個 Demo 帳戶 Leader→Follower、真實 provider 回報、斷線重連、滑點、關閉 workspace 及重啟、真實多螢幕 DPI、30 戶實際延遲。
 - **預設版 Start 同 Flatten 仍然封鎖**；只有主動啟用嘅 SIM TEST 版，先可以喺 Simulator／Playback 帳戶或你 allow-list 內嘅帳戶跟單。冇安裝包，亦冇簽署發佈版。
 - 保護單改量前，成交資料一致性（[#2](https://github.com/Kinfxhk/KINFXTradeCopier/issues/2)）。
 - 多組 OCO（[#3](https://github.com/Kinfxhk/KINFXTradeCopier/issues/3)）：一組完成唔再取消另一組仍開放嘅保護，窄範圍修正**已合併**。**仍未完成：**入場未全部成交時一組完成，帳戶會鎖定，另一組等待中嘅出場單唔會送出（倉位冇保護，要人手處理；鎖定文字會明確寫出「X 手冇保護」同叫你去 NinjaTrader 處理，本軟件唔會自己建單）；出場分配。
