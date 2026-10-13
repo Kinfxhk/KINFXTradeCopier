@@ -24,6 +24,10 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
     public static class DashboardSafety
     {
         // Quarantine after independent review: UI inspection only until fixes pass.
+        // The three texts below are English constants (tests and the hold audit read them); the Dashboard shows the translated variants.
+        public static string HeaderShown { get { return Lang.T(HeaderText); } }
+        public static string StartTipShown { get { return Lang.T(StartTip); } }
+        public static string LogNoteShown { get { return Lang.T(LogNote); } }
 #if KINFX_SIM_TEST
         // SIM TEST BUILD ONLY: the dashboard commands are reachable, but the engine still refuses any non-Simulator/Playback account.
         public static bool CanExecute(string command) { return true; }
@@ -45,16 +49,16 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public static string For(RiskSettings s,string role,int referenceLots)
         {
             if(s==null||role=="Leader")return "";
-            if(!RiskPolicy.Finite(s.Ratio)||s.Ratio<=0)return "Ratio is not a positive number";
+            if(!RiskPolicy.Finite(s.Ratio)||s.Ratio<=0)return Lang.T("Ratio is not a positive number");
             var notes=new System.Collections.Generic.List<string>();
-            if(s.OnDivergence=="FlattenOnce")notes.Add("On divergence = FlattenOnce is saved but NOT active in this alpha: the engine only locks and notifies, it never flattens by itself");
-            if(s.Target<=0&&s.Loss<=0)notes.Add("no daily target and no daily loss limit (0 = off)");
-            else if(s.Loss<=0)notes.Add("no daily loss limit (0 = off)");
-            else if(s.Target<=0)notes.Add("no daily target (0 = off)");
+            if(s.OnDivergence=="FlattenOnce")notes.Add(Lang.T("On divergence = FlattenOnce is saved but NOT active in this alpha: the engine only locks and notifies, it never flattens by itself"));
+            if(s.Target<=0&&s.Loss<=0)notes.Add(Lang.T("no daily target and no daily loss limit (0 = off)"));
+            else if(s.Loss<=0)notes.Add(Lang.T("no daily loss limit (0 = off)"));
+            else if(s.Target<=0)notes.Add(Lang.T("no daily target (0 = off)"));
             if(referenceLots>0)
             {
-                if(RiskPolicy.Quantity(referenceLots,s.Ratio)==0)notes.Add("Ratio gives 0 lots for a "+referenceLots+"-lot leader order");
-                else if(s.MaxContracts>0&&RiskPolicy.Quantity(referenceLots,s.Ratio)>s.MaxContracts)notes.Add("size capped by Max "+s.MaxContracts);
+                if(RiskPolicy.Quantity(referenceLots,s.Ratio)==0)notes.Add(Lang.F("Ratio gives 0 lots for a {0}-lot leader order",referenceLots));
+                else if(s.MaxContracts>0&&RiskPolicy.Quantity(referenceLots,s.Ratio)>s.MaxContracts)notes.Add(Lang.F("size capped by Max {0}",s.MaxContracts));
             }
             return string.Join("; ",notes);
         }
@@ -86,8 +90,8 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         }
         public static string ConsistencyAdvice(RiskSettings s)
         {
-            if(s.Consistency<=0)return "Off";if(s.TotalProfit<=0||s.BestDay<=0)return "History required";
-            double pct=s.BestDay/s.TotalProfit*100;return (pct>s.Consistency?"Over advisory limit: ":"Within advisory limit: ")+pct.ToString("F2",CultureInfo.InvariantCulture)+"%";
+            if(s.Consistency<=0)return Lang.T("Off");if(s.TotalProfit<=0||s.BestDay<=0)return Lang.T("History required");
+            double pct=s.BestDay/s.TotalProfit*100;string pc=pct.ToString("F2",CultureInfo.InvariantCulture);return pct>s.Consistency?Lang.F("Over advisory limit: {0}%",pc):Lang.F("Within advisory limit: {0}%",pc);
         }
         public static int ChangeTotal(int current, int filled, int desired, bool exit, int closablePosition, int otherReserved, int maxContracts, bool entriesAllowed)
         {
@@ -150,12 +154,12 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public string Text(string name){string raw;return invalid.TryGetValue(name,out raw)?raw:SettingsStore.FieldText(typeof(RiskSettings).GetField(name).GetValue(current));}
         public bool Set(string name,string text)
         {
-            var field=typeof(RiskSettings).GetField(name);if(field==null)throw new ArgumentException("Unknown risk field");
+            var field=typeof(RiskSettings).GetField(name);if(field==null)throw new ArgumentException(Lang.T("Unknown risk field"));
             try
             {
                 var value=SettingsStore.FieldValue(text,field.FieldType);
                 var probe=new RiskSettings();field.SetValue(probe,value);
-                if(!probe.Valid())throw new ArgumentException("Invalid risk value");
+                if(!probe.Valid())throw new ArgumentException(Lang.T("Invalid risk value"));
                 var next=current.Clone();field.SetValue(next,value);
                 current=next;invalid.Remove(name);return true;
             }
@@ -165,10 +169,10 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public void Load(RiskSettings preset){current=preset.Clone();} // Explicit template load keeps unresolved typed errors visible.
         public RiskSettings Build(bool localTrail)
         {
-            if(HasErrors)throw new ArgumentException("Correct the highlighted risk values before Apply.");
+            if(HasErrors)throw new ArgumentException(Lang.T("Correct the highlighted risk values before Apply."));
             var next=current.Clone();next.LocalTrail=localTrail;next.BaselineSet=true;
-            if(!next.Valid())throw new ArgumentException("Every number must be finite; ratio / max quantity positive; monetary guards nonnegative.");
-            if(next.LocalTrail&&(next.HighWater<=0||next.TrailDistance<=0))throw new ArgumentException("Supply positive confirmed high-water and trail distance first.");
+            if(!next.Valid())throw new ArgumentException(Lang.T("Every number must be finite; ratio / max quantity positive; monetary guards nonnegative."));
+            if(next.LocalTrail&&(next.HighWater<=0||next.TrailDistance<=0))throw new ArgumentException(Lang.T("Supply positive confirmed high-water and trail distance first."));
             return next;
         }
     }
@@ -223,7 +227,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         }
         public static List<SavedAccount> FromXml(XElement xml)
         {
-            if (xml == null || xml.Name != "KINFX" || (int?)xml.Attribute("version") != 2) throw new InvalidDataException("Unsupported settings version");
+            if (xml == null || xml.Name != "KINFX" || (int?)xml.Attribute("version") != 2) throw new InvalidDataException(Lang.T("Unsupported settings version"));
             var result = new List<SavedAccount>();
             foreach (XElement e in xml.Elements("Account"))
             {
@@ -232,11 +236,11 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 {
                     XAttribute a=e.Attribute(f.Name); if (a != null) f.SetValue(r.Settings, FieldValue(a.Value,f.FieldType));
                 }
-                r.Latch.Locked=(bool?)e.Attribute("locked") ?? false; r.Latch.Reason=(string)e.Attribute("reason") ?? "Persisted lock";
-                if (!r.Settings.Valid()) throw new InvalidDataException("Invalid finite settings: " + r.Name);
+                r.Latch.Locked=(bool?)e.Attribute("locked") ?? false; r.Latch.Reason=(string)e.Attribute("reason") ?? Lang.T("Persisted lock");
+                if (!r.Settings.Valid()) throw new InvalidDataException(Lang.T("Invalid finite settings: ") + r.Name);
                 result.Add(r);
             }
-            if (result.Select(r=>r.Name).Distinct().Count()!=result.Count) throw new InvalidDataException("Duplicate account settings");
+            if (result.Select(r=>r.Name).Distinct().Count()!=result.Count) throw new InvalidDataException(Lang.T("Duplicate account settings"));
             return result;
         }
         public static Dictionary<string,string> ReadLatches(string path)
@@ -244,7 +248,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             lock(IoGate)
             {
                 if(!File.Exists(path))return new Dictionary<string,string>();
-                XElement root=XElement.Load(path);if(root.Name!="Latches")throw new InvalidDataException("Invalid latch journal");
+                XElement root=XElement.Load(path);if(root.Name!="Latches")throw new InvalidDataException(Lang.T("Invalid latch journal"));
                 return root.Elements("Lock").ToDictionary(e=>(string)e.Attribute("account"),e=>(string)e.Attribute("reason"));
             }
         }
@@ -512,18 +516,18 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public static string StartSummary(string leader,string instrument,int sampleLeaderQty,StartSummaryRow[] followers,bool dryRun)
         {
             var sb=new System.Text.StringBuilder();
-            if(dryRun)sb.Append("*** DRY RUN: nothing will be sent; decisions are only logged. ***\n\n");
-            sb.Append("Leader: ").Append(leader??"(none)").Append("   Instrument: ").Append(instrument??"(none)").Append("\n");
-            if(followers==null||followers.Length==0){sb.Append("No followers selected.");return sb.ToString();}
-            sb.Append(followers.Length).Append(followers.Length==1?" follower":" followers").Append(":\n");
+            if(dryRun)sb.Append(Lang.T("*** DRY RUN: nothing will be sent; decisions are only logged. ***")).Append("\n\n");
+            sb.Append(Lang.F("Leader: {0}   Instrument: {1}",leader??Lang.T("(none)"),instrument??Lang.T("(none)"))).Append("\n");
+            if(followers==null||followers.Length==0){sb.Append(Lang.T("No followers selected."));return sb.ToString();}
+            sb.Append(Lang.F(followers.Length==1?"{0} follower:":"{0} followers:",followers.Length)).Append("\n");
             foreach(var f in followers)
             {
                 string name=f==null?"?":f.Name;
-                if(f==null||!RiskPolicy.Finite(f.Ratio)||f.Ratio<=0){sb.Append("  ").Append(name).Append("  ratio invalid — will NOT copy\n");continue;}
+                if(f==null||!RiskPolicy.Finite(f.Ratio)||f.Ratio<=0){sb.Append(Lang.F("  {0}  ratio invalid — will NOT copy",name)).Append("\n");continue;}
                 int q=RiskPolicy.Quantity(sampleLeaderQty,f.Ratio);
-                sb.Append("  ").Append(name).Append("  ratio ").Append(f.Ratio.ToString("R",System.Globalization.CultureInfo.InvariantCulture))
-                  .Append("  → ").Append(q).Append(q==1?" lot":" lots").Append(" when the leader trades ").Append(sampleLeaderQty);
-                if(q==0)sb.Append(" (would NOT copy)");
+                string ratioText=f.Ratio.ToString("R",System.Globalization.CultureInfo.InvariantCulture);
+                sb.Append(Lang.F(q==1?"  {0}  ratio {1}  → {2} lot when the leader trades {3}":"  {0}  ratio {1}  → {2} lots when the leader trades {3}",name,ratioText,q,sampleLeaderQty));
+                if(q==0)sb.Append(" ").Append(Lang.T("(would NOT copy)"));
                 sb.Append("\n");
             }
             return sb.ToString().TrimEnd('\n');
@@ -546,6 +550,512 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             return name.Length>0;
         }
     }
+// BEGIN LANG TABLE (generated by scripts/gen_lang.py from i18n/strings.json; do not edit by hand)
+    // Display-only translation. The English sentence IS the key; a missing translation shows English, never a blank.
+    // Engine decisions, lock reasons stored in XML, log text kept in memory and everything the tests read stay English;
+    // they are translated only when drawn (State tooltip, Logs tab) with Lang.Show / Lang.T.
+    public static class Lang
+    {
+        public const string English = "en", Chinese = "zh", Japanese = "ja", Korean = "ko";
+        public static readonly string[] Codes = { English, Chinese, Japanese, Korean };
+        // Native names, shown in the language picker; never translated.
+        public static readonly string[] Names = { "English", "中文（繁體）", "日本語", "한국어" };
+        static volatile string current = English;
+        public static string Current { get { return current; } }
+        public static bool IsValid(string code) { return Array.IndexOf(Codes, code) >= 0; }
+        public static void Set(string code) { current = IsValid(code) ? code : English; }
+        // Language from the Windows UI culture (zh-* -> zh, ja -> ja, ko -> ko, anything else -> English).
+        public static string FromCulture(string cultureName)
+        {
+            string c = (cultureName ?? "").ToLowerInvariant();
+            return c.StartsWith("zh") ? Chinese : c.StartsWith("ja") ? Japanese : c.StartsWith("ko") ? Korean : English;
+        }
+        static int Col(string code) { return code == Chinese ? 0 : code == Japanese ? 1 : 2; }
+        public static string T(string en) { return T(en, current); }
+        public static string T(string en, string code)
+        {
+            if (en == null) return "";
+            if (code == English || !IsValid(code)) return en;
+            string[] row;
+            if (Table.TryGetValue(en, out row)) { string s = row[Col(code)]; return s.Length > 0 ? s : en; }
+            return en;
+        }
+        // Fill a translated template. Falls back to the English template if the translated one is malformed.
+        public static string F(string en, params object[] args)
+        {
+            string text = T(en);
+            try { return string.Format(CultureInfo.InvariantCulture, text, args); }
+            catch (FormatException) { return string.Format(CultureInfo.InvariantCulture, en, args); }
+        }
+        // Translate an already-built English message (log line, stored lock reason). Exact sentences are looked up directly;
+        // otherwise each template is tried by turning its {n} holes into a pattern and refilling the translated template.
+        public static string Show(string english) { return Show(english, current); }
+        public static string Show(string english, string code)
+        {
+            if (string.IsNullOrEmpty(english) || code == English || !IsValid(code)) return english ?? "";
+            string[] row;
+            if (Table.TryGetValue(english, out row)) { string s = row[Col(code)]; return s.Length > 0 ? s : english; }
+            // Split a "prefix: reason" style line one segment at a time so a composite message still translates its known parts.
+            string composite = TranslateComposite(english, code);
+            return composite ?? english;
+        }
+        static string TranslateComposite(string text, string code)
+        {
+            foreach (var p in Patterns)
+            {
+                var m = p.Regex.Match(text);
+                if (!m.Success) continue;
+                string[] row = Table[p.Key]; string tpl = row[Col(code)];
+                if (tpl.Length == 0) return null;
+                var args = new object[p.Holes];
+                for (int i = 0; i < p.Holes; i++) args[i] = Show(m.Groups["h" + i].Value, code);
+                try { return string.Format(CultureInfo.InvariantCulture, tpl, args); } catch (FormatException) { return null; }
+            }
+            return null;
+        }
+        static readonly System.Collections.Generic.Dictionary<string, string[]> Table = Build();
+        static System.Collections.Generic.Dictionary<string, string[]> Build()
+        {
+            var t = new System.Collections.Generic.Dictionary<string, string[]>(StringComparer.Ordinal);
+            t["REVIEW HOLD · TRADING DISABLED"] = new[] { "審查封鎖 · 交易已停用", "レビュー保留 · 取引無効", "검토 보류 · 거래 비활성화" };
+            t["REVIEW HOLD: copying unavailable until engine safety issues are fixed"] = new[] { "審查封鎖：在引擎安全問題修復前，無法跟單", "レビュー保留：エンジンの安全上の問題が修正されるまでコピー不可", "검토 보류: 엔진 안전 문제가 해결될 때까지 복사 불가" };
+            t["REVIEW HOLD: Start / Flatten / bulk risk disabled. ATM means order mirroring, not a follower native ATM. No real or simulation orders were submitted by this build verification."] = new[] { "審查封鎖：Start / Flatten / 批次風控已停用。ATM 指委託單鏡像，並非跟單帳戶的原生 ATM。本次建置驗證未提交任何真實或模擬委託單。", "レビュー保留：Start / Flatten / 一括リスクは無効。ATM は注文のミラーリングを意味し、フォロワーのネイティブ ATM ではない。このビルド検証では実際の注文もシミュレーション注文も送信されていない。", "검토 보류: Start / Flatten / 일괄 리스크가 비활성화되었습니다. ATM은 주문 미러링을 의미하며 팔로워의 네이티브 ATM이 아닙니다. 이 빌드 검증에서는 실거래 주문도 시뮬레이션 주문도 전송되지 않았습니다." };
+            t["Leader"] = new[] { "主帳戶", "リーダー", "리더" };
+            t["Ratio is not a positive number"] = new[] { "比例不是正數", "比率が正の数ではない", "비율이 양수가 아님" };
+            t["On divergence = FlattenOnce is saved but NOT active in this alpha: the engine only locks and notifies, it never flattens by itself"] = new[] { "On divergence = FlattenOnce 已儲存，但在此 alpha 版本中「未啟用」：引擎僅會鎖定並通知，絕不會自行平倉", "On divergence = FlattenOnce は保存されるが、このアルファ版では有効ではない：エンジンはロックと通知のみ行い、自動で全決済することはない", "On divergence = FlattenOnce는 저장되지만 이 알파 버전에서는 활성화되지 않습니다: 엔진은 잠금과 알림만 수행하며 스스로 청산하지 않습니다" };
+            t["no daily target and no daily loss limit (0 = off)"] = new[] { "無每日目標，亦無每日虧損上限（0 = 關閉）", "日次目標なし、日次損失上限なし（0 = オフ）", "일일 목표 없음, 일일 손실 한도 없음 (0 = 끔)" };
+            t["no daily loss limit (0 = off)"] = new[] { "無每日虧損上限（0 = 關閉）", "日次損失上限なし（0 = オフ）", "일일 손실 한도 없음 (0 = 끔)" };
+            t["no daily target (0 = off)"] = new[] { "無每日目標（0 = 關閉）", "日次目標なし（0 = オフ）", "일일 목표 없음 (0 = 끔)" };
+            t["On divergence must be Notify or FlattenOnce"] = new[] { "On divergence 必須為 Notify 或 FlattenOnce", "On divergence は Notify または FlattenOnce でなければならない", "On divergence는 Notify 또는 FlattenOnce여야 합니다" };
+            t["Telemetry error"] = new[] { "遙測錯誤", "テレメトリーエラー", "텔레메트리 오류" };
+            t["Target hit"] = new[] { "已達目標", "目標達成", "목표 도달" };
+            t["Cancelling"] = new[] { "取消中", "取消中", "취소 중" };
+            t["Rechecking"] = new[] { "重新檢查中", "再確認中", "재확인 중" };
+            t["Locked"] = new[] { "已鎖定", "ロック中", "잠김" };
+            t["Error"] = new[] { "錯誤", "エラー", "오류" };
+            t["Paused"] = new[] { "已暫停", "停止中", "일시정지됨" };
+            t["Copying"] = new[] { "跟單中", "コピー中", "복사 중" };
+            t["Offline"] = new[] { "離線", "オフライン", "오프라인" };
+            t["Demo only"] = new[] { "僅限示範", "デモのみ", "데모 전용" };
+            t["Demo"] = new[] { "示範", "デモ", "데모" };
+            t["Selected"] = new[] { "已選", "選択済み", "선택됨" };
+            t["Off"] = new[] { "關", "オフ", "끔" };
+            t[" · cancellation not confirmed"] = new[] { " · 取消尚未確認", " · キャンセル未確認", " · 취소 확인되지 않음" };
+            t[" · NOTE: "] = new[] { " · 注意： ", " · 注意: ", " · 참고: " };
+            t["This account Ratio must be finite and > 0"] = new[] { "此帳戶的比例必須為有限數且大於 0", "この口座の比率は有限値かつ 0 より大きい必要がある", "이 계좌의 비율은 유한한 값이며 0보다 커야 합니다" };
+            t["Daily target must be a finite amount >= 0 (0 = off)"] = new[] { "每日目標必須為大於或等於 0 的有限金額（0 = 關閉）", "日次目標は 0 以上の有限の金額でなければならない（0 = オフ）", "일일 목표는 0 이상의 유한한 금액이어야 합니다 (0 = 끔)" };
+            t["Daily loss must be a finite amount >= 0 (0 = off)"] = new[] { "每日虧損必須為大於或等於 0 的有限金額（0 = 關閉）", "日次損失は 0 以上の有限の金額でなければならない（0 = オフ）", "일일 손실은 0 이상의 유한한 금액이어야 합니다 (0 = 끔)" };
+            t["Ratio for THIS account only · finite > 0 · follower qty = floor(leader qty × ratio) · locked while attached"] = new[] { "僅此帳戶的比例 · 有限數且大於 0 · 跟單帳戶數量 = floor(主帳戶數量 × 比例) · 連接期間鎖定", "この口座のみの比率 · 有限値かつ 0 より大きい · フォロワー数量 = floor(リーダー数量 × 比率) · 接続中はロック", "이 계좌에만 적용되는 비율 · 유한값이며 0보다 큼 · 팔로워 수량 = floor(리더 수량 × 비율) · 연결 중 잠금" };
+            t["Follow account; untick stops new entries"] = new[] { "跟隨此帳戶；取消勾選將停止新進場", "この口座をフォロー；チェックを外すと新規エントリーを停止", "이 계좌를 따라감; 선택 해제 시 신규 진입 중지" };
+            t["Explicit follow / OFF · pending cancels and latch may block re-enable"] = new[] { "明確跟隨 / OFF · 待處理的取消及鎖存可能阻止重新啟用", "明示的にフォロー / OFF · 保留中のキャンセルとラッチにより再有効化がブロックされる場合がある", "명시적 팔로우 / OFF · 대기 중인 취소와 래치로 인해 재활성화가 차단될 수 있음" };
+            t["Follower enabled · one click"] = new[] { "跟單帳戶已啟用 · 一鍵切換", "フォロワー有効 · ワンクリック", "팔로워 활성화 · 원클릭" };
+            t["Acct"] = new[] { "帳戶", "口座", "계좌" };
+            t["Exact broker identity · full name on hover · differing suffix emphasized"] = new[] { "確切的券商身分 · 懸停顯示完整名稱 · 突顯不同的後綴", "正確なブローカー識別子 · ホバーで全名表示 · 異なる接尾辞を強調", "정확한 브로커 식별자 · 마우스 오버 시 전체 이름 표시 · 다른 접미사 강조" };
+            t["State"] = new[] { "狀態", "状態", "상태" };
+            t["Observed copy state, NOT connection or follower selection"] = new[] { "觀察到的跟單狀態，並非連線或跟單帳戶選取狀態", "観測されたコピー状態であり、接続状態やフォロワーの選択状態ではない", "관찰된 복사 상태이며 연결 또는 팔로워 선택 상태가 아님" };
+            t["Per-account ATM exit mirroring"] = new[] { "逐帳戶 ATM 出場單鏡像", "口座ごとの ATM 決済注文ミラーリング", "계좌별 ATM 청산 주문 미러링" };
+            t["Per-account ATM exit mirroring, NOT a native ATM clone. OFF ignores non-market SL / TP: follower can be unprotected. Market closes still copy. Frozen while attached."] = new[] { "逐帳戶 ATM 出場單鏡像，並非原生 ATM 複製。OFF 會忽略非市價 SL / TP：跟單帳戶可能無保護。市價平倉仍會跟單。連接期間凍結。", "口座ごとの ATM 決済注文ミラーリングであり、ネイティブ ATM の複製ではない。OFF では成行以外の SL / TP を無視する：フォロワーは保護されない可能性がある。成行の決済は引き続きコピーされる。接続中は固定。", "계좌별 ATM 청산 주문 미러링이며 네이티브 ATM 복제가 아닙니다. OFF는 시장가 외의 SL / TP를 무시합니다: 팔로워가 보호되지 않을 수 있습니다. 시장가 청산은 계속 복사됩니다. 연결 중에는 고정됩니다." };
+            t["ATM"] = new[] { "ATM", "ATM", "ATM" };
+            t["Independent ATM exit mirror · OFF can leave exposure unprotected"] = new[] { "獨立的 ATM 出場單鏡像 · OFF 可能使持倉風險無保護", "独立した ATM 決済注文ミラー · OFF ではエクスポージャーが保護されない可能性がある", "독립 ATM 청산 주문 미러 · OFF 시 노출 포지션이 보호되지 않을 수 있음" };
+            t["OFF: block new entries / request owned entry cancellation; retain exits. Pending fills may still occur. Explicit follow required again; latch remains."] = new[] { "OFF：阻止新進場 / 請求取消自有進場單；保留出場單。待處理的委託仍可能成交。需再次明確跟隨；鎖存仍然保留。", "OFF：新規エントリーをブロック / 自身のエントリー注文のキャンセルを要求；決済注文は維持。保留中の注文は約定する場合がある。再度の明示的フォローが必要；ラッチは維持される。", "OFF: 신규 진입 차단 / 자체 진입 주문 취소 요청; 청산 주문은 유지. 대기 중인 주문은 체결될 수 있음. 명시적 팔로우를 다시 해야 하며 래치는 유지됨." };
+            t["Stop following this account"] = new[] { "停止跟隨此帳戶", "この口座のフォローを停止", "이 계좌 따라가기 중지" };
+            t["One-click OFF is not Flatten; current positions / SL / TP remain"] = new[] { "一鍵 OFF 並非 Flatten；目前持倉 / SL / TP 仍保留", "ワンクリック OFF は Flatten ではない；現在のポジション / SL / TP は維持される", "원클릭 OFF는 Flatten이 아님; 현재 포지션 / SL / TP는 유지됨" };
+            t["Flat"] = new[] { "平倉", "決済", "청산" };
+            t["FLAT this account only: cancels its working orders and closes its position in the session instrument after you confirm. Other accounts keep copying. The account goes OFF; re-follow explicitly. Sent once, never retried."] = new[] { "僅對此帳戶平倉：經您確認後，取消其掛單並平掉其在本次工作階段商品上的持倉。其他帳戶繼續跟單。此帳戶將轉為 OFF；需明確重新跟隨。僅發送一次，不會重試。", "この口座のみ全決済：確認後、待機中の注文をキャンセルし、セッション銘柄のポジションを決済する。他の口座はコピーを継続。この口座は OFF になり、再度明示的にフォローする必要がある。送信は 1 回のみで、再試行はしない。", "이 계좌만 청산: 확인 후 대기 주문을 취소하고 세션 종목의 포지션을 청산합니다. 다른 계좌는 계속 복사합니다. 이 계좌는 OFF가 되며 명시적으로 다시 팔로우해야 합니다. 한 번만 전송하며 재시도하지 않습니다." };
+            t["Flatten this account only"] = new[] { "僅平倉此帳戶", "この口座のみ全決済", "이 계좌만 청산" };
+            t["Flatten ONE account (confirmation names it). Not the same as OFF: OFF keeps the position, Flat closes it."] = new[] { "僅平倉「一個」帳戶（確認視窗會列出帳戶名稱）。與 OFF 不同：OFF 保留持倉，平倉則會平掉持倉。", "1 つの口座のみ全決済（確認画面に口座名が表示される）。OFF とは異なる：OFF はポジションを維持し、全決済はポジションを決済する。", "계좌 하나만 청산 (확인 창에 계좌 이름 표시). OFF와 다름: OFF는 포지션을 유지하고 청산은 포지션을 닫습니다." };
+            t[" · green / amber / red / off"] = new[] { " · 綠 / 琥珀 / 紅 / 關閉", " · 緑 / 琥珀 / 赤 / オフ", " · 녹색 / 주황 / 빨강 / 끔" };
+            t["Tgt"] = new[] { "Tgt", "Tgt", "Tgt" };
+            t["DLL"] = new[] { "DLL", "DLL", "DLL" };
+            t["Qty"] = new[] { "數量", "数量", "수량" };
+            t["Bal"] = new[] { "餘額", "残高", "잔고" };
+            t["DEMO · NO TRADES"] = new[] { "示範 · 無交易", "デモ · 取引なし", "데모 · 거래 없음" };
+            t["Simulation leader account · no live opt-in"] = new[] { "模擬主帳戶 · 未選擇實盤", "シミュレーションのリーダー口座 · ライブ未許可", "시뮬레이션 리더 계좌 · 실거래 미승인" };
+            t["Lead"] = new[] { "主帳", "リーダー", "리더" };
+            t["Exact instrument"] = new[] { "確切商品", "正確な銘柄", "정확한 종목" };
+            t["Inst"] = new[] { "商品", "銘柄", "종목" };
+            t["→  0 followers  "] = new[] { "→  0 個跟單帳戶  ", "→  フォロワー 0  ", "→  팔로워 0명  " };
+            t["▶  Start"] = new[] { "▶  開始", "▶  開始", "▶  시작" };
+            t["Guarded pause · new entries only"] = new[] { "保護性暫停 · 僅限新進場", "ガード付き一時停止 · 新規エントリーのみ", "보호 일시정지 · 신규 진입만" };
+            t["Stop when flat"] = new[] { "持倉歸零後停止", "フラット後に停止", "청산 후 중지" };
+            t["Refresh accounts"] = new[] { "重新整理帳戶", "口座を更新", "계좌 새로고침" };
+            t["Search account / alias / group / preset · Ctrl+F · Escape clears"] = new[] { "搜尋帳戶 / 別名 / 群組 / 預設 · Ctrl+F · Escape 清除", "口座 / エイリアス / グループ / プリセットを検索 · Ctrl+F · Escape でクリア", "계좌 / 별칭 / 그룹 / 프리셋 검색 · Ctrl+F · Escape로 지우기" };
+            t["Filter displayed account states"] = new[] { "篩選顯示的帳戶狀態", "表示する口座状態を絞り込み", "표시할 계좌 상태 필터" };
+            t["All"] = new[] { "全部", "すべて", "전체" };
+            t["Tick all visible followers"] = new[] { "勾選所有可見的跟單帳戶", "表示中のフォロワーをすべて選択", "표시된 팔로워 모두 선택" };
+            t["Untick all visible followers"] = new[] { "取消勾選所有可見的跟單帳戶", "表示中のフォロワーをすべて選択解除", "표시된 팔로워 모두 선택 해제" };
+            t["Ratio: edit each account row"] = new[] { "比例：請於各帳戶列編輯", "比率：各口座行で編集", "비율: 각 계좌 행에서 편집" };
+            t["Bulk  "] = new[] { "批次  ", "一括  ", "일괄  " };
+            t["Amount for the highlighted accounts · account currency · 0 = off"] = new[] { "選取的帳戶之金額 · 帳戶幣別 · 0 = 關閉", "選択中の口座の金額 · 口座通貨 · 0 = オフ", "선택한 계좌의 금액 · 계좌 통화 · 0 = 끔" };
+            t["Bulk amount"] = new[] { "批次金額", "一括金額", "일괄 금액" };
+            t["Set Target on highlighted accounts"] = new[] { "為選取的帳戶設定 Tgt", "選択中の口座に Tgt を設定", "선택한 계좌에 Tgt 설정" };
+            t["Set Daily loss on highlighted accounts"] = new[] { "為選取的帳戶設定每日虧損上限", "選択中の口座に日次損失上限を設定", "선택한 계좌에 일일 손실 한도 설정" };
+            t["ATM on"] = new[] { "ATM 開", "ATM オン", "ATM 켬" };
+            t["ATM exit-mirroring ON for highlighted accounts"] = new[] { "為選取的帳戶開啟 ATM 出場鏡像", "選択中の口座の ATM 決済ミラーリングをオン", "선택한 계좌의 ATM 청산 미러링 켬" };
+            t["ATM off"] = new[] { "ATM 關", "ATM オフ", "ATM 끔" };
+            t["ATM exit-mirroring OFF for highlighted accounts"] = new[] { "為選取的帳戶關閉 ATM 出場鏡像", "選択中の口座の ATM 決済ミラーリングをオフ", "선택한 계좌의 ATM 청산 미러링 끔" };
+            t["Div: notify"] = new[] { "偏離：通知", "乖離：通知", "불일치: 알림" };
+            t["On divergence: only lock, show red and notify (default) for highlighted accounts"] = new[] { "發生偏離時：僅鎖定、以紅色顯示並通知（預設）（套用於選取的帳戶）", "乖離発生時：ロック、赤表示、通知のみ（デフォルト）（選択中の口座）", "불일치 발생 시: 잠금, 빨간색 표시 및 알림만 수행(기본값) (선택한 계좌)" };
+            t["Div: flatten 1x"] = new[] { "偏離：平倉 1 次", "乖離：全決済 1回", "불일치: 청산 1회" };
+            t["On divergence: request ONE flatten, never retried (saved only; NOT active in this alpha) for highlighted accounts"] = new[] { "發生偏離時：僅請求一次平倉，不會重試（僅儲存；本 alpha 版本中尚未啟用）（套用於選取的帳戶）", "乖離発生時：全決済を1回だけ要求、再試行なし（保存のみ；このアルファ版では有効ではありません）（選択中の口座）", "불일치 발생 시: 청산을 1회만 요청하며 재시도하지 않음(저장만 됨; 이 알파 버전에서는 활성화되지 않음) (선택한 계좌)" };
+            t["From Leader"] = new[] { "取自主帳戶", "リーダーから", "리더에서" };
+            t["Copy the leader row's Tgt / DLL / ATM to highlighted followers (all visible if none highlighted). One-time copy; edit any row afterwards. Ratio and ticks are not copied."] = new[] { "將主帳戶列的 Tgt / DLL / ATM 複製到選取的跟單帳戶（若未選取則套用於所有可見者）。僅複製一次；之後可自行編輯任一列。比例與勾選不會被複製。", "リーダー行の Tgt / DLL / ATM を選択中のフォロワーにコピー（未選択の場合は表示中のすべて）。1回限りのコピー；以後は各行を編集可能。比率とチェックはコピーされません。", "리더 행의 Tgt / DLL / ATM을 선택한 팔로워에 복사합니다(선택이 없으면 표시된 모든 팔로워). 1회성 복사이며 이후 각 행을 편집할 수 있습니다. 비율과 선택 표시는 복사되지 않습니다." };
+            t["Optional display alias"] = new[] { "選填顯示別名", "表示エイリアス（任意）", "표시 별칭(선택)" };
+            t["Independent daily local profit target · account CCY / 0 = off"] = new[] { "獨立的每日本機獲利目標 · 帳戶 CCY / 0 = 關閉", "独立した日次ローカル利益目標 · 口座 CCY / 0 = オフ", "독립 일일 로컬 수익 목표 · 계좌 CCY / 0 = 끔" };
+            t["Independent daily loss limit · positive amount / 0 = off"] = new[] { "獨立的每日虧損上限 · 正數金額 / 0 = 關閉", "独立した日次損失上限 · 正の金額 / 0 = オフ", "독립 일일 손실 한도 · 양수 금액 / 0 = 끔" };
+            t["Signed position · + long / − short"] = new[] { "帶正負號的持倉 · + 多 / − 空", "符号付きポジション · + ロング / − ショート", "부호 있는 포지션 · + 매수 / − 매도" };
+            t["Observed session P/L in account currency · baseline is not historical daily accounting"] = new[] { "以帳戶幣別計的觀察到的本次連線 P/L · 基準值並非歷史每日帳務", "口座通貨での観測セッション P/L · ベースラインは過去の日次会計ではありません", "계좌 통화 기준 관측된 세션 P/L · 기준값은 과거 일일 회계가 아님" };
+            t["CashValue in account currency; not NetLiquidation / net equity"] = new[] { "以帳戶幣別計的 CashValue；並非 NetLiquidation / 淨值", "口座通貨の CashValue；NetLiquidation / 純資産ではありません", "계좌 통화 기준 CashValue; NetLiquidation / 순자산이 아님" };
+            t["Batch risk / presets"] = new[] { "批次風控 / 預設組合", "一括リスク / プリセット", "일괄 리스크 / 프리셋" };
+            t["Batch risk / presets · review hold"] = new[] { "批次風控 / 預設組合 · 審查封鎖", "一括リスク / プリセット · レビュー保留", "일괄 리스크 / 프리셋 · 검토 보류" };
+            t["Save settings"] = new[] { "儲存設定", "設定を保存", "설정 저장" };
+            t["Trading-day boundary / timezone"] = new[] { "交易日分界 / 時區", "取引日の境界 / タイムゾーン", "거래일 경계 / 시간대" };
+            t["Pause highlighted accounts"] = new[] { "暫停選取的帳戶", "選択中の口座を一時停止", "선택한 계좌 일시정지" };
+            t["Resume highlighted accounts · latch unchanged / no auto-arm"] = new[] { "恢復選取的帳戶 · 鎖存狀態不變 / 不會自動武裝", "選択中の口座を再開 · ラッチは変更なし / 自動アームなし", "선택한 계좌 재개 · 래치 변경 없음 / 자동 활성화 없음" };
+            t["Flatten highlighted accounts (market-closes their positions)"] = new[] { "平倉選取的帳戶（以市價平掉其持倉）", "選択中の口座を全決済（ポジションを成行で決済）", "선택한 계좌 청산(포지션을 시장가로 청산)" };
+            t["Flatten highlighted accounts · review hold"] = new[] { "平倉選取的帳戶 · 審查封鎖", "選択中の口座を全決済 · レビュー保留", "선택한 계좌 청산 · 검토 보류" };
+            t["Flatten ALL displayed accounts (market-closes every position shown)"] = new[] { "平倉所有顯示的帳戶（以市價平掉所示的每一筆持倉）", "表示中のすべての口座を全決済（表示中のすべてのポジションを成行で決済）", "표시된 모든 계좌 청산(표시된 모든 포지션을 시장가로 청산)" };
+            t["Flatten all displayed accounts · review hold"] = new[] { "平倉所有顯示的帳戶 · 審查封鎖", "表示中のすべての口座を全決済 · レビュー保留", "표시된 모든 계좌 청산 · 검토 보류" };
+            t["Live (RO)"] = new[] { "即時（唯讀）", "ライブ（読取専用）", "라이브(읽기 전용)" };
+            t["Display live accounts read-only · live copying blocked"] = new[] { "以唯讀方式顯示即時帳戶 · 禁止即時帳戶跟單", "ライブ口座を読取専用で表示 · ライブ口座へのコピーはブロック", "라이브 계좌를 읽기 전용으로 표시 · 라이브 복사 차단됨" };
+            t["Grp"] = new[] { "組", "グル", "그룹" };
+            t["Group account rows"] = new[] { "帳戶列分組", "口座行をグループ化", "계좌 행 그룹화" };
+            t["Broker account"] = new[] { "券商帳戶", "ブローカー口座", "브로커 계좌" };
+            t["Display alias"] = new[] { "顯示別名", "表示エイリアス", "표시 별칭" };
+            t["Account group"] = new[] { "帳戶群組", "口座グループ", "계좌 그룹" };
+            t["Daily local profit target · 0 = off"] = new[] { "每日本機獲利目標 · 0 = 關閉", "日次ローカル利益目標 · 0 = オフ", "일일 로컬 수익 목표 · 0 = 끔" };
+            t["Daily loss limit · positive value / 0 = off"] = new[] { "每日虧損上限 · 正數值 / 0 = 關閉", "日次損失上限 · 正の値 / 0 = オフ", "일일 손실 한도 · 양수 값 / 0 = 끔" };
+            t["Max"] = new[] { "上限", "最大", "최대" };
+            t["Maximum exact-instrument contracts"] = new[] { "完全相同商品的最大合約數", "同一銘柄の最大契約数", "동일 종목 최대 계약 수" };
+            t["Observed session P/L"] = new[] { "觀察到的本次連線 P/L", "観測セッション P/L", "관측된 세션 P/L" };
+            t["CCY"] = new[] { "CCY", "CCY", "CCY" };
+            t["Account currency"] = new[] { "帳戶幣別", "口座通貨", "계좌 통화" };
+            t["Tgt Δ"] = new[] { "Tgt Δ", "Tgt Δ", "Tgt Δ" };
+            t["Amount remaining to daily target"] = new[] { "距離每日目標的剩餘金額", "日次目標までの残額", "일일 목표까지 남은 금액" };
+            t["DLL Δ"] = new[] { "DLL Δ", "DLL Δ", "DLL Δ" };
+            t["Loss headroom"] = new[] { "虧損餘裕", "損失余裕", "손실 여유" };
+            t["Signed position"] = new[] { "帶正負號的持倉", "符号付きポジション", "부호 있는 포지션" };
+            t["Connection status"] = new[] { "連線狀態", "接続ステータス", "연결 상태" };
+            t["St"] = new[] { "狀態", "状態", "상태" };
+            t["Status"] = new[] { "狀態", "ステータス", "상태" };
+            t["Copier / risk state"] = new[] { "跟單 / 風控狀態", "コピー / リスク状態", "복사 / 리스크 상태" };
+            t["Preset"] = new[] { "預設組合", "プリセット", "프리셋" };
+            t["Editable firm template"] = new[] { "可編輯的券商範本", "編集可能なファーム用テンプレート", "편집 가능한 펌 템플릿" };
+            t["Cons"] = new[] { "一致", "一貫", "일관" };
+            t["Consistency advisory · not a broker guarantee"] = new[] { "一致性參考提示 · 非券商保證", "一貫性の参考情報 · ブローカーの保証ではありません", "일관성 참고 안내 · 브로커의 보증이 아님" };
+            t["Account risk / template / history"] = new[] { "帳戶風控 / 範本 / 歷史", "口座リスク / テンプレート / 履歴", "계좌 리스크 / 템플릿 / 기록" };
+            t["OFF cancels owned entries, retains exits · Re-follow explicit / only when clean · ATM OFF may be unprotected · Local guards only"] = new[] { "OFF 會取消自有進場單、保留出場單 · 重新跟單需明確操作 / 僅在乾淨狀態下 · ATM OFF 可能無保護 · 僅限本機防護", "OFF は自己の新規注文を取消し、決済注文は維持 · 再フォローは明示操作 / クリーンな場合のみ · ATM OFF は保護なしとなる可能性あり · ローカルガードのみ", "OFF는 자체 진입 주문을 취소하고 청산 주문은 유지 · 재팔로우는 명시적 / 정상 상태일 때만 · ATM OFF는 보호되지 않을 수 있음 · 로컬 가드만 적용" };
+            t["Clear log"] = new[] { "清除日誌", "ログをクリア", "로그 지우기" };
+            t["Clear this log view (does not affect settings, orders or saved latches)"] = new[] { "清除此日誌檢視（不影響設定、委託單或已儲存的鎖存）", "このログ表示をクリア（設定・注文・保存済みラッチには影響しません）", "이 로그 보기 지우기(설정, 주문, 저장된 래치에는 영향 없음)" };
+            t["Demo / not broker data"] = new[] { "示範 / 非券商資料", "デモ / ブローカーデータではありません", "데모 / 브로커 데이터 아님" };
+            t["Locked while attached or on review hold"] = new[] { "連線期間或審查封鎖時已鎖定", "接続中またはレビュー保留中はロック", "연결 중이거나 검토 보류 중에는 잠김" };
+            t["Highlight at least one follower account first"] = new[] { "請先選取至少一個跟單帳戶", "先にフォロワー口座を1つ以上選択してください", "먼저 팔로워 계좌를 하나 이상 선택하세요" };
+            t["Enter a plain amount like 1000 (0 = off); no commas, signs or text"] = new[] { "請輸入純數字金額，例如 1000（0 = 關閉）；不可含逗號、符號或文字", "1000 のような数字のみの金額を入力（0 = オフ）。カンマ・符号・文字は不可", "1000처럼 숫자만 입력하세요 (0 = 끔). 쉼표, 부호, 문자는 사용할 수 없습니다" };
+            t["ATM value must be on or off"] = new[] { "ATM 值必須為開啟或關閉", "ATM の値はオンまたはオフにしてください", "ATM 값은 켜짐 또는 꺼짐이어야 합니다" };
+            t["Unknown bulk field"] = new[] { "未知的批次欄位", "不明な一括設定フィールド", "알 수 없는 일괄 설정 필드" };
+            t["No leader row to copy from"] = new[] { "沒有可供複製的主帳戶列", "コピー元のリーダー行がありません", "복사할 리더 행이 없습니다" };
+            t["No follower accounts to update"] = new[] { "沒有可更新的跟單帳戶", "更新対象のフォロワー口座がありません", "업데이트할 팔로워 계좌가 없습니다" };
+            t["Leader Tgt / DLL are not valid amounts"] = new[] { "主帳戶的 Tgt / DLL 不是有效金額", "リーダーの Tgt / DLL が有効な金額ではありません", "리더의 Tgt / DLL이 유효한 금액이 아닙니다" };
+            t["Copied leader Tgt / DLL / ATM to followers (one-time); Ratio and ticks unchanged. Edit any row to fine-tune."] = new[] { "已將主帳戶的 Tgt / DLL / ATM 複製到跟單帳戶（僅一次）；比例與跳動點數未變更。可編輯任一列進行微調。", "リーダーの Tgt / DLL / ATM をフォロワーにコピーしました（1回のみ）。比率とティックは変更なし。任意の行を編集して微調整できます。", "리더의 Tgt / DLL / ATM을 팔로워에 복사했습니다 (1회성). 비율과 틱은 변경되지 않았습니다. 행을 편집하여 세부 조정할 수 있습니다." };
+            t["Mixed CCY"] = new[] { "混合 CCY", "CCY 混在", "CCY 혼합" };
+            t["REVIEW HOLD · unexpected attachment"] = new[] { "審查封鎖 · 非預期的附加項目", "レビュー保留 · 想定外のアタッチメント", "검토 보류 · 예상치 못한 첨부" };
+            t["Error — guarded pause; verify exposure manually"] = new[] { "錯誤 — 保護性暫停；請手動確認持倉風險", "エラー — ガード付き一時停止。エクスポージャーを手動で確認してください", "오류 — 보호 일시정지; 노출 포지션을 수동으로 확인하세요" };
+            t["PUBLIC ALPHA SAFETY HOLD — Start blocked for ALL providers, including Sim / Playback. Trading DISABLED."] = new[] { "公開 Alpha 安全封鎖 — 所有報價/交易供應端（含 Sim / Playback）均禁止開始。交易已停用。", "パブリックアルファ安全保留 — Sim / Playback を含む全プロバイダーで開始をブロック。取引は無効。", "퍼블릭 알파 안전 보류 — Sim / Playback을 포함한 모든 제공자에서 시작이 차단되었습니다. 거래 비활성화." };
+            t["ALL-ACCOUNT SAFETY HOLD — Start blocked, including Simulator / Playback. UI preview only; provider acceptance unverified."] = new[] { "全帳戶安全封鎖 — 禁止開始，包含 Simulator / Playback。僅為介面預覽；供應端接受狀況未經驗證。", "全口座安全保留 — Simulator / Playback を含め開始をブロック。UI プレビューのみ。プロバイダーの受理は未確認。", "전체 계좌 안전 보류 — Simulator / Playback을 포함하여 시작이 차단되었습니다. UI 미리보기 전용; 제공자 수락 여부는 확인되지 않았습니다." };
+            t["Already managing a session. Stop while flat first."] = new[] { "已在管理一個工作階段。請先於持倉歸零後停止。", "すでにセッションを管理中。先にフラット後に停止してください。", "이미 세션을 관리 중입니다. 먼저 청산 후 중지하세요." };
+            t["LIVE BLOCKED in v0.2. Only Simulator / Playback; no live override is provided."] = new[] { "v0.2 禁止實盤。僅支援 Simulator / Playback；不提供實盤覆寫選項。", "v0.2 ではライブをブロック。Simulator / Playback のみ。ライブへの上書き手段はありません。", "v0.2에서는 실거래가 차단됩니다. Simulator / Playback만 지원하며 실거래 우회 옵션은 제공되지 않습니다." };
+            t["Start refused: select unlocked, valid followers."] = new[] { "已拒絕開始：請選取未鎖定且有效的跟單帳戶。", "開始を拒否: ロックされていない有効なフォロワーを選択してください。", "시작 거부: 잠기지 않은 유효한 팔로워를 선택하세요." };
+            t["Start refused: all selected accounts must be connected."] = new[] { "已拒絕開始：所有已選帳戶都必須已連線。", "開始を拒否: 選択したすべての口座が接続されている必要があります。", "시작 거부: 선택한 모든 계좌가 연결되어 있어야 합니다." };
+            t["Start refused: another copier window owns one of these accounts."] = new[] { "已拒絕開始：另一個跟單視窗正在管理其中一個帳戶。", "開始を拒否: 別のコピーウィンドウがこれらの口座の1つを管理しています。", "시작 거부: 다른 복사 창이 이 계좌 중 하나를 관리하고 있습니다." };
+            t["Start superseded by guard"] = new[] { "開始已被防護取代", "開始はガードにより置き換えられました", "시작이 가드에 의해 대체됨" };
+            t["Ambiguous provider order identity / transition — no catch-up, manual recovery required"] = new[] { "供應端委託單身分／狀態轉換不明確 — 不補單，需人工處理", "プロバイダーの注文識別／遷移が曖昧 — キャッチアップなし、手動での復旧が必要", "제공자 주문 식별/전환이 모호함 — 캐치업 없음, 수동 복구 필요" };
+            t["Invalid / unsupported leader order — entries blocked"] = new[] { "無效／不支援的主帳戶委託單 — 已封鎖進場", "無効／未対応のリーダー注文 — エントリーをブロック", "유효하지 않거나 지원되지 않는 리더 주문 — 진입 차단" };
+            t["Leader disconnected — no catch-up"] = new[] { "主帳戶已斷線 — 不補單", "リーダー切断 — キャッチアップなし", "리더 연결 끊김 — 캐치업 없음" };
+            t["Session history bound reached — guarded pause; stop flat and restart."] = new[] { "已達工作階段歷史上限 — 保護性暫停；請於持倉歸零後停止並重新啟動。", "セッション履歴の上限に到達 — ガード付き一時停止。フラット後に停止して再起動してください。", "세션 기록 한도 도달 — 보호 일시정지; 청산 후 중지하고 다시 시작하세요." };
+            t["Oversize follower quantity"] = new[] { "跟單帳戶數量過大", "フォロワー数量が過大", "팔로워 수량 초과" };
+            t["Unsupported leader action / type / OCO / time-in-force transition — submitted order unchanged; manual recovery required"] = new[] { "不支援的主帳戶動作／類型／OCO／有效期限轉換 — 已送出的委託單未變更；需人工處理", "未対応のリーダーのアクション／種別／OCO／有効期限の遷移 — 送信済み注文は変更なし。手動での復旧が必要", "지원되지 않는 리더 동작/유형/OCO/유효 기간 전환 — 제출된 주문은 변경되지 않음; 수동 복구 필요" };
+            t["Exposure ledger overflow"] = new[] { "風險部位紀錄溢位", "エクスポージャー台帳のオーバーフロー", "노출 원장 오버플로" };
+            t["Position / owned execution mismatch — no adoption"] = new[] { "持倉與自有成交不符 — 不接管", "ポジションと自己の約定が不一致 — 引き継ぎなし", "포지션과 자체 체결 불일치 — 인수 안 함" };
+            t["Unknown / opposite exposure — exit adoption blocked"] = new[] { "未知／反向持倉 — 已封鎖出場接管", "不明／反対方向のエクスポージャー — 決済の引き継ぎをブロック", "알 수 없거나 반대 방향의 노출 — 청산 인수 차단" };
+            t["Unknown excess position — protect owned subset only"] = new[] { "未知的超額持倉 — 僅保護自有部分", "不明な超過ポジション — 自己保有分のみ保護", "알 수 없는 초과 포지션 — 자체 보유분만 보호" };
+            t["Ambiguous reversal blocked"] = new[] { "不明確的反轉已封鎖", "曖昧な反転をブロック", "모호한 반전 차단" };
+            t["provider call"] = new[] { "供應端呼叫", "プロバイダー呼び出し", "제공자 호출" };
+            t["Disconnected — no catch-up"] = new[] { "已斷線 — 不補單", "切断 — キャッチアップなし", "연결 끊김 — 캐치업 없음" };
+            t["Exit could not obtain closable exposure within 10s — review protection"] = new[] { "出場單在 10 秒內無法取得可平倉的持倉 — 請檢查保護", "決済が10秒以内に決済可能なエクスポージャーを取得できませんでした — 保護を確認してください", "청산이 10초 내에 청산 가능한 노출을 확보하지 못함 — 보호 상태를 확인하세요" };
+            t["Unsupported order type"] = new[] { "不支援的委託單類型", "未対応の注文種別", "지원되지 않는 주문 유형" };
+            t["Disconnected — protection may be stale"] = new[] { "已斷線 — 保護可能已過期", "切断 — 保護が古い可能性あり", "연결 끊김 — 보호가 오래되었을 수 있음" };
+            t["Ambiguous flat Position conflicts with owned executions — existing exit left unchanged; manual reconciliation required, coverage unverified"] = new[] { "不明確的持倉為零與自有成交衝突 — 現有出場單維持不變；需人工核對，無法確認已有保護", "曖昧なフラット Position が自己の約定と矛盾 — 既存の決済注文は変更なし。手動での照合が必要、保護は確認できません", "모호한 청산 Position이 자체 체결과 충돌 — 기존 청산 주문은 변경되지 않음; 수동 대조 필요, 보호 여부를 확인할 수 없음" };
+            t["Cancel working order"] = new[] { "取消掛單", "待機中の注文をキャンセル", "대기 주문 취소" };
+            t["Flat Position conflicts with owned executions — exits cancelled to prevent reversal; review protection"] = new[] { "持倉為零與自有成交衝突 — 為防止反轉已取消出場單；請檢查保護", "フラット Position が自己の約定と矛盾 — 反転防止のため決済注文をキャンセル。保護を確認してください", "청산 Position이 자체 체결과 충돌 — 반전 방지를 위해 청산 주문이 취소됨; 보호 상태를 확인하세요" };
+            t["Unknown follower order activity — no adoption / manual review"] = new[] { "未知的跟單帳戶委託單活動 — 不接管／需人工檢查", "不明なフォロワー注文アクティビティ — 引き継ぎなし／手動確認", "알 수 없는 팔로워 주문 활동 — 인수 안 함/수동 검토" };
+            t["Follower provider identity transition ambiguous — captured fill evidence retained, manual recovery required"] = new[] { "跟單帳戶供應端身分轉換不明確 — 已保留擷取的成交證據，需人工處理", "フォロワーのプロバイダー識別の遷移が曖昧 — 取得済み約定証跡は保持、手動での復旧が必要", "팔로워 제공자 식별 전환이 모호함 — 수집된 체결 증거 보존, 수동 복구 필요" };
+            t["Follower execution metadata divergence — manual recovery required"] = new[] { "跟單帳戶成交中繼資料偏離 — 需人工處理", "フォロワーの約定メタデータが乖離 — 手動での復旧が必要", "팔로워 체결 메타데이터 불일치 — 수동 복구 필요" };
+            t["Follower terminal-state evidence divergence — older active state cannot revoke terminal acknowledgement; manual recovery required"] = new[] { "跟單帳戶終態證據偏離 — 較舊的有效狀態無法撤銷終態確認；需人工處理", "フォロワーの最終状態の証跡が乖離 — 古いアクティブ状態では最終状態の確認を取り消せません。手動での復旧が必要", "팔로워 최종 상태 증거 불일치 — 이전 활성 상태로는 최종 상태 확인을 철회할 수 없음; 수동 복구 필요" };
+            t["OCO multiple exits filled — durable divergence lock; provider atomicity not guaranteed, manual recovery required"] = new[] { "OCO 多筆出場單已成交 — 持久性偏離鎖定；供應端不保證原子性，需人工處理", "OCO の複数の決済注文が約定 — 永続的な乖離ロック。プロバイダーの原子性は保証されません、手動での復旧が必要", "OCO 복수 청산 주문 체결 — 영구 불일치 잠금; 제공자의 원자성은 보장되지 않음, 수동 복구 필요" };
+            t["Cancel OCO sibling"] = new[] { "取消 OCO 關聯單", "OCO の対となる注文をキャンセル", "OCO 연결 주문 취소" };
+            t["Protective exit terminal with uncovered exposure — manual review required"] = new[] { "保護性出場單已終結但仍有未受保護的持倉 — 需人工檢查", "保護的な決済注文が終了したがエクスポージャーが未カバー — 手動での確認が必要", "보호 청산 주문이 종료되었으나 보호되지 않는 노출 존재 — 수동 검토 필요" };
+            t["Entry fill arrived AFTER the leader exit was ignored as 'nothing to close' — no copied exit covers it; manual recovery required; coverage not established"] = new[] { "進場成交在主帳戶出場單被視為「無可平倉」而忽略「之後」才出現 — 沒有任何已複製的出場單涵蓋它；需人工處理；無法確認已有保護", "エントリー約定がリーダーの決済が「決済対象なし」として無視された「後」に到着 — コピーされた決済注文でカバーされていません。手動での復旧が必要、保護は確認できません", "진입 체결이 리더 청산이 '청산할 것 없음'으로 무시된 '후'에 도착 — 복사된 청산 주문이 이를 보호하지 않음; 수동 복구 필요; 보호 여부를 확인할 수 없음" };
+            t["Late uncovered entry fill after exit completion — manual recovery required; coverage not established"] = new[] { "出場完成後出現遲到且未受保護的進場成交 — 需人工處理；無法確認已有保護", "決済完了後に遅れて未カバーのエントリー約定が発生 — 手動での復旧が必要、保護は確認できません", "청산 완료 후 늦게 보호되지 않은 진입 체결 발생 — 수동 복구 필요; 보호 여부를 확인할 수 없음" };
+            t["Follower order rejected — review protection"] = new[] { "跟單帳戶委託單被拒 — 請檢查保護", "フォロワー注文が拒否されました — 保護を確認してください", "팔로워 주문 거부됨 — 보호 상태를 확인하세요" };
+            t["Awaiting provider flat / order confirmation"] = new[] { "等待供應端的平倉／委託單確認", "プロバイダーのフラット／注文確認を待機中", "제공자의 청산/주문 확인 대기 중" };
+            t["Flatten unconfirmed — no concurrent recovery exits authorized; verify provider state manually before explicit abandonment"] = new[] { "平倉未獲確認 — 不授權任何並行的復原出場單；明確放棄前請手動確認供應端狀態", "全決済が未確認 — 並行する復旧用決済注文は許可されません。明示的に放棄する前にプロバイダーの状態を手動で確認してください", "청산 미확인 — 동시 복구 청산 주문은 허용되지 않음; 명시적으로 포기하기 전에 제공자 상태를 수동으로 확인하세요" };
+            t["Unknown follower order / terminal fill evidence — no adoption; manual recovery required"] = new[] { "未知的跟單帳戶委託單／終態成交證據 — 不接管；需人工處理", "不明なフォロワー注文／最終約定の証跡 — 引き継ぎなし、手動での復旧が必要", "알 수 없는 팔로워 주문/최종 체결 증거 — 인수 안 함; 수동 복구 필요" };
+            t["Provider wrapper diverges from captured order / fill evidence — reservations retained; manual recovery required"] = new[] { "供應端封裝物件與擷取的委託單／成交證據不一致 — 保留預留量；需人工處理", "プロバイダーのラッパーが取得済みの注文／約定証跡と乖離 — 予約を保持、手動での復旧が必要", "제공자 래퍼가 수집된 주문/체결 증거와 불일치 — 예약 유지; 수동 복구 필요" };
+            t["Position diverges from owned execution ledger — manual recovery required"] = new[] { "持倉與自有成交紀錄偏離 — 需人工處理", "ポジションが自己の約定台帳と乖離 — 手動での復旧が必要", "포지션이 자체 체결 원장과 불일치 — 수동 복구 필요" };
+            t["Cancel entry (OFF)"] = new[] { "取消進場單（OFF）", "エントリーをキャンセル（OFF）", "진입 주문 취소 (OFF)" };
+            t["GUARDED PAUSE — no new entries; existing lifecycle + new exits still managed"] = new[] { "保護性暫停 — 不再新增進場；既有生命週期與新的出場單仍會管理", "ガード付き一時停止 — 新規エントリーなし。既存のライフサイクルと新規決済は引き続き管理", "보호 일시정지 — 신규 진입 없음; 기존 수명주기와 신규 청산은 계속 관리됨" };
+            t["Paused NEW entries. Working entries may still fill; new exits and changes/cancels remain mirrored. Flatten explicitly to remove exposure."] = new[] { "已暫停新進場。掛單進場仍可能成交；新的出場單與修改／取消仍會同步鏡射。請明確執行平倉以移除持倉風險。", "新規エントリーを一時停止。待機中のエントリーは約定する可能性があります。新規決済と変更／キャンセルは引き続きミラーされます。エクスポージャーを解消するには明示的に全決済してください。", "신규 진입을 일시정지했습니다. 대기 중인 진입은 체결될 수 있으며, 신규 청산과 변경/취소는 계속 미러링됩니다. 노출을 제거하려면 명시적으로 청산하세요." };
+            t["GUARDED PAUSE — stop blocked until owned executions reconcile flat / no working orders"] = new[] { "保護性暫停 — 在自有成交對帳為持倉歸零／無掛單前，禁止停止", "ガード付き一時停止 — 自己の約定がフラット／待機注文なしで照合されるまで停止をブロック", "보호 일시정지 — 자체 체결이 청산/대기 주문 없음으로 대조될 때까지 중지가 차단됨" };
+            t["Stop refused: unresolved execution / order evidence. Manual reconciliation required; coverage is not guaranteed."] = new[] { "已拒絕停止：存在未解決的成交／委託單證據。需人工核對；不保證已有保護。", "停止を拒否: 未解決の約定／注文の証跡があります。手動での照合が必要。保護は保証されません。", "중지 거부: 해결되지 않은 체결/주문 증거가 있습니다. 수동 대조 필요; 보호는 보장되지 않습니다." };
+            t["PUBLIC ALPHA SAFETY HOLD — Flatten blocked for ALL providers, including Sim / Playback. Trading DISABLED."] = new[] { "公開 Alpha 安全封鎖 — 所有報價/交易供應端（含 Sim / Playback）均禁止平倉。交易已停用。", "パブリックアルファ安全保留 — Sim / Playback を含む全プロバイダーで全決済をブロック。取引は無効。", "퍼블릭 알파 안전 보류 — Sim / Playback을 포함한 모든 제공자에서 청산이 차단되었습니다. 거래 비활성화." };
+            t["ALL-ACCOUNT SAFETY HOLD — Flatten blocked for every account. No trading actions authorized."] = new[] { "全帳戶安全封鎖 — 所有帳戶均禁止平倉。未授權任何交易動作。", "全口座安全保留 — 全口座で全決済をブロック。取引アクションは一切許可されません。", "전체 계좌 안전 보류 — 모든 계좌에서 청산이 차단되었습니다. 어떤 거래 동작도 허용되지 않습니다." };
+            t["Flatten blocked: another copier owns an account in this scope."] = new[] { "已封鎖平倉：另一個跟單程式擁有此範圍內的帳戶。", "全決済をブロック: この範囲内の口座を別のコピーが所有しています。", "청산 차단: 다른 복사 프로그램이 이 범위의 계좌를 소유하고 있습니다." };
+            t["Flatten leader blocked: other managed followers still have exposure/working orders. Include all managed followers or flatten followers first."] = new[] { "已封鎖主帳戶平倉：其他受管理的跟單帳戶仍有持倉／掛單。請納入所有受管理的跟單帳戶，或先平倉跟單帳戶。", "リーダーの全決済をブロック: 他の管理対象フォロワーにまだエクスポージャー／待機注文があります。管理対象のフォロワーをすべて含めるか、先にフォロワーを全決済してください。", "리더 청산 차단: 다른 관리 대상 팔로워에 아직 노출/대기 주문이 있습니다. 관리 대상 팔로워를 모두 포함하거나 팔로워를 먼저 청산하세요." };
+            t["Request threw — provider acceptance unknown"] = new[] { "請求拋出例外 — 供應端是否已接受未知", "リクエストが例外をスロー — プロバイダーの受理は不明", "요청에서 예외 발생 — 제공자 수락 여부를 알 수 없음" };
+            t[": Flatten "] = new[] { "：平倉 ", ": 全決済 ", ": 청산 " };
+            t["Flatten refused: copier is stopped; no request was sent."] = new[] { "已拒絕平倉：跟單已停止；未送出任何請求。", "全決済を拒否: コピーは停止中。リクエストは送信されていません。", "청산 거부: 복사가 중지되었습니다. 요청은 전송되지 않았습니다." };
+            t["Manual flatten abandonment — entries locked; only explicit leader exits managed, no autonomous protection / provider guarantee"] = new[] { "手動平倉已放棄——進場已鎖定；僅管理主帳戶明確的出場，無自主保護／供應端保證", "手動フラット化を放棄——エントリーはロック中；リーダーの明示的な決済のみ管理、自律的な保護／プロバイダー保証なし", "수동 청산 포기 — 진입 잠김; 리더의 명시적 청산만 관리, 자율 보호/제공자 보증 없음" };
+            t["Close refused: owned executions / orders unresolved; callbacks and ownership retained. Resolve manually before closing."] = new[] { "拒絕關閉：自有成交／委託尚未解決；回呼與所有權仍保留。請先手動處理後再關閉。", "クローズを拒否：自己の約定／注文が未解決；コールバックと所有権は保持。クローズ前に手動で解決してください。", "닫기 거부: 소유한 체결/주문이 미해결; 콜백과 소유권 유지. 닫기 전에 수동으로 해결하십시오." };
+            t["Refresh blocked while managing a session."] = new[] { "管理工作階段期間無法重新整理。", "セッション管理中は更新できません。", "세션 관리 중에는 새로고침할 수 없습니다." };
+            t["Settings NOT saved: correct invalid per-account Ratio / row values first."] = new[] { "設定未儲存：請先修正各帳戶無效的比例／列數值。", "設定は保存されていません：口座ごとの無効な比率／行の値を先に修正してください。", "설정이 저장되지 않았습니다: 계좌별 잘못된 비율/행 값을 먼저 수정하십시오." };
+            t["REVIEW HOLD: trading and bulk edits disabled. Inspect Dashboard only; use native NT8 for positions."] = new[] { "審查封鎖：交易與批次編輯已停用。僅可檢視儀表板；持倉請使用 NT8 原生介面。", "レビュー保留：取引と一括編集は無効。ダッシュボードの確認のみ可；ポジションはネイティブの NT8 を使用。", "검토 보류: 거래 및 일괄 편집 비활성화. 대시보드만 확인 가능; 포지션은 NT8 기본 화면을 사용하십시오." };
+            t["Settings saved; startup stays disarmed."] = new[] { "設定已儲存；啟動維持未武裝狀態。", "設定を保存しました；起動時は非アーム状態のまま。", "설정이 저장되었습니다; 시작 시 비무장 상태 유지." };
+            t["Settings / enabled edits blocked during session. Pause per account or stop when flat first."] = new[] { "工作階段期間無法編輯設定／啟用狀態。請先依帳戶暫停，或於持倉歸零後停止。", "セッション中は設定／有効化の編集不可。先に口座ごとに一時停止するか、フラット後に停止してください。", "세션 중에는 설정/활성화 편집이 차단됩니다. 먼저 계좌별로 일시정지하거나 청산 후 중지하십시오." };
+            t["Start refused: unresolved inline validation error."] = new[] { "拒絕開始：尚有未解決的內嵌驗證錯誤。", "開始を拒否：未解決のインライン検証エラーがあります。", "시작 거부: 해결되지 않은 인라인 검증 오류가 있습니다." };
+            t["Start blocked: settings persistence error. Review / reset while disarmed."] = new[] { "開始已封鎖：設定持久化錯誤。請於未武裝狀態下檢視／重設。", "開始をブロック：設定の永続化エラー。非アーム状態で確認／リセットしてください。", "시작 차단: 설정 저장 오류. 비무장 상태에서 검토/초기화하십시오." };
+            t["Choose a simulation leader."] = new[] { "請選擇模擬主帳戶。", "シミュレーションのリーダーを選択してください。", "시뮬레이션 리더를 선택하십시오." };
+            t["Unknown exact instrument."] = new[] { "商品不明確。", "銘柄を特定できません。", "정확한 종목을 알 수 없습니다." };
+            t["Enable at least one unpaused follower."] = new[] { "請至少啟用一個未暫停的跟單帳戶。", "一時停止中でないフォロワーを少なくとも1つ有効にしてください。", "일시정지되지 않은 팔로워를 하나 이상 활성화하십시오." };
+            t["Invalid finite settings or risk-latched follower. Review Settings / confirmed reset."] = new[] { "有限數值設定無效，或跟單帳戶已觸發風控鎖存。請檢視設定／確認後重設。", "有限値の設定が無効、またはリスクラッチ中のフォロワーがあります。設定を確認／確認付きリセットしてください。", "유한 값 설정이 잘못되었거나 리스크 래치된 팔로워가 있습니다. 설정을 검토/확인 후 초기화하십시오." };
+            t["Use global guarded pause for leader."] = new[] { "請對主帳戶使用全域保護性暫停。", "リーダーにはグローバルのガード付き一時停止を使用してください。", "리더에는 전체 보호 일시정지를 사용하십시오." };
+            t["Select accounts first."] = new[] { "請先選取帳戶。", "先に口座を選択してください。", "먼저 계좌를 선택하십시오." };
+            t["Stop flat before risk edits. Active engine uses immutable settings snapshots."] = new[] { "請先於持倉歸零後停止，再編輯風控。運行中的引擎使用不可變的設定快照。", "リスク編集の前にフラット後に停止してください。稼働中のエンジンは不変の設定スナップショットを使用します。", "리스크 편집 전에 청산 후 중지하십시오. 실행 중인 엔진은 변경 불가능한 설정 스냅샷을 사용합니다." };
+            t["Flat: no account."] = new[] { "平倉：無帳戶。", "決済：口座なし。", "청산: 계좌 없음." };
+            t["REVIEW HOLD: Flat disabled."] = new[] { "審查封鎖：平倉已停用。", "レビュー保留：決済は無効。", "검토 보류: 청산 비활성화." };
+            t["Flat: the leader row is not a follower; use Flatten all or flatten it in NinjaTrader."] = new[] { "平倉：主帳戶列並非跟單帳戶；請使用「全部平倉」，或於 NinjaTrader 中自行平倉。", "決済：リーダー行はフォロワーではありません；「すべて全決済」を使うか、NinjaTrader で決済してください。", "청산: 리더 행은 팔로워가 아닙니다; 전체 청산을 사용하거나 NinjaTrader에서 직접 청산하십시오." };
+            t["No accounts in flatten scope."] = new[] { "平倉範圍內沒有帳戶。", "全決済の対象範囲に口座がありません。", "청산 범위에 계좌가 없습니다." };
+            t["Flatten: exact instrument unknown."] = new[] { "平倉：商品不明確。", "全決済：銘柄を特定できません。", "청산: 정확한 종목을 알 수 없습니다." };
+            t["Flatten refused: live account in scope; v0.2 simulation only."] = new[] { "拒絕平倉：範圍內含真實帳戶；v0.2 僅支援模擬。", "全決済を拒否：対象にライブ口座を含みます；v0.2 はシミュレーションのみ。", "청산 거부: 범위에 실계좌가 포함됨; v0.2는 시뮬레이션 전용." };
+            t["Account list changed — will refresh when you finish editing."] = new[] { "帳戶清單已變更——將於編輯完成後重新整理。", "口座リストが変更されました——編集完了後に更新します。", "계좌 목록이 변경되었습니다 — 편집이 끝나면 새로고침합니다." };
+            t["History required"] = new[] { "需要歷史資料", "履歴が必要", "기록 필요" };
+            t["Settings invalid"] = new[] { "設定無效", "設定が無効", "설정 오류" };
+            t["Telemetry invalid"] = new[] { "遙測資料無效", "テレメトリが無効", "텔레메트리 오류" };
+            t["Daily loss"] = new[] { "每日虧損", "日次損失", "일일 손실" };
+            t["Drawdown floor"] = new[] { "回撤底線", "ドローダウン下限", "드로다운 하한" };
+            t["Unknown risk field"] = new[] { "未知的風控欄位", "不明なリスク項目", "알 수 없는 리스크 필드" };
+            t["Invalid risk value"] = new[] { "風控值無效", "無効なリスク値", "잘못된 리스크 값" };
+            t["Correct the highlighted risk values before Apply."] = new[] { "套用前請先修正標示的風控值。", "適用前にハイライトされたリスク値を修正してください。", "적용 전에 강조 표시된 리스크 값을 수정하십시오." };
+            t["Every number must be finite; ratio / max quantity positive; monetary guards nonnegative."] = new[] { "所有數值必須為有限值；比例／最大數量須為正數；金額防護須為非負數。", "すべての数値は有限値であること；比率／最大数量は正の数；金額ガードは非負であること。", "모든 숫자는 유한 값이어야 합니다; 비율/최대 수량은 양수; 금액 가드는 음수가 아니어야 합니다." };
+            t["Supply positive confirmed high-water and trail distance first."] = new[] { "請先提供正數的已確認高水位與追蹤距離。", "先に正の確認済みハイウォーターとトレール距離を指定してください。", "먼저 양수의 확인된 고점과 트레일 거리를 입력하십시오." };
+            t["Unsupported settings version"] = new[] { "不支援的設定版本", "未対応の設定バージョン", "지원되지 않는 설정 버전" };
+            t["Persisted lock"] = new[] { "已持久化的鎖定", "永続化されたロック", "저장된 잠금" };
+            t["Invalid finite settings: "] = new[] { "有限數值設定無效： ", "有限値の設定が無効： ", "잘못된 유한 값 설정: " };
+            t["Duplicate account settings"] = new[] { "帳戶設定重複", "口座設定が重複", "계좌 설정 중복" };
+            t["Invalid latch journal"] = new[] { "鎖存日誌無效", "無効なラッチジャーナル", "잘못된 래치 저널" };
+            t["\nSource PT "] = new[] { "\n來源 PT ", "\nソース PT ", "\n출처 PT " };
+            t["\nSource: propfirmsdrama.com/full-comparison/ — 2026-10-02; TPT 2026-08-31. Verify current firm rules. Funded/eval stages differ; scaling may lower cap.\nDD amount is NOT an absolute equity floor. Con"] = new[] { "\n來源：propfirmsdrama.com/full-comparison/ — 2026-10-02；TPT 2026-08-31。請核對最新的公司規則。資助／評估階段不同；規模擴增可能降低上限。\nDD 金額並非絕對權益底線。Con", "\nソース：propfirmsdrama.com/full-comparison/ — 2026-10-02；TPT 2026-08-31。最新のファーム規則を確認すること。ファンデッド／評価の段階で異なる；スケーリングで上限が下がる場合あり。\nDD 金額は絶対的な資産下限ではありません。Con", "\n출처: propfirmsdrama.com/full-comparison/ — 2026-10-02; TPT 2026-08-31. 최신 회사 규정을 확인하십시오. 펀디드/평가 단계에 따라 다름; 스케일링으로 한도가 낮아질 수 있음.\nDD 금액은 절대적인 자산 하한이 아닙니다. Con" };
+            t["No followers selected."] = new[] { "未選取跟單帳戶。", "フォロワーが選択されていません。", "선택된 팔로워가 없습니다." };
+            t["Activity detected while arming. Start again only when flat."] = new[] { "武裝期間偵測到活動。請僅在持倉歸零時再次開始。", "アーム中にアクティビティを検出しました。フラットのときのみ再度開始してください。", "무장 중 활동이 감지되었습니다. 청산 상태일 때만 다시 시작하십시오." };
+            t["Risk guard latched at start; review telemetry/baseline."] = new[] { "啟動時風控防護已鎖存；請檢視遙測資料／基準值。", "開始時にリスクガードがラッチされました；テレメトリ／ベースラインを確認してください。", "시작 시 리스크 가드가 래치되었습니다; 텔레메트리/기준값을 검토하십시오." };
+            t[" UNPROTECTED (no protective exit working) — check NinjaTrader now and place or flatten by hand; this copier will not create it"] = new[] { " 未受保護（無保護出場單在運作）——請立即檢查 NinjaTrader，並手動掛出保護單或平倉；本跟單程式不會自行建立", " 保護なし（保護決済注文が稼働していません）——今すぐ NinjaTrader を確認し、手動で注文を出すか全決済してください；このコピー機能は自動では作成しません", " 보호 없음(작동 중인 보호 청산 주문 없음) — 지금 NinjaTrader를 확인하고 수동으로 주문하거나 청산하십시오; 이 복사기는 자동으로 생성하지 않습니다" };
+            t["provider dispatcher stopped; call was NOT sent"] = new[] { "供應端調度器已停止；該呼叫未送出", "プロバイダーのディスパッチャーが停止；呼び出しは送信されませんでした", "제공자 디스패처 중지됨; 호출이 전송되지 않았습니다" };
+            t["entry not sent: an earlier provider call for this account failed"] = new[] { "進場單未送出：此帳戶先前的供應端呼叫已失敗", "エントリー未送信：この口座で先行するプロバイダー呼び出しが失敗", "진입 미전송: 이 계좌의 이전 제공자 호출이 실패함" };
+            t["Confirmed flat"] = new[] { "已確認平倉", "フラット確認済み", "청산 확인됨" };
+            t["Protective coverage unknown — requested, provider acceptance unconfirmed; no retry / chase"] = new[] { "保護狀況不明——已提出請求，供應端是否接受未確認；不重試／不追單", "保護の状況は不明——要求済み、プロバイダーの受理は未確認；再試行／追随なし", "보호 상태 불명 — 요청됨, 제공자 수락 미확인; 재시도/추격 없음" };
+            t["OFF — cancellation pending"] = new[] { "OFF——取消待處理", "OFF——キャンセル保留中", "OFF — 취소 대기 중" };
+            t["OFF / exits managed"] = new[] { "OFF／出場管理中", "OFF／決済管理中", "OFF / 청산 관리 중" };
+            t["Paused / exits managed"] = new[] { "已暫停／出場管理中", "停止中／決済管理中", "일시정지됨 / 청산 관리 중" };
+            t["DISARMED — explicit Start required"] = new[] { "未武裝——須明確按下開始", "非アーム——明示的な開始が必要", "비무장 — 명시적인 시작 필요" };
+            t["FLATTEN requested — new entries blocked; verify flat status"] = new[] { "已要求平倉——新進場已封鎖；請確認持倉歸零狀態", "全決済を要求——新規エントリーはブロック；フラット状態を確認してください", "청산 요청됨 — 신규 진입 차단; 청산 상태를 확인하십시오" };
+            t["Manually abandoned after provider reconciliation; late close risk remains"] = new[] { "供應端對帳後已手動放棄；仍有延遲平倉風險", "プロバイダーの照合後に手動で放棄；遅延クローズのリスクが残ります", "제공자 대조 후 수동으로 포기됨; 지연 청산 위험이 남아 있음" };
+            t["Daily target"] = new[] { "每日目標", "日次目標", "일일 목표" };
+            t[" must be a plain amount like 1000 (0 = off): no commas, signs or text"] = new[] { " 必須為純數字金額，例如 1000（0＝關閉）：不可含逗號、正負號或文字", " は1000のような数値のみの金額にしてください（0＝オフ）：カンマ、符号、文字は不可", " 은(는) 1000과 같은 숫자만의 금액이어야 합니다 (0 = 끔): 쉼표, 부호, 문자 불가" };
+            t["Max contracts must be a whole number >= 1"] = new[] { "最大合約數必須為 ≥ 1 的整數", "最大契約数は1以上の整数にしてください", "최대 계약 수는 1 이상의 정수여야 합니다" };
+            t["Ratio must be a plain positive number like 1 or 0.5: no commas, signs or text"] = new[] { "比例必須為純正數，例如 1 或 0.5：不可含逗號、正負號或文字", "比率は1や0.5のような数値のみの正の数にしてください：カンマ、符号、文字は不可", "비율은 1 또는 0.5와 같은 숫자만의 양수여야 합니다: 쉼표, 부호, 문자 불가" };
+            t["Max must be a whole number >= 1"] = new[] { "最大值必須為 ≥ 1 的整數", "Max は1以上の整数にしてください", "Max는 1 이상의 정수여야 합니다" };
+            t["Close blocked: copier still manages positions / working orders. Guarded pause keeps exits managed. Flatten or resolve the selected instrument, then Stop when flat."] = new[] { "關閉已封鎖：跟單程式仍在管理持倉／掛單。保護性暫停會持續管理出場。請先平倉或處理所選商品，再於持倉歸零後停止。", "クローズをブロック：コピー機能がまだポジション／待機中の注文を管理しています。ガード付き一時停止は決済の管理を継続します。選択した銘柄を全決済または解決してから、フラット後に停止してください。", "닫기 차단: 복사기가 아직 포지션/대기 주문을 관리 중입니다. 보호 일시정지는 청산 관리를 유지합니다. 선택한 종목을 청산하거나 해결한 후 청산 후 중지하십시오." };
+            t["Local risk controls"] = new[] { "本機風控", "ローカルリスク管理", "로컬 리스크 관리" };
+            t["All values editable. Zero monetary limits = OFF. Values in account denomination. No compliance guarantee, no historical high inferred. Batch overwrites the shown settings on every selected account."] = new[] { "所有數值皆可編輯。金額上限為零＝OFF。數值以帳戶幣別計。不保證合規，不推斷歷史高點。批次會以顯示的設定覆寫每個所選帳戶。", "すべての値を編集可能。金額上限が0＝OFF。値は口座の通貨単位。コンプライアンスは保証されず、過去の高値は推定しません。一括適用は表示中の設定を選択した全口座に上書きします。", "모든 값을 편집할 수 있습니다. 금액 한도 0 = OFF. 값은 계좌 통화 기준. 규정 준수를 보장하지 않으며 과거 고점을 추정하지 않습니다. 일괄 적용은 표시된 설정을 선택한 모든 계좌에 덮어씁니다." };
+            t["Custom: confirm your absolute floor and maximum instrument quantity manually."] = new[] { "自訂：請手動確認您的絕對底線與商品最大數量。", "カスタム：絶対下限と銘柄の最大数量を手動で確認してください。", "사용자 지정: 절대 하한과 종목 최대 수량을 수동으로 확인하십시오." };
+            t["Custom settings"] = new[] { "自訂設定", "カスタム設定", "사용자 지정 설정" };
+            t["Explicitly apply optional / soft DLL if source has an amount"] = new[] { "若來源含金額，明確套用選用／軟性 DLL", "ソースに金額がある場合、任意／ソフト DLL を明示的に適用", "소스에 금액이 있으면 선택/소프트 DLL을 명시적으로 적용" };
+            t["Load selected template into editable fields"] = new[] { "將所選範本載入可編輯欄位", "選択したテンプレートを編集可能なフィールドに読み込む", "선택한 템플릿을 편집 가능한 필드로 불러오기" };
+            t["Source mini cap cannot be safely mapped. Set MaxContracts manually for your exact instrument / current scaling."] = new[] { "來源迷你上限無法安全對應。請依您的確切商品／目前縮放比例手動設定 MaxContracts。", "ソースのミニ上限は安全にマッピングできません。正確な銘柄／現在のスケーリングに合わせて MaxContracts を手動で設定してください。", "소스의 미니 한도는 안전하게 매핑할 수 없습니다. 정확한 종목/현재 스케일링에 맞게 MaxContracts를 수동으로 설정하십시오." };
+            t["Manual quantity required"] = new[] { "需手動輸入數量", "数量の手動入力が必要", "수량 수동 입력 필요" };
+            t["Daily target (local observed P&L)"] = new[] { "每日目標（本機觀察損益）", "日次目標（ローカル観測 P&L）", "일일 목표(로컬 관측 손익)" };
+            t["Daily loss (positive amount)"] = new[] { "每日虧損（正數金額）", "日次損失（正の金額）", "일일 손실(양수 금액)" };
+            t["Confirmed absolute equity floor"] = new[] { "已確認的絕對淨值下限", "確認済みの絶対エクイティ下限", "확인된 절대 자기자본 하한" };
+            t["P&L telemetry baseline (editable)"] = new[] { "損益遙測基準值（可編輯）", "P&L テレメトリのベースライン（編集可）", "손익 텔레메트리 기준값(편집 가능)" };
+            t["User / observed local high water"] = new[] { "使用者／本機觀察高水位", "ユーザー／ローカル観測の高値水準", "사용자/로컬 관측 최고 수위" };
+            t["Max exact-instrument contracts"] = new[] { "確切商品最大合約數", "銘柄指定の最大契約数", "정확한 종목 기준 최대 계약 수" };
+            t["Invalid value — retained until corrected; Apply is blocked."] = new[] { "數值無效——保留至修正為止；無法套用。", "無効な値 — 修正されるまで保持されます。適用はブロックされています。", "잘못된 값 — 수정될 때까지 유지되며 적용이 차단됩니다." };
+            t["Enable LOCAL intraday high-water guard (not firm EOD calculation)"] = new[] { "啟用本機盤中高水位防護（非公司收盤後計算）", "ローカルのイントラデイ高値水準ガードを有効化（会社の EOD 計算ではありません）", "로컬 장중 최고 수위 가드 사용(회사 EOD 계산 아님)" };
+            t["BestDay / TotalProfit are supplied history, used for consistency advisory only. To unlock a persisted latch use the separate confirmed reset while disarmed. Baseline is never automatically reset on re"] = new[] { "BestDay / TotalProfit 為提供的歷史資料，僅用於一致性參考。若要解除已持久化的鎖存，請在未啟用狀態下使用另外的確認重設。基準值不會於重新啟動時自動重設。", "BestDay / TotalProfit は提供された履歴であり、整合性の参考にのみ使用されます。永続化されたラッチを解除するには、解除状態で別の確認付きリセットを使用してください。ベースラインは再起動時に自動リセットされません。", "BestDay / TotalProfit은 제공된 이력이며 일관성 참고용으로만 사용됩니다. 유지된 래치를 해제하려면 비활성 상태에서 별도의 확인 리셋을 사용하십시오. 기준값은 재시작 시 자동으로 리셋되지 않습니다." };
+            t["Invalid settings"] = new[] { "設定無效", "無効な設定", "잘못된 설정" };
+            t["Reset hour outside 0–23"] = new[] { "重設時刻超出 0–23", "リセット時刻が 0–23 の範囲外", "리셋 시각이 0–23 범위를 벗어남" };
+            t["Previously unreadable settings; preserve original files, restore a verified backup before restarting."] = new[] { "先前設定無法讀取；請保留原始檔案，並在重新啟動前還原已驗證的備份。", "以前に読み取れなかった設定です。元のファイルを保存し、再起動前に検証済みのバックアップを復元してください。", "이전에 읽을 수 없던 설정입니다. 원본 파일을 보존하고 재시작 전에 검증된 백업을 복원하십시오." };
+            t["Trading-day settings (local observation)"] = new[] { "交易日設定（本機觀察）", "取引日設定（ローカル観測）", "거래일 설정(로컬 관측)" };
+            t["Windows timezone ID (DST aware)"] = new[] { "Windows 時區 ID（支援日光節約時間）", "Windows タイムゾーン ID（DST 対応）", "Windows 시간대 ID(DST 지원)" };
+            t["Reset boundary hour 0–23 (no automatic latch / baseline reset)"] = new[] { "重設分界時刻 0–23（不會自動重設鎖存／基準值）", "リセット境界時刻 0–23（ラッチ／ベースラインの自動リセットなし）", "리셋 경계 시각 0–23(래치/기준값 자동 리셋 없음)" };
+            t["Confirm local day boundary"] = new[] { "確認本機日界線", "ローカルの日付境界を確認", "로컬 일 경계 확인" };
+            t["Hour must be 0–23"] = new[] { "時刻須為 0–23", "時刻は 0–23 で指定", "시각은 0–23이어야 합니다" };
+            t["Invalid trading-day setting"] = new[] { "交易日設定無效", "無効な取引日設定", "잘못된 거래일 설정" };
+            t["Unlock requires selected instrument flat / no working orders."] = new[] { "解除鎖定須所選商品已平倉且無掛單。", "ロック解除には、選択した銘柄がフラットで待機中の注文がないことが必要です。", "잠금 해제에는 선택한 종목이 청산 상태이고 대기 주문이 없어야 합니다." };
+            t["Current telemetry / floor / local high-water still blocks unlock."] = new[] { "目前遙測／下限／本機高水位仍禁止解除鎖定。", "現在のテレメトリ／下限／ローカル高値水準により、ロック解除は引き続きブロックされています。", "현재 텔레메트리/하한/로컬 최고 수위로 인해 잠금 해제가 계속 차단됩니다." };
+            t["Cancel"] = new[] { "取消", "キャンセル", "취소" };
+            t["BestDay / TotalProfit are supplied history, used for consistency advisory only. To unlock a persisted latch use the separate confirmed reset while disarmed. Baseline is never automatically reset on restart."] = new[] { "BestDay / TotalProfit 為提供的歷史資料，僅用於一致性參考。若要解除已持久化的鎖存，請在未啟用狀態下使用另外的確認重設。基準值不會於重新啟動時自動重設。", "BestDay / TotalProfit は提供された履歴であり、整合性の参考にのみ使用されます。永続化されたラッチを解除するには、解除状態で別の確認付きリセットを使用してください。ベースラインは再起動時に自動リセットされません。", "BestDay / TotalProfit은 제공된 이력이며 일관성 참고용으로만 사용됩니다. 유지된 래치를 해제하려면 비활성 상태에서 별도의 확인 리셋을 사용하십시오. 기준값은 재시작 시 자동으로 리셋되지 않습니다." };
+            t["Apply"] = new[] { "套用", "適用", "적용" };
+            t["Active"] = new[] { "啟用中", "有効", "활성" };
+            t["Connected"] = new[] { "已連線", "接続", "연결됨" };
+            t["Connecting"] = new[] { "連線中", "接続中", "연결 중" };
+            t["Synthetic"] = new[] { "模擬", "シンセティック", "합성" };
+            t["On"] = new[] { "開", "オン", "켜짐" };
+            t["Follower"] = new[] { "跟單帳戶", "フォロワー", "팔로워" };
+            t["Target"] = new[] { "目標", "目標", "목표" };
+            t["Loss"] = new[] { "虧損", "損失", "손실" };
+            t["ENGINE ERROR: {0} — entries blocked; coverage unverified, manual recovery required"] = new[] { "引擎錯誤：{0} — 已封鎖進場；無法確認已有保護，需人工處理", "エンジンエラー: {0} — エントリーをブロックしました。保護は確認できません。手動での復旧が必要", "엔진 오류: {0} — 진입 차단됨. 보호 여부를 확인할 수 없음, 수동 복구 필요" };
+            t["{0}: ATM exit mirroring OFF — nonmarket exits skipped; market closes only. No native ATM clone / autonomous protection."] = new[] { "{0}：ATM 出場鏡像為 OFF — 略過非市價出場單；僅執行市價平倉。無原生 ATM 複製／自主保護。", "{0}: ATM 決済ミラーリングが OFF — 成行以外の決済はスキップされ、成行決済のみ実行されます。ネイティブ ATM のクローン／自律的な保護はありません。", "{0}: ATM 청산 미러링 OFF — 시장가 외 청산은 건너뛰며 시장가 청산만 실행됩니다. 네이티브 ATM 복제/자율 보호 없음." };
+            t["Armed explicitly: {0} simulation follower(s)."] = new[] { "已明確啟用：{0} 個模擬跟單帳戶。", "明示的に有効化: {0} 件のシミュレーションフォロワー。", "명시적으로 활성화됨: 시뮬레이션 팔로워 {0}개." };
+            t["COPYING — {0} / {1}"] = new[] { "跟單中 — {0} / {1}", "コピー中 — {0} / {1}", "복사 중 — {0} / {1}" };
+            t["Start refused: {0}"] = new[] { "拒絕開始：{0}", "開始を拒否: {0}", "시작 거부됨: {0}" };
+            t["Order error: {0}"] = new[] { "委託錯誤：{0}", "注文エラー: {0}", "주문 오류: {0}" };
+            t["Manage error: {0}"] = new[] { "管理錯誤：{0}", "管理エラー: {0}", "관리 오류: {0}" };
+            t["PROVIDER DISPATCH ERROR: {0}"] = new[] { "供應端派送錯誤：{0}", "プロバイダーのディスパッチエラー: {0}", "제공자 디스패치 오류: {0}" };
+            t["PROVIDER COMPLETION ERROR: {0}"] = new[] { "供應端完成處理錯誤：{0}", "プロバイダーの完了処理エラー: {0}", "제공자 완료 처리 오류: {0}" };
+            t["{0}: provider call failed while engine stopping: {1}"] = new[] { "{0}：引擎停止期間供應端呼叫失敗：{1}", "{0}: エンジン停止中にプロバイダー呼び出しが失敗: {1}", "{0}: 엔진 중지 중 제공자 호출 실패: {1}" };
+            t["Flatten {0}"] = new[] { "平倉 {0}", "全決済 {0}", "청산 {0}" };
+            t["Change protective order to qty {0}"] = new[] { "將保護單數量變更為 {0}", "保護注文の数量を {0} に変更", "보호 주문 수량을 {0}(으)로 변경" };
+            t["COPY {0} {1} {2} {3}"] = new[] { "跟單 {0} {1} {2} {3}", "コピー {0} {1} {2} {3}", "복사 {0} {1} {2} {3}" };
+            t["{0}: leader exit ignored, nothing to close"] = new[] { "{0}：主帳戶出場已忽略，無可平倉部位", "{0}: リーダーの決済を無視、決済対象なし", "{0}: 리더 청산 무시됨, 청산할 대상 없음" };
+            t["{0}: entry skipped, projected cap / floor quantity"] = new[] { "{0}：略過進場，預估數量達上限／下限", "{0}: エントリーをスキップ、予測数量が上限／下限に到達", "{0}: 진입 건너뜀, 예상 수량이 한도/하한에 도달" };
+            t["Terminal fill quantity divergence — expected={0}, observed={1}; no makeup / chase, manual reconciliation required"] = new[] { "最終成交數量偏離 — 預期={0}，實際={1}；不補單／不追單，需人工對帳", "最終約定数量の乖離 — 期待={0}、観測={1}。補填／追随なし、手動での照合が必要", "최종 체결 수량 불일치 — 예상={0}, 관측={1}; 보충/추격 없음, 수동 대조 필요" };
+            t["OCO cancellation unresolved: {0}"] = new[] { "OCO 取消未解決：{0}", "OCO のキャンセルが未解決: {0}", "OCO 취소 미해결: {0}" };
+            t["Delayed exit error: {0}"] = new[] { "延遲出場錯誤：{0}", "遅延決済エラー: {0}", "지연 청산 오류: {0}" };
+            t["Protection resize error: {0}"] = new[] { "保護單調整數量錯誤：{0}", "保護のサイズ変更エラー: {0}", "보호 크기 조정 오류: {0}" };
+            t["{0} LOCK: {1}. Coverage not established; manual reconciliation may be required."] = new[] { "{0} 鎖定：{1}。無法確認已有保護；可能需要人工對帳。", "{0} ロック: {1}。保護は確認できません。手動での照合が必要になる場合があります。", "{0} 잠금: {1}. 보호 여부를 확인할 수 없음; 수동 대조가 필요할 수 있습니다." };
+            t["{0} LOCK: {1}. Local guard only; coverage not established."] = new[] { "{0} 鎖定：{1}。僅為本機防護；無法確認已有保護。", "{0} ロック: {1}。ローカルガードのみ。保護は確認できません。", "{0} 잠금: {1}. 로컬 가드만 해당; 보호 여부를 확인할 수 없음." };
+            t["{0}: Flat confirmed (position 0, nothing working) — OFF; re-follow explicitly to copy again"] = new[] { "{0}：已確認平倉（持倉 0，無掛單）— OFF；如需再次跟單，請明確重新跟隨", "{0}: フラット確認（ポジション 0、待機中の注文なし）— OFF。再度コピーするには明示的に再フォローしてください", "{0}: 청산 확인됨(포지션 0, 대기 주문 없음) — OFF; 다시 복사하려면 명시적으로 재팔로우하십시오" };
+            t["Telemetry error: {0}"] = new[] { "遙測錯誤：{0}", "テレメトリエラー: {0}", "텔레메트리 오류: {0}" };
+            t["Entry cancellation unresolved: {0}"] = new[] { "進場取消未解決：{0}", "エントリーのキャンセルが未解決: {0}", "진입 취소 미해결: {0}" };
+            t["{0}: Follow refused — clean, connected, unlocked session required"] = new[] { "{0}：拒絕跟隨 — 需要乾淨、已連線且未鎖定的工作階段", "{0}: フォローを拒否 — クリーンで接続済み、ロックされていないセッションが必要", "{0}: 팔로우 거부됨 — 정상적이고 연결되어 있으며 잠기지 않은 세션 필요" };
+            t["LIVE FLATTEN BLOCKED {0}"] = new[] { "即時平倉遭封鎖 {0}", "ライブ全決済がブロックされました {0}", "라이브 청산 차단됨 {0}" };
+            t["Flatten request: {0} / {1} — verify flat, retry manually if error"] = new[] { "平倉請求：{0} / {1} — 請確認已平倉，若出錯請手動重試", "全決済リクエスト: {0} / {1} — フラットを確認し、エラーの場合は手動で再試行", "청산 요청: {0} / {1} — 청산 여부를 확인하고 오류 시 수동으로 재시도" };
+            t["Flatten acceptance uncertain — existing protection retained; duplicate reductions blocked until explicit provider reconciliation: {0}"] = new[] { "平倉是否被接受無法確定 — 保留現有保護；在明確完成供應端對帳前，封鎖重複減倉：{0}", "全決済が受理されたか不明 — 既存の保護を維持。プロバイダーとの明示的な照合が完了するまで、重複した数量削減はブロックされます: {0}", "청산 수락 여부 불확실 — 기존 보호 유지; 제공자와 명시적으로 대조할 때까지 중복 감축 차단: {0}" };
+            t["FLATTEN FAILED {0}: {1}"] = new[] { "平倉失敗 {0}：{1}", "全決済に失敗 {0}: {1}", "청산 실패 {0}: {1}" };
+            t["Flat requested for {0} follower account(s); other accounts keep copying."] = new[] { "已對 {0} 個跟單帳戶請求平倉；其他帳戶持續跟單。", "{0} 件のフォロワー口座に決済をリクエストしました。他の口座はコピーを継続します。", "팔로워 계좌 {0}개에 청산을 요청했습니다. 다른 계좌는 계속 복사합니다." };
+            t["{0}: flatten abandonment refused — in-flight / unknown working orders remain"] = new[] { "{0}：拒絕放棄平倉 — 仍有處理中／未知的掛單", "{0}: 全決済の中止を拒否 — 処理中／不明な待機中の注文が残っています", "{0}: 청산 포기 거부됨 — 처리 중/알 수 없는 대기 주문이 남아 있음" };
+            t["{0}: flatten abandonment refused — exposure evidence unresolved"] = new[] { "{0}：拒絕放棄平倉 — 風險部位證據尚未解決", "{0}: 全決済の中止を拒否 — エクスポージャーの証拠が未解決", "{0}: 청산 포기 거부됨 — 익스포저 증거 미해결" };
+            t["DURABLE LATCH WRITE FAILED: {0} / {1}. Entries paused; do not restart until reviewed."] = new[] { "持久鎖存寫入失敗：{0} / {1}。進場已暫停；審查完成前請勿重新啟動。", "永続ラッチの書き込みに失敗: {0} / {1}。エントリーを一時停止しました。確認が完了するまで再起動しないでください。", "영구 래치 쓰기 실패: {0} / {1}. 진입이 일시정지되었습니다. 검토 전에는 재시작하지 마십시오." };
+            t["Settings index unreadable — Start blocked. {0}"] = new[] { "設定索引無法讀取 — 已封鎖開始。{0}", "設定インデックスを読み取れません — 開始をブロックしました。{0}", "설정 색인을 읽을 수 없음 — 시작이 차단되었습니다. {0}" };
+            t["PERSISTENCE FAILURE — lock not durable; manual recovery required: {0}"] = new[] { "持久化失敗 — 鎖定未能持久保存；需人工處理：{0}", "永続化失敗 — ロックが永続化されていません；手動での復旧が必要：{0}", "영속화 실패 — 잠금이 영구 저장되지 않음; 수동 복구 필요: {0}" };
+            t["Refresh error: {0}"] = new[] { "重新整理錯誤：{0}", "更新エラー：{0}", "새로고침 오류: {0}" };
+            t["PERSISTENCE ERROR — entries paused, restart blocked until reviewed: {0}"] = new[] { "持久化錯誤 — 新進場已暫停，審查前禁止重新啟動：{0}", "永続化エラー — 新規エントリーは一時停止中、確認が完了するまで再起動をブロック：{0}", "영속화 오류 — 신규 진입 일시정지됨, 검토 전까지 재시작 차단: {0}" };
+            t["UI action failed: {0}"] = new[] { "UI 操作失敗：{0}", "UI操作に失敗：{0}", "UI 작업 실패: {0}" };
+            t["Invalid baseline telemetry: {0}"] = new[] { "基準值遙測資料無效：{0}", "ベースラインのテレメトリが無効：{0}", "잘못된 기준값 텔레메트리: {0}" };
+            t["{0}: Follow refused — account outside managed session; stop flat and select scope again."] = new[] { "{0}：已拒絕跟單 — 帳戶不在受管理的工作階段內；請在持倉歸零後停止，並重新選擇範圍。", "{0}：フォローを拒否 — 口座が管理対象セッション外です；フラットの状態で停止し、範囲を再選択してください。", "{0}: 팔로우 거부됨 — 계좌가 관리 세션 밖에 있음; 청산 후 중지하고 범위를 다시 선택하세요." };
+            t["Applied editable risk snapshot to {0} account(s); per-account ratios / latch unchanged for bulk edits."] = new[] { "已將可編輯的風控快照套用至 {0} 個帳戶；批次編輯不會變更各帳戶的比例／鎖存。", "編集可能なリスクスナップショットを {0} 口座に適用；一括編集では口座ごとの比率／ラッチは変更されません。", "편집 가능한 리스크 스냅샷을 {0}개 계좌에 적용함; 일괄 편집 시 계좌별 비율/래치는 변경되지 않음." };
+            t["Confirmed unlock: {0}; still disarmed."] = new[] { "已確認解除鎖定：{0}；仍為未啟動狀態。", "ロック解除を確認：{0}；引き続きディスアーム状態。", "잠금 해제 확인됨: {0}; 여전히 해제(disarmed) 상태." };
+            t["Unlock refused: {0}"] = new[] { "已拒絕解除鎖定：{0}", "ロック解除を拒否：{0}", "잠금 해제 거부됨: {0}" };
+            t["Instrument \"{0}\" not recognised. Examples: MNQ, ES 12-26, NQZ6."] = new[] { "無法辨識商品「{0}」。範例：MNQ、ES 12-26、NQZ6。", "銘柄「{0}」を認識できません。例：MNQ、ES 12-26、NQZ6。", "종목 \"{0}\"을(를) 인식할 수 없음. 예: MNQ, ES 12-26, NQZ6." };
+            t["Instrument {0} is not available in this NinjaTrader (check the contract month / Instrument Manager)."] = new[] { "此 NinjaTrader 中無法使用商品 {0}（請檢查合約月份／Instrument Manager）。", "この NinjaTrader では銘柄 {0} を利用できません（限月／Instrument Manager を確認）。", "이 NinjaTrader에서는 종목 {0}을(를) 사용할 수 없음 (계약월/Instrument Manager 확인)." };
+            t["Account list updated: {0}"] = new[] { "帳戶清單已更新：{0}", "口座リストを更新：{0}", "계좌 목록 업데이트됨: {0}" };
+            t["Account list changed ({0}) — not applied while copying. Stop when flat, then the list refreshes."] = new[] { "帳戶清單已變更（{0}）— 跟單期間不會套用。請在持倉歸零後停止，清單才會重新整理。", "口座リストが変更されました（{0}）— コピー中は適用されません。フラット後に停止すると、リストが更新されます。", "계좌 목록이 변경됨 ({0}) — 복사 중에는 적용되지 않음. 청산 후 중지하면 목록이 새로고침됩니다." };
+            t["Account sync error: {0}"] = new[] { "帳戶同步錯誤：{0}", "口座同期エラー：{0}", "계좌 동기화 오류: {0}" };
+            t["Trading-day boundary {0} {1}:00 (DST aware). New entries paused. Baseline / latch NOT auto-reset. Confirm new baseline and unlock while flat."] = new[] { "交易日界線 {0} {1}:00（已考慮日光節約時間）。新進場已暫停。基準值／鎖存不會自動重設。請在持倉歸零時確認新基準值並解除鎖定。", "取引日境界 {0} {1}:00（夏時間考慮）。新規エントリーは一時停止中。ベースライン／ラッチは自動リセットされません。フラットの状態で新しいベースラインを確認し、ロックを解除してください。", "거래일 경계 {0} {1}:00 (서머타임 반영). 신규 진입 일시정지됨. 기준값/래치는 자동 초기화되지 않음. 청산 상태에서 새 기준값을 확인하고 잠금을 해제하세요." };
+            t["Restore failed — Start blocked: {0}"] = new[] { "還原失敗 — 已封鎖開始：{0}", "復元に失敗 — 開始をブロックしました：{0}", "복원 실패 — 시작이 차단되었습니다: {0}" };
+            t["Bulk {0} applied to highlighted followers; Ratio and ticks unchanged."] = new[] { "已將批次{0}套用至選取的跟單帳戶；比例與跳動點數不變。", "一括{0}を選択中のフォロワーに適用；比率とティックは変更なし。", "일괄 {0}을(를) 선택한 팔로워에 적용함; 비율과 틱은 변경되지 않음." };
+            t["Bulk {0} refused: {1}"] = new[] { "批次{0}已被拒絕：{1}", "一括{0}を拒否：{1}", "일괄 {0} 거부됨: {1}" };
+            t["From Leader refused: {0}"] = new[] { "取自主帳戶已被拒絕：{0}", "リーダーからの取得を拒否：{0}", "리더에서 가져오기 거부됨: {0}" };
+            t["{0} open order(s) [{1}]"] = new[] { "{0} 筆未平倉委託單 [{1}]", "未約定注文 {0} 件 [{1}]", "미체결 주문 {0}건 [{1}]" };
+            t["Blocked by {0}."] = new[] { "已被 {0} 封鎖。", "{0} によりブロックされました。", "{0}에 의해 차단됨." };
+            t["Selected instrument already has a position / working order. No adoption or catch-up. {0}"] = new[] { "所選商品已有持倉／掛單。不採納、不補單。{0}", "選択した銘柄には既にポジション／待機中の注文があります。引き継ぎ・キャッチアップは行いません。{0}", "선택한 종목에 이미 포지션/대기 주문이 있음. 인수 및 따라잡기 없음. {0}" };
+            t["{0} lot UNPROTECTED (no protective exit working) — check NinjaTrader now and place or flatten by hand; this copier will not create it"] = new[] { "{0} 口未受保護（無保護出場單掛出）— 請立即檢查 NinjaTrader，並手動下單或平倉；本跟單程式不會建立保護單", "{0} ロットが保護なし（保護決済注文が待機していません）— 今すぐ NinjaTrader を確認し、手動で注文するか決済してください；このコピーツールは注文を作成しません", "{0}랏 보호 없음 (대기 중인 보호 청산 주문 없음) — 지금 NinjaTrader를 확인하고 수동으로 주문하거나 청산하세요; 이 복사기는 주문을 생성하지 않습니다" };
+            t["{0} lots UNPROTECTED (no protective exit working) — check NinjaTrader now and place or flatten by hand; this copier will not create it"] = new[] { "{0} 口未受保護（無保護出場單掛出）— 請立即檢查 NinjaTrader，並手動下單或平倉；本跟單程式不會建立保護單", "{0} ロットが保護なし（保護決済注文が待機していません）— 今すぐ NinjaTrader を確認し、手動で注文するか決済してください；このコピーツールは注文を作成しません", "{0}랏 보호 없음 (대기 중인 보호 청산 주문 없음) — 지금 NinjaTrader를 확인하고 수동으로 주문하거나 청산하세요; 이 복사기는 주문을 생성하지 않습니다" };
+            t["CashValue · {0} · {1}\nNetLiquidation (net equity, NOT cash balance): {2} {3}\nAccount.Get reports provider values; currency argument does not convert. Dash = unavailable/disconnected. Synthetic rows are not broker data."] = new[] { "CashValue · {0} · {1}\nNetLiquidation（淨值，非現金餘額）：{2} {3}\nAccount.Get 回報的是供應端的數值；幣別參數不會進行換算。破折號 = 無法取得／已斷線。合成列並非券商資料。", "CashValue · {0} · {1}\nNetLiquidation（純資産、現金残高ではありません）：{2} {3}\nAccount.Get はプロバイダーの値を返します；通貨引数では換算されません。ダッシュ = 取得不可／切断。合成行はブローカーのデータではありません。", "CashValue · {0} · {1}\nNetLiquidation (순자산, 현금 잔고 아님): {2} {3}\nAccount.Get은 제공자 값을 보고함; 통화 인수는 환산하지 않음. 대시 = 사용 불가/연결 끊김. 합성 행은 브로커 데이터가 아님." };
+            t["→  {0} followers  "] = new[] { "→  {0} 個跟單帳戶  ", "→  フォロワー {0}  ", "→  팔로워 {0}명  " };
+            t["{0} TICKED  /  {1} ACCTS     ·     P/L  {2}"] = new[] { "已勾選 {0}  /  帳戶 {1}     ·     P/L  {2}", "チェック {0}  /  口座 {1}     ·     P/L  {2}", "체크 {0}  /  계좌 {1}     ·     P/L  {2}" };
+            t["{0} sel / {1} rows"] = new[] { "已選 {0} / 共 {1} 列", "選択 {0} / {1} 行", "선택 {0} / {1}행" };
+            t["● {0} LOCKED · check NinjaTrader, then review each reason"] = new[] { "● {0} 已鎖定 · 請檢查 NinjaTrader，再逐一審查原因", "● {0} ロック中 · NinjaTrader を確認し、各理由を確認してください", "● {0} 잠김 · NinjaTrader를 확인한 후 각 사유를 검토하세요" };
+            t["⚠ {0} account(s) with a settings note · hover State"] = new[] { "⚠ {0} 個帳戶有設定備註 · 請將游標移至狀態欄", "⚠ 設定メモのある口座 {0} 件 · 状態にカーソルを合わせてください", "⚠ 설정 메모가 있는 계좌 {0}개 · 상태에 마우스를 올리세요" };
+            t["Ratio gives 0 lots for a {0}-lot leader order"] = new[] { "對於 {0} 口的主帳戶委託單，比例換算結果為 0 口", "リーダーの {0} ロット注文に対し、比率では 0 ロットになります", "리더의 {0}랏 주문에 대해 비율 적용 결과가 0랏임" };
+            t["size capped by Max {0}"] = new[] { "數量已受 Max {0} 限制", "数量は Max {0} で制限されています", "수량이 Max {0}(으)로 제한됨" };
+            t["Over advisory limit: {0}%"] = new[] { "超出建議上限：{0}%", "推奨上限を超過：{0}%", "권고 한도 초과: {0}%" };
+            t["Within advisory limit: {0}%"] = new[] { "在建議上限內：{0}%", "推奨上限内：{0}%", "권고 한도 이내: {0}%" };
+            t["Start simulation copying to exactly {0} follower account(s) on {1}?\n\n{2}\n\nLocal copier guards only. No adoption; all selected accounts must be flat / no working instrument orders."] = new[] { "要對 {1} 上恰好 {0} 個跟單帳戶開始模擬跟單嗎？\n\n{2}\n\n僅有本機跟單防護。不採納既有部位；所有已選帳戶必須為平倉狀態，且該商品無掛單。", "{1} の正確に {0} 口座のフォロワーへシミュレーションコピーを開始しますか？\n\n{2}\n\nローカルのコピーガードのみ。引き継ぎは行いません；選択した全口座がフラットで、銘柄の待機中の注文がない必要があります。", "{1}에서 정확히 {0}개 팔로워 계좌로 시뮬레이션 복사를 시작할까요?\n\n{2}\n\n로컬 복사 가드만 적용됨. 인수 없음; 선택한 모든 계좌는 청산 상태이고 해당 종목의 대기 주문이 없어야 함." };
+            t["Account {0} remains LOCKED: {1}.\nRequest unlock? This does NOT arm copying; current risk conditions will be rechecked, baseline unchanged."] = new[] { "帳戶 {0} 仍為已鎖定：{1}。\n要申請解除鎖定嗎？這不會啟動跟單；將重新檢查目前的風控條件，基準值不變。", "口座 {0} は引き続きロック中：{1}。\nロック解除を要求しますか？コピーは開始されません；現在のリスク条件を再確認し、ベースラインは変更されません。", "계좌 {0}은(는) 여전히 잠김: {1}.\n잠금 해제를 요청할까요? 복사는 시작되지 않음; 현재 리스크 조건을 다시 확인하며 기준값은 변경되지 않음." };
+            t["{0}{1}FLATTEN exactly {2} account(s), only {3}.\n{4}\nNew copies will be blocked BEFORE flatten requests. This cancels working orders and closes positions on that instrument. Retry/error remains visible."] = new[] { "{0}{1}對恰好 {2} 個帳戶平倉，僅限 {3}。\n{4}\n在送出平倉請求之前，將先封鎖新的跟單。此操作會取消掛單並平掉該商品的持倉。重試／錯誤仍會顯示。", "{0}{1}正確に {2} 口座を全決済、対象は {3} のみ。\n{4}\n全決済リクエストの前に新規コピーをブロックします。この操作は待機中の注文をキャンセルし、その銘柄のポジションを決済します。再試行／エラーは引き続き表示されます。", "{0}{1}정확히 {2}개 계좌를 청산, {3}만 대상.\n{4}\n청산 요청 전에 새 복사가 차단됩니다. 이 작업은 대기 주문을 취소하고 해당 종목의 포지션을 청산합니다. 재시도/오류는 계속 표시됩니다." };
+            t["*** DRY RUN: nothing will be sent; decisions are only logged. ***"] = new[] { "*** DRY RUN（試運行）：不會送出任何內容；決策僅記錄於日誌。***", "*** DRY RUN（ドライラン）：何も送信されません；判断はログに記録されるのみ。***", "*** DRY RUN (드라이런): 아무것도 전송되지 않음; 결정은 로그에만 기록됨. ***" };
+            t["FLAT ONE ACCOUNT. "] = new[] { "單一帳戶平倉。 ", "単一口座を全決済。 ", "단일 계좌 청산. " };
+            t["Risk settings — {0} account(s)"] = new[] { "風控設定 — {0} 個帳戶", "リスク設定 — {0} 口座", "리스크 설정 — 계좌 {0}개" };
+            t["Apply to {0} account(s)"] = new[] { "套用至 {0} 個帳戶", "{0} 口座に適用", "계좌 {0}개에 적용" };
+            t["Leader: {0}   Instrument: {1}"] = new[] { "主帳戶：{0}   商品：{1}", "リーダー：{0}   銘柄：{1}", "리더: {0}   종목: {1}" };
+            t["{0} follower:"] = new[] { "{0} 個跟單帳戶：", "フォロワー {0}：", "팔로워 {0}명:" };
+            t["{0} followers:"] = new[] { "{0} 個跟單帳戶：", "フォロワー {0}：", "팔로워 {0}명:" };
+            t["  {0}  ratio invalid — will NOT copy"] = new[] { "  {0}  比例無效 — 將不會跟單", "  {0}  比率が無効 — コピーされません", "  {0}  비율 잘못됨 — 복사되지 않음" };
+            t["  {0}  ratio {1}  → {2} lot when the leader trades {3}"] = new[] { "  {0}  比例 {1}  → 當主帳戶交易 {3} 時為 {2} 口", "  {0}  比率 {1}  → リーダーが {3} を取引すると {2} ロット", "  {0}  비율 {1}  → 리더가 {3}을(를) 거래하면 {2}랏" };
+            t["  {0}  ratio {1}  → {2} lots when the leader trades {3}"] = new[] { "  {0}  比例 {1}  → 當主帳戶交易 {3} 時為 {2} 口", "  {0}  比率 {1}  → リーダーが {3} を取引すると {2} ロット", "  {0}  비율 {1}  → 리더가 {3}을(를) 거래하면 {2}랏" };
+            t["(none)"] = new[] { "（無）", "（なし）", "(없음)" };
+            t["Source PT {0}; DD {1} ({2}); DLL {3}; mini cap {4}; consistency {5}"] = new[] { "來源 PT {0}；DD {1}（{2}）；DLL {3}；迷你合約上限 {4}；一致性 {5}", "ソース PT {0}；DD {1}（{2}）；DLL {3}；ミニ上限 {4}；一貫性 {5}", "출처 PT {0}; DD {1} ({2}); DLL {3}; 미니 한도 {4}; 일관성 {5}" };
+            t["Source: propfirmsdrama.com/full-comparison/ — 2026-10-02; TPT 2026-08-31. Verify current firm rules. Funded/eval stages differ; scaling may lower cap."] = new[] { "來源：propfirmsdrama.com/full-comparison/ — 2026-10-02；TPT 2026-08-31。請核實最新的公司規則。資金帳戶與評估階段不同；規模擴增可能降低上限。", "出典：propfirmsdrama.com/full-comparison/ — 2026-10-02；TPT 2026-08-31。最新の会社ルールを確認してください。ファンデッド／評価の段階で異なります；スケーリングで上限が下がる場合があります。", "출처: propfirmsdrama.com/full-comparison/ — 2026-10-02; TPT 2026-08-31. 최신 업체 규정을 확인하세요. 펀디드/평가 단계에 따라 다르며; 스케일링으로 한도가 낮아질 수 있음." };
+            t["DD amount is NOT an absolute equity floor. Confirm your floor manually. Optional/soft DLL stays off unless chosen. Consistency is advisory, needs supplied history."] = new[] { "DD 金額並非絕對的淨值底線。請自行手動確認您的底線。選用／軟性 DLL 除非選擇，否則維持關閉。一致性僅供參考，且需提供歷史資料。", "DD 金額は絶対的なエクイティの下限ではありません。下限は手動で確認してください。オプション／ソフト DLL は選択しない限りオフのままです。一貫性は参考情報で、履歴データの提供が必要です。", "DD 금액은 절대적인 자산 하한이 아님. 하한은 직접 확인하세요. 선택/소프트 DLL은 선택하지 않으면 꺼진 상태로 유지됨. 일관성은 참고용이며 제공된 이력이 필요함." };
+            t["Disarmed"] = new[] { "未啟動", "アーム解除", "해제됨" };
+            t["Disconnected"] = new[] { "已斷線", "切断", "연결 끊김" };
+            t["Copy"] = new[] { "跟單", "コピー", "복사" };
+            t["Risk"] = new[] { "風控", "リスク", "리스크" };
+            t["Logs"] = new[] { "日誌", "ログ", "로그" };
+            t["Language"] = new[] { "語言", "言語", "언어" };
+            t["Settings"] = new[] { "設定", "設定", "설정" };
+            t["Language changed to {0}."] = new[] { "語言已切換為 {0}。", "言語を {0} に変更しました。", "언어가 {0}(으)로 변경되었습니다." };
+            t["Language can only be changed while stopped (not attached to a session)."] = new[] { "僅能在未連接任何跟單工作階段（已停止）時切換語言。", "言語の変更は停止中（セッション未接続）のみ可能です。", "언어는 중지 상태(세션에 연결되지 않음)에서만 변경할 수 있습니다." };
+            t["Interface language"] = new[] { "介面語言", "表示言語", "인터페이스 언어" };
+            t["(would NOT copy)"] = new[] { "（不會跟單）", "（コピーされません）", "(복사되지 않음)" };
+            t["  /  Copy desk"] = new[] { "  /  交易複製器", "  /  トレードコピー", "  /  트레이드 복사기" };
+#if KINFX_SIM_TEST
+            t["SIM TEST BUILD · Simulator / Playback only"] = new[] { "SIM 測試版 · 僅限 Simulator / Playback", "SIMテストビルド · Simulator / Playback のみ", "SIM 테스트 빌드 · Simulator / Playback 전용" };
+            t["SIM TEST BUILD: copies between Simulator / Playback accounts only. Any other provider is refused."] = new[] { "SIM 測試版：僅在 Simulator / Playback 帳戶之間跟單。其他任何供應端一律拒絕。", "SIMテストビルド：Simulator / Playback 口座間のみコピー。それ以外のプロバイダーは拒否される。", "SIM 테스트 빌드: Simulator / Playback 계좌 간에만 복사합니다. 그 외 제공자는 거부됩니다." };
+            t["SIM TEST BUILD: Start / Flatten are enabled for Simulator / Playback accounts and any account named in sim-allow.txt. ATM means order mirroring, not a follower native ATM. Orders ARE sent to those accounts."] = new[] { "SIM 測試版：Simulator / Playback 帳戶及 sim-allow.txt 中列出的任何帳戶可使用 Start / Flatten。ATM 指委託單鏡像，並非跟單帳戶的原生 ATM。委託單「會」發送至這些帳戶。", "SIMテストビルド：Simulator / Playback 口座および sim-allow.txt に記載された口座で Start / Flatten が有効。ATM は注文のミラーリングを意味し、フォロワーのネイティブ ATM ではない。これらの口座には注文が送信される。", "SIM 테스트 빌드: Simulator / Playback 계좌와 sim-allow.txt에 명시된 계좌에서 Start / Flatten이 활성화됩니다. ATM은 주문 미러링을 의미하며 팔로워의 네이티브 ATM이 아닙니다. 해당 계좌로 주문이 전송됩니다." };
+            t["Dry run"] = new[] { "試運行", "ドライラン", "드라이런" };
+            t["DRY RUN: decide and log every order, cancel and flatten as \"DRY RUN would send ...\" but send NOTHING. Fixed for the whole session: change it only while stopped."] = new[] { "DRY RUN（試運行）：決定並記錄每一筆下單、取消與平倉為「DRY RUN would send ...」，但不會送出任何內容。整個連線期間固定：僅能在停止時變更。", "DRY RUN（ドライラン）：すべての注文・取消・全決済を判断し「DRY RUN would send ...」としてログに記録しますが、何も送信しません。セッション中は固定：変更は停止中のみ可能。", "DRY RUN(드라이런): 모든 주문, 취소, 청산을 판단하여 \"DRY RUN would send ...\"로 기록하지만 아무것도 전송하지 않습니다. 세션 전체 동안 고정: 중지 상태에서만 변경할 수 있습니다." };
+            t["SIM TEST: Start refused — missing leader or follower list."] = new[] { "SIM TEST：已拒絕開始 — 缺少主帳戶或跟單帳戶清單。", "SIM TEST: 開始を拒否 — リーダーまたはフォロワーの一覧がありません。", "SIM TEST: 시작 거부 — 리더 또는 팔로워 목록이 없습니다." };
+            t["SIM TEST: Start refused — every account must be Simulator / Playback. Live accounts are never accepted."] = new[] { "SIM TEST：已拒絕開始 — 所有帳戶都必須是 Simulator / Playback。絕不接受實盤帳戶。", "SIM TEST: 開始を拒否 — すべての口座が Simulator / Playback である必要があります。実口座は一切受け付けません。", "SIM TEST: 시작 거부 — 모든 계좌는 Simulator / Playback이어야 합니다. 실계좌는 절대 허용되지 않습니다." };
+            t["SIM TEST: Flatten refused — no instrument. Nothing was sent."] = new[] { "SIM TEST：已拒絕平倉 — 未指定商品。未送出任何請求。", "SIM TEST: 全決済を拒否 — 銘柄なし。何も送信されていません。", "SIM TEST: 청산 거부 — 종목 없음. 아무것도 전송되지 않았습니다." };
+            t["SIM TEST: Flatten refused — scope contains a non-Simulator/Playback or missing account. Nothing was sent."] = new[] { "SIM TEST：已拒絕平倉 — 範圍內含有非 Simulator/Playback 或不存在的帳戶。未送出任何請求。", "SIM TEST: 全決済を拒否 — 対象範囲に Simulator/Playback 以外または存在しない口座が含まれています。何も送信されていません。", "SIM TEST: 청산 거부 — 범위에 Simulator/Playback이 아니거나 없는 계좌가 포함되어 있습니다. 아무것도 전송되지 않았습니다." };
+            t["Dry run cannot be changed while a session is attached; stop flat first."] = new[] { "工作階段連線期間無法變更 Dry run（試運行）；請先於持倉歸零後停止。", "セッション接続中は Dry run（ドライラン）を変更できません；先にフラット後に停止してください。", "세션이 연결된 동안에는 Dry run(드라이런)을 변경할 수 없습니다; 먼저 청산 후 중지하십시오." };
+            t["SIM TEST: account is not Simulator / Playback at send time; call was NOT sent"] = new[] { "模擬測試：送出時帳戶並非 Simulator / Playback；該呼叫未送出", "SIM テスト：送信時に口座が Simulator / Playback ではありません；呼び出しは送信されませんでした", "SIM 테스트: 전송 시점에 계좌가 Simulator / Playback이 아닙니다; 호출이 전송되지 않았습니다" };
+            t["DRY RUN would send to {0}: {1}"] = new[] { "DRY RUN（試運行）將傳送至 {0}：{1}", "DRY RUN（ドライラン）: {0} に送信予定: {1}", "DRY RUN(드라이런) {0}(으)로 전송 예정: {1}" };
+#endif
+            return t;
+        }
+        sealed class Pat { public string Key; public System.Text.RegularExpressions.Regex Regex; public int Holes; }
+        static readonly System.Collections.Generic.List<Pat> Patterns = BuildPatterns();
+        static System.Collections.Generic.List<Pat> BuildPatterns()
+        {
+            var list = new System.Collections.Generic.List<Pat>();
+            foreach (var key in Table.Keys)
+            {
+                var holes = System.Text.RegularExpressions.Regex.Matches(key, @"\{(\d+)\}");
+                if (holes.Count == 0) continue;
+                var sb = new System.Text.StringBuilder("^"); int pos = 0; var seen = new System.Collections.Generic.HashSet<int>(); int max = -1;
+                foreach (System.Text.RegularExpressions.Match h in holes)
+                {
+                    sb.Append(System.Text.RegularExpressions.Regex.Escape(key.Substring(pos, h.Index - pos)));
+                    int n = int.Parse(h.Groups[1].Value, CultureInfo.InvariantCulture); if (n > max) max = n;
+                    sb.Append(seen.Add(n) ? "(?<h" + n + ">.*?)" : "\\k<h" + n + ">");
+                    pos = h.Index + h.Length;
+                }
+                sb.Append(System.Text.RegularExpressions.Regex.Escape(key.Substring(pos))).Append("$");
+                if (seen.Count != max + 1) continue;
+                list.Add(new Pat { Key = key, Regex = new System.Text.RegularExpressions.Regex(sb.ToString(), System.Text.RegularExpressions.RegexOptions.Singleline), Holes = max + 1 });
+            }
+            // Longer literal templates first so a specific sentence wins over a generic "Start refused: {0}".
+            list.Sort((a, b) => b.Key.Length.CompareTo(a.Key.Length));
+            return list;
+        }
+        public static int Count { get { return Table.Count; } }
+        public static System.Collections.Generic.IEnumerable<string> Keys { get { return Table.Keys; } }
+        public static string[] Row(string en) { string[] row; return Table.TryGetValue(en, out row) ? row : null; }
+    }
+// END LANG TABLE
 // END KINFX PURE
     internal sealed class AccountTelemetry
     {
@@ -968,7 +1478,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         string UnprotectedText(EngineAccount f)
         {
             int n=UnprotectedLots(f);
-            return n>0?n+(n==1?" lot":" lots")+" UNPROTECTED (no protective exit working) — check NinjaTrader now and place or flatten by hand; this copier will not create it":"";
+            return n>0?string.Format(CultureInfo.InvariantCulture,n==1?"{0} lot UNPROTECTED (no protective exit working) — check NinjaTrader now and place or flatten by hand; this copier will not create it":"{0} lots UNPROTECTED (no protective exit working) — check NinjaTrader now and place or flatten by hand; this copier will not create it",n):"";
         }
         int OwnedPosition(EngineAccount f)
         {
@@ -1587,24 +2097,25 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             if(t.ProcessedFollowGeneration==latestFollowGeneration)SyncFollowing(t.Following,t.DisablePending);else Changed();return true;
         }
         public bool CopyAtm {get{return Settings.CopyAtm;}set{Settings.CopyAtm=value;Changed();}}
-        public string OnDivergence {get{return Settings.OnDivergence;}set{if(!DivergenceChoice.IsValid(value))throw new ArgumentException("On divergence must be Notify or FlattenOnce");Settings.OnDivergence=value;Changed();}}
+        public string OnDivergence {get{return Settings.OnDivergence;}set{if(!DivergenceChoice.IsValid(value))throw new ArgumentException(Lang.T("On divergence must be Notify or FlattenOnce"));Settings.OnDivergence=value;Changed();}}
         public bool CanFlat {get{return Role!="Leader"&&CanFollow&&Connection!="Disconnected"&&DashboardSafety.CanExecute("flattenSelected");}}
         public bool CanFollow {get{return Role!="Leader"&&(Account!=null?CopierEngine.Sim(Account):Connection=="Synthetic");}}
         public Brush ConnLight {get{return Connection=="Connected"?DashboardView.Good:Connection=="Disconnected"?DashboardView.Bad:Connection=="Synthetic"||Connection=="Connecting"?DashboardView.Warn:DashboardView.Off;}}
         public Brush StateLight {get{return Latch.Locked||Status=="Telemetry error"?DashboardView.Bad:Paused||Status=="Target hit"||(Status??"").IndexOf("pause",StringComparison.OrdinalIgnoreCase)>=0?DashboardView.Warn:Status=="Active"?DashboardView.Good:DashboardView.Off;}}
         public string AccountPrefix {get{string n=Name??"";return n.Length>12?n.Substring(0,n.Length-4):n;}}
         public string AccountSuffix {get{string n=Name??"";return n.Length>12?n.Substring(n.Length-4):"";}}
+        public string StateText {get{return Lang.T(StateLabel);}}
         public string StateLabel {get{return DisablePending?"Cancelling":FollowPending?"Rechecking":Latch.Locked?"Locked":Status=="Telemetry error"?"Error":Paused?"Paused":Role=="Leader"?"Leader":Status=="Active"&&Enabled?"Copying":Connection=="Disconnected"?"Offline":Status=="Demo only"?"Demo":Enabled?"Selected":"Off";}}
         public Brush StateInk {get{return DisablePending?DashboardView.Warn:Latch.Locked||Status=="Telemetry error"?DashboardView.Bad:StateLabel=="Copying"?DashboardView.Good:Paused?DashboardView.Warn:DashboardView.Muted;}}
         // Advisory only (never blocks). Reference lot size is the dashboard's current reference; see SettingsAdvice.
         internal static int AdviceReferenceLots=2;
         public string Advice {get{return SettingsAdvice.For(Settings,Role,AdviceReferenceLots);}}
-        public string StateDetail {get{return Name+" · "+Role+" · "+Status+(DisablePending?" · cancellation not confirmed":"")+(Latch.Locked?" · "+Latch.Reason:"")+(Advice.Length>0?" · NOTE: "+Advice:"")+" · "+Currency;}}
+        public string StateDetail {get{return Name+" · "+Lang.T(Role)+" · "+Lang.Show(Status)+(DisablePending?Lang.T(" · cancellation not confirmed"):"")+(Latch.Locked?" · "+Lang.Show(Latch.Reason):"")+(Advice.Length>0?Lang.T(" · NOTE: ")+Lang.Show(Advice):"")+" · "+Currency;}}
         public string Alias { get {return Settings.Alias;} set {Settings.Alias=value ?? "";} }
         public string Group { get {return Settings.Group;} set {Settings.Group=value ?? "";} }
-        public double Ratio { get {return Settings.Ratio;} set {if(!RiskPolicy.Finite(value)||value<=0)throw new ArgumentException("This account Ratio must be finite and > 0");ratioDraft=null;Settings.Ratio=value;Changed();} }
-        public double Target { get {return Settings.Target;} set {if(!RiskPolicy.Finite(value)||value<0)throw new ArgumentException("Daily target must be a finite amount >= 0 (0 = off)");targetDraft=null;Settings.Target=value;} }
-        public double Loss { get {return Settings.Loss;} set {if(!RiskPolicy.Finite(value)||value<0)throw new ArgumentException("Daily loss must be a finite amount >= 0 (0 = off)");lossDraft=null;Settings.Loss=value;} }
+        public double Ratio { get {return Settings.Ratio;} set {if(!RiskPolicy.Finite(value)||value<=0)throw new ArgumentException(Lang.T("This account Ratio must be finite and > 0"));ratioDraft=null;Settings.Ratio=value;Changed();} }
+        public double Target { get {return Settings.Target;} set {if(!RiskPolicy.Finite(value)||value<0)throw new ArgumentException(Lang.T("Daily target must be a finite amount >= 0 (0 = off)"));targetDraft=null;Settings.Target=value;} }
+        public double Loss { get {return Settings.Loss;} set {if(!RiskPolicy.Finite(value)||value<0)throw new ArgumentException(Lang.T("Daily loss must be a finite amount >= 0 (0 = off)"));lossDraft=null;Settings.Loss=value;} }
         // Row-owned text drafts: what the user typed survives broad refreshes, filtering and row recycling, and a malformed
         // draft blocks commit/persist for this row. The accepted numeric value is never replaced by a half-parsed one.
         string targetDraft,lossDraft,ratioDraft,maxDraft;
@@ -1616,9 +2127,9 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             double v;
             if(BulkEdit.TryParseAmount(text,out v)){if(target)Target=v;else Loss=v;return;}
             if(target)targetDraft=text??"";else lossDraft=text??"";
-            throw new ArgumentException((target?"Daily target":"Daily loss")+" must be a plain amount like 1000 (0 = off): no commas, signs or text");
+            throw new ArgumentException((target?"Daily target":"Daily loss")+Lang.T(" must be a plain amount like 1000 (0 = off): no commas, signs or text"));
         }
-        public int MaxContracts { get {return Settings.MaxContracts;} set {if(value<1)throw new ArgumentException("Max contracts must be a whole number >= 1");maxDraft=null;Settings.MaxContracts=value;} }
+        public int MaxContracts { get {return Settings.MaxContracts;} set {if(value<1)throw new ArgumentException(Lang.T("Max contracts must be a whole number >= 1"));maxDraft=null;Settings.MaxContracts=value;} }
         public string RatioText {get{return ratioDraft!=null?ratioDraft:Ratio.ToString("0.################",CultureInfo.InvariantCulture);}set{SetRatioText(value);}}
         public string MaxText {get{return maxDraft!=null?maxDraft:MaxContracts.ToString(CultureInfo.InvariantCulture);}set{SetMaxText(value);}}
         void SetRatioText(string text)
@@ -1626,17 +2137,17 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             double v; string t=(text??"").Trim();
             if(t.Length>0&&double.TryParse(t,NumberStyles.AllowDecimalPoint|NumberStyles.AllowExponent,CultureInfo.InvariantCulture,out v)&&RiskPolicy.Finite(v)&&v>0){Ratio=v;return;}
             ratioDraft=text??"";
-            throw new ArgumentException("Ratio must be a plain positive number like 1 or 0.5: no commas, signs or text");
+            throw new ArgumentException(Lang.T("Ratio must be a plain positive number like 1 or 0.5: no commas, signs or text"));
         }
         void SetMaxText(string text)
         {
             int v; string t=(text??"").Trim();
             if(t.Length>0&&int.TryParse(t,NumberStyles.None,CultureInfo.InvariantCulture,out v)&&v>=1){MaxContracts=v;return;}
             maxDraft=text??"";
-            throw new ArgumentException("Max must be a whole number >= 1");
+            throw new ArgumentException(Lang.T("Max must be a whole number >= 1"));
         }
-        public string TargetRemaining { get {return Target>0?Math.Max(0,Target-Pnl).ToString("N2"):"Off";} }
-        public string LossRemaining { get {return Loss>0?Math.Max(0,Loss+Pnl).ToString("N2"):"Off";} }
+        public string TargetRemaining { get {return Target>0?Math.Max(0,Target-Pnl).ToString("N2"):Lang.T("Off");} }
+        public string LossRemaining { get {return Loss>0?Math.Max(0,Loss+Pnl).ToString("N2"):Lang.T("Off");} }
         public string Preset { get {return Settings.Preset;} }
         public string ConsistencyAdvice {get{return RiskPolicy.ConsistencyAdvice(Settings);}}
         public event PropertyChangedEventHandler PropertyChanged;
@@ -1651,6 +2162,9 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         internal readonly TextBox InstrumentBox, LogBox;
         internal readonly Button StartButton;
         internal readonly TextBlock StatusText,SessionText,FollowCountText;
+        internal ComboBox LanguageBox;
+        // Returns true if the language was applied (the owner refuses while a session is attached).
+        internal Func<string,bool> LanguageChanging;
         internal readonly CheckBox ShowLive;
 #if KINFX_SIM_TEST
         internal CheckBox DryRunBox;
@@ -1671,9 +2185,9 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public string SearchText {get{return search.Text;}set{search.Text=value;}}
         public int VisibleCount {get{return view.Cast<AccountRow>().Count();}}
         public int LockedCount {get{return Rows.Count(r=>r.Role!="Leader"&&r.Latch.Locked);}}
-        public string LockedText {get{int n=LockedCount;return n==0?"":"● "+n+" LOCKED · check NinjaTrader, then review each reason";}}
+        public string LockedText {get{int n=LockedCount;return n==0?"":Lang.F("● {0} LOCKED · check NinjaTrader, then review each reason",n);}}
         public int AdviceCount {get{return Rows.Count(r=>r.Role!="Leader"&&r.Advice.Length>0);}}
-        public string AdviceText {get{int n=AdviceCount;return n==0?"":"⚠ "+n+" account(s) with a settings note · hover State";}}
+        public string AdviceText {get{int n=AdviceCount;return n==0?"":Lang.F("⚠ {0} account(s) with a settings note · hover State",n);}}
         static Brush Brush(string c){var b=(Brush)new BrushConverter().ConvertFromString(c);b.Freeze();return b;}
         public static readonly Brush Ink=Brush("#ECEAF1"),Muted=Brush("#AAA4B5"),Panel=Brush("#201E29"),Line=Brush("#35313F"),Accent=Brush("#D8C1A1"),Canvas=Brush("#17161F"),Good=Brush("#83C7A3"),Warn=Brush("#D8B87C"),Bad=Brush("#D98792"),Off=Brush("#00514C5C");
         static TextBlock Text(string s,double size=12,Brush color=null){return new TextBlock{Text=s,FontSize=size,Foreground=color??Ink,VerticalAlignment=VerticalAlignment.Center};}
@@ -1732,20 +2246,24 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             var h=new Style(typeof(DataGridColumnHeader));h.Setters.Add(new Setter(Control.BackgroundProperty,Panel));h.Setters.Add(new Setter(Control.ForegroundProperty,Muted));h.Setters.Add(new Setter(Control.FontSizeProperty,12.0));h.Setters.Add(new Setter(Control.PaddingProperty,new Thickness(9,8,9,8)));h.Setters.Add(new Setter(Control.BorderBrushProperty,Line));h.Setters.Add(new Setter(Control.BorderThicknessProperty,new Thickness(0,0,0,1)));g.ColumnHeaderStyle=h;
             var edit=new Style(typeof(TextBox));edit.Setters.Add(new Setter(Control.BackgroundProperty,Panel));edit.Setters.Add(new Setter(Control.ForegroundProperty,Ink));edit.Setters.Add(new Setter(Control.BorderBrushProperty,Accent));g.Resources[typeof(TextBox)]=edit;return g;
         }
+        static readonly System.Runtime.CompilerServices.ConditionalWeakTable<DataGridColumn,string> ColumnKeys=new System.Runtime.CompilerServices.ConditionalWeakTable<DataGridColumn,string>();
+        // English key of a column header: widths and tests use it, so switching language cannot break layout.
+        internal static string ColumnKey(DataGridColumn c){string k;return ColumnKeys.TryGetValue(c,out k)?k:(c.Header as string)??"";}
+        static void Key(DataGridColumn c,string english){string old;if(ColumnKeys.TryGetValue(c,out old))ColumnKeys.Remove(c);ColumnKeys.Add(c,english);}
         static void Header(DataGrid g,DataGridColumn c,string tip){var h=new Style(typeof(DataGridColumnHeader),g.ColumnHeaderStyle);h.Setters.Add(new Setter(FrameworkElement.ToolTipProperty,tip));c.HeaderStyle=h;}
         static void Column(DataGrid g,string title,string path,double width,bool ro,string tip,string format=null,bool number=false)
         {
-            var c=new DataGridTextColumn{Header=title,SortMemberPath=path.EndsWith("Text")?path.Substring(0,path.Length-4):path,Binding=new Binding(path){Mode=ro?BindingMode.OneWay:BindingMode.TwoWay,StringFormat=format,UpdateSourceTrigger=UpdateSourceTrigger.LostFocus,ValidatesOnExceptions=!ro,ConverterCulture=CultureInfo.InvariantCulture},Width=width,IsReadOnly=ro};
-            var s=new Style(typeof(TextBlock));s.Setters.Add(new Setter(FrameworkElement.VerticalAlignmentProperty,VerticalAlignment.Center));s.Setters.Add(new Setter(FrameworkElement.MarginProperty,new Thickness(9,0,9,0)));if(number){var hs=new Style(typeof(DataGridColumnHeader),g.ColumnHeaderStyle);hs.Setters.Add(new Setter(Control.HorizontalContentAlignmentProperty,HorizontalAlignment.Right));g.Resources["NumericHeader"]=hs;s.Setters.Add(new Setter(TextBlock.TextAlignmentProperty,TextAlignment.Right));s.Setters.Add(new Setter(TextBlock.FontFamilyProperty,new FontFamily("Consolas")));}c.ElementStyle=s;Header(g,c,tip);if(number){var hs=new Style(typeof(DataGridColumnHeader),c.HeaderStyle);hs.Setters.Add(new Setter(Control.HorizontalContentAlignmentProperty,HorizontalAlignment.Right));c.HeaderStyle=hs;}g.Columns.Add(c);
+            var c=new DataGridTextColumn{Header=Lang.T(title),SortMemberPath=path.EndsWith("Text")?path.Substring(0,path.Length-4):path,Binding=new Binding(path){Mode=ro?BindingMode.OneWay:BindingMode.TwoWay,StringFormat=format,UpdateSourceTrigger=UpdateSourceTrigger.LostFocus,ValidatesOnExceptions=!ro,ConverterCulture=CultureInfo.InvariantCulture},Width=width,IsReadOnly=ro};
+            var s=new Style(typeof(TextBlock));s.Setters.Add(new Setter(FrameworkElement.VerticalAlignmentProperty,VerticalAlignment.Center));s.Setters.Add(new Setter(FrameworkElement.MarginProperty,new Thickness(9,0,9,0)));if(number){var hs=new Style(typeof(DataGridColumnHeader),g.ColumnHeaderStyle);hs.Setters.Add(new Setter(Control.HorizontalContentAlignmentProperty,HorizontalAlignment.Right));g.Resources["NumericHeader"]=hs;s.Setters.Add(new Setter(TextBlock.TextAlignmentProperty,TextAlignment.Right));s.Setters.Add(new Setter(TextBlock.FontFamilyProperty,new FontFamily("Consolas")));}c.ElementStyle=s;Key(c,title);Header(g,c,tip);if(number){var hs=new Style(typeof(DataGridColumnHeader),c.HeaderStyle);hs.Setters.Add(new Setter(Control.HorizontalContentAlignmentProperty,HorizontalAlignment.Right));c.HeaderStyle=hs;}g.Columns.Add(c);
         }
         static void RatioColumn(DataGrid g)
         {
             var input=new FrameworkElementFactory(typeof(TextBox));input.SetValue(FrameworkElement.TagProperty,"rowRatio");input.SetValue(Control.BackgroundProperty,Panel);input.SetValue(Control.ForegroundProperty,Ink);input.SetValue(Control.BorderBrushProperty,Line);input.SetValue(Control.BorderThicknessProperty,new Thickness(1));input.SetValue(Control.PaddingProperty,new Thickness(4,1,4,1));input.SetValue(FrameworkElement.MarginProperty,new Thickness(4,1,4,1));input.SetValue(FrameworkElement.MinWidthProperty,0.0);input.SetValue(Control.FontSizeProperty,13.0);input.SetValue(TextBox.TextAlignmentProperty,TextAlignment.Right);input.SetValue(Control.VerticalContentAlignmentProperty,VerticalAlignment.Center);
-            const string tip="Ratio for THIS account only · finite > 0 · follower qty = floor(leader qty × ratio) · locked while attached";
+            string tip=Lang.T("Ratio for THIS account only · finite > 0 · follower qty = floor(leader qty × ratio) · locked while attached");
             input.SetValue(FrameworkElement.ToolTipProperty,tip);input.SetValue(System.Windows.Automation.AutomationProperties.NameProperty,tip);
             input.SetBinding(TextBox.TextProperty,new Binding("RatioText"){Mode=BindingMode.TwoWay,UpdateSourceTrigger=UpdateSourceTrigger.LostFocus,ValidatesOnExceptions=true});
             var style=new Style(typeof(TextBox));var locked=new DataTrigger{Binding=new Binding("IsReadOnly"){RelativeSource=new RelativeSource(RelativeSourceMode.FindAncestor,typeof(DataGrid),1)},Value=true};locked.Setters.Add(new Setter(UIElement.IsEnabledProperty,false));style.Triggers.Add(locked);input.SetValue(FrameworkElement.StyleProperty,style);
-            var c=new DataGridTemplateColumn{Header="Ratio",SortMemberPath="Ratio",Width=65,CellTemplate=new DataTemplate{VisualTree=input}};Header(g,c,tip);g.Columns.Add(c);
+            var c=new DataGridTemplateColumn{Header=Lang.T("Ratio"),SortMemberPath="Ratio",Width=65,CellTemplate=new DataTemplate{VisualTree=input}};Header(g,c,tip);Key(c,"Ratio");g.Columns.Add(c);
         }
         // Flat dark template for ordinary labelled check boxes (Live (RO), Grp, Dry run, dialog options). WPF's default draws a pure-white square.
         internal static ControlTemplate PlainCheckTemplate()
@@ -1766,24 +2284,24 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         }
         static void TickColumn(DataGrid g)
         {
-            var tick=new FrameworkElementFactory(typeof(CheckBox));tick.SetValue(FrameworkElement.HorizontalAlignmentProperty,HorizontalAlignment.Center);tick.SetValue(FrameworkElement.VerticalAlignmentProperty,VerticalAlignment.Center);tick.SetValue(FrameworkElement.TagProperty,"follow");tick.SetValue(Control.TemplateProperty,FollowTemplate());tick.SetValue(System.Windows.Automation.AutomationProperties.NameProperty,"Follow account; untick stops new entries");tick.SetValue(FrameworkElement.ToolTipProperty,"Explicit follow / OFF · pending cancels and latch may block re-enable");tick.SetBinding(ToggleButton.IsCheckedProperty,new Binding("Enabled"){Mode=BindingMode.TwoWay,UpdateSourceTrigger=UpdateSourceTrigger.PropertyChanged});var style=new Style(typeof(CheckBox));style.Setters.Add(new Setter(UIElement.IsEnabledProperty,new Binding("CanFollow")));tick.SetValue(FrameworkElement.StyleProperty,style);
-            var c=new DataGridTemplateColumn{Header="On",Width=40,CellTemplate=new DataTemplate{VisualTree=tick},SortMemberPath="Enabled"};Header(g,c,"Follower enabled · one click");g.Columns.Add(c);
+            var tick=new FrameworkElementFactory(typeof(CheckBox));tick.SetValue(FrameworkElement.HorizontalAlignmentProperty,HorizontalAlignment.Center);tick.SetValue(FrameworkElement.VerticalAlignmentProperty,VerticalAlignment.Center);tick.SetValue(FrameworkElement.TagProperty,"follow");tick.SetValue(Control.TemplateProperty,FollowTemplate());tick.SetValue(System.Windows.Automation.AutomationProperties.NameProperty,Lang.T("Follow account; untick stops new entries"));tick.SetValue(FrameworkElement.ToolTipProperty,Lang.T("Explicit follow / OFF · pending cancels and latch may block re-enable"));tick.SetBinding(ToggleButton.IsCheckedProperty,new Binding("Enabled"){Mode=BindingMode.TwoWay,UpdateSourceTrigger=UpdateSourceTrigger.PropertyChanged});var style=new Style(typeof(CheckBox));style.Setters.Add(new Setter(UIElement.IsEnabledProperty,new Binding("CanFollow")));tick.SetValue(FrameworkElement.StyleProperty,style);
+            var c=new DataGridTemplateColumn{Header=Lang.T("On"),Width=40,CellTemplate=new DataTemplate{VisualTree=tick},SortMemberPath="Enabled"};Header(g,c,Lang.T("Follower enabled · one click"));Key(c,"On");g.Columns.Add(c);
         }
         static void AccountColumn(DataGrid g)
         {
-            var line=new FrameworkElementFactory(typeof(DockPanel));line.SetValue(FrameworkElement.VerticalAlignmentProperty,VerticalAlignment.Center);line.SetValue(FrameworkElement.MarginProperty,new Thickness(9,0,9,0));line.SetBinding(FrameworkElement.ToolTipProperty,new Binding("Name"));line.SetBinding(System.Windows.Automation.AutomationProperties.NameProperty,new Binding("Name"));var suffix=new FrameworkElementFactory(typeof(TextBlock));suffix.SetValue(DockPanel.DockProperty,Dock.Right);suffix.SetBinding(TextBlock.TextProperty,new Binding("AccountSuffix"){Mode=BindingMode.OneWay});suffix.SetValue(TextBlock.ForegroundProperty,Ink);suffix.SetValue(TextBlock.FontWeightProperty,FontWeights.SemiBold);line.AppendChild(suffix);var prefix=new FrameworkElementFactory(typeof(TextBlock));prefix.SetBinding(TextBlock.TextProperty,new Binding("AccountPrefix"){Mode=BindingMode.OneWay});prefix.SetValue(TextBlock.ForegroundProperty,Muted);prefix.SetValue(TextBlock.TextTrimmingProperty,TextTrimming.CharacterEllipsis);line.AppendChild(prefix);var c=new DataGridTemplateColumn{Header="Acct",Width=new DataGridLength(1,DataGridLengthUnitType.Star),MinWidth=175,SortMemberPath="Name",IsReadOnly=true,CellTemplate=new DataTemplate{VisualTree=line}};Header(g,c,"Exact broker identity · full name on hover · differing suffix emphasized");g.Columns.Add(c);
+            var line=new FrameworkElementFactory(typeof(DockPanel));line.SetValue(FrameworkElement.VerticalAlignmentProperty,VerticalAlignment.Center);line.SetValue(FrameworkElement.MarginProperty,new Thickness(9,0,9,0));line.SetBinding(FrameworkElement.ToolTipProperty,new Binding("Name"));line.SetBinding(System.Windows.Automation.AutomationProperties.NameProperty,new Binding("Name"));var suffix=new FrameworkElementFactory(typeof(TextBlock));suffix.SetValue(DockPanel.DockProperty,Dock.Right);suffix.SetBinding(TextBlock.TextProperty,new Binding("AccountSuffix"){Mode=BindingMode.OneWay});suffix.SetValue(TextBlock.ForegroundProperty,Ink);suffix.SetValue(TextBlock.FontWeightProperty,FontWeights.SemiBold);line.AppendChild(suffix);var prefix=new FrameworkElementFactory(typeof(TextBlock));prefix.SetBinding(TextBlock.TextProperty,new Binding("AccountPrefix"){Mode=BindingMode.OneWay});prefix.SetValue(TextBlock.ForegroundProperty,Muted);prefix.SetValue(TextBlock.TextTrimmingProperty,TextTrimming.CharacterEllipsis);line.AppendChild(prefix);var c=new DataGridTemplateColumn{Header=Lang.T("Acct"),Width=new DataGridLength(1,DataGridLengthUnitType.Star),MinWidth=175,SortMemberPath="Name",IsReadOnly=true,CellTemplate=new DataTemplate{VisualTree=line}};Header(g,c,Lang.T("Exact broker identity · full name on hover · differing suffix emphasized"));Key(c,"Acct");g.Columns.Add(c);
         }
         static void StateColumn(DataGrid g)
         {
-            var border=new FrameworkElementFactory(typeof(Border));border.SetValue(FrameworkElement.MarginProperty,new Thickness(5,4,5,4));border.SetValue(Border.CornerRadiusProperty,new CornerRadius(4));border.SetValue(Border.BackgroundProperty,Panel);border.SetBinding(FrameworkElement.ToolTipProperty,new Binding("StateDetail"));var text=new FrameworkElementFactory(typeof(TextBlock));text.SetBinding(TextBlock.TextProperty,new Binding("StateLabel"));text.SetBinding(TextBlock.ForegroundProperty,new Binding("StateInk"));text.SetValue(TextBlock.FontSizeProperty,11.0);text.SetValue(TextBlock.FontWeightProperty,FontWeights.Medium);text.SetValue(FrameworkElement.HorizontalAlignmentProperty,HorizontalAlignment.Center);text.SetValue(FrameworkElement.VerticalAlignmentProperty,VerticalAlignment.Center);border.AppendChild(text);var c=new DataGridTemplateColumn{Header="State",Width=96,IsReadOnly=true,SortMemberPath="StateLabel",CellTemplate=new DataTemplate{VisualTree=border}};Header(g,c,"Observed copy state, NOT connection or follower selection");g.Columns.Add(c);
+            var border=new FrameworkElementFactory(typeof(Border));border.SetValue(FrameworkElement.MarginProperty,new Thickness(5,4,5,4));border.SetValue(Border.CornerRadiusProperty,new CornerRadius(4));border.SetValue(Border.BackgroundProperty,Panel);border.SetBinding(FrameworkElement.ToolTipProperty,new Binding("StateDetail"));var text=new FrameworkElementFactory(typeof(TextBlock));text.SetBinding(TextBlock.TextProperty,new Binding("StateText"));text.SetBinding(TextBlock.ForegroundProperty,new Binding("StateInk"));text.SetValue(TextBlock.FontSizeProperty,11.0);text.SetValue(TextBlock.FontWeightProperty,FontWeights.Medium);text.SetValue(FrameworkElement.HorizontalAlignmentProperty,HorizontalAlignment.Center);text.SetValue(FrameworkElement.VerticalAlignmentProperty,VerticalAlignment.Center);border.AppendChild(text);var c=new DataGridTemplateColumn{Header=Lang.T("State"),Width=96,IsReadOnly=true,SortMemberPath="StateLabel",CellTemplate=new DataTemplate{VisualTree=border}};Header(g,c,Lang.T("Observed copy state, NOT connection or follower selection"));Key(c,"State");g.Columns.Add(c);
         }
         static ControlTemplate AtmTemplate()
         {
-            var t=new ControlTemplate(typeof(CheckBox));var border=new FrameworkElementFactory(typeof(Border),"Switch");border.SetValue(Border.CornerRadiusProperty,new CornerRadius(4));border.SetValue(Border.BackgroundProperty,Canvas);border.SetValue(Border.BorderBrushProperty,Line);border.SetValue(Border.BorderThicknessProperty,new Thickness(1));border.SetValue(FrameworkElement.WidthProperty,38.0);border.SetValue(FrameworkElement.HeightProperty,20.0);var text=new FrameworkElementFactory(typeof(TextBlock),"Label");text.SetValue(TextBlock.TextProperty,"Off");text.SetValue(TextBlock.FontSizeProperty,11.0);text.SetValue(TextBlock.ForegroundProperty,Warn);text.SetValue(FrameworkElement.HorizontalAlignmentProperty,HorizontalAlignment.Center);text.SetValue(FrameworkElement.VerticalAlignmentProperty,VerticalAlignment.Center);border.AppendChild(text);t.VisualTree=border;var on=new Trigger{Property=ToggleButton.IsCheckedProperty,Value=true};on.Setters.Add(new Setter(TextBlock.TextProperty,"On","Label"));on.Setters.Add(new Setter(TextBlock.ForegroundProperty,Ink,"Label"));on.Setters.Add(new Setter(Border.BackgroundProperty,Panel,"Switch"));t.Triggers.Add(on);var focus=new Trigger{Property=UIElement.IsKeyboardFocusedProperty,Value=true};focus.Setters.Add(new Setter(Border.BorderBrushProperty,Accent,"Switch"));t.Triggers.Add(focus);var disabled=new Trigger{Property=UIElement.IsEnabledProperty,Value=false};disabled.Setters.Add(new Setter(UIElement.OpacityProperty,0.45,"Switch"));t.Triggers.Add(disabled);return t;
+            var t=new ControlTemplate(typeof(CheckBox));var border=new FrameworkElementFactory(typeof(Border),"Switch");border.SetValue(Border.CornerRadiusProperty,new CornerRadius(4));border.SetValue(Border.BackgroundProperty,Canvas);border.SetValue(Border.BorderBrushProperty,Line);border.SetValue(Border.BorderThicknessProperty,new Thickness(1));border.SetValue(FrameworkElement.WidthProperty,38.0);border.SetValue(FrameworkElement.HeightProperty,20.0);var text=new FrameworkElementFactory(typeof(TextBlock),"Label");text.SetValue(TextBlock.TextProperty,Lang.T("Off"));text.SetValue(TextBlock.FontSizeProperty,11.0);text.SetValue(TextBlock.ForegroundProperty,Warn);text.SetValue(FrameworkElement.HorizontalAlignmentProperty,HorizontalAlignment.Center);text.SetValue(FrameworkElement.VerticalAlignmentProperty,VerticalAlignment.Center);border.AppendChild(text);t.VisualTree=border;var on=new Trigger{Property=ToggleButton.IsCheckedProperty,Value=true};on.Setters.Add(new Setter(TextBlock.TextProperty,Lang.T("On"),"Label"));on.Setters.Add(new Setter(TextBlock.ForegroundProperty,Ink,"Label"));on.Setters.Add(new Setter(Border.BackgroundProperty,Panel,"Switch"));t.Triggers.Add(on);var focus=new Trigger{Property=UIElement.IsKeyboardFocusedProperty,Value=true};focus.Setters.Add(new Setter(Border.BorderBrushProperty,Accent,"Switch"));t.Triggers.Add(focus);var disabled=new Trigger{Property=UIElement.IsEnabledProperty,Value=false};disabled.Setters.Add(new Setter(UIElement.OpacityProperty,0.45,"Switch"));t.Triggers.Add(disabled);return t;
         }
         static void AtmColumn(DataGrid g)
         {
-            var tick=new FrameworkElementFactory(typeof(CheckBox));tick.SetValue(FrameworkElement.TagProperty,"atm");tick.SetValue(Control.TemplateProperty,AtmTemplate());tick.SetValue(System.Windows.Automation.AutomationProperties.NameProperty,"Per-account ATM exit mirroring");tick.SetValue(FrameworkElement.HorizontalAlignmentProperty,HorizontalAlignment.Center);tick.SetValue(FrameworkElement.VerticalAlignmentProperty,VerticalAlignment.Center);tick.SetValue(FrameworkElement.ToolTipProperty,"Per-account ATM exit mirroring, NOT a native ATM clone. OFF ignores non-market SL / TP: follower can be unprotected. Market closes still copy. Frozen while attached.");tick.SetBinding(ToggleButton.IsCheckedProperty,new Binding("CopyAtm"){Mode=BindingMode.TwoWay,UpdateSourceTrigger=UpdateSourceTrigger.PropertyChanged});var style=new Style(typeof(CheckBox));style.Setters.Add(new Setter(UIElement.IsEnabledProperty,new Binding("CanFollow")));var locked=new DataTrigger{Binding=new Binding("IsReadOnly"){RelativeSource=new RelativeSource(RelativeSourceMode.FindAncestor,typeof(DataGrid),1)},Value=true};locked.Setters.Add(new Setter(UIElement.IsEnabledProperty,false));style.Triggers.Add(locked);tick.SetValue(FrameworkElement.StyleProperty,style);var c=new DataGridTemplateColumn{Header="ATM",Width=56,SortMemberPath="CopyAtm",CellTemplate=new DataTemplate{VisualTree=tick}};Header(g,c,"Independent ATM exit mirror · OFF can leave exposure unprotected");g.Columns.Add(c);
+            var tick=new FrameworkElementFactory(typeof(CheckBox));tick.SetValue(FrameworkElement.TagProperty,"atm");tick.SetValue(Control.TemplateProperty,AtmTemplate());tick.SetValue(System.Windows.Automation.AutomationProperties.NameProperty,Lang.T("Per-account ATM exit mirroring"));tick.SetValue(FrameworkElement.HorizontalAlignmentProperty,HorizontalAlignment.Center);tick.SetValue(FrameworkElement.VerticalAlignmentProperty,VerticalAlignment.Center);tick.SetValue(FrameworkElement.ToolTipProperty,Lang.T("Per-account ATM exit mirroring, NOT a native ATM clone. OFF ignores non-market SL / TP: follower can be unprotected. Market closes still copy. Frozen while attached."));tick.SetBinding(ToggleButton.IsCheckedProperty,new Binding("CopyAtm"){Mode=BindingMode.TwoWay,UpdateSourceTrigger=UpdateSourceTrigger.PropertyChanged});var style=new Style(typeof(CheckBox));style.Setters.Add(new Setter(UIElement.IsEnabledProperty,new Binding("CanFollow")));var locked=new DataTrigger{Binding=new Binding("IsReadOnly"){RelativeSource=new RelativeSource(RelativeSourceMode.FindAncestor,typeof(DataGrid),1)},Value=true};locked.Setters.Add(new Setter(UIElement.IsEnabledProperty,false));style.Triggers.Add(locked);tick.SetValue(FrameworkElement.StyleProperty,style);var c=new DataGridTemplateColumn{Header=Lang.T("ATM"),Width=56,SortMemberPath="CopyAtm",CellTemplate=new DataTemplate{VisualTree=tick}};Header(g,c,Lang.T("Independent ATM exit mirror · OFF can leave exposure unprotected"));Key(c,"ATM");g.Columns.Add(c);
         }
         static ControlTemplate OffTemplate()
         {
@@ -1791,20 +2309,20 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         }
         static void OffColumn(DataGrid g)
         {
-            var button=new FrameworkElementFactory(typeof(Button));CompactCellButton(button,32);button.SetValue(ContentControl.ContentProperty,"\uE7E8");button.SetValue(FrameworkElement.TagProperty,"off");button.SetValue(Control.FontFamilyProperty,new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"));button.SetValue(Control.BackgroundProperty,Panel);button.SetValue(Control.ForegroundProperty,Bad);button.SetValue(Control.BorderBrushProperty,Line);button.SetValue(Control.PaddingProperty,new Thickness(4,1,4,1));button.SetValue(Control.TemplateProperty,OffTemplate());button.SetValue(FrameworkElement.ToolTipProperty,"OFF: block new entries / request owned entry cancellation; retain exits. Pending fills may still occur. Explicit follow required again; latch remains.");button.SetValue(System.Windows.Automation.AutomationProperties.NameProperty,"Stop following this account");button.SetBinding(UIElement.IsEnabledProperty,new Binding("CanFollow"));button.AddHandler(ButtonBase.ClickEvent,new RoutedEventHandler((s,e)=>{var r=(s as FrameworkElement).DataContext as AccountRow;if(r!=null)r.Enabled=false;e.Handled=true;}));var c=new DataGridTemplateColumn{Header="Off",Width=42,IsReadOnly=true,CellTemplate=new DataTemplate{VisualTree=button}};Header(g,c,"One-click OFF is not Flatten; current positions / SL / TP remain");g.Columns.Add(c);
+            var button=new FrameworkElementFactory(typeof(Button));CompactCellButton(button,32);button.SetValue(ContentControl.ContentProperty,"\uE7E8");button.SetValue(FrameworkElement.TagProperty,"off");button.SetValue(Control.FontFamilyProperty,new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"));button.SetValue(Control.BackgroundProperty,Panel);button.SetValue(Control.ForegroundProperty,Bad);button.SetValue(Control.BorderBrushProperty,Line);button.SetValue(Control.PaddingProperty,new Thickness(4,1,4,1));button.SetValue(Control.TemplateProperty,OffTemplate());button.SetValue(FrameworkElement.ToolTipProperty,Lang.T("OFF: block new entries / request owned entry cancellation; retain exits. Pending fills may still occur. Explicit follow required again; latch remains."));button.SetValue(System.Windows.Automation.AutomationProperties.NameProperty,Lang.T("Stop following this account"));button.SetBinding(UIElement.IsEnabledProperty,new Binding("CanFollow"));button.AddHandler(ButtonBase.ClickEvent,new RoutedEventHandler((s,e)=>{var r=(s as FrameworkElement).DataContext as AccountRow;if(r!=null)r.Enabled=false;e.Handled=true;}));var c=new DataGridTemplateColumn{Header=Lang.T("Off"),Width=42,IsReadOnly=true,CellTemplate=new DataTemplate{VisualTree=button}};Header(g,c,Lang.T("One-click OFF is not Flatten; current positions / SL / TP remain"));Key(c,"Off");g.Columns.Add(c);
         }
         void FlatColumn(DataGrid g)
         {
             var button=new FrameworkElementFactory(typeof(Button));CompactCellButton(button,44);
-            button.SetValue(ContentControl.ContentProperty,"Flat");button.SetValue(FrameworkElement.TagProperty,"flat");
+            button.SetValue(ContentControl.ContentProperty,Lang.T("Flat"));button.SetValue(FrameworkElement.TagProperty,"flat");
             button.SetValue(Control.BackgroundProperty,Panel);button.SetValue(Control.ForegroundProperty,Bad);button.SetValue(Control.BorderBrushProperty,Line);button.SetValue(Control.FontSizeProperty,11.0);button.SetValue(Control.PaddingProperty,new Thickness(2,1,2,1));
             button.SetValue(Control.TemplateProperty,FlatTemplate());
-            button.SetValue(FrameworkElement.ToolTipProperty,"FLAT this account only: cancels its working orders and closes its position in the session instrument after you confirm. Other accounts keep copying. The account goes OFF; re-follow explicitly. Sent once, never retried.");
-            button.SetValue(System.Windows.Automation.AutomationProperties.NameProperty,"Flatten this account only");
+            button.SetValue(FrameworkElement.ToolTipProperty,Lang.T("FLAT this account only: cancels its working orders and closes its position in the session instrument after you confirm. Other accounts keep copying. The account goes OFF; re-follow explicitly. Sent once, never retried."));
+            button.SetValue(System.Windows.Automation.AutomationProperties.NameProperty,Lang.T("Flatten this account only"));
             button.SetBinding(UIElement.IsEnabledProperty,new Binding("CanFlat"));
             button.AddHandler(ButtonBase.ClickEvent,new RoutedEventHandler((s,e)=>{e.Handled=true;if(demo)return;var r=(s as FrameworkElement).DataContext as AccountRow;var cb=FlatRow;if(r!=null&&r.CanFlat&&cb!=null)cb(r);}));
-            var c=new DataGridTemplateColumn{Header="Flat",Width=52,IsReadOnly=true,CellTemplate=new DataTemplate{VisualTree=button}};
-            Header(g,c,"Flatten ONE account (confirmation names it). Not the same as OFF: OFF keeps the position, Flat closes it.");g.Columns.Add(c);
+            var c=new DataGridTemplateColumn{Header=Lang.T("Flat"),Width=52,IsReadOnly=true,CellTemplate=new DataTemplate{VisualTree=button}};
+            Header(g,c,Lang.T("Flatten ONE account (confirmation names it). Not the same as OFF: OFF keeps the position, Flat closes it."));Key(c,"Flat");g.Columns.Add(c);
         }
         static ControlTemplate FlatTemplate()
         {
@@ -1816,7 +2334,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         }
         static void LightColumn(DataGrid g,string title,string path,string detail)
         {
-            var light=new FrameworkElementFactory(typeof(System.Windows.Shapes.Ellipse));light.SetValue(FrameworkElement.WidthProperty,8.0);light.SetValue(FrameworkElement.HeightProperty,8.0);light.SetValue(FrameworkElement.HorizontalAlignmentProperty,HorizontalAlignment.Center);light.SetValue(FrameworkElement.VerticalAlignmentProperty,VerticalAlignment.Center);light.SetBinding(System.Windows.Shapes.Shape.FillProperty,new Binding(path));light.SetBinding(FrameworkElement.ToolTipProperty,new Binding(detail));var c=new DataGridTemplateColumn{Header=title,Width=54,IsReadOnly=true,SortMemberPath=detail,CellTemplate=new DataTemplate{VisualTree=light}};Header(g,c,detail+" · green / amber / red / off");g.Columns.Add(c);
+            var light=new FrameworkElementFactory(typeof(System.Windows.Shapes.Ellipse));light.SetValue(FrameworkElement.WidthProperty,8.0);light.SetValue(FrameworkElement.HeightProperty,8.0);light.SetValue(FrameworkElement.HorizontalAlignmentProperty,HorizontalAlignment.Center);light.SetValue(FrameworkElement.VerticalAlignmentProperty,VerticalAlignment.Center);light.SetBinding(System.Windows.Shapes.Shape.FillProperty,new Binding(path));light.SetBinding(FrameworkElement.ToolTipProperty,new Binding(detail));var c=new DataGridTemplateColumn{Header=Lang.T(title),Width=54,IsReadOnly=true,SortMemberPath=detail,CellTemplate=new DataTemplate{VisualTree=light}};Key(c,title);Header(g,c,detail+Lang.T(" · green / amber / red / off"));g.Columns.Add(c);
         }
         static void ProportionalCopyColumns(DataGrid g)
         {
@@ -1828,7 +2346,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             foreach(var c in g.Columns)
             {
                 double minimum;
-                if(minimums.TryGetValue((string)c.Header,out minimum)){c.MinWidth=minimum;c.Width=new DataGridLength(weights[(string)c.Header],DataGridLengthUnitType.Star);}
+                if(minimums.TryGetValue(ColumnKey(c),out minimum)){c.MinWidth=minimum;c.Width=new DataGridLength(weights[ColumnKey(c)],DataGridLengthUnitType.Star);}
                 else {double width=c.Width.Value;c.MinWidth=width;c.MaxWidth=width;}
             }
             g.HorizontalScrollBarVisibility=ScrollBarVisibility.Auto;
@@ -1852,33 +2370,33 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             foreach(Type type in new[]{typeof(Button),typeof(ToggleButton),typeof(CheckBox),typeof(TextBox),typeof(ComboBox),typeof(TabControl),typeof(DataGrid)})
             {var scope=new Style(type);scope.Setters.Add(new Setter(FrameworkElement.MinWidthProperty,0.0));scope.Setters.Add(new Setter(FrameworkElement.MinHeightProperty,0.0));scope.Setters.Add(new Setter(Control.FontSizeProperty,13.0));scope.Setters.Add(new Setter(Control.ForegroundProperty,Ink));Resources[type]=scope;}
             RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
-            var header=new DockPanel{Margin=new Thickness(0,0,0,14)};StatusText=Text(demo?"DEMO · NO TRADES":DashboardSafety.HeaderText,11,Warn);DockPanel.SetDock(StatusText,Dock.Right);header.Children.Add(StatusText);var brand=new StackPanel{Orientation=Orientation.Horizontal};brand.Children.Add(Text("KINFX",20,Accent));brand.Children.Add(new TextBlock{Text="  /  Copy desk",FontSize=17,Foreground=Ink,VerticalAlignment=VerticalAlignment.Center});header.Children.Add(brand);AddRow(this,header,0);
-            var session=new WrapPanel{Margin=new Thickness(0,0,0,6)};LeaderBox=Combo(232);LeaderBox.ToolTip="Simulation leader account · no live opt-in";session.Children.Add(Labeled("Lead",LeaderBox));InstrumentBox=Input("MES 12-26",126);InstrumentBox.ToolTip="Exact instrument";session.Children.Add(Labeled("Inst",InstrumentBox));
-            FollowCountText=Text("→  0 followers  ",12,Muted);session.Children.Add(FollowCountText);
-            StartButton=Button("▶  Start",()=>Send("start"),true);StartButton.ToolTip=DashboardSafety.StartTip;ToolTipService.SetShowOnDisabled(StartButton,true);StartButton.IsEnabled=DashboardSafety.CanExecute("start")&&!demo;session.Children.Add(StartButton);session.Children.Add(Icon("\uE769","Guarded pause · new entries only","pause",()=>Send("pause")));session.Children.Add(Icon("\uE71A","Stop when flat","stop",()=>Send("stop")));session.Children.Add(Icon("\uE72C","Refresh accounts","refresh",()=>Send("refresh")));AddRow(this,new Border{Background=Panel,BorderBrush=Line,BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(7),Padding=new Thickness(12,8,12,0),Margin=new Thickness(0,0,0,10),Child=session},1);
+            var header=new DockPanel{Margin=new Thickness(0,0,0,14)};StatusText=Text(demo?Lang.T("DEMO · NO TRADES"):DashboardSafety.HeaderShown,11,Warn);DockPanel.SetDock(StatusText,Dock.Right);header.Children.Add(StatusText);LanguageBox=Combo(118);LanguageBox.ToolTip=Lang.T("Interface language");System.Windows.Automation.AutomationProperties.SetName(LanguageBox,Lang.T("Language"));LanguageBox.ItemsSource=Lang.Names;LanguageBox.SelectedIndex=Math.Max(0,Array.IndexOf(Lang.Codes,Lang.Current));LanguageBox.Margin=new Thickness(0,0,14,0);DockPanel.SetDock(LanguageBox,Dock.Right);header.Children.Add(LanguageBox);bool languageGuard=false;LanguageBox.SelectionChanged+=(s,e)=>{if(languageGuard||LanguageBox.SelectedIndex<0)return;string code=Lang.Codes[LanguageBox.SelectedIndex];if(code==Lang.Current)return;var ask=LanguageChanging;if(ask!=null&&!ask(code)){languageGuard=true;LanguageBox.SelectedIndex=Array.IndexOf(Lang.Codes,Lang.Current);languageGuard=false;}};var brand=new StackPanel{Orientation=Orientation.Horizontal};brand.Children.Add(Text("KINFX",20,Accent));brand.Children.Add(new TextBlock{Text=Lang.T("  /  Copy desk"),FontSize=17,Foreground=Ink,VerticalAlignment=VerticalAlignment.Center});header.Children.Add(brand);AddRow(this,header,0);
+            var session=new WrapPanel{Margin=new Thickness(0,0,0,6)};LeaderBox=Combo(232);LeaderBox.ToolTip=Lang.T("Simulation leader account · no live opt-in");session.Children.Add(Labeled(Lang.T("Lead"),LeaderBox));InstrumentBox=Input("MES 12-26",126);InstrumentBox.ToolTip=Lang.T("Exact instrument");session.Children.Add(Labeled(Lang.T("Inst"),InstrumentBox));
+            FollowCountText=Text(Lang.T("→  0 followers  "),12,Muted);session.Children.Add(FollowCountText);
+            StartButton=Button(Lang.T("▶  Start"),()=>Send("start"),true);StartButton.ToolTip=DashboardSafety.StartTipShown;ToolTipService.SetShowOnDisabled(StartButton,true);StartButton.IsEnabled=DashboardSafety.CanExecute("start")&&!demo;session.Children.Add(StartButton);session.Children.Add(Icon("\uE769",Lang.T("Guarded pause · new entries only"),"pause",()=>Send("pause")));session.Children.Add(Icon("\uE71A",Lang.T("Stop when flat"),"stop",()=>Send("stop")));session.Children.Add(Icon("\uE72C",Lang.T("Refresh accounts"),"refresh",()=>Send("refresh")));AddRow(this,new Border{Background=Panel,BorderBrush=Line,BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(7),Padding=new Thickness(12,8,12,0),Margin=new Thickness(0,0,0,10),Child=session},1);
             Sections=new TabControl{Background=Canvas,Foreground=Ink,BorderBrush=Line,Padding=new Thickness(0,10,0,0),ItemContainerStyle=TabStyle()};AddRow(this,Sections,2);
             var copy=new Grid();copy.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});copy.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});
             var toolbar=new WrapPanel{Margin=new Thickness(0,0,0,9)};
-            search=Input("",185);search.ToolTip="Search account / alias / group / preset · Ctrl+F · Escape clears";toolbar.Children.Add(Labeled("⌕",search,17));filter=Combo(120);filter.ToolTip="Filter displayed account states";filter.ItemsSource=new[]{"All","On","Paused","Target"};filter.SelectedIndex=0;toolbar.Children.Add(filter);var ticks=new StackPanel{Orientation=Orientation.Horizontal,Margin=new Thickness(0,0,0,6)};ticks.Children.Add(Icon("\uE73A","Tick all visible followers","tickAll",()=>TickVisible(true),true));ticks.Children.Add(Icon("\uE711","Untick all visible followers","tickNone",()=>TickVisible(false),true));toolbar.Children.Add(ticks);toolbar.Children.Add(new TextBlock{Text="Ratio: edit each account row",Foreground=Muted,FontSize=12,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(8,0,8,6)});var bulk=new StackPanel{Orientation=Orientation.Horizontal,Margin=new Thickness(0,0,0,6)};bulk.Tag="bulkbar";bulk.Children.Add(Text("Bulk  ",11,Muted));var bulkValue=Input("",78);bulkValue.ToolTip="Amount for the highlighted accounts · account currency · 0 = off";System.Windows.Automation.AutomationProperties.SetName(bulkValue,"Bulk amount");bulk.Children.Add(bulkValue);bulk.Children.Add(TextTool("Tgt","Set Target on highlighted accounts","bulkTgt",()=>BulkClick("Tgt",bulkValue.Text)));bulk.Children.Add(TextTool("DLL","Set Daily loss on highlighted accounts","bulkDll",()=>BulkClick("DLL",bulkValue.Text)));bulk.Children.Add(TextTool("ATM on","ATM exit-mirroring ON for highlighted accounts","bulkAtmOn",()=>BulkClick("ATM","on")));bulk.Children.Add(TextTool("ATM off","ATM exit-mirroring OFF for highlighted accounts","bulkAtmOff",()=>BulkClick("ATM","off")));bulk.Children.Add(TextTool("Div: notify","On divergence: only lock, show red and notify (default) for highlighted accounts","bulkDivNotify",()=>BulkClick("Diverge","Notify")));bulk.Children.Add(TextTool("Div: flatten 1x","On divergence: request ONE flatten, never retried (saved only; NOT active in this alpha) for highlighted accounts","bulkDivFlat",()=>BulkClick("Diverge","FlattenOnce")));bulk.Children.Insert(1,TextTool("From Leader","Copy the leader row's Tgt / DLL / ATM to highlighted followers (all visible if none highlighted). One-time copy; edit any row afterwards. Ratio and ticks are not copied.","bulkLeader",()=>BulkLeaderClick()));bulkBar=bulk;toolbar.Children.Add(bulk);AddRow(copy,toolbar,0);
-            AccountGrid=GridTable();TickColumn(AccountGrid);AccountColumn(AccountGrid);Column(AccountGrid,"Alias","Alias",100,false,"Optional display alias");RatioColumn(AccountGrid);Column(AccountGrid,"Tgt","TargetText",78,false,"Independent daily local profit target · account CCY / 0 = off",null,true);Column(AccountGrid,"DLL","LossText",78,false,"Independent daily loss limit · positive amount / 0 = off",null,true);AtmColumn(AccountGrid);Column(AccountGrid,"Qty","Position",55,true,"Signed position · + long / − short",null,true);Column(AccountGrid,"P/L","Pnl",95,true,"Observed session P/L in account currency · baseline is not historical daily accounting","N2",true);Column(AccountGrid,"Bal","BalanceText",130,true,"CashValue in account currency; not NetLiquidation / net equity",null,true);((DataGridTextColumn)AccountGrid.Columns.Last()).ElementStyle.Setters.Add(new Setter(FrameworkElement.ToolTipProperty,new Binding("BalanceDetail")));((DataGridTextColumn)AccountGrid.Columns.Last()).ElementStyle.Setters.Add(new Setter(System.Windows.Automation.AutomationProperties.NameProperty,new Binding("BalanceDetail")));LightColumn(AccountGrid,"Conn","ConnLight","Connection");StateColumn(AccountGrid);OffColumn(AccountGrid);FlatColumn(AccountGrid);AccountGrid.FrozenColumnCount=2;ProportionalCopyColumns(AccountGrid);AddRow(copy,AccountGrid,1);Sections.Items.Add(new TabItem{Header="Copy",Content=copy});
+            search=Input("",185);search.ToolTip=Lang.T("Search account / alias / group / preset · Ctrl+F · Escape clears");toolbar.Children.Add(Labeled("⌕",search,17));filter=Combo(120);filter.ToolTip=Lang.T("Filter displayed account states");filter.ItemsSource=new[]{Lang.T("All"),Lang.T("On"),Lang.T("Paused"),Lang.T("Target")};filter.SelectedIndex=0;toolbar.Children.Add(filter);var ticks=new StackPanel{Orientation=Orientation.Horizontal,Margin=new Thickness(0,0,0,6)};ticks.Children.Add(Icon("\uE73A",Lang.T("Tick all visible followers"),"tickAll",()=>TickVisible(true),true));ticks.Children.Add(Icon("\uE711",Lang.T("Untick all visible followers"),"tickNone",()=>TickVisible(false),true));toolbar.Children.Add(ticks);toolbar.Children.Add(new TextBlock{Text=Lang.T("Ratio: edit each account row"),Foreground=Muted,FontSize=12,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(8,0,8,6)});var bulk=new StackPanel{Orientation=Orientation.Horizontal,Margin=new Thickness(0,0,0,6)};bulk.Tag="bulkbar";bulk.Children.Add(Text(Lang.T("Bulk  "),11,Muted));var bulkValue=Input("",78);bulkValue.ToolTip=Lang.T("Amount for the highlighted accounts · account currency · 0 = off");System.Windows.Automation.AutomationProperties.SetName(bulkValue,Lang.T("Bulk amount"));bulk.Children.Add(bulkValue);bulk.Children.Add(TextTool(Lang.T("Tgt"),Lang.T("Set Target on highlighted accounts"),"bulkTgt",()=>BulkClick("Tgt",bulkValue.Text)));bulk.Children.Add(TextTool(Lang.T("DLL"),Lang.T("Set Daily loss on highlighted accounts"),"bulkDll",()=>BulkClick("DLL",bulkValue.Text)));bulk.Children.Add(TextTool(Lang.T("ATM on"),Lang.T("ATM exit-mirroring ON for highlighted accounts"),"bulkAtmOn",()=>BulkClick("ATM","on")));bulk.Children.Add(TextTool(Lang.T("ATM off"),Lang.T("ATM exit-mirroring OFF for highlighted accounts"),"bulkAtmOff",()=>BulkClick("ATM","off")));bulk.Children.Add(TextTool(Lang.T("Div: notify"),Lang.T("On divergence: only lock, show red and notify (default) for highlighted accounts"),"bulkDivNotify",()=>BulkClick("Diverge","Notify")));bulk.Children.Add(TextTool(Lang.T("Div: flatten 1x"),Lang.T("On divergence: request ONE flatten, never retried (saved only; NOT active in this alpha) for highlighted accounts"),"bulkDivFlat",()=>BulkClick("Diverge","FlattenOnce")));bulk.Children.Insert(1,TextTool(Lang.T("From Leader"),Lang.T("Copy the leader row's Tgt / DLL / ATM to highlighted followers (all visible if none highlighted). One-time copy; edit any row afterwards. Ratio and ticks are not copied."),"bulkLeader",()=>BulkLeaderClick()));bulkBar=bulk;toolbar.Children.Add(bulk);AddRow(copy,toolbar,0);
+            AccountGrid=GridTable();TickColumn(AccountGrid);AccountColumn(AccountGrid);Column(AccountGrid,"Alias","Alias",100,false,Lang.T("Optional display alias"));RatioColumn(AccountGrid);Column(AccountGrid,"Tgt","TargetText",78,false,Lang.T("Independent daily local profit target · account CCY / 0 = off"),null,true);Column(AccountGrid,"DLL","LossText",78,false,Lang.T("Independent daily loss limit · positive amount / 0 = off"),null,true);AtmColumn(AccountGrid);Column(AccountGrid,"Qty","Position",55,true,Lang.T("Signed position · + long / − short"),null,true);Column(AccountGrid,"P/L","Pnl",95,true,Lang.T("Observed session P/L in account currency · baseline is not historical daily accounting"),"N2",true);Column(AccountGrid,"Bal","BalanceText",130,true,Lang.T("CashValue in account currency; not NetLiquidation / net equity"),null,true);((DataGridTextColumn)AccountGrid.Columns.Last()).ElementStyle.Setters.Add(new Setter(FrameworkElement.ToolTipProperty,new Binding("BalanceDetail")));((DataGridTextColumn)AccountGrid.Columns.Last()).ElementStyle.Setters.Add(new Setter(System.Windows.Automation.AutomationProperties.NameProperty,new Binding("BalanceDetail")));LightColumn(AccountGrid,"Conn","ConnLight","Connection");StateColumn(AccountGrid);OffColumn(AccountGrid);FlatColumn(AccountGrid);AccountGrid.FrozenColumnCount=2;ProportionalCopyColumns(AccountGrid);AddRow(copy,AccountGrid,1);Sections.Items.Add(new TabItem{Header=Lang.T("Copy"),Content=copy});
             var risk=new Grid();risk.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});risk.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});risk.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});var tools=new WrapPanel{Margin=new Thickness(0,0,0,10)};
-            var batch=Icon("\uE713",DashboardSafety.CanExecute("batch")?"Batch risk / presets":"Batch risk / presets · review hold","batch",()=>Send("batch"));batch.IsEnabled=DashboardSafety.CanExecute("batch");tools.Children.Add(batch);tools.Children.Add(Icon("\uE74E","Save settings","save",()=>Send("save")));tools.Children.Add(Icon("\uE787","Trading-day boundary / timezone","daySettings",()=>Send("daySettings")));tools.Children.Add(Icon("\uE769","Pause highlighted accounts","pauseSelected",()=>SetSelectedPause(true)));tools.Children.Add(Icon("\uE768","Resume highlighted accounts · latch unchanged / no auto-arm","resumeSelected",()=>SetSelectedPause(false)));var fs=Icon("\uE74D",DashboardSafety.CanExecute("flattenSelected")?"Flatten highlighted accounts (market-closes their positions)":"Flatten highlighted accounts · review hold","flattenSelected",()=>Send("flattenSelected"));fs.IsEnabled=DashboardSafety.CanExecute("flattenSelected");tools.Children.Add(fs);var fa=Icon("\uE7BA",DashboardSafety.CanExecute("flattenAll")?"Flatten ALL displayed accounts (market-closes every position shown)":"Flatten all displayed accounts · review hold","flattenAll",()=>Send("flattenAll"));fa.IsEnabled=DashboardSafety.CanExecute("flattenAll");tools.Children.Add(fa);
-            ShowLive=new CheckBox{Template=PlainCheckTemplate(),Content="Live (RO)",Foreground=Muted,Margin=new Thickness(12,6,16,0),ToolTip="Display live accounts read-only · live copying blocked"};tools.Children.Add(ShowLive);var group=new CheckBox{Template=PlainCheckTemplate(),Content="Grp",Foreground=Muted,Margin=new Thickness(0,6,0,0),ToolTip="Group account rows"};tools.Children.Add(group);
+            var batch=Icon("\uE713",DashboardSafety.CanExecute("batch")?Lang.T("Batch risk / presets"):Lang.T("Batch risk / presets · review hold"),"batch",()=>Send("batch"));batch.IsEnabled=DashboardSafety.CanExecute("batch");tools.Children.Add(batch);tools.Children.Add(Icon("\uE74E",Lang.T("Save settings"),"save",()=>Send("save")));tools.Children.Add(Icon("\uE787",Lang.T("Trading-day boundary / timezone"),"daySettings",()=>Send("daySettings")));tools.Children.Add(Icon("\uE769",Lang.T("Pause highlighted accounts"),"pauseSelected",()=>SetSelectedPause(true)));tools.Children.Add(Icon("\uE768",Lang.T("Resume highlighted accounts · latch unchanged / no auto-arm"),"resumeSelected",()=>SetSelectedPause(false)));var fs=Icon("\uE74D",DashboardSafety.CanExecute("flattenSelected")?Lang.T("Flatten highlighted accounts (market-closes their positions)"):Lang.T("Flatten highlighted accounts · review hold"),"flattenSelected",()=>Send("flattenSelected"));fs.IsEnabled=DashboardSafety.CanExecute("flattenSelected");tools.Children.Add(fs);var fa=Icon("\uE7BA",DashboardSafety.CanExecute("flattenAll")?Lang.T("Flatten ALL displayed accounts (market-closes every position shown)"):Lang.T("Flatten all displayed accounts · review hold"),"flattenAll",()=>Send("flattenAll"));fa.IsEnabled=DashboardSafety.CanExecute("flattenAll");tools.Children.Add(fa);
+            ShowLive=new CheckBox{Template=PlainCheckTemplate(),Content=Lang.T("Live (RO)"),Foreground=Muted,Margin=new Thickness(12,6,16,0),ToolTip=Lang.T("Display live accounts read-only · live copying blocked")};tools.Children.Add(ShowLive);var group=new CheckBox{Template=PlainCheckTemplate(),Content=Lang.T("Grp"),Foreground=Muted,Margin=new Thickness(0,6,0,0),ToolTip=Lang.T("Group account rows")};tools.Children.Add(group);
 #if KINFX_SIM_TEST
-            DryRunBox=new CheckBox{Template=PlainCheckTemplate(),Content="Dry run",Foreground=Warn,Margin=new Thickness(16,6,0,0),ToolTip="DRY RUN: decide and log every order, cancel and flatten as \"DRY RUN would send ...\" but send NOTHING. Fixed for the whole session: change it only while stopped."};tools.Children.Add(DryRunBox);
+            DryRunBox=new CheckBox{Template=PlainCheckTemplate(),Content=Lang.T("Dry run"),Foreground=Warn,Margin=new Thickness(16,6,0,0),ToolTip=Lang.T("DRY RUN: decide and log every order, cancel and flatten as \"DRY RUN would send ...\" but send NOTHING. Fixed for the whole session: change it only while stopped.")};tools.Children.Add(DryRunBox);
 #endif
             AddRow(risk,tools,0);
-            RiskGrid=GridTable();Column(RiskGrid,"Acct","Name",155,true,"Broker account");Column(RiskGrid,"Alias","Alias",115,false,"Display alias");Column(RiskGrid,"Grp","Group",90,false,"Account group");Column(RiskGrid,"Tgt","TargetText",85,false,"Daily local profit target · 0 = off",null,true);Column(RiskGrid,"DLL","LossText",85,false,"Daily loss limit · positive value / 0 = off",null,true);Column(RiskGrid,"Max","MaxText",60,false,"Maximum exact-instrument contracts",null,true);RatioColumn(RiskGrid);Column(RiskGrid,"P/L","Pnl",95,true,"Observed session P/L","N2",true);Column(RiskGrid,"CCY","Currency",55,true,"Account currency");Column(RiskGrid,"Tgt Δ","TargetRemaining",80,true,"Amount remaining to daily target",null,true);Column(RiskGrid,"DLL Δ","LossRemaining",80,true,"Loss headroom",null,true);Column(RiskGrid,"Qty","Position",50,true,"Signed position",null,true);Column(RiskGrid,"Conn","Connection",100,true,"Connection status");Column(RiskGrid,"St","Status",160,true,"Copier / risk state");Column(RiskGrid,"Preset","Preset",200,true,"Editable firm template");Column(RiskGrid,"Cons","ConsistencyAdvice",160,true,"Consistency advisory · not a broker guarantee");
-            var action=new FrameworkElementFactory(typeof(Button));CompactCellButton(action,28);action.SetValue(Control.TemplateProperty,OffTemplate());action.SetValue(ContentControl.ContentProperty,"\uE713");action.SetValue(Control.FontFamilyProperty,new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"));action.SetValue(Control.BackgroundProperty,Panel);action.SetValue(Control.ForegroundProperty,Ink);action.SetValue(Control.BorderBrushProperty,Line);action.SetValue(Control.PaddingProperty,new Thickness(4,1,4,1));action.SetValue(FrameworkElement.ToolTipProperty,"Account risk / template / history");var gearStyle=new Style(typeof(Button));var gearLocked=new DataTrigger{Binding=new Binding("IsReadOnly"){RelativeSource=new RelativeSource(RelativeSourceMode.FindAncestor,typeof(DataGrid),1)},Value=true};gearLocked.Setters.Add(new Setter(UIElement.IsEnabledProperty,false));gearStyle.Triggers.Add(gearLocked);action.SetValue(FrameworkElement.StyleProperty,gearStyle);action.AddHandler(ButtonBase.ClickEvent,new RoutedEventHandler((s,e)=>{if(!editable){e.Handled=true;return;}var r=(s as FrameworkElement).DataContext as AccountRow;if(r!=null&&RowSettings!=null)RowSettings(r);}));RiskGrid.Columns.Add(new DataGridTemplateColumn{Header="⚙",Width=40,CellTemplate=new DataTemplate{VisualTree=action}});AddRow(risk,RiskGrid,1);
-            AddRow(risk,new TextBlock{Text="OFF cancels owned entries, retains exits · Re-follow explicit / only when clean · ATM OFF may be unprotected · Local guards only",Foreground=Muted,FontSize=11,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,10,0,0)},2);Sections.Items.Add(new TabItem{Header="Risk",Content=risk});
-            var logPanel=new Grid();logPanel.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});logPanel.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});logPanel.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});AddRow(logPanel,new TextBlock{Text=DashboardSafety.LogNote,Foreground=Warn,FontSize=12,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,10)},0);LogBox=Input("",double.NaN);LogBox.IsReadOnly=true;LogBox.FontFamily=new FontFamily("Consolas");LogBox.FontSize=12;LogBox.Foreground=Brush("#E4E1EC");LogBox.VerticalContentAlignment=VerticalAlignment.Top;LogBox.VerticalScrollBarVisibility=ScrollBarVisibility.Auto;LogBox.HorizontalScrollBarVisibility=ScrollBarVisibility.Auto;var logTools=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,0,0,6)};logTools.Children.Add(TextTool("Clear log","Clear this log view (does not affect settings, orders or saved latches)","logClear",()=>ClearLog()));AddRow(logPanel,logTools,1);AddRow(logPanel,LogBox,2);Sections.Items.Add(new TabItem{Header="Logs",Content=logPanel});Sections.SelectedIndex=0;
-            var footer=new DockPanel{Margin=new Thickness(0,10,0,0)};lockedLine=Text("",12,Bad);lockedLine.FontWeight=FontWeights.SemiBold;lockedLine.Margin=new Thickness(12,0,12,0);DockPanel.SetDock(lockedLine,Dock.Right);footer.Children.Add(lockedLine);adviceLine=Text("",12,Warn);adviceLine.Margin=new Thickness(12,0,12,0);DockPanel.SetDock(adviceLine,Dock.Right);footer.Children.Add(adviceLine);selection=Text("",12,Muted);DockPanel.SetDock(selection,Dock.Right);footer.Children.Add(selection);SessionText=Text("Disarmed",11,Muted);SessionText.Margin=new Thickness(12,0,12,0);DockPanel.SetDock(SessionText,Dock.Right);footer.Children.Add(SessionText);summary=Text("",12,Muted);footer.Children.Add(summary);AddRow(this,footer,3);
+            RiskGrid=GridTable();Column(RiskGrid,"Acct","Name",155,true,Lang.T("Broker account"));Column(RiskGrid,"Alias","Alias",115,false,Lang.T("Display alias"));Column(RiskGrid,"Grp","Group",90,false,Lang.T("Account group"));Column(RiskGrid,"Tgt","TargetText",85,false,Lang.T("Daily local profit target · 0 = off"),null,true);Column(RiskGrid,"DLL","LossText",85,false,Lang.T("Daily loss limit · positive value / 0 = off"),null,true);Column(RiskGrid,"Max","MaxText",60,false,Lang.T("Maximum exact-instrument contracts"),null,true);RatioColumn(RiskGrid);Column(RiskGrid,"P/L","Pnl",95,true,Lang.T("Observed session P/L"),"N2",true);Column(RiskGrid,"CCY","Currency",55,true,Lang.T("Account currency"));Column(RiskGrid,"Tgt Δ","TargetRemaining",80,true,Lang.T("Amount remaining to daily target"),null,true);Column(RiskGrid,"DLL Δ","LossRemaining",80,true,Lang.T("Loss headroom"),null,true);Column(RiskGrid,"Qty","Position",50,true,Lang.T("Signed position"),null,true);Column(RiskGrid,"Conn","Connection",100,true,Lang.T("Connection status"));Column(RiskGrid,"St",Lang.T("Status"),160,true,Lang.T("Copier / risk state"));Column(RiskGrid,"Preset",Lang.T("Preset"),200,true,Lang.T("Editable firm template"));Column(RiskGrid,"Cons","ConsistencyAdvice",160,true,Lang.T("Consistency advisory · not a broker guarantee"));
+            var action=new FrameworkElementFactory(typeof(Button));CompactCellButton(action,28);action.SetValue(Control.TemplateProperty,OffTemplate());action.SetValue(ContentControl.ContentProperty,"\uE713");action.SetValue(Control.FontFamilyProperty,new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"));action.SetValue(Control.BackgroundProperty,Panel);action.SetValue(Control.ForegroundProperty,Ink);action.SetValue(Control.BorderBrushProperty,Line);action.SetValue(Control.PaddingProperty,new Thickness(4,1,4,1));action.SetValue(FrameworkElement.ToolTipProperty,Lang.T("Account risk / template / history"));var gearStyle=new Style(typeof(Button));var gearLocked=new DataTrigger{Binding=new Binding("IsReadOnly"){RelativeSource=new RelativeSource(RelativeSourceMode.FindAncestor,typeof(DataGrid),1)},Value=true};gearLocked.Setters.Add(new Setter(UIElement.IsEnabledProperty,false));gearStyle.Triggers.Add(gearLocked);action.SetValue(FrameworkElement.StyleProperty,gearStyle);action.AddHandler(ButtonBase.ClickEvent,new RoutedEventHandler((s,e)=>{if(!editable){e.Handled=true;return;}var r=(s as FrameworkElement).DataContext as AccountRow;if(r!=null&&RowSettings!=null)RowSettings(r);}));RiskGrid.Columns.Add(new DataGridTemplateColumn{Header="⚙",Width=40,CellTemplate=new DataTemplate{VisualTree=action}});AddRow(risk,RiskGrid,1);
+            AddRow(risk,new TextBlock{Text=Lang.T("OFF cancels owned entries, retains exits · Re-follow explicit / only when clean · ATM OFF may be unprotected · Local guards only"),Foreground=Muted,FontSize=11,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,10,0,0)},2);Sections.Items.Add(new TabItem{Header=Lang.T("Risk"),Content=risk});
+            var logPanel=new Grid();logPanel.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});logPanel.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});logPanel.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});AddRow(logPanel,new TextBlock{Text=DashboardSafety.LogNoteShown,Foreground=Warn,FontSize=12,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,10)},0);LogBox=Input("",double.NaN);LogBox.IsReadOnly=true;LogBox.FontFamily=new FontFamily("Consolas");LogBox.FontSize=12;LogBox.Foreground=Brush("#E4E1EC");LogBox.VerticalContentAlignment=VerticalAlignment.Top;LogBox.VerticalScrollBarVisibility=ScrollBarVisibility.Auto;LogBox.HorizontalScrollBarVisibility=ScrollBarVisibility.Auto;var logTools=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,0,0,6)};logTools.Children.Add(TextTool(Lang.T("Clear log"),Lang.T("Clear this log view (does not affect settings, orders or saved latches)"),"logClear",()=>ClearLog()));AddRow(logPanel,logTools,1);AddRow(logPanel,LogBox,2);Sections.Items.Add(new TabItem{Header=Lang.T("Logs"),Content=logPanel});Sections.SelectedIndex=0;
+            var footer=new DockPanel{Margin=new Thickness(0,10,0,0)};lockedLine=Text("",12,Bad);lockedLine.FontWeight=FontWeights.SemiBold;lockedLine.Margin=new Thickness(12,0,12,0);DockPanel.SetDock(lockedLine,Dock.Right);footer.Children.Add(lockedLine);adviceLine=Text("",12,Warn);adviceLine.Margin=new Thickness(12,0,12,0);DockPanel.SetDock(adviceLine,Dock.Right);footer.Children.Add(adviceLine);selection=Text("",12,Muted);DockPanel.SetDock(selection,Dock.Right);footer.Children.Add(selection);SessionText=Text(Lang.T("Disarmed"),11,Muted);SessionText.Margin=new Thickness(12,0,12,0);DockPanel.SetDock(SessionText,Dock.Right);footer.Children.Add(SessionText);summary=Text("",12,Muted);footer.Children.Add(summary);AddRow(this,footer,3);
             Rows.CollectionChanged+=(s,e)=>{if(e.OldItems!=null)foreach(AccountRow r in e.OldItems)r.FollowRequested-=OnFollowRequested;if(e.NewItems!=null)foreach(AccountRow r in e.NewItems)r.FollowRequested+=OnFollowRequested;};view=CollectionViewSource.GetDefaultView(Rows);view.Filter=Matches;AccountGrid.ItemsSource=view;RiskGrid.ItemsSource=view;
             PreviewKeyDown+=(s,e)=>{if(e.Key==System.Windows.Input.Key.F&&System.Windows.Input.Keyboard.Modifiers==System.Windows.Input.ModifierKeys.Control){FocusSearch();e.Handled=true;}else if(e.Key==System.Windows.Input.Key.Escape&&search.IsKeyboardFocusWithin){SearchText="";e.Handled=true;}};search.TextChanged+=(s,e)=>{view.Refresh();UpdateCards();};filter.SelectionChanged+=(s,e)=>{view.Refresh();UpdateCards();};group.Checked+=(s,e)=>GroupByAccount=true;group.Unchecked+=(s,e)=>GroupByAccount=false;ShowLive.Checked+=(s,e)=>Send("refresh");ShowLive.Unchecked+=(s,e)=>Send("refresh");AccountGrid.SelectionChanged+=(s,e)=>UpdateCards();RiskGrid.SelectionChanged+=(s,e)=>UpdateCards();Sections.SelectionChanged+=(s,e)=>{if(summary!=null)UpdateCards();};
-            if(demo){for(int i=1;i<=30;i++)Rows.Add(new AccountRow{Name="Demo "+i.ToString("00"),Alias="Eval "+i,Group=i<=10?"Tradeify":i<=20?"Lucid":"Topstep",Role=i==1?"Leader":"Follower",Connection="Synthetic",Enabled=i>1,Currency="USD",Status=i%7==0?"Target hit":i%4==0?"Paused":"Demo only",Paused=i%4==0,Pnl=i%4==0?-120:i*24.5,Settings=new RiskSettings{Alias="Eval "+i,Group=i<=10?"Tradeify":i<=20?"Lucid":"Topstep",Target=1000,Loss=500,Ratio=1,MaxContracts=4,Preset="Demo / not broker data"}});LeaderBox.ItemsSource=new[]{"Demo 01"};LeaderBox.SelectedIndex=0;ShowLive.IsEnabled=false;}UpdateCards();
+            if(demo){for(int i=1;i<=30;i++)Rows.Add(new AccountRow{Name="Demo "+i.ToString("00"),Alias="Eval "+i,Group=i<=10?"Tradeify":i<=20?"Lucid":"Topstep",Role=i==1?"Leader":"Follower",Connection="Synthetic",Enabled=i>1,Currency="USD",Status=i%7==0?"Target hit":i%4==0?"Paused":"Demo only",Paused=i%4==0,Pnl=i%4==0?-120:i*24.5,Settings=new RiskSettings{Alias="Eval "+i,Group=i<=10?"Tradeify":i<=20?"Lucid":"Topstep",Target=1000,Loss=500,Ratio=1,MaxContracts=4,Preset=Lang.T("Demo / not broker data")}});LeaderBox.ItemsSource=new[]{"Demo 01"};LeaderBox.SelectedIndex=0;ShowLive.IsEnabled=false;}UpdateCards();
         }
         void OnFollowRequested(AccountRow row,bool enabled){if(!demo&&FollowRow!=null)FollowRow(row,enabled);UpdateCards();}
-        bool Matches(object value){var r=value as AccountRow;if(r==null)return false;string q=search.Text.Trim();if(q.Length>0&&!(r.Name+" "+r.Alias+" "+r.Group+" "+r.Preset).ToLowerInvariant().Contains(q.ToLowerInvariant()))return false;string f=filter.SelectedItem as string;return f=="On"?r.Enabled:f=="Paused"?r.Paused||r.Latch.Locked:f=="Target"?r.Status=="Target hit":true;}
+        bool Matches(object value){var r=value as AccountRow;if(r==null)return false;string q=search.Text.Trim();if(q.Length>0&&!(r.Name+" "+r.Alias+" "+r.Group+" "+r.Preset).ToLowerInvariant().Contains(q.ToLowerInvariant()))return false;int f=filter.SelectedIndex;return f==1?r.Enabled:f==2?r.Paused||r.Latch.Locked:f==3?r.Status=="Target hit":true;}
         void Send(string c){if(demo||!DashboardSafety.CanExecute(c))return;var cmd=Command;if(cmd!=null)cmd(c);}
         public bool GroupByAccount{get{return view.GroupDescriptions.Count>0;}set{view.GroupDescriptions.Clear();if(value)view.GroupDescriptions.Add(new PropertyGroupDescription("Group"));}}
         public bool FocusSearch(){if(!search.IsEnabled)return false;Sections.SelectedIndex=0;search.Focus();search.SelectAll();return true;}
@@ -1936,9 +2454,9 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         void BulkClick(string field,string text){var reason=BulkApply(field,text);var n=BulkNotice;if(n!=null)n(reason==null?"Bulk "+field+" applied to highlighted followers; Ratio and ticks unchanged.":"Bulk "+field+" refused: "+reason);}
         public void SetSelectedPause(bool paused){foreach(var r in SelectedRows().Where(r=>r.CanFollow)){if(!demo&&PauseRow!=null)PauseRow(r,paused);else{r.Paused=paused;r.Changed();}}UpdateCards();}
         public AccountRow[] SelectedRows(){return (Sections.SelectedIndex==1?RiskGrid:AccountGrid).SelectedItems.Cast<AccountRow>().ToArray();}
-        public void UpdateCards(){if(summary==null)return;FollowCountText.Text="→  "+Rows.Count(r=>r.Enabled&&r.Role!="Leader")+" followers  ";var ccy=Rows.Select(r=>r.Currency).Where(s=>!string.IsNullOrEmpty(s)).Distinct().ToArray();summary.Text=Rows.Count(r=>r.Enabled&&r.Role!="Leader")+" TICKED  /  "+Rows.Count+" ACCTS     ·     P/L  "+(ccy.Length<=1?Rows.Sum(r=>RiskPolicy.Finite(r.Pnl)?r.Pnl:0).ToString("N2")+" "+ccy.FirstOrDefault():"Mixed CCY")+"";selection.Text=SelectedRows().Length+" sel / "+VisibleCount+" rows";if(adviceLine!=null)adviceLine.Text=AdviceText;if(lockedLine!=null)lockedLine.Text=LockedText;}
+        public void UpdateCards(){if(summary==null)return;int ticked=Rows.Count(r=>r.Enabled&&r.Role!="Leader");FollowCountText.Text=Lang.F("→  {0} followers  ",ticked);var ccy=Rows.Select(r=>r.Currency).Where(s=>!string.IsNullOrEmpty(s)).Distinct().ToArray();summary.Text=Lang.F("{0} TICKED  /  {1} ACCTS     ·     P/L  {2}",ticked,Rows.Count,ccy.Length<=1?Rows.Sum(r=>RiskPolicy.Finite(r.Pnl)?r.Pnl:0).ToString("N2")+" "+ccy.FirstOrDefault():Lang.T("Mixed CCY"));selection.Text=Lang.F("{0} sel / {1} rows",SelectedRows().Length,VisibleCount);if(adviceLine!=null)adviceLine.Text=AdviceText;if(lockedLine!=null)lockedLine.Text=LockedText;}
         internal bool TrySetSessionState(bool attached,string status,int callbackSession,int currentSession,bool currentAttached){if(callbackSession!=currentSession||attached!=currentAttached)return false;SetSessionState(attached,status);return true;}
-        internal void SetSessionState(bool attached,string status){if(!attached)foreach(var row in Rows)row.InvalidateSessionActivity();SessionText.Text=DashboardSafety.CanExecute("start")?status:(attached?"REVIEW HOLD · unexpected attachment":"Disarmed");SessionText.ToolTip=status;Editable(!attached);UpdateCards();}
+        internal void SetSessionState(bool attached,string status){if(!attached)foreach(var row in Rows)row.InvalidateSessionActivity();SessionText.Text=DashboardSafety.CanExecute("start")?Lang.Show(status):(attached?Lang.T("REVIEW HOLD · unexpected attachment"):Lang.T("Disarmed"));SessionText.ToolTip=Lang.Show(status);Editable(!attached);UpdateCards();}
         internal void Editable(bool canEdit){editable=canEdit;LeaderBox.IsEnabled=canEdit;InstrumentBox.IsEnabled=canEdit;ShowLive.IsEnabled=canEdit&&!demo;AccountGrid.IsReadOnly=!canEdit;RiskGrid.IsReadOnly=!canEdit;foreach(var b in editButtons)b.IsEnabled=canEdit;
 #if KINFX_SIM_TEST
             if(DryRunBox!=null)DryRunBox.IsEnabled=canEdit;
@@ -1964,7 +2482,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             Caption="KINFX Trade Copier";Width=1160;Height=840;MinWidth=960;MinHeight=560;
             var tabs=new TabControl();TabControlManager.SetIsMovable(tabs,false);TabControlManager.SetCanAddTabs(tabs,false);TabControlManager.SetCanRemoveTabs(tabs,false);TabControlManager.SetFactory(tabs,new KINFXTradeCopierWindowFactory());Content=tabs;tabs.AddNTTabPage(new KINFXTradeCopierTab());
             Loaded+=(s,e)=>{if(WorkspaceOptions==null)WorkspaceOptions=new WorkspaceOptions("KINFX-"+Guid.NewGuid().ToString("N"),this);};
-            Closing+=(s,e)=>{foreach(var tab in tabs.Items.OfType<KINFXTradeCopierTab>())if(!tab.CanClose()){e.Cancel=true;MessageBox.Show(this,"Close blocked: copier still manages positions / working orders. Guarded pause keeps exits managed. Flatten or resolve the selected instrument, then Stop when flat.","KINFX safety",MessageBoxButton.OK,MessageBoxImage.Warning);break;}};
+            Closing+=(s,e)=>{foreach(var tab in tabs.Items.OfType<KINFXTradeCopierTab>())if(!tab.CanClose()){e.Cancel=true;MessageBox.Show(this,Lang.T("Close blocked: copier still manages positions / working orders. Guarded pause keeps exits managed. Flatten or resolve the selected instrument, then Stop when flat."),"KINFX safety",MessageBoxButton.OK,MessageBoxImage.Warning);break;}};
         }
         public WorkspaceOptions WorkspaceOptions {get;set;}
         public void Restore(XDocument document,XElement element) {if(MainTabControl!=null)MainTabControl.RestoreFromXElement(element);}
@@ -1990,26 +2508,26 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             Title="Risk settings — "+accountCount+" account(s)";Width=670;Height=840;WindowStartupLocation=WindowStartupLocation.CenterOwner;Background=DashboardView.Canvas;Foreground=DashboardView.Ink;
             var dock=new DockPanel {Margin=new Thickness(20)};Content=dock;
             var buttons=new StackPanel {Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,12,0,0)};DockPanel.SetDock(buttons,Dock.Bottom);dock.Children.Add(buttons);
-            var apply=new Button {Content="Apply to "+accountCount+" account(s)",Padding=new Thickness(15,8,15,8),Margin=new Thickness(0,0,8,0)};buttons.Children.Add(apply);apply.Click+=(s,e)=>Apply();var cancel=new Button {Content="Cancel",Padding=new Thickness(15,8,15,8)};buttons.Children.Add(cancel);cancel.Click+=(s,e)=>Close();
+            var apply=new Button {Content="Apply to "+accountCount+" account(s)",Padding=new Thickness(15,8,15,8),Margin=new Thickness(0,0,8,0)};buttons.Children.Add(apply);apply.Click+=(s,e)=>Apply();var cancel=new Button {Content=Lang.T("Cancel"),Padding=new Thickness(15,8,15,8)};buttons.Children.Add(cancel);cancel.Click+=(s,e)=>Close();
             var panel=new StackPanel();dock.Children.Add(new ScrollViewer {Content=panel,VerticalScrollBarVisibility=ScrollBarVisibility.Auto});
-            panel.Children.Add(new TextBlock {Text="Local risk controls",FontSize=25,Margin=new Thickness(0,0,0,5)});
-            panel.Children.Add(new TextBlock {Text="All values editable. Zero monetary limits = OFF. Values in account denomination. No compliance guarantee, no historical high inferred. Batch overwrites the shown settings on every selected account.",Foreground=DashboardView.Muted,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,16)});
+            panel.Children.Add(new TextBlock {Text=Lang.T("Local risk controls"),FontSize=25,Margin=new Thickness(0,0,0,5)});
+            panel.Children.Add(new TextBlock {Text=Lang.T("All values editable. Zero monetary limits = OFF. Values in account denomination. No compliance guarantee, no historical high inferred. Batch overwrites the shown settings on every selected account."),Foreground=DashboardView.Muted,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,16)});
             var presets=new WrapPanel();firm=PresetCombo(160);plan=PresetCombo(230);size=PresetCombo(95);presets.Children.Add(firm);presets.Children.Add(plan);presets.Children.Add(size);panel.Children.Add(presets);
             firm.ItemsSource=new[]{"Custom"}.Concat(PresetCatalog.All.Select(p=>p.Firm).Distinct().OrderBy(s=>s));firm.SelectedIndex=0;
             firm.SelectionChanged+=(s,e)=>{plan.ItemsSource=PresetCatalog.All.Where(p=>p.Firm==(string)firm.SelectedItem).Select(p=>p.Plan).Distinct().ToArray();plan.SelectedIndex=0;};
             plan.SelectionChanged+=(s,e)=>{size.ItemsSource=PresetCatalog.All.Where(p=>p.Firm==(string)firm.SelectedItem&&p.Plan==(string)plan.SelectedItem).Select(p=>p.Size).ToArray();size.SelectedIndex=0;};
-            notes=new TextBlock {Text="Custom: confirm your absolute floor and maximum instrument quantity manually.",Foreground=DashboardView.Muted,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,10,0,10)};panel.Children.Add(notes);
+            notes=new TextBlock {Text=Lang.T("Custom: confirm your absolute floor and maximum instrument quantity manually."),Foreground=DashboardView.Muted,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,10,0,10)};panel.Children.Add(notes);
             size.SelectionChanged+=(s,e)=>{var p=SelectedPreset();notes.Text=p==null?"Custom settings":p.Notes;};
-            optional=new CheckBox {Template=DashboardView.PlainCheckTemplate(),Content="Explicitly apply optional / soft DLL if source has an amount",Foreground=DashboardView.Muted,Margin=new Thickness(0,6,0,8)};panel.Children.Add(optional);
-            var load=new Button {Content="Load selected template into editable fields",Padding=new Thickness(10,6,10,6),HorizontalAlignment=HorizontalAlignment.Left};panel.Children.Add(load);load.Click+=(s,e)=>{var p=SelectedPreset();if(p==null)return;LoadSelectedPreset();if(!new[]{"MES","MNQ","M2K","MYM","ES","NQ","RTY","YM"}.Contains(root)||p.RawContracts=="—")MessageBox.Show(this,"Source mini cap cannot be safely mapped. Set MaxContracts manually for your exact instrument / current scaling.","Manual quantity required");};
+            optional=new CheckBox {Template=DashboardView.PlainCheckTemplate(),Content=Lang.T("Explicitly apply optional / soft DLL if source has an amount"),Foreground=DashboardView.Muted,Margin=new Thickness(0,6,0,8)};panel.Children.Add(optional);
+            var load=new Button {Content=Lang.T("Load selected template into editable fields"),Padding=new Thickness(10,6,10,6),HorizontalAlignment=HorizontalAlignment.Left};panel.Children.Add(load);load.Click+=(s,e)=>{var p=SelectedPreset();if(p==null)return;LoadSelectedPreset();if(!new[]{"MES","MNQ","M2K","MYM","ES","NQ","RTY","YM"}.Contains(root)||p.RawContracts=="—")MessageBox.Show(this,Lang.T("Source mini cap cannot be safely mapped. Set MaxContracts manually for your exact instrument / current scaling."),Lang.T("Manual quantity required"));};
             foreach(string field in new[]{"Alias","Group","Ratio","Target","Loss","MaxContracts","Floor","Baseline","TrailDistance","HighWater","BestDay","TotalProfit","Consistency"})
             {
                 var row=new Grid {Margin=new Thickness(0,7,0,0)};row.ColumnDefinitions.Add(new ColumnDefinition {Width=new GridLength(260)});row.ColumnDefinitions.Add(new ColumnDefinition());
                 string label=field=="Target"?"Daily target (local observed P&L)":field=="Loss"?"Daily loss (positive amount)":field=="Floor"?"Confirmed absolute equity floor":field=="Baseline"?"P&L telemetry baseline (editable)":field=="HighWater"?"User / observed local high water":field=="MaxContracts"?"Max exact-instrument contracts":field;
-                row.Children.Add(new TextBlock {Text=label,VerticalAlignment=VerticalAlignment.Center,Foreground=DashboardView.Muted});var b=new TextBox {Padding=new Thickness(7,4,7,4),Background=DashboardView.Panel,Foreground=DashboardView.Ink,BorderBrush=DashboardView.Line};Grid.SetColumn(b,1);row.Children.Add(b);boxes[field]=b;b.TextChanged+=(sender,args)=>{draft.Set(field,b.Text);b.BorderBrush=draft.IsInvalid(field)?DashboardView.Bad:DashboardView.Line;b.ToolTip=draft.IsInvalid(field)?"Invalid value — retained until corrected; Apply is blocked.":null;};panel.Children.Add(row);
+                row.Children.Add(new TextBlock {Text=label,VerticalAlignment=VerticalAlignment.Center,Foreground=DashboardView.Muted});var b=new TextBox {Padding=new Thickness(7,4,7,4),Background=DashboardView.Panel,Foreground=DashboardView.Ink,BorderBrush=DashboardView.Line};Grid.SetColumn(b,1);row.Children.Add(b);boxes[field]=b;b.TextChanged+=(sender,args)=>{draft.Set(field,b.Text);b.BorderBrush=draft.IsInvalid(field)?DashboardView.Bad:DashboardView.Line;b.ToolTip=draft.IsInvalid(field)?Lang.T("Invalid value — retained until corrected; Apply is blocked."):null;};panel.Children.Add(row);
             }
-            trail=new CheckBox {Template=DashboardView.PlainCheckTemplate(),Content="Enable LOCAL intraday high-water guard (not firm EOD calculation)",Foreground=DashboardView.Muted,Margin=new Thickness(0,12,0,6),IsChecked=draft.Settings.LocalTrail};panel.Children.Add(trail);
-            panel.Children.Add(new TextBlock {Text="BestDay / TotalProfit are supplied history, used for consistency advisory only. To unlock a persisted latch use the separate confirmed reset while disarmed. Baseline is never automatically reset on restart.",Foreground=DashboardView.Muted,TextWrapping=TextWrapping.Wrap});LoadFields();
+            trail=new CheckBox {Template=DashboardView.PlainCheckTemplate(),Content=Lang.T("Enable LOCAL intraday high-water guard (not firm EOD calculation)"),Foreground=DashboardView.Muted,Margin=new Thickness(0,12,0,6),IsChecked=draft.Settings.LocalTrail};panel.Children.Add(trail);
+            panel.Children.Add(new TextBlock {Text=Lang.T("BestDay / TotalProfit are supplied history, used for consistency advisory only. To unlock a persisted latch use the separate confirmed reset while disarmed. Baseline is never automatically reset on restart."),Foreground=DashboardView.Muted,TextWrapping=TextWrapping.Wrap});LoadFields();
         }
         static ComboBox PresetCombo(double width) {return DashboardView.Combo(width);}
         Preset SelectedPreset() {return PresetCatalog.All.FirstOrDefault(p=>p.Firm==(string)firm.SelectedItem&&p.Plan==(string)plan.SelectedItem&&p.Size==(string)size.SelectedItem);}
@@ -2021,15 +2539,19 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 RiskSettings next=draft.Build(trail.IsChecked==true);
                 Result=next;DialogResult=true;
             }
-            catch(Exception ex){MessageBox.Show(this,ex.Message,"Invalid settings",MessageBoxButton.OK,MessageBoxImage.Warning);}
+            catch(Exception ex){MessageBox.Show(this,ex.Message,Lang.T("Invalid settings"),MessageBoxButton.OK,MessageBoxImage.Warning);}
         }
     }
     public class KINFXTradeCopierTab : NTTabPage
     {
-        readonly DashboardView dashboard;
+        DashboardView dashboard; // replaced when the language changes (see ChangeLanguage)
         readonly CopierEngine engine;
         readonly DispatcherTimer timer;
         readonly Queue<string> logs=new Queue<string>();
+        // Stored as "HH:mm:ss" + English message; translated when drawn, so history follows the picked language.
+        const int LogStamp=8;
+        string LogText(){return string.Join(Environment.NewLine,logs.Select(l=>l.Length>LogStamp+2?l.Substring(0,LogStamp+2)+Lang.Show(l.Substring(LogStamp+2)):l));}
+        internal void RedrawLog(){dashboard.LogBox.Text=LogText();dashboard.LogBox.ScrollToEnd();}
         readonly Dictionary<string,SavedAccount> saved=new Dictionary<string,SavedAccount>();
         string instanceId=Guid.NewGuid().ToString("N"),zone="Central Standard Time",lastDay="";
         int resetHour=17,persistTicks;
@@ -2037,18 +2559,44 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         string leaderName="";
         public KINFXTradeCopierTab()
         {
-            TabName="Dashboard";dashboard=new DashboardView();Content=dashboard;
+            TabName="Dashboard";Lang.Set(LoadLanguage(LanguagePath));dashboard=new DashboardView();Content=dashboard;
             engine=new CopierEngine(Log,OnTelemetry,(attached,status)=>{int session=engine.SessionGeneration;Dispatch(()=>dashboard.TrySetSessionState(attached,status,session,engine.SessionGeneration,engine.Attached));},PersistLatch);
-            dashboard.Command=Command;dashboard.BulkNotice=Log;dashboard.PauseRow=Pause;dashboard.RowSettings=r=>Edit(new[]{r});dashboard.FollowRow=Follow;dashboard.FlatRow=FlatOne;
+            WireDashboard();
+            LoadDefault();Refresh();syncNames=CurrentAccountNames();
+            timer=new DispatcherTimer(TimeSpan.FromSeconds(1),DispatcherPriority.Background,(s,e)=>Tick(),Dispatcher);timer.Start();
+        }
+        // Everything that attaches this tab to a DashboardView. Repeated for a rebuilt view after a language change.
+        void WireDashboard()
+        {
+            dashboard.LanguageChanging=ChangeLanguage;dashboard.Command=Command;dashboard.BulkNotice=Log;dashboard.PauseRow=Pause;dashboard.RowSettings=r=>Edit(new[]{r});dashboard.FollowRow=Follow;dashboard.FlatRow=FlatOne;
             dashboard.LeaderBox.SelectionChanged+=(s,e)=>{if(engine.Attached)return;leaderName=dashboard.LeaderBox.SelectedItem as string ?? "";foreach(var row in dashboard.Rows){row.Role=row.Name==leaderName?"Leader":"Follower";if(row.Role=="Leader")row.Enabled=false;row.Changed();}};
             dashboard.AccountGrid.RowEditEnding+=(s,e)=>Dispatch(()=>{foreach(var row in dashboard.Rows){row.Changed();}dashboard.UpdateCards();});
             dashboard.InstrumentBox.LostKeyboardFocus+=(s,e)=>NormalizeInstrumentBox();
             dashboard.InstrumentBox.KeyDown+=(s,e)=>{if(e.Key==System.Windows.Input.Key.Enter){NormalizeInstrumentBox();e.Handled=true;}};
-            LoadDefault();Refresh();syncNames=CurrentAccountNames();
-            timer=new DispatcherTimer(TimeSpan.FromSeconds(1),DispatcherPriority.Background,(s,e)=>Tick(),Dispatcher);timer.Start();
+        }
+        // Switching language rebuilds the view (all labels are created once). Rows, ticks, drafts and the log are carried over;
+        // nothing reaches the engine, and it is refused while a session is attached so a running copy is never disturbed.
+        bool ChangeLanguage(string code)
+        {
+            if(!Lang.IsValid(code))return false;
+            if(engine.Attached){Log("Language can only be changed while stopped (not attached to a session).");return false;}
+            if(!dashboard.TryCommitSettings()){Log("Settings NOT saved: correct invalid per-account Ratio / row values first.");return false;}
+            Persist();SaveLanguage(code);Lang.Set(code);
+            string instrument=dashboard.InstrumentBox.Text;int tab=dashboard.Sections.SelectedIndex;
+            dashboard=new DashboardView();Content=dashboard;WireDashboard();
+            dashboard.InstrumentBox.Text=instrument;
+            loading=false;Refresh();syncNames=CurrentAccountNames();
+            dashboard.Sections.SelectedIndex=Math.Max(0,Math.Min(tab,dashboard.Sections.Items.Count-1));
+            RedrawLog();dashboard.UpdateCards();
+            Log(Lang.F("Language changed to {0}.",Lang.Names[Array.IndexOf(Lang.Codes,code)]));
+            return true;
         }
         void Dispatch(Action action) {if(!cleaned)Dispatcher.BeginInvoke(action);}
         string DirectoryPath {get {return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),"NinjaTrader 8","templates","KINFXTradeCopier");}}
+        string LanguagePath {get{return Path.Combine(DirectoryPath,"language.txt");}}
+        // Saved choice wins; otherwise follow the Windows UI language (zh-* / ja / ko, anything else English). A missing or bad file never blocks anything.
+        static string LoadLanguage(string path){try{if(File.Exists(path)){string c=File.ReadAllText(path).Trim().ToLowerInvariant();if(Lang.IsValid(c))return c;}}catch{}return Lang.FromCulture(System.Globalization.CultureInfo.CurrentUICulture.Name);}
+        void SaveLanguage(string code){try{Directory.CreateDirectory(DirectoryPath);File.WriteAllText(LanguagePath,code);}catch(Exception ex){Log("Settings NOT saved: "+ex.Message);}}
         string SettingsPath {get {return Path.Combine(DirectoryPath,instanceId+".xml");}}
         string LatchPath {get{return Path.Combine(DirectoryPath,"risk-latches.xml");}}
         void PersistLatch(string account,string reason)
@@ -2075,7 +2623,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             dashboard.InstrumentBox.Text=(string)x.Attribute("instrument")??"MES 12-26";
             
             string z=(string)x.Attribute("zone")??"Central Standard Time";TimeZoneInfo.FindSystemTimeZoneById(z);zone=z;
-            resetHour=(int?)x.Attribute("resetHour")??17;if(resetHour<0||resetHour>23)throw new InvalidDataException("Reset hour outside 0–23");
+            resetHour=(int?)x.Attribute("resetHour")??17;if(resetHour<0||resetHour>23)throw new InvalidDataException(Lang.T("Reset hour outside 0–23"));
             lastDay=(string)x.Attribute("lastDay")??"";leaderName=(string)x.Attribute("leader")??"";
             // Enabled, pause/arm and live permissions are intentionally NOT persisted.
         }
@@ -2108,14 +2656,15 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         void Persist()
         {
             if(!dashboard.TryCommitSettings()){Log("Settings NOT saved: correct invalid per-account Ratio / row values first.");return;}
-            try {if(settingsCorrupt)throw new InvalidDataException("Previously unreadable settings; preserve original files, restore a verified backup before restarting.");SettingsStore.AtomicSave(SettingsPath,Export());SettingsStore.AtomicSave(Path.Combine(DirectoryPath,"last-workspace.xml"),new XElement("Last",new XAttribute("id",instanceId)));}
+            try {if(settingsCorrupt)throw new InvalidDataException(Lang.T("Previously unreadable settings; preserve original files, restore a verified backup before restarting."));SettingsStore.AtomicSave(SettingsPath,Export());SettingsStore.AtomicSave(Path.Combine(DirectoryPath,"last-workspace.xml"),new XElement("Last",new XAttribute("id",instanceId)));}
             catch(Exception ex){settingsCorrupt=true;engine.GuardedPause();Log("PERSISTENCE ERROR — entries paused, restart blocked until reviewed: "+ex.Message);}
         }
         void Log(string message)
         {
-            Dispatch(()=>{logs.Enqueue(DateTime.Now.ToString("HH:mm:ss")+"  "+message);while(logs.Count>300)logs.Dequeue();dashboard.LogBox.Text=string.Join(Environment.NewLine,logs);dashboard.LogBox.ScrollToEnd();});
+            Dispatch(()=>{logs.Enqueue(DateTime.Now.ToString("HH:mm:ss")+"  "+message);while(logs.Count>300)logs.Dequeue();RedrawLog();});
         }
         AccountRow[] Selected() {return dashboard.SelectedRows();}
+        // Title stays English: automation finds this dialog by it and must not depend on the picked language. Body text is translated.
         bool Confirm(string text) {return MessageBox.Show(Window.GetWindow(this),text,"KINFX confirmation",MessageBoxButton.YesNo,MessageBoxImage.Warning)==MessageBoxResult.Yes;}
         void Command(string c)
         {
@@ -2135,12 +2684,12 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         }
         void EditTradingDay()
         {
-            var window=new Window {Title="Trading-day settings (local observation)",Width=500,Height=280,Owner=Window.GetWindow(this),WindowStartupLocation=WindowStartupLocation.CenterOwner,Background=DashboardView.Canvas,Foreground=DashboardView.Ink};
+            var window=new Window {Title=Lang.T("Trading-day settings (local observation)"),Width=500,Height=280,Owner=Window.GetWindow(this),WindowStartupLocation=WindowStartupLocation.CenterOwner,Background=DashboardView.Canvas,Foreground=DashboardView.Ink};
             var panel=new StackPanel {Margin=new Thickness(20)};window.Content=panel;
-            panel.Children.Add(new TextBlock {Text="Windows timezone ID (DST aware)",Margin=new Thickness(0,0,0,8)});var z=new TextBox {Text=zone,Padding=new Thickness(8)};panel.Children.Add(z);
-            panel.Children.Add(new TextBlock {Text="Reset boundary hour 0–23 (no automatic latch / baseline reset)",TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,10,0,8)});var h=new TextBox {Text=resetHour.ToString(),Padding=new Thickness(8)};panel.Children.Add(h);
-            var apply=new Button {Content="Confirm local day boundary",Padding=new Thickness(8),Margin=new Thickness(0,14,0,0)};panel.Children.Add(apply);
-            apply.Click+=(s,e)=>{try{TimeZoneInfo.FindSystemTimeZoneById(z.Text.Trim());int hour;if(!int.TryParse(h.Text,out hour)||hour<0||hour>23)throw new ArgumentException("Hour must be 0–23");zone=z.Text.Trim();resetHour=hour;lastDay=RiskPolicy.TradingDay(DateTime.UtcNow,zone,resetHour);Persist();window.Close();}catch(Exception ex){MessageBox.Show(window,ex.Message,"Invalid trading-day setting");}};window.ShowDialog();
+            panel.Children.Add(new TextBlock {Text=Lang.T("Windows timezone ID (DST aware)"),Margin=new Thickness(0,0,0,8)});var z=new TextBox {Text=zone,Padding=new Thickness(8)};panel.Children.Add(z);
+            panel.Children.Add(new TextBlock {Text=Lang.T("Reset boundary hour 0–23 (no automatic latch / baseline reset)"),TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,10,0,8)});var h=new TextBox {Text=resetHour.ToString(),Padding=new Thickness(8)};panel.Children.Add(h);
+            var apply=new Button {Content=Lang.T("Confirm local day boundary"),Padding=new Thickness(8),Margin=new Thickness(0,14,0,0)};panel.Children.Add(apply);
+            apply.Click+=(s,e)=>{try{TimeZoneInfo.FindSystemTimeZoneById(z.Text.Trim());int hour;if(!int.TryParse(h.Text,out hour)||hour<0||hour>23)throw new ArgumentException(Lang.T("Hour must be 0–23"));zone=z.Text.Trim();resetHour=hour;lastDay=RiskPolicy.TradingDay(DateTime.UtcNow,zone,resetHour);Persist();window.Close();}catch(Exception ex){MessageBox.Show(window,ex.Message,Lang.T("Invalid trading-day setting"));}};window.ShowDialog();
         }
         void Start()
         {
@@ -2152,7 +2701,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             MergeLatches();foreach(var row in dashboard.Rows){SavedAccount stored;if(saved.TryGetValue(row.Name,out stored)&&stored.Latch.Locked)row.Latch=stored.Latch;}
             var selected=dashboard.Rows.Where(r=>r.Enabled&&r!=leader&&!r.Paused).ToArray();if(selected.Length==0){Log("Enable at least one unpaused follower.");return;}
             if(selected.Any(r=>!r.Settings.Valid()||r.Latch.Locked)){Log("Invalid finite settings or risk-latched follower. Review Settings / confirmed reset.");return;}
-            if(!Confirm("Start simulation copying to exactly "+selected.Length+" follower account(s) on "+inst.FullName+"?\n\n"+DashboardChoices.StartSummary(leader.Name,inst.FullName,2,selected.Select(r=>new StartSummaryRow{Name=string.IsNullOrEmpty(r.Settings.Alias)?r.Name:r.Settings.Alias+" ("+r.Name+")",Ratio=r.Settings.Ratio}).ToArray(),IsDryRun())+"\n\nLocal copier guards only. No adoption; all selected accounts must be flat / no working instrument orders."))return;
+            if(!Confirm(Lang.F("Start simulation copying to exactly {0} follower account(s) on {1}?\n\n{2}\n\nLocal copier guards only. No adoption; all selected accounts must be flat / no working instrument orders.",selected.Length,inst.FullName,DashboardChoices.StartSummary(leader.Name,inst.FullName,2,selected.Select(r=>new StartSummaryRow{Name=string.IsNullOrEmpty(r.Settings.Alias)?r.Name:r.Settings.Alias+" ("+r.Name+")",Ratio=r.Settings.Ratio}).ToArray(),IsDryRun()))))return;
             // Explicit observed baseline initialization, persisted BEFORE subscriptions can arm.
             foreach(var r in selected)if(!r.Settings.BaselineSet){double raw=r.Account.Get(AccountItem.RealizedProfitLoss,r.Account.Denomination)+r.Account.Get(AccountItem.UnrealizedProfitLoss,r.Account.Denomination);if(!RiskPolicy.Finite(raw)){Log("Invalid baseline telemetry: "+r.Name);return;}r.Settings.Baseline=raw;r.Settings.BaselineSet=true;}
             Persist();if(settingsCorrupt)return;
@@ -2178,16 +2727,16 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             var dialog=new RiskSettingsDialog(rows[0].Settings,dashboard.InstrumentBox.Text.Split(' ')[0],rows.Length){Owner=Window.GetWindow(this)};
             // Latch is not silently cleared by risk edits; explicit confirmation follows for a locked row.
             if(dialog.ShowDialog()==true){foreach(var row in rows){double individualRatio=row.Ratio;row.Settings=dialog.Result.Clone();if(rows.Length>1)row.Settings.Ratio=individualRatio;row.Changed();}Persist();Log("Applied editable risk snapshot to "+rows.Length+" account(s); per-account ratios / latch unchanged for bulk edits.");}
-            if(rows.Length==1&&rows[0].Latch.Locked&&Confirm("Account "+rows[0].Name+" remains LOCKED: "+rows[0].Latch.Reason+".\nRequest unlock? This does NOT arm copying; current risk conditions will be rechecked, baseline unchanged."))Unlock(rows[0]);
+            if(rows.Length==1&&rows[0].Latch.Locked&&Confirm(Lang.F("Account {0} remains LOCKED: {1}.\nRequest unlock? This does NOT arm copying; current risk conditions will be rechecked, baseline unchanged.",rows[0].Name,Lang.Show(rows[0].Latch.Reason))))Unlock(rows[0]);
         }
         void Unlock(AccountRow row)
         {
             try
             {
                 var a=row.Account;var inst=Instrument.GetInstrument(InstrumentText(),false);
-                if(inst==null||!CopierEngine.Clean(a,inst))throw new InvalidOperationException("Unlock requires selected instrument flat / no working orders.");
+                if(inst==null||!CopierEngine.Clean(a,inst))throw new InvalidOperationException(Lang.T("Unlock requires selected instrument flat / no working orders."));
                 double raw=a.Get(AccountItem.RealizedProfitLoss,a.Denomination)+a.Get(AccountItem.UnrealizedProfitLoss,a.Denomination),equity=a.Get(AccountItem.NetLiquidation,a.Denomination);
-                if(!RiskPolicy.CanUnlock(row.Settings,raw-row.Settings.Baseline,equity,a.Connection!=null&&a.Connection.Status==ConnectionStatus.Connected))throw new InvalidOperationException("Current telemetry / floor / local high-water still blocks unlock.");
+                if(!RiskPolicy.CanUnlock(row.Settings,raw-row.Settings.Baseline,equity,a.Connection!=null&&a.Connection.Status==ConnectionStatus.Connected))throw new InvalidOperationException(Lang.T("Current telemetry / floor / local high-water still blocks unlock."));
                 SettingsStore.RemoveLatch(LatchPath,row.Name);row.Latch=new RiskLatch();row.Status="Disarmed";row.Changed();Persist();Log("Confirmed unlock: "+row.Name+"; still disarmed.");
             }
             catch(Exception ex){Log("Unlock refused: "+ex.Message);}
@@ -2204,7 +2753,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             if(rows.Length==0){Log("No accounts in flatten scope.");return;}var inst=Instrument.GetInstrument(InstrumentText(),false);if(inst==null){Log("Flatten: exact instrument unknown.");return;}
             var targets=rows.Where(r=>r.Account!=null).Select(r=>r.Account).Distinct().ToArray();
             if(targets.Any(a=>!CopierEngine.Sim(a))){Log("Flatten refused: live account in scope; v0.2 simulation only.");return;}
-            if(!Confirm(DryRunPrefix()+(rows.Length==1?"FLAT ONE ACCOUNT. ":"")+"FLATTEN exactly "+targets.Length+" account(s), only "+inst.FullName+".\n"+string.Join("\n",targets.Select(a=>a.Name))+"\nNew copies will be blocked BEFORE flatten requests. This cancels working orders and closes positions on that instrument. Retry/error remains visible."))return;
+            if(!Confirm(Lang.F("{0}{1}FLATTEN exactly {2} account(s), only {3}.\n{4}\nNew copies will be blocked BEFORE flatten requests. This cancels working orders and closes positions on that instrument. Retry/error remains visible.",DryRunPrefix(),rows.Length==1?Lang.T("FLAT ONE ACCOUNT. "):"",targets.Length,inst.FullName,string.Join("\n",targets.Select(a=>a.Name)))))return;
             engine.Flatten(targets,inst);
         }
         void OnTelemetry(AccountTelemetry t)
@@ -2238,7 +2787,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         string DryRunPrefix()
         {
 #if KINFX_SIM_TEST
-            if(engine.DryRun||(dashboard.DryRunBox!=null&&dashboard.DryRunBox.IsChecked==true))return "*** DRY RUN: nothing will be sent; decisions are only logged. ***\n\n";
+            if(engine.DryRun||(dashboard.DryRunBox!=null&&dashboard.DryRunBox.IsChecked==true))return Lang.T("*** DRY RUN: nothing will be sent; decisions are only logged. ***")+"\n\n";
 #endif
             return "";
         }
