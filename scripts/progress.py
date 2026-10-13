@@ -12,6 +12,7 @@ it would mean the Demo checklist is complete, and the release hold is lifted sep
 """
 import json
 import pathlib
+import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -90,6 +91,13 @@ def render(data, lang):
     return '\n'.join(out)
 
 
+QUICK_PERCENT = re.compile(r'About \*\*(\d+)%\*\* done|完成度約 \*\*(\d+)%\*\*')
+
+
+def quick_percentages(text):
+    return [int(a or b) for a, b in QUICK_PERCENT.findall(text)]
+
+
 def splice(text, block):
     if START not in text or END not in text:
         raise SystemExit('missing %s / %s markers' % (START, END))
@@ -112,6 +120,10 @@ def main(argv):
         crlf = b'\r\n' in raw
         text = raw.decode('utf-8-sig').replace('\r\n', '\n')
         new = splice(text, render(data, lang))
+        want = [int(round(score(data, 'demo')['percent'])), int(round(score(data, 'prop')['percent']))]
+        if quick_percentages(text) != want:
+            print('QUICKSTART percentages %s != computed %s in %s' % (quick_percentages(text), want, name))
+            stale.append(name + ' (quickstart %)')
         if new != text:
             stale.append(name)
             if '--check' not in argv:

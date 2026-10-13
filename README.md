@@ -6,6 +6,40 @@ A separate **SIM TEST build** (opt-in, built from the same source with `KINFX_SI
 
 **English** · [廣東話／繁體中文](README.zh-HK.md)
 
+<!-- QUICKSTART:START -->
+## Can I use it? / 可以用嗎？
+
+| | |
+|---|---|
+| **Demo / Simulator accounts** | **Yes, as an early test build.** Copying works in the SIM TEST build. Tested on real NinjaTrader 8.1.8.3 with 1 leader + 2 followers, 1 instrument, Market and Limit orders. About **62%** done, see the checklist below. |
+| **Prop-firm accounts** | **Only your prop-firm *simulated / evaluation* accounts that you have checked yourself, and only for testing.** Tested on 2 such accounts. Not tested on funded accounts. About **56%** done. Check your firm's copier rules first: nothing here certifies compliance. |
+| **Funded or live accounts** | **No.** Blocked in the default build. Do not add them to the allow-list. |
+
+Read this before you start: it is an **alpha**. Disconnect/reconnect, TP/SL with Flat, 10-30 accounts and restart recovery are **not yet tested on real NinjaTrader**. Start with **1 lot, 1 follower, Dry run ON**, and keep NinjaTrader's own Orders / Positions tabs open: they are the truth, not this window. It cannot stop trades you place by hand and cannot guarantee fills.
+
+## Install in 5 steps (Windows + NinjaTrader 8)
+
+1. **Get the code.** `git clone https://github.com/Kinfxhk/KINFXTradeCopier` (or *Code > Download ZIP* and unzip). Use branch `release-candidate` for the latest: `git checkout release-candidate`.
+2. **Install.** Close nothing, then in the repo folder run in PowerShell:
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File scripts\install-simtest.ps1
+   ```
+   It copies the SIM TEST build to `Documents\NinjaTrader 8\bin\Custom\AddOns`, keeps a backup of anything it replaces, checks the file hash, and touches no account. Add `-WhatIf` to preview, `-Remove` to uninstall.
+3. **Compile.** In NinjaTrader: *New > NinjaScript Editor*, press **F5**. Wait for *Compile succeeded*. (An error here means this add-on or another one in your Custom folder does not compile; do not continue.)
+4. **Say which accounts are simulated.** Only *Simulator* and *Playback* accounts work by default. For prop-firm **simulated** accounts, create a text file `Documents\NinjaTrader 8\templates\KINFXTradeCopier\sim-allow.txt`, one account per line, exact name as shown in NinjaTrader, optional alias after `=`:
+   ```text
+   # only accounts YOU have confirmed are simulated
+   MYFIRM-SIM-12345 = Firm A
+   MYFIRM-SIM-67890 = Firm B
+   ```
+   Wrong entry = real orders to that account. Then press F5 again.
+5. **Open it and try a dry run.** *New > KINFX Trade Copier*. Pick the **Leader** (e.g. `Sim101`), type the instrument (e.g. `MNQ 12-26`), tick **one** follower, set Ratio **1**. On the **Risk** tab tick **Dry run**. Press **Start**: the confirmation must say `DRY RUN`. Place one small order on the leader and check the Logs tab shows `DRY RUN would send ...`. Press **Stop**. Only then untick Dry run and repeat with 1 lot.
+
+**Things to know:** after a leader exit the follower row goes to `Off` and must be ticked again (deliberate). **OFF** only stops following; **Flat** (every row) closes that one account after a confirmation. A **Locked** row means the copier saw something it could not explain: look in NinjaTrader, fix it by hand, then unlock from the row's gear button. It never retries a Flatten and never catches up after a disconnect.
+
+Trouble? Open an issue with a **redacted** Logs tab (no account names, no balances). Details of what was and was not tested: [docs/VM-PROGRESS.md](docs/VM-PROGRESS.md).
+<!-- QUICKSTART:END -->
+
 Original MIT-licensed NinjaTrader 8 AddOn by Kinfxhk, published early so people can review, reproduce failures and improve it together. We are not waiting for every feature before sharing the source. This repository is a development baseline, not an accepted integration of all researched fixes.
 
 ## Status: what is done, what is not / 進度：已完成與未完成
