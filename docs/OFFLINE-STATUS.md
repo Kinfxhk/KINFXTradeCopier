@@ -1,8 +1,8 @@
 # Offline status and what needs a real environment / 離線進度與仍需真環境
 
-Source `fa1be8b0…` · engine runner 126 PASS / 0 FAIL · dashboard UI 35 PASS · pure 12/12 · independent 24 PASS / 1 known FAIL ([#6](https://github.com/Kinfxhk/KINFXTradeCopier/issues/6), shelved) · Python 450 OK · full AddOn compile-only OK.
+Source `28bc4bb3bc47` (2026-10-13; also reproduced on the Windows VM) · engine runner 207 PASS / 0 FAIL · dashboard UI 45 PASS · pure 32/32 · independent 24 PASS / 1 known FAIL ([#6](https://github.com/Kinfxhk/KINFXTradeCopier/issues/6), shelved) · Python 459 OK · full AddOn compile-only OK. Completion estimate and what is still only offline: see the progress bar in the [README](../README.md).
 
-Everything below is **offline, synthetic**: fake accounts, no NinjaTrader order was ever sent, and **Start and Flatten are blocked for every real account**. Nothing here is provider acceptance. 以下全部係離線合成測試；從未向 NinjaTrader 落過單；真帳戶嘅 Start／Flatten 全部封鎖。
+Everything in the tables below is **offline, synthetic**: fake accounts. The default build still blocks Start and Flatten for every real account. Separate **real NinjaTrader Simulator / prop-firm Sim** results from the opt-in SIM TEST build are in [VM-PROGRESS](VM-PROGRESS.md). Nothing here is prop-firm or live acceptance. 以下全部係離線合成測試；從未向 NinjaTrader 落過單；真帳戶嘅 Start／Flatten 全部封鎖。
 
 ## Done offline / 離線已完成
 

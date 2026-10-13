@@ -9,6 +9,18 @@ public static class BulkUiTests {
  static void Check(bool ok,string m){if(!ok)throw new Exception(m);}
  static DashboardView Fresh(){var v=new DashboardView(true);v.Editable(true);Layout(v);return v;}
  static void Select(DashboardView v,params int[] idx){v.AccountGrid.UnselectAll();foreach(int i in idx)v.AccountGrid.SelectedItems.Add(v.Rows[i]);}
+ static void RiskDialogInvalidDraftSurvivesPresetLoad() {
+  var initial=new RiskSettings{Floor=100};var dialog=new RiskSettingsDialog(initial,"MES",1);
+  try {
+   var boxes=(System.Collections.Generic.Dictionary<string,TextBox>)typeof(RiskSettingsDialog).GetField("boxes",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(dialog);
+   boxes["Floor"].Text="0,125";
+   Check(boxes["Floor"].BorderBrush==DashboardView.Bad&&boxes["Floor"].ToolTip!=null,"invalid draft immediately indicated");
+   Check(dialog.CurrentDraft.Floor==100&&initial.Floor==100,"invalid text never publishes accepted settings");
+   dialog.FirmChoice.SelectedIndex=1;dialog.LoadSelectedPreset();
+   Check(boxes["Floor"].Text=="0,125"&&boxes["Floor"].BorderBrush==DashboardView.Bad,"template refresh retains invalid typed text");
+   boxes["Floor"].Text="125";Check(dialog.CurrentDraft.Floor==125&&boxes["Floor"].BorderBrush==DashboardView.Line,"correction clears draft error");
+  } finally {dialog.Close();}
+ }
  static void TargetAndLossApplyToSelectedOnly(){
   var v=Fresh();Select(v,1,2,3);
   string r=v.BulkApply("Tgt","750");Check(r==null,"valid Tgt must apply: "+r);
@@ -44,9 +56,101 @@ public static class BulkUiTests {
   Check(follow==0,"bulk settings must not call the follow/engine path");Check(v.Rows[1].Enabled==enabledBefore,"bulk settings must not change the tick");
   Check(!v.StartButton.IsEnabled,"Start must stay held");
  }
+ // Pixel-level check: render a control on a dark host and measure the average luminance of its own area. Template triggers (hover / disabled) are only visible this way.
+ // Render the WHOLE real dashboard (this is what R.exe proved renders correctly off-screen) and measure only the pixels covered by `el`.
+ static double Luma(FrameworkElement el){
+  var root=el;while(root.Parent as FrameworkElement!=null)root=(FrameworkElement)root.Parent;
+  var host=root as DashboardView;if(host==null)throw new Exception("control is not inside a DashboardView");
+  Layout(host);var origin=el.TransformToAncestor(host).Transform(new Point(0,0));
+  int W=(int)host.ActualWidth,H=(int)Math.Min(host.ActualHeight,400);
+  var rtb=new System.Windows.Media.Imaging.RenderTargetBitmap(W,H,96,96,System.Windows.Media.PixelFormats.Pbgra32);rtb.Render(host);
+  var px=new byte[W*H*4];rtb.CopyPixels(px,W*4,0);
+  int x0=(int)origin.X,y0=(int)origin.Y,w=(int)el.ActualWidth,h=(int)el.ActualHeight;double best=0;
+  for(int by=y0;by+8<=Math.Min(H,y0+h);by+=4)for(int bx=x0;bx+8<=Math.Min(W,x0+w);bx+=4){double sum=0;int n=0;
+   for(int y=by;y<by+8;y+=2)for(int x=bx;x<bx+8;x+=2){int i=(y*W+x)*4;sum+=0.2126*px[i+2]+0.7152*px[i+1]+0.0722*px[i];n++;}
+   double avg=sum/n;if(avg>best)best=avg;}
+  return best;}
+ static T FindDescendant<T>(DependencyObject root) where T:DependencyObject{
+  int n=System.Windows.Media.VisualTreeHelper.GetChildrenCount(root);
+  for(int i=0;i<n;i++){var c=System.Windows.Media.VisualTreeHelper.GetChild(root,i);var t=c as T;if(t!=null)return t;var d=FindDescendant<T>(c);if(d!=null)return d;}
+  return null;}
+ static double HoverLuma(System.Windows.Controls.Primitives.ToggleButton toggle,FrameworkElement measured){
+  // IsMouseOver is read-only; setting it through WPF's internal key runs the same template triggers a real hover does.
+  var key=typeof(UIElement).GetField("IsMouseOverPropertyKey",System.Reflection.BindingFlags.Static|System.Reflection.BindingFlags.NonPublic);
+  Check(key!=null,"IsMouseOverPropertyKey reachable");
+  var k=(DependencyPropertyKey)key.GetValue(null);toggle.SetValue(k,true);double l=Luma(measured);toggle.ClearValue(k);return l;}
+ static int WhitePx(FrameworkElement el){
+  var host=el;while(host.Parent as FrameworkElement!=null)host=(FrameworkElement)host.Parent;var dv=host as DashboardView;if(dv==null)throw new Exception("not inside a DashboardView");
+  Layout(dv);var o=el.TransformToAncestor(dv).Transform(new Point(0,0));int W=1500,H=950;
+  var rtb=new System.Windows.Media.Imaging.RenderTargetBitmap(W,H,96,96,System.Windows.Media.PixelFormats.Pbgra32);rtb.Render(dv);var px=new byte[W*H*4];rtb.CopyPixels(px,W*4,0);
+  int x0=(int)o.X,y0=(int)o.Y,w=(int)el.ActualWidth,h=(int)el.ActualHeight,n=0;
+  for(int y=y0;y<Math.Min(H,y0+h);y++)for(int x=x0;x<Math.Min(W,x0+w);x++){int i=(y*W+x)*4;if(px[i]>=240&&px[i+1]>=240&&px[i+2]>=240)n++;}
+  return n;}
+ static void CopyColumnsFitWorstCaseContentAndWasteNothing(){
+  // Measured from the real window: Bal (141) / State (104) / P/L (103) were mostly empty. Pin the worst-case text widths so a shrink can never truncate real content.
+  var v=Fresh();v.Sections.SelectedIndex=0;Layout(v);
+  Func<string,double,string,double> textW=(txt,size,fam)=>{var t=new System.Windows.Media.Typeface(new System.Windows.Media.FontFamily(fam),FontStyles.Normal,FontWeights.Normal,FontStretches.Normal);return new System.Windows.Media.FormattedText(txt,System.Globalization.CultureInfo.InvariantCulture,FlowDirection.LeftToRight,t,size,System.Windows.Media.Brushes.White).WidthIncludingTrailingWhitespace;};
+  var worst=new System.Collections.Generic.Dictionary<string,double>{
+   {"Bal",textW("1,250,000.00 USD",13,"Segoe UI")+18},          // BalanceText cell, 9px margins
+   {"State",textW("Rechecking",13,"Segoe UI")+22},               // longest StateLabel + lamp/padding
+   {"P/L",textW("-123,456.78",13,"Consolas")+18}};
+  foreach(var c in v.AccountGrid.Columns){
+   string h=""+c.Header;if(!worst.ContainsKey(h))continue;
+   double actual=c.ActualWidth;
+   Check(actual+0.5>=worst[h],h+" column ("+actual+" px) must fit its worst-case content ("+Math.Round(worst[h])+" px)");
+   Check(actual<=worst[h]+60,h+" column ("+actual+" px) wastes more than 60 px over its worst-case content ("+Math.Round(worst[h])+" px)");
+  }
+ }
+ static void PlainCheckBoxesStayDark(){
+  // Live (RO) / Grp / Dry run (Risk tab) used WPF's default CheckBox template: a pure-white square in NinjaTrader's dark window, in every state.
+  var v=Fresh();
+  var key=(DependencyPropertyKey)typeof(UIElement).GetField("IsMouseOverPropertyKey",System.Reflection.BindingFlags.Static|System.Reflection.BindingFlags.NonPublic).GetValue(null);
+  v.Sections.SelectedIndex=1;Layout(v);   // Sections holds Copy, Risk, Logs (the Dashboard title tab is outside it)
+  // every plain (non-row) check box on the Risk tab: found by walking the real visual tree, not by field name
+  var boxes=new System.Collections.Generic.List<CheckBox>();
+  Action<DependencyObject> walk=null;walk=d=>{int n=System.Windows.Media.VisualTreeHelper.GetChildrenCount(d);for(int i=0;i<n;i++){var c=System.Windows.Media.VisualTreeHelper.GetChild(d,i);var cb=c as CheckBox;if(cb!=null&&cb.ActualWidth>5&&!boxes.Contains(cb)&&cb.Content is string)boxes.Add(cb);walk(c);}};
+  walk(v);
+  Check(boxes.Count>=3,"found Live (RO), Grp and Dry run among the Risk tab check boxes ("+boxes.Count+")");
+  Check(boxes.Contains(v.ShowLive)&&boxes.Contains(v.DryRunBox),"the walk reaches Live (RO) and Dry run");
+  foreach(var b in boxes){
+   string name=""+b.Content;
+   // Live (RO) is disabled in a fresh view: enable it first, otherwise normal/hover/ticked would only ever measure the disabled look.
+   bool was=b.IsEnabled;b.IsEnabled=true;
+   int normal=WhitePx(b);b.SetValue(key,true);int hover=WhitePx(b);b.ClearValue(key);
+   b.IsChecked=true;Layout(v);int ticked=WhitePx(b);b.IsChecked=false;Layout(v);
+   b.IsEnabled=false;int dis=WhitePx(b);b.IsEnabled=was;
+   // WPF's default CheckBox draws a pure-white square (about 130 near-white pixels). Text is anti-aliased and stays far below this.
+   Check(normal<40,name+" normal: near-white pixels="+normal);
+   Check(hover<40,name+" hover: near-white pixels="+hover);
+   Check(ticked<40,name+" ticked: near-white pixels="+ticked);
+   Check(dis<40,name+" disabled: near-white pixels="+dis);
+  }
+ }
+ static void ComboAndInputStayDarkWhenDisabledOrHovered(){
+  // Real NinjaTrader keeps these controls in the app's dark colours in EVERY state. WPF's default templates turn them white on hover / disabled.
+  var v=Fresh();var lead=v.LeaderBox;var inst=v.InstrumentBox;
+  var toggle=FindDescendant<System.Windows.Controls.Primitives.ToggleButton>(lead);Check(toggle!=null,"leader selector has its toggle");
+  double normal=Luma(lead),instNormal=Luma(inst);
+  v.Editable(false);Layout(v);double leadDisabled=Luma(lead),instDisabled=Luma(inst);v.Editable(true);Layout(v);
+  double leadHover=HoverLuma(toggle,lead);
+  Check(normal<175,"leader selector normal is dark, brightest block="+normal);
+  Check(leadDisabled<175,"leader selector DISABLED (session armed) stays dark, brightest block="+leadDisabled);
+  Check(leadHover<175,"leader selector HOVER stays dark, brightest block="+leadHover);
+  Check(instNormal<175&&instDisabled<175,"instrument box stays dark normal/disabled: "+instNormal+"/"+instDisabled);
+  // The "All" account-state filter (Copy tab) uses the same Combo(); hover it like a real mouse: the combo and its toggle both get IsMouseOver.
+  var filter=(ComboBox)typeof(DashboardView).GetField("filter",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(v);
+  Check(filter!=null&&filter.SelectedItem as string=="All","the All filter exists and shows All");
+  var key=(DependencyPropertyKey)typeof(UIElement).GetField("IsMouseOverPropertyKey",System.Reflection.BindingFlags.Static|System.Reflection.BindingFlags.NonPublic).GetValue(null);
+  var ft=FindDescendant<System.Windows.Controls.Primitives.ToggleButton>(filter);
+  double allNormal=Luma(filter);filter.SetValue(key,true);ft.SetValue(key,true);double allHover=Luma(filter);ft.ClearValue(key);filter.ClearValue(key);
+  filter.IsEnabled=false;double allDisabled=Luma(filter);filter.IsEnabled=true;
+  Check(allNormal<175,"All filter normal is dark, brightest block="+allNormal);
+  Check(allHover<175,"All filter HOVER stays dark (was white), brightest block="+allHover);
+  Check(allDisabled<175,"All filter DISABLED stays dark, brightest block="+allDisabled);
+ }
  static void BarIsOnCopyTabAndKeepsHolds(){
   var v=Fresh();Layout(v);
-  Check(v.AccountGrid.Columns.Count==13,"13 Copy columns retained");
+  Check(v.AccountGrid.Columns.Count==14,"14 Copy columns retained (13 + the per-account Flat column)");
   Check(v.BulkBarPresent,"bulk bar must be on the Copy tab");
  }
  static void SetLeader(DashboardView v,double tgt,double dll,bool atm){var l=v.Rows[0];l.Target=tgt;l.Loss=dll;l.CopyAtm=atm;}
@@ -280,10 +384,52 @@ public static class BulkUiTests {
   Check(v.Rows[3].Advice.Contains("flatten"),"a FlattenOnce row carries a visible note that it is not active in this alpha: "+v.Rows[3].Advice);
   v.Rows[3].OnDivergence="Notify";v.Rows[3].Changed();v.UpdateCards();Check(!v.Rows[3].Advice.Contains("flatten"),"note gone for Notify");
  }
+ // ---- Per-account Flat column (UI layer only: it asks the tab to flatten ONE account; it never calls the engine itself).
+ static Button FlatButtonFor(DashboardView v,int rowIndex){
+  v.Sections.SelectedIndex=0;Layout(v);var col=v.AccountGrid.Columns.Single(c=>(string)c.Header=="Flat");
+  v.AccountGrid.ScrollIntoView(v.Rows[rowIndex],col);Layout(v);
+  var cell=col.GetCellContent(v.Rows[rowIndex]);Check(cell!=null,"Flat cell realized for row "+rowIndex);
+  var b=cell as Button??Visual<Button>(cell).FirstOrDefault();Check(b!=null,"Flat button found in row "+rowIndex);return b;}
+ static void FlatColumnExistsAndEveryFollowerRowHasItsOwnButton(){
+  var v=Fresh();Check(v.AccountGrid.Columns.Any(c=>(string)c.Header=="Flat"),"Flat column present on the Copy table");
+  var b1=FlatButtonFor(v,1);var b2=FlatButtonFor(v,2);Check(!ReferenceEquals(b1,b2),"each row has its own button");
+  Check(""+b1.Content=="Flat","button is text-labelled Flat (never the icon glyph of Off)");
+  Check(""+b1.Content!="\\uE7E8","not the Off glyph");}
+ static void FlatButtonOnLeaderRowIsDisabled(){var v=Fresh();var b=FlatButtonFor(v,0);Check(!b.IsEnabled,"the leader row has no per-account Flat (it is not a follower; Flatten all covers it)");}
+ static void FlatButtonRequestsExactlyThatRowAndNothingElse(){
+  var v=Fresh();var asked=new System.Collections.Generic.List<string>();v.FlatRow=r=>asked.Add(r.Name);int follow=0;v.FollowRow=(r,on)=>follow++;
+  // the demo view never forwards (no trading from synthetic rows): prove the wiring on a view that is not demo by invoking the handler through the same routed event the button uses.
+  var b=FlatButtonFor(v,3);b.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+  Check(asked.Count==0,"Demo rows must never reach the engine path");Check(follow==0,"Flat is not Off: it must not call the follow path");}
+ static void FlatAndOffAreDifferentControlsWithDifferentGlyphsAndTips(){
+  var v=Fresh();var off=v.AccountGrid.Columns.Single(c=>(string)c.Header=="Off");var flat=v.AccountGrid.Columns.Single(c=>(string)c.Header=="Flat");
+  Check(!ReferenceEquals(off,flat),"separate columns");
+  Check(((string)flat.HeaderStyle.Setters.OfType<Setter>().First(s=>s.Property==FrameworkElement.ToolTipProperty).Value).Contains("Flatten ONE account"),"header tip explains Flat");
+  Check(((string)off.HeaderStyle.Setters.OfType<Setter>().First(s=>s.Property==FrameworkElement.ToolTipProperty).Value).Contains("not Flatten"),"Off header still says it is not Flatten");}
+ static void FlatButtonFitsItsCellAtNarrowWidth(){
+  var v=Fresh();var host=new System.Windows.Controls.Border{Child=v};host.Measure(new Size(900,720));host.Arrange(new Rect(0,0,900,720));host.UpdateLayout();
+  System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(System.Windows.Threading.DispatcherPriority.ContextIdle,new Action(()=>{}));host.UpdateLayout();
+  var col=v.AccountGrid.Columns.Single(c=>(string)c.Header=="Flat");v.AccountGrid.ScrollIntoView(v.Rows[1],col);host.UpdateLayout();
+  var cell=col.GetCellContent(v.Rows[1]);var b=cell as Button??Visual<Button>(cell).FirstOrDefault();Check(b!=null,"button");
+  Check(b.ActualWidth<=col.ActualWidth+0.5,"button ("+b.ActualWidth+") fits the column ("+col.ActualWidth+")");Check(b.ActualWidth>=40,"button stays readable ("+b.ActualWidth+")");}
+ static void FlatCanFlatFollowsSimAndLeaderRules(){
+  var r=new AccountRow{Name="x",Role="Leader",Connection="Synthetic"};Check(!r.CanFlat,"leader cannot Flat per-account");
+  r.Role="Follower";Check(r.CanFlat,"synthetic follower can (demo only; never sent)");
+  r.Connection="Disconnected";Check(!r.CanFlat,"a disconnected account cannot be asked to flatten");}
+ static void FlatOnARealViewForwardsExactlyTheClickedRowOnce(){
+  // A non-demo view (as the tab builds it) forwards the clicked row to FlatRow; the demo view never does. Synthetic rows keep this off any account.
+  var v=new DashboardView(false);v.Editable(true);Layout(v);
+  v.Rows.Add(new AccountRow{Name="real lead",Role="Leader",Connection="Synthetic"});v.Rows.Add(new AccountRow{Name="real A",Role="Follower",Connection="Synthetic"});v.Rows.Add(new AccountRow{Name="real B",Role="Follower",Connection="Synthetic"});
+  Layout(v);var asked=new System.Collections.Generic.List<string>();int follow=0;v.FlatRow=r=>asked.Add(r.Name);v.FollowRow=(r,on)=>follow++;
+  var b=FlatButtonFor(v,2);b.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+  Check(asked.Count==1&&asked[0]=="real B","exactly the clicked row, once; got ["+string.Join(",",asked)+"]");
+  Check(follow==0,"Flat must not go through the follow (tick/Off) path");
+  var lead=FlatButtonFor(v,0);lead.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+  Check(asked.Count==1,"the leader row's Flat is inert even if a click is forced");}
  [STAThread] public static int Main(string[] args){
   try{
    AppDomain.CurrentDomain.AssemblyResolve+=(s,e)=>{string n=e.Name.Split(',')[0];if(n.EndsWith(".resources"))return null;var loaded=AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a=>a.GetName().Name==n);if(loaded!=null)return loaded;string p=System.IO.Path.Combine("C:/Program Files/NinjaTrader 8/bin",n+".dll");return System.IO.File.Exists(p)?System.Reflection.Assembly.LoadFrom(p):null;};
-   var all=new Action[]{TargetAndLossApplyToSelectedOnly,ZeroTurnsLimitOff,RatioStaysIndependent,InvalidInputChangesNothing,NoSelectionIsRefused,LeaderIsNotEdited,AtmToggleBulk,LockedWhenNotEditable,NeverTouchesFollowOrTrading,BarIsOnCopyTabAndKeepsHolds,FromLeaderCopiesToHighlighted,FromLeaderWithoutHighlightHitsAllVisibleFollowers,FromLeaderRespectsSearchFilter,FromLeaderKeepsRatioTickAndOtherFields,ManualEditAfterwardsSticksAndNoLiveLink,FromLeaderRefusedWhenLockedOrNoLeader,FromLeaderNeverTouchesFollowOrTrading,AdviceShownPerRowAndCounted,AdviceUpdatesAfterBulkApply,AdviceNeverBlocksOrChangesSettings,RatioCellFitsCommonValuesAt1160,LogsReadableAndTopAligned,LogClearWorksAndIsEditableIndependent,BadTargetDraftSurvivesRefreshAndBlocksCommit,BadLossDraftSurvivesRefreshAndBlocksCommit,BadTargetDraftSurvivesRecyclingAndStillBlocksCommit,TargetAndLossSetterRejectInvalidNumbers,LockedAccountIsRedWithReasonAndCountedInFooter,LockedCountIgnoresLeaderAndNeverBlocksUi,BadRatioDraftSurvivesRefreshAndBlocksCommit,UnprotectedReasonReachesRowAndDetail,MaxContractsRejectsInvalidAndKeepsDraft,DivergenceChoiceIsPerAccountDefaultsToNotify,DivergenceBulkAndFromLeaderAndNeverTrades,FlattenOnceShowsAWarningNote};
+   var all=new Action[]{CopyColumnsFitWorstCaseContentAndWasteNothing,PlainCheckBoxesStayDark,ComboAndInputStayDarkWhenDisabledOrHovered,TargetAndLossApplyToSelectedOnly,ZeroTurnsLimitOff,RatioStaysIndependent,InvalidInputChangesNothing,NoSelectionIsRefused,LeaderIsNotEdited,AtmToggleBulk,LockedWhenNotEditable,NeverTouchesFollowOrTrading,BarIsOnCopyTabAndKeepsHolds,FromLeaderCopiesToHighlighted,FromLeaderWithoutHighlightHitsAllVisibleFollowers,FromLeaderRespectsSearchFilter,FromLeaderKeepsRatioTickAndOtherFields,ManualEditAfterwardsSticksAndNoLiveLink,FromLeaderRefusedWhenLockedOrNoLeader,FromLeaderNeverTouchesFollowOrTrading,AdviceShownPerRowAndCounted,AdviceUpdatesAfterBulkApply,AdviceNeverBlocksOrChangesSettings,RatioCellFitsCommonValuesAt1160,LogsReadableAndTopAligned,LogClearWorksAndIsEditableIndependent,BadTargetDraftSurvivesRefreshAndBlocksCommit,BadLossDraftSurvivesRefreshAndBlocksCommit,BadTargetDraftSurvivesRecyclingAndStillBlocksCommit,TargetAndLossSetterRejectInvalidNumbers,LockedAccountIsRedWithReasonAndCountedInFooter,LockedCountIgnoresLeaderAndNeverBlocksUi,BadRatioDraftSurvivesRefreshAndBlocksCommit,UnprotectedReasonReachesRowAndDetail,MaxContractsRejectsInvalidAndKeepsDraft,DivergenceChoiceIsPerAccountDefaultsToNotify,DivergenceBulkAndFromLeaderAndNeverTrades,FlattenOnceShowsAWarningNote,FlatColumnExistsAndEveryFollowerRowHasItsOwnButton,FlatButtonOnLeaderRowIsDisabled,FlatButtonRequestsExactlyThatRowAndNothingElse,FlatAndOffAreDifferentControlsWithDifferentGlyphsAndTips,FlatButtonFitsItsCellAtNarrowWidth,FlatCanFlatFollowsSimAndLeaderRules,FlatOnARealViewForwardsExactlyTheClickedRowOnce};
    int failed=0;foreach(var a in all){try{a();Console.WriteLine("PASS "+a.Method.Name);}catch(Exception ex){failed++;Console.WriteLine("FAIL "+a.Method.Name+" :: "+ex.Message);}}
    return failed==0?0:1;
   }catch(Exception ex){Console.WriteLine("HARNESS "+ex);return 2;}

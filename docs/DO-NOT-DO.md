@@ -21,6 +21,7 @@ Source of truth: the lock messages in `src/AddOns/KINFXTradeCopier.cs`. Each row
 | **Press Flatten repeatedly, or Flatten and then re-follow quickly** | A Flatten call can be accepted by the provider and still report an error. A second close can reverse you. | Locks: `Flatten acceptance uncertain … duplicate reductions blocked until explicit provider reconciliation`. Flatten is disabled in this alpha. |
 | **Run two copier tabs or windows on the same accounts** | Two engines would submit twice. | The source refuses a second owner of the same account (`SessionOwnership`). **No test covers this**, and real multi-window behaviour is untested. |
 | **Expect a connection that dropped to catch up** | There is deliberately no catch-up after a disconnect. | Locks: `Disconnected — no catch-up`, `Leader disconnected — no catch-up`. |
+| **Press a row's Flat and then immediately re-follow it** | Flat is confirmed only after the provider shows Position 0 and nothing working for a few seconds. Until then the account is blocked. | The account stays OFF; re-follow is refused until it is clean. If Flat is not confirmed within 20 s it locks (`Flatten unconfirmed`) and is never retried. |
 
 ## Never, even when copying is stopped
 
