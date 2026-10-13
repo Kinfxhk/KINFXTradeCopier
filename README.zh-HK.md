@@ -2,6 +2,40 @@
 
 [English](README.md) · **廣東話／繁體中文**
 
+<!-- QUICKSTART:START -->
+## 可以用嗎？
+
+| | |
+|---|---|
+| **Demo／模擬帳戶** | **可以，屬早期測試版。** SIM TEST 版支援跟單。已喺真 NinjaTrader 8.1.8.3 測試：1 個 Leader ＋ 2 個 Follower、1 個合約、市價單同限價單。完成度約 **62%**，見下面清單。 |
+| **Prop Firm 帳戶** | **只限你自己確認過係「模擬／評估」嘅 Prop Firm 帳戶，而且只用嚟測試。** 已測 2 個呢類帳戶。**未測 funded 帳戶**。完成度約 **56%**。請先睇清楚你間公司對跟單工具嘅規則：本軟件唔保證合規。 |
+| **Funded／實盤帳戶** | **唔可以。** 預設版封鎖。請勿加入 allow-list。 |
+
+使用前請知道：呢個係 **alpha**。斷線重連、有 TP／SL 時 Flat、10–30 個帳戶、重啟恢復，**未喺真 NinjaTrader 測過**。請由 **1 手、1 個 Follower、開 Dry run** 開始，並一直開住 NinjaTrader 自己嘅 Orders／Positions 分頁：以嗰度為準，唔係以本視窗為準。佢攔唔到你手動落嘅單，亦唔保證成交。
+
+## 5 步安裝（Windows ＋ NinjaTrader 8）
+
+1. **下載。** `git clone https://github.com/Kinfxhk/KINFXTradeCopier`（或 *Code > Download ZIP* 解壓）。要最新版請用 `release-candidate` 分支：`git checkout release-candidate`。
+2. **安裝。** 喺 repo 資料夾用 PowerShell 行：
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File scripts\install-simtest.ps1
+   ```
+   佢會將 SIM TEST 版複製去 `Documents\NinjaTrader 8\bin\Custom\AddOns`，取代舊檔前會備份，並核對檔案 hash，唔會碰任何帳戶。加 `-WhatIf` 先預覽，加 `-Remove` 解除安裝。
+3. **編譯。** NinjaTrader：*New > NinjaScript Editor*，按 **F5**，等到 *Compile succeeded*。（出錯代表呢個 add-on 或你 Custom 資料夾入面另一個編譯唔到，請唔好繼續。）
+4. **講明邊啲係模擬帳戶。** 預設只有 *Simulator*／*Playback* 帳戶可用。Prop Firm **模擬**帳戶要建立文字檔 `Documents\NinjaTrader 8\templates\KINFXTradeCopier\sim-allow.txt`，一行一個帳戶，名稱同 NinjaTrader 顯示完全一樣，`=` 後面可加別名：
+   ```text
+   # 只放你自己確認係模擬嘅帳戶
+   MYFIRM-SIM-12345 = Firm A
+   MYFIRM-SIM-67890 = Firm B
+   ```
+   寫錯 ＝ 真單落到嗰個帳戶。之後再按一次 F5。
+5. **開啟，先做 Dry run。** *New > KINFX Trade Copier*。揀 **Leader**（例如 `Sim101`），輸入合約（例如 `MNQ 12-26`），只勾 **1 個** Follower，Ratio 設 **1**。喺 **Risk** 分頁剔 **Dry run**。按 **Start**：確認框一定要有 `DRY RUN`。喺 Leader 落一張細單，Logs 分頁應該見到 `DRY RUN would send ...`。按 **Stop**。之後先取消 Dry run，用 1 手再試一次。
+
+**要知道：** Leader 平倉後 Follower 嗰行會變 `Off`，要再剔過（設計如此）。**OFF** 只係停止跟隨；每行嘅 **Flat** 會喺確認後平嗰一個帳戶。**Locked** 代表 copier 見到解釋唔到嘅情況：去 NinjaTrader 睇、手動處理，再喺該行嘅齒輪按鈕解鎖。佢唔會重試 Flatten，斷線後亦唔會補單。
+
+有問題？開 issue 並貼**遮蓋過**嘅 Logs（唔好有帳戶名、結餘）。詳細測試範圍：[docs/VM-PROGRESS.md](docs/VM-PROGRESS.md)。
+<!-- QUICKSTART:END -->
+
 **預設版交易功能已封鎖。呢個唔係已發佈嘅跟單產品。請勿用於實盤或 funded Prop 帳戶。**
 
 另有一個 **SIM TEST 版**（要主動啟用，同一份源碼加 `KINFX_SIM_TEST` 編譯），可以喺 NinjaTrader **Simulator／Playback** 帳戶之間，以及你喺 allow-list 列明（由你確認係模擬）嘅帳戶之間跟單。已經喺真 NinjaTrader 8.1.8.3 跑過：1 個 Simulator Leader、2 個 Prop Firm **模擬**評估帳戶、1 個合約、市價單同限價單。目前嘅真實證據就係咁多，見下面嘅進度條。

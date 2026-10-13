@@ -65,6 +65,16 @@ class PublicPackage(unittest.TestCase):
         self.assertTrue(mod.score(fake, 'demo')['ready'])
         self.assertEqual(mod.score(fake, 'demo')['percent'], 100.0)
 
+    def test_quickstart_commands_and_paths_are_exact(self):
+        for name in ('README.md', 'README.zh-HK.md'):
+            text = (ROOT / name).read_text(encoding='utf-8')
+            self.assertIn('scripts\\install-simtest.ps1', text, name)
+            self.assertNotIn('scripts\\\\install-simtest', text, name)
+            self.assertIn('templates\\KINFXTradeCopier\\sim-allow.txt', text, name)
+            self.assertIn('DRY RUN', text, name)
+            self.assertIn('git checkout release-candidate', text, name)
+        self.assertTrue((ROOT / 'scripts' / 'install-simtest.ps1').is_file())
+
     def test_license_and_alpha_boundary_are_present(self):
         self.assertIn('MIT License', (ROOT / 'LICENSE').read_text(encoding='utf-8'))
         readme = (ROOT / 'README.md').read_text(encoding='utf-8')
