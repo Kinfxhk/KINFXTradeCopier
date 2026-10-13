@@ -1020,7 +1020,13 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         int ExitReserved(CopyLink current)
         {
             var f=current.Follower;
-            var reservations=links.Values.SelectMany(v=>v).Where(x=>x.Follower==f&&x!=current&&x.Exit&&x.Order!=null&&x.SubmittedAction==current.Latest.Action)
+            // A leader MARKET exit closes everything it can; the copier's OWN working non-market exits (TP / SL) for this account are made obsolete by its fill. Letting them
+            // reserve capacity made a market close wait 10 s and lock a protected follower (seen on real NinjaTrader after a per-account Flat of the other follower).
+            // Only the copier's own non-market links are ignored here: unknown / manual orders below still reserve, and the market quantity stays bounded by the closable
+            // position in AllowedRemaining. Those protective orders are then cancelled by the existing Change path (qty<=filled once the market exit is accepted) and, for OCO
+            // members, by the exit-fill path; MarketExitFillCancelsOwnOrphanedStopWithoutOco pins that they are cancelled exactly once.
+            bool marketExit=current.Exit&&current.Latest.Type==OrderType.Market;
+            var reservations=links.Values.SelectMany(v=>v).Where(x=>x.Follower==f&&x!=current&&x.Exit&&x.Order!=null&&x.SubmittedAction==current.Latest.Action&&!(marketExit&&x.Latest!=null&&x.Latest.Type!=OrderType.Market))
                 // Issue #3: a sibling the engine retired because its OCO group completed no longer reserves capacity for ANOTHER group.
                 // Its stale captured Working state would otherwise make a still-open group look like it has no closable exposure and
                 // get its sole protection cancelled. Leader-cancelled links (Cancelled but not OcoRetired) still reserve until acknowledged.
