@@ -392,6 +392,12 @@ class RiskTests {
   // NinjaTrader reports ui=en-US on a zh-TW machine (seen in the real VM); the OS display language must still win.
   Eq("zh",Lang.Detect("zh-HK","zh-TW","en-US")); Eq("zh",Lang.Detect("en-US","zh-TW","en-US")); Eq("ja",Lang.Detect("en-US","ja-JP","en-US")); Eq("ko",Lang.Detect("ko-KR","en-US","en-US"));
   Eq("en",Lang.Detect("en-US","en-GB","en-US")); Eq("en",Lang.Detect()); Eq("en",Lang.Detect(null,"")); Eq("zh",Lang.Detect("fr-FR","zh-TW","en-US"));
+  // Engine messages added by the OCO-allocation work are translated through their {0} templates, not left in English.
+  Lang.Set("zh");
+  Eq(true,Lang.Show("Lucid 0059: leader exit refused — no independent exit capacity; existing protection retained. Use an explicit shared OCO for alternatives.").StartsWith("Lucid 0059：已拒絕主帳戶出場單"));
+  Eq(true,Lang.Show("Certified OCO cancellation unresolved: provider timeout").EndsWith("provider timeout"));
+  Eq(true,Lang.Show("Certified OCO cancellation unresolved: provider timeout").StartsWith("已認證的 OCO 取消"));
+  Lang.Set("en");
   Lang.Set("xx"); Eq("en",Lang.Current);
   Lang.Set("ja"); Eq("ja",Lang.Current); Eq(false,Lang.T("Locked")=="Locked");
   Lang.Set("en");

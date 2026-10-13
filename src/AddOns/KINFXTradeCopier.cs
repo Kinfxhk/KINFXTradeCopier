@@ -1021,6 +1021,13 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             t["Ratio"] = new[] { "比例", "比率", "비율" };
             t["Conn"] = new[] { "連線", "接続", "연결" };
             t["Group"] = new[] { "群組", "グループ", "그룹" };
+            t["{0}: leader exit refused — no independent exit capacity; existing protection retained. Use an explicit shared OCO for alternatives."] = new[] { "{0}：已拒絕主帳戶出場單 — 沒有獨立的出場容量；保留現有保護。如需替代出場單，請使用明確共用的 OCO。", "{0}: リーダーの決済を拒否 — 独立した決済の余力がありません。既存の保護は維持されます。代替が必要な場合は、明示的に共有した OCO を使用してください。", "{0}: 리더 청산 거부됨 — 독립적인 청산 수량 여유가 없음; 기존 보호 주문은 유지됨. 대안이 필요하면 명시적으로 공유한 OCO를 사용하세요." };
+            t["Certified OCO cancellation unresolved: {0}"] = new[] { "已認證的 OCO 取消尚未解決：{0}", "認証済みの OCO キャンセルが未解決: {0}", "인증된 OCO 취소가 해결되지 않음: {0}" };
+            t["Late execution after provider-confirmed Flat — captured evidence retained; manual reconciliation required"] = new[] { "供應端確認平倉後出現延遲成交 — 已保留擷取的證據；需人工對帳", "プロバイダーが全決済を確認した後に遅延約定 — 取得した証拠は保持；手動での照合が必要", "제공자가 청산을 확인한 뒤 늦은 체결 발생 — 수집된 증거 보존; 수동 대사 필요" };
+            t["OCO group fill exceeds captured allocated entry lots — reversal / double fill evidence retained; manual recovery required"] = new[] { "OCO 群組成交量超過已擷取的分配進場口數 — 已保留反向／重複成交證據；需人工處理", "OCO グループの約定数量が取得済みの割当エントリー数量を超過 — 反転／二重約定の証拠は保持；手動での復旧が必要", "OCO 그룹 체결 수량이 수집된 배분 진입 수량을 초과함 — 반전/이중 체결 증거 보존; 수동 복구 필요" };
+            t["Protective group terminal with uncovered allocated exposure — manual recovery required"] = new[] { "保護群組已終結，但分配的部位仍未受保護 — 需人工處理", "保護グループが終了したが、割り当てた建玉が未保護 — 手動での復旧が必要", "보호 그룹이 종료되었으나 배분된 포지션이 보호되지 않음 — 수동 복구 필요" };
+            t["group support frontier changed before cancel authorization; cancellation NOT sent"] = new[] { "取消授權前群組支援邊界已變更；取消單未送出", "キャンセル承認の前にグループのサポート境界が変更されました。キャンセルは送信されていません", "취소 승인 전에 그룹 지원 경계가 변경됨; 취소는 전송되지 않음" };
+            t["waiting protection frontier changed before submit authorization; submission NOT sent"] = new[] { "送出授權前等待中的保護邊界已變更；委託單未送出", "送信承認の前に待機中の保護境界が変更されました。送信されていません", "제출 승인 전에 대기 중인 보호 경계가 변경됨; 제출되지 않음" };
 #if KINFX_SIM_TEST
             t["SIM TEST BUILD · Simulator / Playback only"] = new[] { "SIM 測試版 · 僅限 Simulator / Playback", "SIMテストビルド · Simulator / Playback のみ", "SIM 테스트 빌드 · Simulator / Playback 전용" };
             t["SIM TEST BUILD: copies between Simulator / Playback accounts only. Any other provider is refused."] = new[] { "SIM 測試版：僅在 Simulator / Playback 帳戶之間跟單。其他任何供應端一律拒絕。", "SIMテストビルド：Simulator / Playback 口座間のみコピー。それ以外のプロバイダーは拒否される。", "SIM 테스트 빌드: Simulator / Playback 계좌 간에만 복사합니다. 그 외 제공자는 거부됩니다." };
