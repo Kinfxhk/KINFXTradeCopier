@@ -18,6 +18,13 @@
             string c = (cultureName ?? "").ToLowerInvariant();
             return c.StartsWith("zh") ? Chinese : c.StartsWith("ja") ? Japanese : c.StartsWith("ko") ? Korean : English;
         }
+        // NinjaTrader pins its UI thread to en-US, so the Windows display language (installed UI culture) is tried first, then the regional
+        // format culture, then the thread UI culture. The first one that names zh / ja / ko wins; otherwise English.
+        public static string Detect(params string[] cultureNames)
+        {
+            foreach (var name in cultureNames) { string code = FromCulture(name); if (code != English) return code; }
+            return English;
+        }
         static int Col(string code) { return code == Chinese ? 0 : code == Japanese ? 1 : 2; }
         public static string T(string en) { return T(en, current); }
         public static string T(string en, string code)
