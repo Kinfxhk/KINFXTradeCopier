@@ -71,8 +71,10 @@ class EngineSafetyTests {
   var l=new NinjaTrader.Cbi.Account{Name="Retired bracket lead"};var a=new NinjaTrader.Cbi.Account{Name="Retired bracket follow"};
   using(var e=new CopierEngine(s=>{},t=>{},(attached,s)=>{},(n,r)=>{})){
    e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10},new RiskLatch())});Wait(()=>e.EntriesArmed,"retired bracket arm");l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",4));Wait(()=>a.Submits==1,"retired entry");a.Orders[0].Filled=2;a.Orders[0].OrderState=NinjaTrader.Cbi.OrderState.PartFilled;a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});a.Emit(a.Orders[0]);
-   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"first close",2));Wait(()=>a.Submits==2,"first close");l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"independent waiting bracket",4));Thread.Sleep(100);Check(a.Submits==2,"independent close waits reserved budget");a.Orders[1].Filled=2;a.Orders[1].OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Clear();a.Emit(a.Orders[1]);Wait(()=>a.Cancels==1,"retire remainder");
-   a.Orders[0].Filled=4;a.Orders[0].OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});a.Emit(a.Orders[0]);e.Poll();Thread.Sleep(100);Check(a.Submits==2,"completed cycle never releases stale independent waiting bracket on late fill");
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"first close",2));Wait(()=>a.Submits==2,"first close");var waiting=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"independent waiting bracket",4);l.Emit(waiting);Thread.Sleep(100);Check(a.Submits==2,"independent close waits reserved budget");a.Orders[1].Filled=2;a.Orders[1].OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Clear();a.Emit(a.Orders[1]);Wait(()=>a.Cancels==1,"retire remainder");
+   // Explicit leader cancellation invalidates deferred intent even when its claimed lots arrive later.
+   waiting.OrderState=NinjaTrader.Cbi.OrderState.Cancelled;l.Emit(waiting);Thread.Sleep(100);
+   a.Orders[0].Filled=4;a.Orders[0].OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});a.Emit(a.Orders[0]);e.Poll();Thread.Sleep(100);Check(a.Submits==2,"leader-cancelled waiting intent never resumes on late fill");
   }
  }
  static void SettingsFrozenAtRequest(){
@@ -149,7 +151,7 @@ class EngineSafetyTests {
   using(var e=new CopierEngine(s=>{},t=>{latest=t;},(attached,s)=>{},(n,r)=>Interlocked.Increment(ref locks))){
    e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10},new RiskLatch())});Wait(()=>e.EntriesArmed,"cancel failure arm");l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Wait(()=>a.Submits==1,"cancel failure entry");
    var m=typeof(CopierEngine).GetMethod("SetFollowing");Check(m.ReturnType==typeof(int),"SetFollowing must return request generation");int request=(int)m.Invoke(e,new object[]{a.Name,false});
-   Wait(()=>latest!=null&&latest.DisablePending&&!latest.Following,"cancel failure off telemetry");var field=typeof(AccountTelemetry).GetField("FollowGeneration");Check(field!=null,"telemetry FollowGeneration required");Check((int)field.GetValue(latest)==request,"telemetry snapshots request generation");Check(locks==1,"cancel failure durable lock once");
+   Wait(()=>latest!=null&&latest.DisablePending&&!latest.Following&&latest.Locked,"cancel failure locked off telemetry");var field=typeof(AccountTelemetry).GetField("FollowGeneration");Check(field!=null,"telemetry FollowGeneration required");Check((int)field.GetValue(latest)==request,"telemetry snapshots request generation");Check(locks==1,"cancel failure durable lock once");
    Follow(e,a.Name,true);Thread.Sleep(100);Check(!latest.Following,"unresolved cancellation cannot rearm");
   }
  }
@@ -479,17 +481,18 @@ class EngineSafetyTests {
  // Returning or throwing after Change is not a callback acknowledgement of released capacity.
  static void NoAckChangeRetainsReservationUntilCallback() { UnknownChangeRetainsReservation(false); }
  static void AcceptedThenThrowChangeRetainsReservation() { UnknownChangeRetainsReservation(true); }
- static void UnknownChangeRetainsReservation(bool throws) {
+ static void IndependentExitWaitsForCapturedReductionAck(){UnknownChangeRetainsReservation(false,true);}
+ static void UnknownChangeRetainsReservation(bool throws,bool noOco=false) {
   var l=Acc("unknown change lead");var a=Acc("unknown change follower");int locks=0;
   using(var e=Arm(l,a,null,(n,r)=>Interlocked.Increment(ref locks))) {
    l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",4));Drain(e);Fill(a,4);Drain(e);
-   var stop=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"first reserve",4);l.Emit(stop);Drain(e);
+   var stop=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,noOco?"":"first reserve",4);l.Emit(stop);Drain(e);
    var link=ExitLink(e,a.Orders[1]);Check(link.ReservedQuantity==4,"initial acknowledged reserve4");
    a.SuppressChangeAck=true;a.ThrowChangeAfterApply=throws;
    stop.Quantity=2;stop.LimitPrice=99;l.Emit(stop);Drain(e);
    Check(a.Changes==1&&a.Orders[1].Quantity==2,"fake accepted the 2-lot change without callback");
    Check(link.RequestedQuantity==2&&link.ReservedQuantity==4,"mutable wrapper/return/throw must not release acknowledged reserve4");
-   var other=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"independent reserve",2);l.Emit(other);Drain(e);
+   var other=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,noOco?"":"independent reserve",2);l.Emit(other);Drain(e);
    for(int i=0;i<3;i++){e.Poll();Drain(e);}
    Check(a.Submits==2,"independent exit cannot spend unacknowledged capacity");
    Check(a.Changes==1&&a.Cancels==0&&a.Flattens==0,"poll never retries an uncertain reduction or cancels protection");
@@ -680,6 +683,230 @@ class EngineSafetyTests {
  static string Probe(NinjaTrader.Cbi.Account a){return "submits="+a.Submits+" cancels="+a.Cancels+" orders=["+string.Join(";",Snap(a).Select(o=>o.Name+" q="+o.Quantity+" f="+o.Filled+" "+o.OrderState))+"]";}
  // Issue #3 scenario 1: entry 4 split into groups A (2) and B (2), both groups already protected. Fill A's target fully.
  // A's stop must go; B's stop and target must stay working.
+ static NinjaTrader.Cbi.Order ClaimEntry(CopyLink link) {
+  var group=typeof(CopyLink).GetField("Group").GetValue(link);
+  var claims=(System.Collections.IEnumerable)group.GetType().GetField("Claims").GetValue(group);
+  object claim=claims.Cast<object>().Single();var entry=(CopyLink)claim.GetType().GetField("Entry").GetValue(claim);return entry.Order;
+ }
+ static void GroupRetirementRechecksProviderDispatchFrontier() {
+  var l=Acc("dispatch frontier leader");var a=Acc("dispatch frontier follower");int locks=0;var messages=new List<string>();
+  using(var e=new CopierEngine(x=>{lock(messages)messages.Add(x);},x=>{},(x,y)=>{},(x,y)=>locks++)) {
+   e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10,Target=100},new RiskLatch())});Drain(e);
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",4));Drain(e);Fill(a,4);Drain(e);
+   foreach(string group in new[]{"frontier A","frontier B"}){l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,group,2,98));l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,group,2,110));Drain(e);}
+   var target=a.Orders[2];var stop=a.Orders[1];var other=a.Orders[3];
+   var dispatcher=ExitLink(e,stop).Follower.Dispatcher;var entered=new ManualResetEvent(false);var release=new ManualResetEvent(false);
+   dispatcher.Post(()=>{entered.Set();release.WaitOne();});Check(entered.WaitOne(3000),"provider queue barrier");
+   target.Filled=2;target.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Clear();a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});a.Emit(target);
+   var worker=(SerialWorker)typeof(CopierEngine).GetField("worker",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(e);var applied=new ManualResetEvent(false);worker.Post(()=>applied.Set());Check(applied.WaitOne(3000),"completion proof applied");
+   other.Filled=1;other.OrderState=NinjaTrader.Cbi.OrderState.PartFilled;a.Positions.Clear();a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=1,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});a.Emit(other);
+   release.Set();Drain(e);
+   Check(messages.Any(x=>x.Contains("group support frontier changed before cancel authorization")),"changed frontier must veto stale queued authorization before re-proving it");
+   Check(a.Cancels==1&&stop.OrderState==NinjaTrader.Cbi.OrderState.Cancelled,"new settled proof retires exhausted A without stranding B; "+Probe(a));
+   Check(ExitLink(e,target).ObservedFilled==2&&ExitLink(e,other).ObservedFilled==1,"veto does not discard either group's positive evidence");
+  }
+ }
+ static void IndependentEntryOwnershipKeepsOtherGroupWaitingProtection() {
+  var l=Acc("independent lot leader");var a=Acc("independent lot follower");
+  using(var e=Arm(l,a)) {
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",2));Drain(e);Fill(a,2);Drain(e);
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",2));Drain(e);var second=a.Orders[1];second.Filled=1;second.OrderState=NinjaTrader.Cbi.OrderState.PartFilled;a.Emit(second);Drain(e);
+   l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"independent A",2,98));l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"independent A",2,110));Drain(e);
+   l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"independent B",2,97));Drain(e);Check(a.Submits==4,"B waits while Position lags its captured entry lot");
+   var target=a.Orders.Single(x=>x.LimitPrice==110);target.Filled=2;target.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Clear();a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=1,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});a.Emit(target);Drain(e);e.Poll();Drain(e);
+   var b=a.Orders.Single(x=>x.LimitPrice==97);Check(b.Quantity==1&&b.OrderState==NinjaTrader.Cbi.OrderState.Working,"A completion preserves and admits B's explicitly requested waiting protection");
+   Check(second.OrderState==NinjaTrader.Cbi.OrderState.PartFilled&&a.Cancels==1,"A retires only its own sibling, never B's independent pending entry");
+   Check(ClaimEntry(ExitLink(e,target))==a.Orders[0]&&ClaimEntry(ExitLink(e,b))==second,"fixed FIFO ordinal ownership distinguishes copied entries");
+  }
+ }
+ static void WaitingGroupSubmitRechecksLeaderFrontier() {
+  var l=Acc("waiting frontier leader");var a=Acc("waiting frontier follower");
+  using(var e=Arm(l,a)) {
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",4));Drain(e);Fill(a,2);Drain(e);
+   l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"waiting frontier A",2,110));Drain(e);
+   var waiting=LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"waiting frontier B",2,98);l.Emit(waiting);Drain(e);
+   var target=a.Orders[1];target.Filled=2;target.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Clear();a.Emit(target);Drain(e);
+   var dispatcher=ExitLink(e,target).Follower.Dispatcher;var entered=new ManualResetEvent(false);var release=new ManualResetEvent(false);
+   dispatcher.Post(()=>{entered.Set();release.WaitOne();});Check(entered.WaitOne(3000),"waiting submit provider barrier");
+   var entry=a.Orders[0];entry.Filled=4;entry.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});a.Emit(entry);
+   var worker=(SerialWorker)typeof(CopierEngine).GetField("worker",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(e);var applied=new ManualResetEvent(false);worker.Post(()=>applied.Set());Check(applied.WaitOne(3000),"waiting submit proof queued");
+   waiting.OrderState=NinjaTrader.Cbi.OrderState.Cancelled;l.Emit(waiting);release.Set();Drain(e);e.Poll();Drain(e);
+   Check(a.Submits==2&&a.SubmitAttempts==2,"changed leader frontier vetoes stale queued protection before any Submit call");
+   Check(UnprotectedNow(e)==2,"cancelled leader intent is not reported as actual protection");
+  }
+ }
+ static void CancelledGroupAckReleasesOnlyUnconsumedClaims() {
+  foreach(bool partial in new[]{false,true}) {
+   var l=Acc("cancel claims leader "+partial);var a=Acc("cancel claims follower "+partial);a.AsyncCancel=true;
+   using(var e=Arm(l,a)) {
+    l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",2));Drain(e);Fill(a,2);Drain(e);
+    var first=LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"cancel claims A",2,99);l.Emit(first);Drain(e);var old=a.Orders[1];
+    int held=2;if(partial){old.Filled=1;old.OrderState=NinjaTrader.Cbi.OrderState.PartFilled;SetPos(a,1);a.Emit(old);Drain(e);held=1;}
+    first.OrderState=NinjaTrader.Cbi.OrderState.Cancelled;l.Emit(first);Drain(e);
+    l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"cancel claims B",held,98));Drain(e);e.Poll();Drain(e);
+    Check(a.Submits==2,"unacknowledged cancellation cannot transfer group ownership");
+    old.OrderState=NinjaTrader.Cbi.OrderState.Cancelled;e.Poll();Drain(e);Check(a.Submits==2,"mutable terminal wrapper is not a release certificate");
+    a.Emit(old);Drain(e);e.Poll();Drain(e);
+    Check(a.Submits==3&&a.Orders[2].Quantity==held,"captured cancellation releases only unused group lots");
+    var other=ExitLink(e,a.Orders[2]);Check(ClaimField(other,"First")==2-held&&ClaimField(other,"Count")==held,"new group never adopts consumed prefix");
+    Check(UnprotectedNow(e)==0,"replacement protection covers the remaining held lots");
+   }
+  }
+ }
+ static void UnknownSameOcoActivityCannotCertifyGroupRetirement() {
+  var l=Acc("unknown group leader");var a=Acc("unknown group follower");
+  using(var e=Arm(l,a)) {
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",4));Drain(e);Fill(a,4);Drain(e);
+   foreach(string group in new[]{"unknown A","unknown B"})foreach(double price in new[]{98.0,110.0})l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,group,2,price));Drain(e);
+   var stop=a.Orders[1];var target=a.Orders[2];var other=a.Orders[3];
+   var manual=LeaderLimit(a,NinjaTrader.Cbi.OrderAction.Sell,stop.Oco,1,120);manual.Name="SyntheticManual";manual.OrderState=NinjaTrader.Cbi.OrderState.Working;a.Orders.Add(manual);a.Emit(manual);Drain(e);
+   target.Filled=2;target.OrderState=NinjaTrader.Cbi.OrderState.Filled;SetPos(a,2);a.Emit(target);Drain(e);e.Poll();Drain(e);
+   Check(a.Cancels==0&&stop.OrderState==NinjaTrader.Cbi.OrderState.Working&&other.OrderState==NinjaTrader.Cbi.OrderState.Working,"unknown same-OCO work invalidates allocation support, never retires sole protection");
+   Check(a.Submits==5&&a.Flattens==0,"unknown activity is never adopted or automatically recovered");
+  }
+ }
+ static void OlderWorkingCallbackKeepsEntryOwnershipCertificate() {
+  var l=Acc("old entry proof leader");var a=Acc("old entry proof follower");
+  using(var e=Arm(l,a)) {
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Drain(e);Fill(a,2);Drain(e);var entry=a.Orders[0];
+   entry.Filled=0;entry.OrderState=NinjaTrader.Cbi.OrderState.Working;a.Emit(entry);Drain(e);
+   entry.Filled=2;entry.OrderState=NinjaTrader.Cbi.OrderState.Filled;
+   l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"old entry proof",2,98));Drain(e);
+   Check(a.Submits==2&&a.Orders[1].Quantity==2,"older zero-fill Working callback cannot destroy positive entry ownership");
+   Check(ExitLink(e,entry).ObservedFilled==2&&ClaimEntry(ExitLink(e,a.Orders[1]))==entry,"retain terminal positive proof and its fixed entry identity");
+  }
+ }
+ static void EntryAmendBeforeSubmitAckIsApplied() {
+  var l=Acc("early amend leader");var a=Acc("early amend follower");a.SubmitEntered=new ManualResetEvent(false);a.SubmitRelease=new ManualResetEvent(false);
+  using(var e=new CopierEngine(x=>{},x=>{},(x,y)=>{},(x,y)=>{})) {
+   try {
+    e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{Ratio=.25,MaxContracts=10},new RiskLatch())});Drain(e);
+    var entry=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",4);l.Emit(entry);Check(a.SubmitEntered.WaitOne(3000),"pending Submit barrier");
+    entry.Quantity=1;entry.Filled=1;entry.OrderState=NinjaTrader.Cbi.OrderState.PartFilled;l.Emit(entry);
+    var worker=(SerialWorker)typeof(CopierEngine).GetField("worker",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(e);var queued=new ManualResetEvent(false);worker.Post(()=>queued.Set());Check(queued.WaitOne(3000),"early amend captured before Submit ACK");
+    a.SubmitRelease.Set();Drain(e);
+    Check(a.Submits==1&&a.Cancels==1&&a.Orders[0].OrderState==NinjaTrader.Cbi.OrderState.Cancelled,"captured acceptance applies deferred zero-desired amend exactly once");
+   }finally{a.SubmitRelease.Set();}
+  }
+ }
+ static int ClaimField(CopyLink link,string field) {
+  object group=typeof(CopyLink).GetField("Group").GetValue(link);
+  if(field=="Quota")return (int)group.GetType().GetField(field).GetValue(group);
+  var claims=((System.Collections.IEnumerable)group.GetType().GetField("Claims").GetValue(group)).Cast<object>().ToArray();
+  return claims.Length==0?0:(int)claims.Single().GetType().GetField(field).GetValue(claims.Single());
+ }
+ static void GroupClaimReductionRequiresCapturedAck() {
+  foreach(bool partial in new[]{false,true}) {
+   var l=Acc("claims leader "+partial);var a=Acc("claims follower "+partial);
+   using(var e=Arm(l,a)) {
+    l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",4));Drain(e);Fill(a,4);Drain(e);
+    var first=LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"claims A",4,99);l.Emit(first);Drain(e);var exit=a.Orders[1];var link=ExitLink(e,exit);
+    if(partial){exit.Filled=1;exit.OrderState=NinjaTrader.Cbi.OrderState.PartFilled;SetPos(a,3);a.Emit(exit);Drain(e);}
+    a.SuppressChangeAck=true;first.Quantity=2;l.Emit(first);Drain(e);
+    l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"claims B",2,98));Drain(e);e.Poll();Drain(e);
+    Check(a.Submits==2&&ClaimField(link,"Quota")==4,"wrapper mutation/returned Change cannot release allocated ordinals");
+    a.SuppressChangeAck=false;a.Emit(exit);Drain(e);e.Poll();Drain(e);
+    Check(a.Submits==3&&a.Orders[2].Quantity==2,"captured reduction transfers only remaining unconsumed capacity");
+    var other=ExitLink(e,a.Orders[2]);
+    Check(ClaimField(link,"Quota")==2&&ClaimField(link,"First")==0&&ClaimField(link,"Count")==2,"A retains consumed prefix and one fixed claim");
+    Check(ClaimField(other,"First")==2&&ClaimField(other,"Count")==2,"B receives disjoint unused suffix, never A's consumed lot");
+    Check(UnprotectedNow(e)==0,"complete reduced plan covers all remaining owned lots");
+   }
+  }
+ }
+ static void FractionalGroupsCoverEveryIntegerLot() {
+  foreach(double ratio in new[]{0.1,0.25,0.3,0.5,0.75,1.5}) {
+   var l=Acc("fraction leader "+ratio);var a=Acc("fraction follower "+ratio);
+   using(var e=new CopierEngine(x=>{},x=>{},(x,y)=>{},(x,y)=>{})) {
+    e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{Ratio=ratio,MaxContracts=30,Target=100},new RiskLatch())});Drain(e);
+    l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",10));Drain(e);int owned=(int)Math.Floor(10*ratio);Fill(a,owned);Drain(e);
+    int index=0;foreach(int quantity in new[]{1,3,6}) {
+     string oco="fraction group "+index++;
+     l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,oco,quantity,98));
+     l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,oco,quantity,110));
+    }
+    Drain(e);for(int i=0;i<3;i++){e.Poll();Drain(e);}
+    var active=a.Orders.Where(x=>x.OrderAction==NinjaTrader.Cbi.OrderAction.Sell&&!NinjaTrader.Cbi.Order.IsTerminalState(x.OrderState)).ToArray();
+    int coverage=active.GroupBy(x=>x.Oco).Sum(g=>g.Max(x=>x.Quantity-x.Filled));
+    Check(coverage==owned,"fractional plan must cover every owned integer lot exactly once across groups, ratio="+ratio+"; "+Probe(a));
+    var groups=active.GroupBy(x=>x.Oco).ToArray();Check(groups.All(g=>g.Count()==2),"each nonzero allocation retains both explicit OCO members");
+   }
+  }
+ }
+ static void UnequalTargetDoesNotRetireSoleStop() {
+  var l=Acc("unequal leader");var a=Acc("unequal follower");
+  using(var e=Arm(l,a)) {
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",4));Drain(e);Fill(a,4);Drain(e);
+   var stop=LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"unequal",4,98);stop.OrderType=NinjaTrader.Cbi.OrderType.StopMarket;stop.StopPrice=98;l.Emit(stop);
+   l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"unequal",2,110));Drain(e);
+   var target=a.Orders.Single(x=>x.OrderAction==NinjaTrader.Cbi.OrderAction.Sell&&x.LimitPrice==110);
+   target.Filled=2;target.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Clear();a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});a.Emit(target);Drain(e);e.Poll();Drain(e);
+   var protection=a.Orders.Single(x=>x.OrderType==NinjaTrader.Cbi.OrderType.StopMarket);
+   Check(a.Cancels==0&&protection.OrderState==NinjaTrader.Cbi.OrderState.Working&&protection.Quantity==2,"terminal target is not group completion: keep sole stop for allocated remainder; "+Probe(a));
+  }
+ }
+ static void PartialTerminalDoesNotCancelSoleProtection() {
+  var l=Acc("partial terminal leader");var a=Acc("partial terminal follower");int locks=0;
+  using(var e=Arm(l,a,null,(x,y)=>locks++)) {
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Drain(e);Fill(a,2);Drain(e);
+   l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"partial terminal",2,98));l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"partial terminal",2,110));Drain(e);
+   var target=a.Orders.Single(x=>x.LimitPrice==110);target.Filled=1;target.OrderState=NinjaTrader.Cbi.OrderState.Filled;
+   a.Positions.Clear();a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=1,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});a.Emit(target);Drain(e);e.Poll();Drain(e);
+   var protection=a.Orders.Single(x=>x.LimitPrice==98);
+   Check(locks==1&&a.Cancels==0&&protection.OrderState==NinjaTrader.Cbi.OrderState.Working,"ambiguous partial terminal freezes sole protection, never retires it; "+Probe(a));
+   Check(ExitLink(e,target).ObservedFilled==1,"retain positive partial terminal evidence");
+  }
+ }
+ static void GroupDoubleFillPermutationsRetainReversalEvidence() {
+  foreach(bool reverse in new[]{false,true}) {
+   var l=Acc("double group leader "+reverse);var a=Acc("double group follower "+reverse);int locks=0;
+   using(var e=Arm(l,a,null,(x,y)=>locks++)) {
+    l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Drain(e);Fill(a,2);Drain(e);
+    l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"double group",2,98));l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"double group",2,110));Drain(e);
+    var exits=a.Orders.Where(x=>x.OrderAction==NinjaTrader.Cbi.OrderAction.Sell).ToArray();
+    var worker=(SerialWorker)typeof(CopierEngine).GetField("worker",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(e);
+    var entered=new ManualResetEvent(false);var release=new ManualResetEvent(false);worker.Post(()=>{entered.Set();release.WaitOne();});Check(entered.WaitOne(3000),"double-fill barrier");
+    foreach(var exit in reverse?exits.Reverse():exits){exit.Filled=2;exit.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Emit(exit);}
+    a.Positions.Clear();a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Short});release.Set();Drain(e);e.Poll();Drain(e);
+    Check(locks==1&&exits.Sum(x=>ExitLink(e,x).ObservedFilled)==4,"both callback permutations retain all reversal evidence");
+    Check(a.Submits==3&&a.Cancels==0&&a.Flattens==0,"no speculative cancel, catch-up or reversal recovery");
+   }
+  }
+ }
+ static void SellOpenedShortHasGroupOwnership(){var l=Acc("short group lead");var a=Acc("short group follow");
+  using(var e=Arm(l,a)){
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"",2));Drain(e);var entry=a.Orders.Single();
+   entry.Filled=2;entry.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Short});a.Emit(entry);Drain(e);
+   l.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Short});
+   var stop=LeaderLimit(l,NinjaTrader.Cbi.OrderAction.BuyToCover,"short group",2,99);l.Emit(stop);Drain(e);
+   Check(a.Submits==2,"Sell-opened short has its explicit group protection copied");
+   var link=ExitLink(e,a.Orders.Last());Check(ClaimEntry(link)==entry&&link.Group.Quota==2,"group owns captured Sell short entry, not an invented long");
+   Check(UnprotectedNow(e)==0,"short group accounts for both captured lots");}}
+ static void LateGroupExitFillAfterConfirmedFlatLocks(){var l=Acc("late flat exit lead");var a=Acc("late flat exit follow");AccountTelemetry latest=null;
+  using(var e=Arm(l,a,t=>latest=t)){
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",2));Drain(e);Fill(a,2);Drain(e);
+   l.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});
+   l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"late flat exit",2,99));Drain(e);var oldExit=a.Orders.Last();
+   e.Flatten(new[]{a},inst);Drain(e);Thread.Sleep(3600);e.Poll();Drain(e);Check(latest!=null&&!latest.Locked,"Flat confirmed clean before late exit fill");
+   oldExit.Filled=2;oldExit.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Short});a.Emit(oldExit);Drain(e);
+   Check(latest.Locked&&!latest.Following,"late retired-group fill locks even when reversed Position agrees with executions");
+   Check(ExitLink(e,oldExit).ObservedFilled==2&&a.Submits==2&&a.Flattens==1,"late fill retained with no automatic close/retry");}}
+ static void ConfirmedFlatRetiresPriorGroupOwnership(){var l=Acc("flat group lead");var a=Acc("flat group follow");AccountTelemetry latest=null;
+  using(var e=Arm(l,a,t=>latest=t)){
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",2));Drain(e);Fill(a,2);Drain(e);var priorEntry=a.Orders[0];
+   l.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});
+   l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"flat prior",2,99));Drain(e);Check(a.Submits==2,"prior group copied");
+   var priorGroup=ExitLink(e,a.Orders[1]).Group;
+   e.Flatten(new[]{a},inst);Drain(e);Thread.Sleep(3600);e.Poll();Drain(e);e.Poll();Drain(e);
+   Check(latest!=null&&!latest.Locked&&!latest.Following,"provider-confirmed Flat stays clean and OFF; reason: "+(latest==null?"":latest.Reason));
+   e.SetFollowing(a.Name,true);Drain(e);Check(latest.Following&&!latest.Locked,"explicit refollow after confirmed Flat");
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",2));Drain(e);var nextEntry=a.Orders.Last();
+   nextEntry.Filled=2;nextEntry.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});a.Emit(nextEntry);Drain(e);
+   l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"flat next",2,98));Drain(e);
+   Check(a.Submits==4,"new round has its explicit protection copied");
+   var next=ExitLink(e,a.Orders.Last());Check(ClaimEntry(next)==nextEntry&&ClaimEntry(next)!=priorEntry,"new protection cannot reuse flattened entry lots");
+   Check(ExitLink(e,priorEntry).ObservedFilled==2&&priorGroup.Members.Any(x=>x.Order==a.Orders[1]),"historical ownership evidence retained");
+   Check(next.Group.Quota==2&&UnprotectedNow(e)==0&&!latest.Locked,"new group fully covers only the new round");}}
  static void OcoCompletedGroupDoesNotCancelOtherProtectedGroup(){
   var l=Acc("oco1 lead");var a=Acc("oco1 follow");AccountTelemetry t=null;
   using(var e=Arm(l,a,x=>t=x)){
@@ -687,8 +914,8 @@ class EngineSafetyTests {
    l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"oco1 A",2,99));l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"oco1 A",2,110));
    l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"oco1 B",2,98));l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"oco1 B",2,111));
    Wait(()=>a.Submits==5,"four protective orders submitted; "+Probe(a));Drain(e);
-   var aTarget=a.Orders[2];aTarget.Filled=2;aTarget.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Clear();a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});a.Emit(aTarget);Drain(e);e.Poll();Drain(e);
-   var bStop=a.Orders[3];var bTarget=a.Orders[4];var aStop=a.Orders[1];
+   var aTarget=a.Orders.Single(o=>o.LimitPrice==110);aTarget.Filled=2;aTarget.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Clear();a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});a.Emit(aTarget);Drain(e);e.Poll();Drain(e);
+   var bStop=a.Orders.Single(o=>o.LimitPrice==98);var bTarget=a.Orders.Single(o=>o.LimitPrice==111);var aStop=a.Orders.Single(o=>o.LimitPrice==99);
    Check(aStop.OrderState==NinjaTrader.Cbi.OrderState.Cancelled,"A's sibling stop is retired; "+Probe(a));
    // Window 1: A's stop cancel is requested but NOT yet acknowledged. Captured evidence still shows it Working, so it still
    // reserves 2 and B appears to have no closable exposure. B's sole protection must be frozen, never cancelled.
@@ -699,28 +926,32 @@ class EngineSafetyTests {
    Check(bStop.OrderState==NinjaTrader.Cbi.OrderState.Working&&bTarget.OrderState==NinjaTrader.Cbi.OrderState.Working&&bStop.Quantity==2&&bTarget.Quantity==2,"B group protection intact after A's cancel ack; "+Probe(a));
   }
  }
- // Issue #3 scenario 2: B's exits are still WAITING (no closable exposure yet) and A completes. The rest of the entry can then only
- // fill AFTER an exit group completed. The engine must fail closed (lock, manual recovery) - it must not guess how the late lots
- // split across groups, must not cancel anything extra, and must not submit unprotected-by-design orders.
- // KNOWN LIMITATION (documented): B's waiting exit is therefore never sent; the user reconciles by hand.
- static void OcoCompletionWithUnfilledEntryFailsClosed(){
-  var l=Acc("oco2 lead");var a=Acc("oco2 follow");AccountTelemetry latest=null;
-  using(var e=Arm(l,a,x=>latest=x)){
-   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",4));Wait(()=>a.Submits==1,"entry");Fill(a,2);Drain(e);
-   l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"oco2 A",2,99));l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"oco2 A",2,110));
-   Wait(()=>a.Submits==3,"A protected; "+Probe(a));
-   l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"oco2 B",2,98));Drain(e);
-   var aTarget=a.Orders[2];aTarget.Filled=2;aTarget.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Clear();a.Emit(aTarget);Drain(e);
-   var entry=a.Orders[0];entry.Filled=4;entry.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});a.Emit(entry);Drain(e);
-   a.Emit(a.Orders[1]);Drain(e);e.Poll();Drain(e);e.Poll();Drain(e);
-   Check(latest.Locked&&!latest.Following,"late entry fill after an exit group completed must lock; "+Probe(a));
-   Check(latest.Reason.Contains("manual"),"lock reason must say manual recovery is required: "+latest.Reason);
-   // Issue #3 decided policy (conservative): lock, never auto-create orders, and SAY how many lots are unprotected and what to do.
-   Check(latest.Reason.Contains("UNPROTECTED"),"the lock reason must say plainly that lots are unprotected: "+latest.Reason);
-   Check(latest.Reason.Contains("2 lots")||latest.Reason.Contains("2 lot"),"the lock reason must state how many lots hold no protective exit (2): "+latest.Reason);
-   Check(latest.Reason.Contains("NinjaTrader"),"the lock reason must tell the user to act in NinjaTrader: "+latest.Reason);
-   Check(a.Submits==3,"no order is guessed or submitted after the lock; "+Probe(a));
-   Check(a.Cancels==2,"no extra cancel: only A's stop and the entry remainder; "+Probe(a));
+ // Supersedes the old manual-only policy assertion: explicit B intent and fixed claims now
+ // authorize B's late protection. No native order is invented and no entry is rearmed.
+ static void CertifiedLateEntryFillProtectsWaitingGroup() {
+  foreach(bool queued in new[]{false,true})foreach(bool lateFirst in new[]{false,true}) {
+   var l=Acc("late certified leader "+queued+lateFirst);var a=Acc("late certified follower "+queued+lateFirst);AccountTelemetry latest=null;
+   using(var e=Arm(l,a,x=>latest=x)) {
+    l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",4));Drain(e);Fill(a,2);Drain(e);
+    foreach(double price in new[]{99.0,110.0})l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"late certified A",2,price));Drain(e);
+    foreach(double price in new[]{98.0,111.0})l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"late certified B",2,price));Drain(e);
+    Check(a.Submits==3,"B waits for its own entry ordinals");
+    var target=a.Orders[2];var entry=a.Orders[0];
+    var worker=(SerialWorker)typeof(CopierEngine).GetField("worker",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(e);
+    var entered=new ManualResetEvent(false);var release=new ManualResetEvent(false);
+    if(queued){worker.Post(()=>{entered.Set();release.WaitOne();});Check(entered.WaitOne(3000),"late callback barrier");}
+    Action complete=()=>{target.Filled=2;target.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Clear();a.Emit(target);};
+    Action late=()=>{entry.Filled=4;entry.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Emit(entry);};
+    if(lateFirst){late();if(!queued)Drain(e);complete();}else{complete();if(!queued)Drain(e);late();}
+    a.Positions.Clear();a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});release.Set();Drain(e);
+    a.Emit(a.Orders[1]);Drain(e);for(int k=0;k<3;k++){e.Poll();Drain(e);}
+    var b=a.Orders.Where(x=>x.LimitPrice==98||x.LimitPrice==111).ToArray();
+    Check(a.Submits==5&&b.Length==2&&b.All(x=>x.Quantity==2&&x.OrderState==NinjaTrader.Cbi.OrderState.Working),"both explicit B exits cover its late allocated lots; "+Probe(a));
+    Check(UnprotectedNow(e)==0,"late B plan has no integer coverage gap");
+    Check(latest!=null&&!(latest.Reason??"").Contains("UNPROTECTED"),"accepted B coverage removes stale uncovered-count warning without rearming entries");
+    Check(b.All(x=>ClaimEntry(ExitLink(e,x))==entry),"late fills preserve B's entry ownership");
+    Check(a.Flattens==0&&a.Orders.Count(x=>x.OrderAction==NinjaTrader.Cbi.OrderAction.Buy)==1,"never invent a close or new entry");
+   }
   }
  }
  // Issue #3 guard (review-driven): a leader-cancelled exit whose follower cancel is NOT acknowledged is still a working order and must keep
@@ -737,9 +968,40 @@ class EngineSafetyTests {
    Check(WorkingSell(a)==open,"X must still be working and unacknowledged ("+why+"); open="+open+" "+Probe(a));
    l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,yOco,open,98));Drain(e);
    for(int k=0;k<polls;k++){e.Poll();Drain(e);}
+   Check(a.Submits==2&&a.Cancels==1,"unacknowledged cancellation blocks replacement without repeated cancels ("+why+")");
    Check(WorkingSell(a)<=open,"working exit quantity must never exceed the "+open+" lots still held ("+why+"); working="+WorkingSell(a)+" "+Probe(a));
   }
  }
+ static void SameOcoCancellationDoesNotCancelExistingSibling() {
+  var l=Acc("same sibling leader");var a=Acc("same sibling follower");a.AsyncCancel=true;
+  using(var e=Arm(l,a)) {
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Drain(e);Fill(a,2);Drain(e);
+   var first=LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"shared sibling",2,99);l.Emit(first);
+   l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"shared sibling",2,98));Drain(e);
+   Check(a.Submits==3&&a.Orders[1].Oco==a.Orders[2].Oco,"ordinary active OCO siblings still share capacity");
+   first.OrderState=NinjaTrader.Cbi.OrderState.Cancelled;l.Emit(first);Drain(e);
+   l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"shared sibling",2,97));Drain(e);for(int i=0;i<3;i++){e.Poll();Drain(e);}
+   Check(a.Submits==3&&a.Cancels==1&&a.Orders[2].Quantity==2&&a.Orders[2].OrderState==NinjaTrader.Cbi.OrderState.Working,"block new member without cancelling/resizing existing sole sibling");
+  }
+ }
+ static void SameOcoCapturedCancelAckReleasesCapacityForExplicitNewExit() {
+  var l=Acc("same ack leader");var a=Acc("same ack follower");a.AsyncCancel=true;
+  using(var e=Arm(l,a)) {
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Drain(e);Fill(a,2);Drain(e);
+   var first=LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"shared ack",2,99);l.Emit(first);Drain(e);var old=a.Orders[1];
+   first.OrderState=NinjaTrader.Cbi.OrderState.Cancelled;l.Emit(first);Drain(e);
+   old.OrderState=NinjaTrader.Cbi.OrderState.Cancelled; // wrapper mutation alone is not an acknowledgement
+   l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"shared ack",2,98));Drain(e);
+   Check(a.Submits==2,"terminal wrapper without captured ACK still reserves capacity");
+   a.Emit(old);Drain(e);Check(a.Submits==2,"terminal exit policy retires waiting request; never autonomous retry");
+   l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"shared ack",2,97));Drain(e);
+   Check(a.Submits==3&&a.Orders[2].Quantity==2&&WorkingSell(a)==2,"captured cancel ACK permits a fresh explicit leader exit");
+  }
+ }
+ static void UnackedCancelledIndependentExitStillWaits(){LeaderCancelledUnackedExit("","",2,false,5,"independent no-OCO cancellation");}
+ static void UnackedCancelledExitSameOcoStillReserves(){LeaderCancelledUnackedExit("same pending","same pending",2,false,1,"same-OCO");}
+ static void UnackedCancelledExitSameOcoNeverAckedStillReserves(){LeaderCancelledUnackedExit("same forever","same forever",2,false,5,"same-OCO never-acked");}
+ static void UnackedCancelledPartialExitSameOcoStillReserves(){LeaderCancelledUnackedExit("same partial","same partial",2,true,1,"same-OCO partial");}
  static void UnackedCancelledExitDifferentOcoStillReserves(){LeaderCancelledUnackedExit("","ocg B",2,false,1,"noOco-vs-B");LeaderCancelledUnackedExit("ocg A","ocg B",2,false,1,"A-vs-B");LeaderCancelledUnackedExit("ocg A2","",2,false,1,"A-vs-none");}
  static void UnackedCancelledExitNeverAckedStillReserves(){LeaderCancelledUnackedExit("ocg A3","ocg B3",2,false,5,"never-acked");}
  static void UnackedCancelledPartiallyFilledExitStillReserves(){LeaderCancelledUnackedExit("ocg A4","ocg B4",2,true,1,"partial");}
@@ -1067,7 +1329,7 @@ class EngineSafetyTests {
  static void PersistenceFailureSafety(){var l=Acc("durable failure lead");var a=Acc("durable failure follow");using(var e=Arm(l,a,null,(n,r)=>{throw new System.IO.IOException("synthetic journal write failed");})){l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Wait(()=>a.Submits==1,"working entry");Drain(e);var manual=LeaderOrder(a,NinjaTrader.Cbi.OrderAction.Buy);a.Emit(manual);Drain(e);Check(a.Cancels==1&&a.Orders[0].OrderState==NinjaTrader.Cbi.OrderState.Cancelled,"persistence failure must not interrupt owned entry cancellation");}}
  static void TypeTransitionSafety(){var l=Acc("type change lead");var a=Acc("type change follow");using(var e=Arm(l,a)){var o=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy);o.OrderType=NinjaTrader.Cbi.OrderType.StopMarket;o.LimitPrice=0;o.StopPrice=100;l.Emit(o);Wait(()=>a.Submits==1,"stop market entry");o.OrderType=NinjaTrader.Cbi.OrderType.Limit;o.StopPrice=0;o.LimitPrice=95;o.OrderState=NinjaTrader.Cbi.OrderState.Working;l.Emit(o);Drain(e);Check(a.Changes==0&&a.Orders[0].StopPrice==100,"type transition rejected without corrupting submitted stop");}}
  static void AsyncCancelAckSafety(){var l=Acc("async off lead");var a=Acc("async off follow");AccountTelemetry latest=null;using(var e=Arm(l,a,t=>latest=t)){l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Wait(()=>a.Submits==1,"entry");a.AsyncCancel=true;e.SetFollowing(a.Name,false);Drain(e);Check(latest.DisablePending,"cancel pending");a.Orders[0].OrderState=NinjaTrader.Cbi.OrderState.Cancelled;a.Emit(a.Orders[0]);Drain(e);e.Poll();Drain(e);Check(!latest.DisablePending,"pending clears after terminal cancel acknowledgement");e.SetFollowing(a.Name,true);Drain(e);Check(latest.Following,"clean terminal ack permits explicit refollow");}}
- static void CancelledBracketSafety(){var l=Acc("cancel waiting lead");var a=Acc("cancel waiting follow");using(var e=Arm(l,a)){l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",4));Wait(()=>a.Submits==1,"entry");Fill(a,2);Drain(e);l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"first",2));Wait(()=>a.Submits==2,"first exit");l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"independent stale",4));Drain(e);Check(a.Submits==2,"second waits reserved budget");a.Orders[1].OrderState=NinjaTrader.Cbi.OrderState.Cancelled;a.Emit(a.Orders[1]);Drain(e);Check(a.Submits==2,"cancelled protection retires stale waiting bracket");}}
+ static void CancelledBracketSafety(){var l=Acc("cancel waiting lead");var a=Acc("cancel waiting follow");using(var e=Arm(l,a)){l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",4));Wait(()=>a.Submits==1,"entry");Fill(a,2);Drain(e);l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"first",2));Wait(()=>a.Submits==2,"first exit");var waiting=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"independent stale",4);l.Emit(waiting);Drain(e);Check(a.Submits==2,"second waits reserved budget");waiting.OrderState=NinjaTrader.Cbi.OrderState.Cancelled;l.Emit(waiting);Drain(e);a.Orders[1].OrderState=NinjaTrader.Cbi.OrderState.Cancelled;a.Emit(a.Orders[1]);Drain(e);Check(a.Submits==2,"cancelled protection retires stale waiting bracket");}}
  static void ManualTerminalPollSafety(){var l=Acc("manual filled lead");var a=Acc("manual filled follow");int locks=0;AccountTelemetry latest=null;using(var e=Arm(l,a,t=>latest=t,(n,r)=>locks++)){var manual=LeaderOrder(a,NinjaTrader.Cbi.OrderAction.Buy);manual.Filled=2;manual.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Orders.Add(manual);a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});e.Poll();Drain(e);Check(locks==1&&!latest.Following&&latest.Locked,"Poll detects terminal manual fills and unknown position");}}
  static void AsyncFlattenSafety(){var l=Acc("async flatten lead");var a=Acc("async flatten follow");using(var e=Arm(l,a)){l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Wait(()=>a.Submits==1,"entry");Fill(a,2);Drain(e);a.NoopFlatten=true;e.Flatten(new[]{a},inst);Drain(e);e.Poll();Drain(e);Check(a.Submits==1,"unconfirmed flatten blocks concurrent new exits");var recover=typeof(CopierEngine).GetMethod("AcknowledgeFlattenAbandoned");Check(recover!=null,"explicit manual flatten recovery API required");recover.Invoke(e,new object[]{a.Name});Drain(e);l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"new stop"));Drain(e);Check(a.Flattens==1&&a.Submits==2&&a.Positions[0].Quantity==2,"unconfirmed flatten with no working close permits explicit mirrored recovery exit");}}
  static void InFlightOffSafety(){var l=Acc("linear lead");var a=Acc("linear follow");AccountTelemetry latest=null;a.SubmitEntered=new ManualResetEvent(false);a.SubmitRelease=new ManualResetEvent(false);using(var e=Arm(l,a,t=>latest=t)){l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Check(a.SubmitEntered.WaitOne(3000),"broker submit barrier");try{var dict=(Dictionary<string,List<CopyLink>>)typeof(CopierEngine).GetField("links",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(e);Check(dict.Values.Single().Single().SubmissionInFlight,"authorization marked in-flight before broker call");int generation=e.SetFollowing(a.Name,false);Check(latest.ProcessedFollowGeneration<generation,"OFF not processed while prior submit in flight");}finally{a.SubmitRelease.Set();}Drain(e);Drain(e);Check(a.Submits==1&&a.Cancels==1&&!latest.DisablePending,"prior authorized submit canceled then terminal ack observed");l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Drain(e);Check(a.Submits==1,"zero newly authorized entry after OFF gate");}}
@@ -1130,14 +1392,14 @@ class EngineSafetyTests {
  static void LeaderBuyCoversShortIsCopiedAsExit(){var l=Acc("cover lead");var a=Acc("cover follow");AccountTelemetry latest=null;
   // Short round trip as NinjaTrader's ticket sends it: Sell (opens short) then Buy (covers). The Buy must be an EXIT: sized to the follower's short, never a new long entry.
   using(var e=Arm(l,a,t=>latest=t)){
-   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"",2));Wait(()=>a.Submits==1,"short entry copied");
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"",2));Wait(()=>a.Submits==1,"short entry copied");Drain(e);
    var f=a.Orders[0];f.Filled=2;f.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Short});a.Emit(f);Drain(e);
    // the leader is now short 2 (fixture position), then covers
    l.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Short});
-   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",2));Wait(()=>a.Submits==2,"cover copied");
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",2));Wait(()=>a.Submits==2,"cover copied");Drain(e);
    Check(a.Orders[1].OrderAction==NinjaTrader.Cbi.OrderAction.Buy,"follower cover is a Buy");
    Check(a.Orders[1].Quantity==2,"cover is sized to the follower's short (2), got "+a.Orders[1].Quantity);
-   Check(latest==null||!latest.Locked,"a normal short round trip must not lock");}}
+   Check(latest==null||!latest.Locked,"a normal short round trip must not lock; reason: "+(latest==null?"":latest.Reason));}}
  static void LeaderSellClosingALongStaysAnExit(){var l=Acc("longexit lead");var a=Acc("longexit follow");AccountTelemetry latest=null;
   // Regression guard for the legacy meaning: leader long, then Sell => exit (sized to the follower's long), not a new short.
   using(var e=Arm(l,a,t=>latest=t)){
@@ -1234,10 +1496,9 @@ class EngineSafetyTests {
  // Real-NT finding 2026-10-13: a 1-lot long, then the leader places a protective STOP (Sell 1) and a profit-target LIMIT (Sell 1) with no OCO between them.
  // Together they ask for 2 lots of exit capacity on a 1-lot position. The stop is copied; the target must NOT make the engine lock the follower after 10 s
  // and must not send an exit that could over-close. Whatever the engine decides (copy under an engine-owned OCO, or refuse visibly) the follower must stay usable.
- // KNOWN GAP, deliberately NOT discovered by offline.py (it takes a parameter, the runner only lists parameterless cases) so the suite stays honest at 0 FAIL.
- // It is RED on current source. Run it by hand through reflection when working on Issue #3 / PR #22; see docs/KNOWN-ISSUES.md.
- static void KnownGap_StopAndTargetWithoutOcoDoNotLockFollower(bool runManually){var l=Acc("stp lead");var a=Acc("stp follow");AccountTelemetry latest=null;
-  var e=new CopierEngine(m=>{},t=>latest=t,(att,m)=>{},(n,r)=>{});
+ // Parameterless regression: offline.py now discovers this previously expected-RED case.
+ static void StopAndTargetWithoutOcoDoNotLockFollower(){var l=Acc("stp lead");var a=Acc("stp follow");AccountTelemetry latest=null;var messages=new List<string>();
+  var e=new CopierEngine(m=>messages.Add(m),t=>latest=t,(att,m)=>{},(n,r)=>{});
   try{e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=1,Target=100},new RiskLatch())});Wait(()=>e.EntriesArmed,"arm");
    var en=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",1);en.OrderId="stp-in";l.Emit(en);Wait(()=>a.Submits==1,"entry copied");
    var fi=a.Orders.Last();fi.Filled=1;fi.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=1,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});a.Emit(fi);Drain(e);
@@ -1247,8 +1508,14 @@ class EngineSafetyTests {
    var tgt=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"",1);tgt.OrderType=NinjaTrader.Cbi.OrderType.Limit;tgt.LimitPrice=30790;tgt.OrderId="stp-tgt";l.Emit(tgt);Drain(e);
    System.Threading.Thread.Sleep(11500);e.Poll();Drain(e);
    Check(latest==null||!latest.Locked,"stop + target on a 1-lot position must not lock the follower after 10 s; reason: "+(latest==null?"":latest.Reason));
-   Check(a.Submits<=3,"never more than one exit order per leader exit order; submits="+a.Submits);
-   Check(a.Orders.Where(o=>o.OrderAction==NinjaTrader.Cbi.OrderAction.Sell&&(o.OrderState==NinjaTrader.Cbi.OrderState.Working||o.OrderState==NinjaTrader.Cbi.OrderState.Submitted||o.OrderState==NinjaTrader.Cbi.OrderState.Accepted||o.OrderState==NinjaTrader.Cbi.OrderState.Initialized)).Sum(o=>o.Quantity)<=2,"live exit quantity stays bounded");}
+   Check(a.Submits==2&&a.Cancels==0&&a.Changes==0&&a.Flattens==0,"only entry and stop sent; sole protection untouched");
+   Check(messages.Any(m=>m.Contains("leader exit refused — no independent exit capacity")),"refusal is visible");
+   var links=(Dictionary<string,List<CopyLink>>)typeof(CopierEngine).GetField("links",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(e);
+   var refused=links.Values.SelectMany(v=>v).Single(x=>x.Latest.Source==tgt);
+   Check(refused.Cancelled&&!refused.Waiting&&refused.Order==null&&fs.Quantity==1,"refused target cannot retry or consume capacity");
+   tgt.LimitPrice+=1;l.Emit(tgt);e.Poll();Drain(e);Check(a.Submits==2,"poll and amendment do not revive refused intent");
+   Check(latest!=null&&latest.Following&&!latest.Locked,"follower remains usable");
+   Check(a.Orders.Where(o=>o.OrderAction==NinjaTrader.Cbi.OrderAction.Sell&&(o.OrderState==NinjaTrader.Cbi.OrderState.Working||o.OrderState==NinjaTrader.Cbi.OrderState.Submitted||o.OrderState==NinjaTrader.Cbi.OrderState.Accepted||o.OrderState==NinjaTrader.Cbi.OrderState.Initialized)).Sum(o=>o.Quantity)<=1,"independent live exit quantity stays within owned lot");}
   finally{e.Dispose();}}
  // Real-NT finding 2026-10-13 (B): the leader still holds a stop and a target under ONE OCO group (both copied, 1 lot each, 1-lot position) and then sends a
  // MARKET Sell 1 to close without cancelling them first. The follower already has 1 lot of working exit orders, so the market exit saw no free closable exposure,
@@ -1377,7 +1644,7 @@ class EngineSafetyTests {
   var e=new CopierEngine(s=>{if(log!=null)lock(log)log.Add(s);},t=>{lock(tele)tele[t.Name]=t;},(att,s)=>{},(n,r)=>{});
   e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10,Target=100},new RiskLatch()),Tuple.Create(b,new RiskSettings{MaxContracts=10,Target=100},new RiskLatch())});Wait(()=>e.EntriesArmed,"arm two");return e;}
  static void BothFilled(CopierEngine e,NinjaTrader.Cbi.Account l,NinjaTrader.Cbi.Account a,NinjaTrader.Cbi.Account b,int qty){
-  l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",qty));Wait(()=>a.Submits==1&&b.Submits==1,"both entries copied");
+  l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",qty));Wait(()=>a.Submits==1&&b.Submits==1,"both entries copied");Drain(e);
   foreach(var f in new[]{a,b})Fill(f,qty);Drain(e);
   l.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=qty,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});}
  static void FlatOneFollowerConfirmedFlatLeavesItUnlockedAndOtherUntouched(){var l=Acc("flat1 lead");var a=Acc("flat1 a");var b=Acc("flat1 b");var tele=new Dictionary<string,AccountTelemetry>();
@@ -1397,9 +1664,9 @@ class EngineSafetyTests {
   try{BothFilled(e,l,a,b,1);
    // B exits normally (copied exit filled), A is flattened by hand: afterwards the whole session is flat and must be detachable.
    e.Flatten(new[]{a},inst);Wait(()=>a.Flattens==1,"A flatten");Drain(e);
-   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"",1));Wait(()=>b.Submits==2,"B exit");var xb=b.Orders.Last();xb.Filled=1;xb.OrderState=NinjaTrader.Cbi.OrderState.Filled;b.Positions.Clear();b.Emit(xb);Drain(e);
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"",1));Wait(()=>b.Submits==2,"B exit");Drain(e);var xb=b.Orders.Last();xb.Filled=1;xb.OrderState=NinjaTrader.Cbi.OrderState.Filled;b.Positions.Clear();b.Emit(xb);Drain(e);
    Thread.Sleep(3600);e.Poll();Drain(e);e.Poll();Drain(e);
-   lock(tele)Check(!tele["flat2 a"].Locked&&!tele["flat2 b"].Locked,"nobody locked after a normal exit plus a user Flat");
+   lock(tele)Check(!tele["flat2 a"].Locked&&!tele["flat2 b"].Locked,"nobody locked after a normal exit plus a user Flat; A: "+tele["flat2 a"].Reason+"; B: "+tele["flat2 b"].Reason);
    l.Positions.Clear();
    e.SetFollowing(a.Name,true);Drain(e);
    lock(tele)Check(tele["flat2 a"].Following,"A can be re-followed once confirmed flat");
@@ -1729,7 +1996,7 @@ class EngineSafetyTests {
   try{Check(w.Post(()=>{entered.Set();rel.WaitOne(8000);}),"barrier");Check(entered.WaitOne(3000),"blocked");
    var sw=System.Diagnostics.Stopwatch.StartNew();e.Dispose();sw.Stop();Check(sw.ElapsedMilliseconds<4500,"Dispose bounded; ms="+sw.ElapsedMilliseconds);
    Check(e.Attached&&!e.EntriesArmed,"half state during timeout: attached but entries blocked");
-   rel.Set();Wait(()=>!e.Attached,"queued close ran");Check(!w.Post(()=>{}),"mailbox stopped after late close");}
+   rel.Set();Wait(()=>!e.Attached,"queued close ran");Wait(()=>!w.Post(()=>{}),"mailbox stopped after late close");}
   finally{rel.Set();}
  }
 
