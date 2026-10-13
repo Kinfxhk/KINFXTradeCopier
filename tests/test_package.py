@@ -43,6 +43,28 @@ class PublicPackage(unittest.TestCase):
             self.assertNotIn('secrets' + '.', text)
             self.assertIn('contents: read', text)
 
+    def test_progress_block_in_readmes_matches_progress_json(self):
+        import subprocess, sys
+        result = subprocess.run([sys.executable, '-B', str(ROOT / 'scripts' / 'progress.py'), '--check'],
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_progress_scoring_never_credits_offline_as_real(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('progress', ROOT / 'scripts' / 'progress.py')
+        mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+        data = mod.load()
+        for item in data['items']:
+            self.assertIn(item['level'], (0, 1, 2, 3))
+            self.assertTrue(item['evidence'].strip(), item['id'])
+        fake = {'items': [{'id': 'x', 'weight': 10, 'level': 2, 'must': True, 'targets': ['demo'], 'group': 'g', 'en': 'e', 'zh': 'z', 'evidence': 'e'}]}
+        s = mod.score(fake, 'demo')
+        self.assertEqual(s['percent'], 50.0)
+        self.assertFalse(s['ready'])
+        fake['items'][0]['level'] = 3
+        self.assertTrue(mod.score(fake, 'demo')['ready'])
+        self.assertEqual(mod.score(fake, 'demo')['percent'], 100.0)
+
     def test_license_and_alpha_boundary_are_present(self):
         self.assertIn('MIT License', (ROOT / 'LICENSE').read_text(encoding='utf-8'))
         readme = (ROOT / 'README.md').read_text(encoding='utf-8')

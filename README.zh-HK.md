@@ -2,7 +2,9 @@
 
 [English](README.md) · **廣東話／繁體中文**
 
-**交易功能已封鎖。呢個唔係可用嘅跟單產品。請勿用於真倉、Prop、Sim 或 Playback 落單。**
+**預設版交易功能已封鎖。呢個唔係已發佈嘅跟單產品。請勿用於實盤或 funded Prop 帳戶。**
+
+另有一個 **SIM TEST 版**（要主動啟用，同一份源碼加 `KINFX_SIM_TEST` 編譯），可以喺 NinjaTrader **Simulator／Playback** 帳戶之間，以及你喺 allow-list 列明（由你確認係模擬）嘅帳戶之間跟單。已經喺真 NinjaTrader 8.1.8.3 跑過：1 個 Simulator Leader、2 個 Prop Firm **模擬**評估帳戶、1 個合約、市價單同限價單。目前嘅真實證據就係咁多，見下面嘅進度條。
 
 呢個係 Kinfxhk 原創、MIT 授權嘅 NinjaTrader 8 AddOn，提早公開，等大家一齊覆核、重現失敗、改進。我哋唔等功能齊晒先分享。呢個 repo 係開發基線，唔係已經整合晒所有研究修正嘅成品。
 
@@ -14,7 +16,41 @@ Leader → 勾選 follower → 每戶設定 Ratio → Start。可選擇一併跟
 
 ## 進度：已完成同未完成
 
-以下全部係**離線合成測試**（假帳戶，從未向 NinjaTrader 落過單），唔等於真實環境驗收。
+證據分開兩種：**離線**數字用假帳戶，只證明邏輯；**真 NinjaTrader** 結果來自跑 NinjaTrader 8.1.8.3 嘅 VM（SIM TEST 版），連同限制列喺 [VM-PROGRESS](docs/VM-PROGRESS.md)。兩者都唔等於 Prop Firm 或實盤驗收。
+
+<!-- PROGRESS:START -->
+### 成就：Demo／Prop Firm 跟單完成度
+
+```text
+Demo         ███████████████████░░░░░░░░░░░  61.7%
+Prop firm    █████████████████░░░░░░░░░░░░░  55.6%
+```
+
+✅ 真 NinjaTrader 已測 · 🟡 只有離線測試 · ⬜ 未做。必要項目 ✅：Demo 4/14 · Prop 4/15。
+
+- ✅ 核心跟單：入場／平倉／取消／改單
+- ✅ 每戶 Ratio ＋ 最大手數
+- ✅ Follower 冇倉唔會鎖死
+- ✅ 每個帳戶獨立 Flat 按鈕
+- 🟡 批量／全部 Flatten
+- 🟡 TP／SL 跟隨 ＋ OCO
+- 🟡 異常自動鎖帳戶、唔自動重試
+- 🟡 斷線重連安全
+- 🟡 部分成交處理
+- 🟡 改量前成交一致 (#2)
+- 🟡 一戶卡住唔影響其他 (#4)
+- ⬜ 真 NT 跑 10-30 個帳戶
+- ✅ 介面（表格、批量改、鎖定原因） _（可選）_
+- 🟡 每戶每日目標／虧損上限
+- ⬜ 反向時平倉一次 (#12) _（可選）_
+- ⬜ 承接現有倉位 (#11) _（可選）_
+- ⬜ 每戶自管 TP/SL (#10) _（可選）_
+- ⬜ 重啟恢復 (#6，擱置) _（可選）_
+- ⬜ 安裝包 ＋ 覆核後發佈
+- ⬜ Prop Firm 規則檢查（本軟件唔保證）
+
+目前真實測試：1 個模擬 Leader、2 個**模擬** Prop Firm 評估帳戶、MNQ、市價＋限價。從未用過 funded 或實盤帳戶。每項詳情同限制：[`docs/PROGRESS.json`](docs/PROGRESS.json)。計分按權重：✅ 100%、🟡 50%、只有設計 10%。快照 2026-10-13，源碼 `28bc4bb3bc47`。
+<!-- PROGRESS:END -->
 
 ### 已完成（已在本 repo）
 
@@ -25,14 +61,17 @@ Leader → 勾選 follower → 每戶設定 Ratio → Start。可選擇一併跟
 - 已定安全政策（[#9](https://github.com/Kinfxhk/KINFXTradeCopier/issues/9)）：持倉但讀到 flat，唔取消唯一保護單；Flatten 拋例外後，唔複製新出場單、唔重試，鎖帳戶並通知。代價：該帳戶可能有倉位但冇出場單，要人手處理。
 - 多組 OCO 修正（[#3](https://github.com/Kinfxhk/KINFXTradeCopier/issues/3)，部分）：已寫失敗測試先行，並經獨立覆核；覆核搵到我第一版嘅回歸，已改正後先發佈。
 - Mailbox 修正（[#4](https://github.com/Kinfxhk/KINFXTradeCopier/issues/4)，部分）：worker 停止後被拒絕嘅回報、輪詢、跟單請求、平倉請求，唔再令計數或旗標卡死。已獨立覆核。
-- 所有 provider 交易封鎖；可重現測試工具、CI、12 個 Issue、截圖、中英安全說明。
+- **每戶獨立 Flat 按鈕**：每個 follower 行一個，確認框列明帳戶同合約，只平該戶，其他戶繼續跟；要 provider 證據（倉位 0、冇 working 單、靜置 3 秒）先確認已平，唔重試，20 秒未確認就鎖。離線同真 NinjaTrader 都測過。
+- **修正鎖死問題**：兩次來回交易後，leader 平倉但 follower 冇倉，10 秒後會鎖死兩個 follower。離線重現（要兩次來回先觸發）、修正，並喺真 NinjaTrader 重放，冇再鎖。
+- 斷線重連同部分成交測試（8 個離線測試，每個都有 mutant）：唔補單、保護單保留、唔補差額。
+- 預設版所有 provider 交易封鎖；可重現測試工具、CI、12 個 Issue、截圖、中英安全說明。
 
-最新已發佈離線結果：C# engine **126 PASS／0 FAIL**；pure 12／12；獨立覆核套件 24 PASS／1 已知 FAIL（[#6](https://github.com/Kinfxhk/KINFXTradeCopier/issues/6)）；Dashboard UI 32／32；Python 450 OK；完整 AddOn 只編譯成功（從未載入執行）。詳情同限制見 [TEST-MATRIX](docs/TEST-MATRIX.md)。
+最新離線結果（源碼 `28bc4bb3bc47`，VM 上同樣重現）：C# engine **207 PASS／0 FAIL**；pure 32／32；獨立覆核套件 24 PASS／1 已知 FAIL（[#6](https://github.com/Kinfxhk/KINFXTradeCopier/issues/6)）；Dashboard UI **45／45**；Python 457 OK；完整 AddOn compile-only OK。數字係「次數」，唔係完成百分比；上面嘅進度條先係完成度估算。詳情見 [TEST-MATRIX](docs/TEST-MATRIX.md)。
 
 ### 未完成
 
-- **完全未用真 NinjaTrader 帳戶測試**（連 Sim／Playback 都未）：兩個 Demo 帳戶 Leader→Follower、真實 provider 回報、斷線重連、滑點、關閉 workspace 及重啟、真實多螢幕 DPI、30 戶實際延遲。
-- **Start 同 Flatten 全部封鎖**：所以冇任何跟單，亦冇一鍵全平。
+- **真 NinjaTrader 測試仍然好少**：1 個 Leader、2 個 Follower、1 個合約（MNQ）、只有市價同限價單。未真測：斷線重連、部分成交、有 TP／SL 時 Flat、Flatten 被拒、滑點、關閉 workspace 及重啟、多螢幕 DPI、10–30 個帳戶：兩個 Demo 帳戶 Leader→Follower、真實 provider 回報、斷線重連、滑點、關閉 workspace 及重啟、真實多螢幕 DPI、30 戶實際延遲。
+- **預設版 Start 同 Flatten 仍然封鎖**；只有主動啟用嘅 SIM TEST 版，先可以喺 Simulator／Playback 帳戶或你 allow-list 內嘅帳戶跟單。冇安裝包，亦冇簽署發佈版。
 - 保護單改量前，成交資料一致性（[#2](https://github.com/Kinfxhk/KINFXTradeCopier/issues/2)）。
 - 多組 OCO（[#3](https://github.com/Kinfxhk/KINFXTradeCopier/issues/3)）：一組完成唔再取消另一組仍開放嘅保護，窄範圍修正**已合併**。**仍未完成：**入場未全部成交時一組完成，帳戶會鎖定，另一組等待中嘅出場單唔會送出（倉位冇保護，要人手處理；鎖定文字會明確寫出「X 手冇保護」同叫你去 NinjaTrader 處理，本軟件唔會自己建單）；出場分配。
 - 一個卡住嘅 follower 唔再凍結其他戶（[#4](https://github.com/Kinfxhk/KINFXTradeCopier/issues/4)，已合併，只喺離線假環境驗證）。**仍未完成：**真 NinjaTrader 對呢啲呼叫嘅線程規則未驗證；Dispose 最多等 3 秒。
