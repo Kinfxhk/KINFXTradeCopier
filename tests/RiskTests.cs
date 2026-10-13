@@ -2,10 +2,10 @@ using System;
 using NinjaTrader.NinjaScript.AddOns.Kinfx;
 class RiskTests {
  static int Main(string[] args) {
-  try { XmlDoubleRoundtripIsExact(); XmlDoubleRejectsGroupingCommas(); XmlBaselinePreservesSignedZeroAndIntent(); Console.WriteLine("PASS exact XML numeric persistence"); Eq(false,DashboardSafety.CanExecute("start")); Eq(false,DashboardSafety.CanExecute("flattenSelected")); Eq(false,DashboardSafety.CanExecute("flattenAll")); Eq(false,DashboardSafety.CanExecute("batch")); Eq(true,DashboardSafety.CanExecute("refresh")); BulkAmount(); Console.WriteLine("PASS bulk amount grammar"); SettingsWarnings(); Console.WriteLine("PASS settings warnings"); WorkerRetention(); Console.WriteLine("PASS worker retains accepted work and reports rejection"); DivergencePolicy(); Console.WriteLine("PASS divergence reaction setting"); Quantity(); Console.WriteLine("PASS quantity"); Risk(); Console.WriteLine("PASS risk latch / exits / finite / DST"); Persistence(); Console.WriteLine("PASS XML atomic roundtrip"); Worker(); Console.WriteLine("PASS serial reentrancy + ownership"); Ledger(); Console.WriteLine("PASS lifecycle decisions / dedupe / reservation"); Presets(); Console.WriteLine("PASS sourced editable presets"); ChangePolicy(); Console.WriteLine("PASS locked reductions / partial exit totals"); DurableLock(); Console.WriteLine("PASS durable global latches / unlock recheck / advisory"); return 0; }
+  try { XmlDoubleRoundtripIsExact(); XmlDoubleRejectsGroupingCommas(); XmlBaselinePreservesSignedZeroAndIntent(); Console.WriteLine("PASS exact XML numeric persistence"); Eq(false,DashboardSafety.CanExecute("start")); Eq(false,DashboardSafety.CanExecute("flattenSelected")); Eq(false,DashboardSafety.CanExecute("flattenAll")); Eq(false,DashboardSafety.CanExecute("batch")); Eq(true,DashboardSafety.CanExecute("refresh")); BulkAmount(); Console.WriteLine("PASS bulk amount grammar"); SettingsWarnings(); Console.WriteLine("PASS settings warnings"); WorkerRetention(); Console.WriteLine("PASS worker retains accepted work and reports rejection"); DivergencePolicy(); Console.WriteLine("PASS divergence reaction setting"); Quantity(); Console.WriteLine("PASS quantity"); AccountSyncDiff(); Console.WriteLine("PASS account sync diff"); ContractRollQuarterly(); Console.WriteLine("PASS contract roll"); ContractInputNormalize(); Console.WriteLine("PASS contract input"); AccountSyncDecision(); Console.WriteLine("PASS account sync decision"); HeaderTextMatchesBuild(); Console.WriteLine("PASS header text matches build"); DefaultLeaderChoice(); Console.WriteLine("PASS default leader choice"); AllowFileLineParsing(); Console.WriteLine("PASS allow file line parsing"); StartSummaryListsLeaderRatioAndExpectedQuantity(); Console.WriteLine("PASS start summary"); RvDraftNeverPublishesNonFiniteOrOutOfRange(); Console.WriteLine("PASS RvDraftNeverPublishesNonFiniteOrOutOfRange"); RvDraftMinusZeroAndStrictFields(); Console.WriteLine("PASS RvDraftMinusZeroAndStrictFields"); RvDraftCultureIndependent(); Console.WriteLine("PASS RvDraftCultureIndependent"); RvDraftBuildAfterLoadWithInvalidRawStillRefuses(); Console.WriteLine("PASS RvDraftBuildAfterLoadWithInvalidRawStillRefuses"); RvDraftLoadedInvalidPresetCannotBuild(); Console.WriteLine("PASS RvDraftLoadedInvalidPresetCannotBuild"); Risk(); Console.WriteLine("PASS risk latch / exits / finite / DST"); Persistence(); Console.WriteLine("PASS XML atomic roundtrip"); Worker(); Console.WriteLine("PASS serial reentrancy + ownership"); Ledger(); Console.WriteLine("PASS lifecycle decisions / dedupe / reservation"); Presets(); Console.WriteLine("PASS sourced editable presets"); ChangePolicy(); Console.WriteLine("PASS locked reductions / partial exit totals"); DurableLock(); Console.WriteLine("PASS durable global latches / unlock recheck / advisory"); return 0; }
   catch(Exception ex) { Console.WriteLine("FAIL "+ex.Message); return 1; }
  }
- static void Eq(object want,object got) { if(!want.Equals(got)) throw new Exception("expected "+want+" got "+got); }
+ static void Eq(object want,object got) { if(want==null||got==null){ if(want!=got) throw new Exception("expected "+(want??"<null>")+" got "+(got??"<null>")); return; } if(!want.Equals(got)) throw new Exception("expected "+want+" got "+got); }
  // Issue #5: exercise the actual persistence methods, not a second serializer.
  static void XmlDoubleRoundtripIsExact() {
   foreach(var field in typeof(RiskSettings).GetFields()) {
@@ -37,6 +37,32 @@ class RiskTests {
    var back=SettingsStore.FromXml(System.Xml.Linq.XElement.Parse(xml.ToString()))[0];
    Eq(long.MinValue,BitConverter.DoubleToInt64Bits(back.Settings.Baseline));Eq(baselineSet,back.Settings.BaselineSet);
   }
+ }
+ static void DialogDraftPreservesInvalidFieldsAcrossLoad() {
+  var initial=new RiskSettings{Floor=100,Baseline=-10,TrailDistance=20,HighWater=200,BestDay=30,TotalProfit=300,Consistency=50};
+  foreach(string name in new[]{"Ratio","Target","Loss","MaxContracts","Floor","Baseline","TrailDistance","HighWater","BestDay","TotalProfit","Consistency"}) {
+   var draft=new RiskSettingsDraft(initial);var field=typeof(RiskSettings).GetField(name);object before=field.GetValue(initial);
+   foreach(string bad in new[]{"","wrong","1,000","NaN","1e400"}) {
+    Eq(false,draft.Set(name,bad));Eq(true,draft.HasErrors);Eq(bad,draft.Text(name));Eq(before,field.GetValue(draft.Settings));
+    var preset=initial.Clone();preset.Target=900;draft.Load(preset);Eq(bad,draft.Text(name));
+    bool refused=false;try{draft.Build(false);}catch(ArgumentException){refused=true;}Eq(true,refused);
+    Eq(true,draft.Set(name,SettingsStore.FieldText(before)));Eq(false,draft.HasErrors);
+   }
+   Eq(before,field.GetValue(initial)); // caller's settings never mutated
+  }
+ }
+ static void DialogDraftBuildIsAtomicAndBitExact() {
+  var initial=new RiskSettings{Baseline=BitConverter.Int64BitsToDouble(long.MinValue)};var draft=new RiskSettingsDraft(initial);
+  Eq(true,draft.Set("Target","0.12345678901234566"));Eq(false,draft.Set("Floor","-1"));Eq(false,draft.Set("Consistency","101"));
+  Eq(0.0,initial.Target);Eq(true,draft.HasErrors);Eq(true,draft.Set("Floor","0"));Eq(true,draft.Set("Consistency","100"));
+  var result=draft.Build(false);Eq(BitConverter.DoubleToInt64Bits(0.12345678901234566),BitConverter.DoubleToInt64Bits(result.Target));Eq(long.MinValue,BitConverter.DoubleToInt64Bits(result.Baseline));Eq(true,result.BaselineSet);
+  result.Target=99;Eq(0.12345678901234566,draft.Settings.Target);
+  bool refused=false;try{draft.Build(true);}catch(ArgumentException){refused=true;}Eq(true,refused);
+  Eq(true,draft.Set("HighWater","100"));Eq(true,draft.Set("TrailDistance","10"));Eq(true,draft.Build(true).LocalTrail);
+ }
+ static void DialogDraftCanRepairMultipleInvalidPresetFields() {
+  var draft=new RiskSettingsDraft(new RiskSettings{Ratio=0,MaxContracts=0});
+  Eq(true,draft.Set("Ratio","1"));Eq(true,draft.Set("MaxContracts","2"));Eq(true,draft.Build(false).Valid());
  }
  static void BulkAmount() {
   double v;
@@ -185,5 +211,161 @@ class RiskTests {
  static void Quantity() {
   Eq(3,RiskPolicy.Quantity(5,0.75)); Eq(0,RiskPolicy.Quantity(1,0.1));
   Eq(0,RiskPolicy.Quantity(5,-1)); Eq(0,RiskPolicy.Quantity(5,double.NaN)); Eq(0,RiskPolicy.Quantity(int.MaxValue,2));
+ }
+
+ static void SeqEq(string[] want,string[] got) { if(string.Join("|",want)!=string.Join("|",got)) throw new Exception("expected ["+string.Join("|",want)+"] got ["+string.Join("|",got)+"]"); }
+ static void AccountSyncDiff() {
+  var d=AccountSync.Diff(new[]{"Sim101","Sim102"},new[]{"Sim101","Sim102"});
+  Eq(false,d.Changed);
+  d=AccountSync.Diff(new[]{"Sim101"},new[]{"Sim101","Sim103","Sim102"});
+  Eq(true,d.Changed); SeqEq(new[]{"Sim102","Sim103"},d.Added); SeqEq(new string[0],d.Removed);
+  d=AccountSync.Diff(new[]{"Sim101","Sim102"},new[]{"Sim102"});
+  Eq(true,d.Changed); SeqEq(new string[0],d.Added); SeqEq(new[]{"Sim101"},d.Removed);
+  d=AccountSync.Diff(new[]{"Sim101","Sim102"},new[]{"sim101","Sim102"});
+  Eq(true,d.Changed); // account names are case-sensitive in NinjaTrader; a case change is a different account
+  d=AccountSync.Diff(null,new[]{"A","B"}); Eq(true,d.Changed); SeqEq(new[]{"A","B"},d.Added);
+  d=AccountSync.Diff(new[]{"A"},null); Eq(true,d.Changed); SeqEq(new[]{"A"},d.Removed);
+  d=AccountSync.Diff(new[]{"A","A"},new[]{"A"}); Eq(false,d.Changed); // duplicates never produce phantom changes
+  d=AccountSync.Diff(new[]{"A",null,""},new[]{"A"}); Eq(false,d.Changed); // blank / null names ignored
+ }
+ static void ContractRollQuarterly() {
+  // Quarterly equity-index / metal-less cycle: H M U Z = Mar Jun Sep Dec. Roll on the 8th trading-month rule is NOT assumed:
+  // the helper returns the first quarterly month whose expiry month is >= the current month (conservative, user can override).
+  Eq("MNQ 12-26",ContractRoll.Front("MNQ",new DateTime(2026,10,11)));
+  Eq("MNQ 12-26",ContractRoll.Front("MNQ",new DateTime(2026,12,1)));
+  Eq("MNQ 03-27",ContractRoll.Front("MNQ",new DateTime(2026,12,31).AddDays(1)));
+  Eq("ES 03-26",ContractRoll.Front("ES",new DateTime(2026,1,5)));
+  Eq("ES 06-26",ContractRoll.Front("ES",new DateTime(2026,4,2)));
+  Eq("MES 09-26",ContractRoll.Front("MES",new DateTime(2026,7,31)));
+  Eq("NQ 12-26",ContractRoll.Front("NQ",new DateTime(2026,10,11)));
+  Eq(null,ContractRoll.Front("ZZZ",new DateTime(2026,10,11)));   // unknown root: refuse, never guess
+  Eq(null,ContractRoll.Front("",new DateTime(2026,10,11)));
+  Eq(null,ContractRoll.Front(null,new DateTime(2026,10,11)));
+ }
+ static void ContractInputNormalize() {
+  var now=new DateTime(2026,10,11);
+  Eq("MNQ 12-26",ContractRoll.Normalize("mnq",now));          // bare root -> front contract
+  Eq("MNQ 12-26",ContractRoll.Normalize("  MNQ  ",now));
+  Eq("MNQ 12-26",ContractRoll.Normalize("MNQ 12-26",now));    // already exact: unchanged
+  Eq("MNQ 03-27",ContractRoll.Normalize("MNQ 03-27",now));    // an explicit different month is respected, never silently rolled
+  Eq("MNQ 12-26",ContractRoll.Normalize("MNQ1226",now));      // compact form
+  Eq("MNQ 12-26",ContractRoll.Normalize("MNQZ6",now));        // broker month-code form
+  Eq("ES 06-27",ContractRoll.Normalize("ESM7",now));
+  Eq(null,ContractRoll.Normalize("MNQ 13-26",now));           // impossible month
+  Eq(null,ContractRoll.Normalize("MNQ 00-26",now));
+  Eq(null,ContractRoll.Normalize("ZZZ",now));                 // unknown root
+  Eq(null,ContractRoll.Normalize("",now));
+  Eq(null,ContractRoll.Normalize(null,now));
+  Eq(null,ContractRoll.Normalize("MNQ 12-26; DROP",now));      // junk after a valid prefix is refused, not truncated
+ }
+
+ static void AccountSyncDecision() {
+  var same=AccountSync.Diff(new[]{"A"},new[]{"A"});
+  var added=AccountSync.Diff(new[]{"A"},new[]{"A","B"});
+  var removed=AccountSync.Diff(new[]{"A","B"},new[]{"A"});
+  Eq(AccountSyncAction.None,AccountSync.Decide(same,false,false));
+  Eq(AccountSyncAction.None,AccountSync.Decide(same,true,false));
+  Eq(AccountSyncAction.Reload,AccountSync.Decide(added,false,false));           // idle + changed -> refresh the table
+  Eq(AccountSyncAction.Reload,AccountSync.Decide(removed,false,false));
+  Eq(AccountSyncAction.Notify,AccountSync.Decide(added,true,false));            // copying: never touch the table, only tell the user
+  Eq(AccountSyncAction.Notify,AccountSync.Decide(removed,true,false));
+  Eq(AccountSyncAction.Defer,AccountSync.Decide(added,false,true));             // user is mid-edit (grid / ratio draft): do not discard their typing
+  Eq(AccountSyncAction.Notify,AccountSync.Decide(added,true,true));             // copying wins over editing
+  Eq(AccountSyncAction.None,AccountSync.Decide(null,false,false));              // no diff -> nothing, never throws
+ }
+ // KINFX_SIM_TEST build only (run by `offline.py puresim`).
+ static void SimTestDashboardCommandsOpenButNothingElse() {
+  foreach(string command in new[]{"start","flattenSelected","flattenAll","batch","refresh"})
+   if(!DashboardSafety.CanExecute(command))throw new Exception("SIM TEST build must allow "+command);
+ }
+
+ // ---- Added after independent review of PR #21 (reviewer-written regression cases).
+ static void RvDraftNeverPublishesNonFiniteOrOutOfRange(){
+  foreach(var f in typeof(RiskSettings).GetFields()){
+   if(f.FieldType!=typeof(double)&&f.FieldType!=typeof(int))continue;
+   foreach(string bad in new[]{"NaN","Infinity","-Infinity","1e309","-1e309","-1","2147483648","1e-400"}){
+    var d=new RiskSettingsDraft(new RiskSettings());bool ok=d.Set(f.Name,bad);
+    var s=d.Settings;
+    if(!ok){bool refused=false;try{d.Build(false);}catch(ArgumentException){refused=true;}Eq(true,refused);}
+    Eq(true,s.Valid());
+   }
+  }
+ }
+ static void RvDraftMinusZeroAndStrictFields(){
+  var d=new RiskSettingsDraft(new RiskSettings());
+  Eq(false,d.Set("Ratio","-0"));Eq(false,d.Set("Ratio","0"));Eq(false,d.Set("MaxContracts","0"));Eq(false,d.Set("MaxContracts","1.0"));Eq(false,d.Set("Consistency","100.0000001"));
+  Eq(true,d.HasErrors);
+  bool refused=false;try{d.Build(false);}catch(ArgumentException){refused=true;}Eq(true,refused);
+  foreach(var bad in new[]{new RiskSettings{Ratio=double.NaN},new RiskSettings{Target=double.PositiveInfinity},new RiskSettings{Loss=-1},new RiskSettings{Floor=double.NegativeInfinity},new RiskSettings{MaxContracts=0},new RiskSettings{Consistency=101},new RiskSettings{OnDivergence="Flatten"},new RiskSettings{Baseline=double.NaN},new RiskSettings{HighWater=double.NaN},new RiskSettings{BestDay=double.NaN},new RiskSettings{TotalProfit=double.PositiveInfinity}})Eq(false,bad.Valid());
+ }
+ static void RvDraftCultureIndependent(){
+  var old=System.Threading.Thread.CurrentThread.CurrentCulture;
+  try{
+   foreach(string c in new[]{"de-DE","fr-FR","tr-TR","ar-SA"}){
+    System.Threading.Thread.CurrentThread.CurrentCulture=new System.Globalization.CultureInfo(c);
+    var d=new RiskSettingsDraft(new RiskSettings());
+    Eq(true,d.Set("Ratio","0.5"));Eq(0.5,d.Settings.Ratio);Eq(false,d.Set("Target","0,5"));Eq(false,d.Set("Target","1,000"));Eq(true,d.Set("MaxContracts","12"));Eq("12",d.Text("MaxContracts"));
+    Eq(true,d.Set("Target","1E2"));Eq(100.0,d.Settings.Target);
+   }
+  } finally{System.Threading.Thread.CurrentThread.CurrentCulture=old;}
+ }
+ static void RvDraftBuildAfterLoadWithInvalidRawStillRefuses(){
+  var d=new RiskSettingsDraft(new RiskSettings());Eq(false,d.Set("Floor","abc"));
+  d.Load(new RiskSettings{Floor=5});Eq(true,d.HasErrors);bool refused=false;try{d.Build(false);}catch(ArgumentException){refused=true;}Eq(true,refused);
+  Eq(5.0,d.Settings.Floor);
+ }
+ static void RvDraftLoadedInvalidPresetCannotBuild(){
+  var d=new RiskSettingsDraft(new RiskSettings());d.Load(new RiskSettings{Ratio=0,Consistency=500});
+  Eq(false,d.HasErrors);bool refused=false;try{d.Build(false);}catch(ArgumentException){refused=true;}Eq(true,refused);
+ }
+
+ static void HeaderTextMatchesBuild() {
+#if KINFX_SIM_TEST
+  Eq(true,DashboardSafety.CanExecute("start"));Eq(true,DashboardSafety.CanExecute("flattenAll"));Eq(true,DashboardSafety.CanExecute("batch"));
+  Eq(true,DashboardSafety.HeaderText.Contains("SIM TEST"));
+  Eq(false,DashboardSafety.HeaderText.Contains("DISABLED"));
+  Eq(true,DashboardSafety.StartTip.Contains("Simulator / Playback"));
+  Eq(false,DashboardSafety.LogNote.Contains("REVIEW HOLD"));
+  Eq(true,DashboardSafety.LogNote.Contains("Orders ARE sent"));
+#else
+  Eq(false,DashboardSafety.CanExecute("start"));Eq(false,DashboardSafety.CanExecute("flattenSelected"));Eq(false,DashboardSafety.CanExecute("flattenAll"));Eq(false,DashboardSafety.CanExecute("batch"));
+  Eq("REVIEW HOLD · TRADING DISABLED",DashboardSafety.HeaderText);
+  Eq("REVIEW HOLD: copying unavailable until engine safety issues are fixed",DashboardSafety.StartTip);
+  Eq(true,DashboardSafety.LogNote.StartsWith("REVIEW HOLD"));
+#endif
+ }
+ static void AllowFileLineParsing() {
+  string n,a;
+  Eq(true,DashboardChoices.ParseAllowLine("LFE1",out n,out a));Eq("LFE1",n);Eq("",a);
+  Eq(true,DashboardChoices.ParseAllowLine("  LFE1 = Lucid 0059  ",out n,out a));Eq("LFE1",n);Eq("Lucid 0059",a);
+  Eq(false,DashboardChoices.ParseAllowLine("# comment",out n,out a));
+  Eq(false,DashboardChoices.ParseAllowLine("   ",out n,out a));
+  Eq(false,DashboardChoices.ParseAllowLine(null,out n,out a));
+  Eq(false,DashboardChoices.ParseAllowLine("= alias only",out n,out a));
+ }
+ static void StartSummaryListsLeaderRatioAndExpectedQuantity() {
+  var rows=new[]{
+   new StartSummaryRow{Name="Lucid 0059",Ratio=1},
+   new StartSummaryRow{Name="Tradeify 7695",Ratio=0.5},
+   new StartSummaryRow{Name="Sim102",Ratio=0.3}};
+  string s=DashboardChoices.StartSummary("Sim101","MES 12-26",2,rows,false);
+  Eq(true,s.Contains("Leader: Sim101"));
+  Eq(true,s.Contains("MES 12-26"));
+  Eq(true,s.Contains("Lucid 0059  ratio 1  → 2 lots when the leader trades 2"));
+  Eq(true,s.Contains("Tradeify 7695  ratio 0.5  → 1 lot when the leader trades 2"));
+  Eq(true,s.Contains("Sim102  ratio 0.3  → 0 lots when the leader trades 2 (would NOT copy)"));
+  Eq(false,s.Contains("DRY RUN"));
+  Eq(true,DashboardChoices.StartSummary("Sim101","MES 12-26",2,rows,true).StartsWith("*** DRY RUN"));
+  // never claims more than it knows
+  Eq(true,DashboardChoices.StartSummary("L","I",1,new StartSummaryRow[0],false).Contains("No followers"));
+  Eq(true,DashboardChoices.StartSummary(null,null,1,null,false).Contains("No followers"));
+  Eq(true,DashboardChoices.StartSummary("L","I",1,new[]{new StartSummaryRow{Name="X",Ratio=double.NaN}},false).Contains("ratio invalid"));
+ }
+ static void DefaultLeaderChoice() {
+  Eq("Sim101",DashboardChoices.DefaultLeader(new[]{"Backtest","Sim101","Zed"}));
+  Eq("Backtest",DashboardChoices.DefaultLeader(new[]{"Backtest","Zed"}));
+  Eq(null,DashboardChoices.DefaultLeader(new string[0]));
+  Eq(null,DashboardChoices.DefaultLeader(null));
+  Eq("sim101",DashboardChoices.DefaultLeader(new[]{"sim101"}));
  }
 }
