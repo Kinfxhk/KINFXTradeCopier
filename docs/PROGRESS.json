@@ -2,7 +2,7 @@
   "_comment": "Single source of truth for the progress bar in README.md / README.zh-HK.md. Run `python scripts/progress.py` to recompute and rewrite the marked blocks; `python scripts/progress.py --check` fails if the READMEs are stale. A task earns its weight only at its evidence level: offline = 50%, real NinjaTrader Sim/Demo = 100%. Nothing here is prop-firm or live acceptance. Weights are the maintainer's judgement of how much each item matters for 'safe to copy to Demo / prop-firm Sim accounts', not a measured quantity.",
   "snapshot": {
     "date": "2026-10-13",
-    "source_sha256_prefix": "28bc4bb3bc47",
+    "source_sha256_prefix": "20dc6707c9e6",
     "ninjatrader": "8.1.8.3",
     "branch": "release-candidate",
     "note": "Levels were assigned by the maintainer's agent from the evidence listed per item and then deliberately lowered where a step was not re-run on the current build. Read the evidence column, not just the bar."
@@ -98,7 +98,7 @@
         "demo",
         "prop"
       ],
-      "evidence": "Real NT: Flat on one follower; the other kept copying; working order of only that account cancelled. NOT yet tested: Flat with TP/SL, rejected Flatten.",
+      "evidence": "Real NT (2 sessions): Flat on one follower; the other kept copying; that account's working orders cancelled. Also with a stop and target (same OCO id) still working: both cancelled, account closed, other follower unaffected. A Flat the provider rejects and a disconnect during Flat are not tested on real NT.",
       "ach_en": "Flat button on every account",
       "ach_zh": "每個帳戶獨立 Flat 按鈕"
     },
@@ -124,13 +124,13 @@
       "en": "ATM / TP-SL exit mirroring with OCO between legs",
       "zh": "ATM／TP-SL 出場跟隨，兩邊 OCO",
       "weight": 8,
-      "level": 2,
+      "level": 3,
       "must": true,
       "targets": [
         "demo",
         "prop"
       ],
-      "evidence": "Earlier VM session (docs/VM-PROGRESS.md) copied leader TP/SL, cancel and modify to two sim followers. NOT re-run on the current build, Flat with TP/SL and a rejected stop were not exercised on real NT, and fractional multi-group OCO (#3) is still open. Held at offline-tested until re-run.",
+      "evidence": "Real NT: leader Stop + Limit under one OCO id copied to both followers (Working), per-account Flat cancels them, and a leader MARKET exit closes the follower and cancels both once (after the market-exit fix). NOT covered on real NT: modify of price/quantity this session, a rejected stop, fractional multi-group OCO (#3), and a stop + target WITHOUT an OCO id (locks the account, open).",
       "ach_en": "TP / SL mirroring + OCO",
       "ach_zh": "TP／SL 跟隨 ＋ OCO"
     },
