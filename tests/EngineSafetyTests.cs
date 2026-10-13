@@ -1644,7 +1644,7 @@ class EngineSafetyTests {
   var e=new CopierEngine(s=>{if(log!=null)lock(log)log.Add(s);},t=>{lock(tele)tele[t.Name]=t;},(att,s)=>{},(n,r)=>{});
   e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10,Target=100},new RiskLatch()),Tuple.Create(b,new RiskSettings{MaxContracts=10,Target=100},new RiskLatch())});Wait(()=>e.EntriesArmed,"arm two");return e;}
  static void BothFilled(CopierEngine e,NinjaTrader.Cbi.Account l,NinjaTrader.Cbi.Account a,NinjaTrader.Cbi.Account b,int qty){
-  l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",qty));Wait(()=>a.Submits==1&&b.Submits==1,"both entries copied");
+  l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",qty));Wait(()=>a.Submits==1&&b.Submits==1,"both entries copied");Drain(e);
   foreach(var f in new[]{a,b})Fill(f,qty);Drain(e);
   l.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=qty,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});}
  static void FlatOneFollowerConfirmedFlatLeavesItUnlockedAndOtherUntouched(){var l=Acc("flat1 lead");var a=Acc("flat1 a");var b=Acc("flat1 b");var tele=new Dictionary<string,AccountTelemetry>();
