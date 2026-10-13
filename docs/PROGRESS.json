@@ -156,13 +156,13 @@
       "en": "Disconnect / reconnect: lock, no catch-up, protection kept",
       "zh": "斷線／重連：鎖定、唔補單、保護單保留",
       "weight": 7,
-      "level": 2,
+      "level": 3,
       "must": true,
       "targets": [
         "demo",
         "prop"
       ],
-      "evidence": "8 offline cases (fake provider). Real disconnect never exercised.",
+      "evidence": "Real NT: Lucid disconnected from the Connections menu with 1 lot + a copied stop open. Only Lucid locked (<1 s), Tradeify kept copying, an order placed during the outage was never caught up on Lucid, and Lucid stayed locked after it reconnected. NOT tested: the leader's own connection dropping, a disconnect mid-order, a reconnect after the follower's order filled meanwhile.",
       "ach_en": "Disconnect / reconnect safe",
       "ach_zh": "斷線重連安全"
     },

@@ -11,11 +11,11 @@ A separate **SIM TEST build** (opt-in, built from the same source with `KINFX_SI
 
 | | |
 |---|---|
-| **Demo / Simulator accounts** | **Yes, as an early test build.** Copying works in the SIM TEST build. Tested on real NinjaTrader 8.1.8.3 with 1 leader + 2 followers, 1 instrument, Market and Limit orders. About **66%** done, see the checklist below. |
-| **Prop-firm accounts** | **Only your prop-firm *simulated / evaluation* accounts that you have checked yourself, and only for testing.** Tested on 2 such accounts. Not tested on funded accounts. About **59%** done. Check your firm's copier rules first: nothing here certifies compliance. |
+| **Demo / Simulator accounts** | **Yes, as an early test build.** Copying works in the SIM TEST build. Tested on real NinjaTrader 8.1.8.3 with 1 leader + 2 followers, 1 instrument, Market and Limit orders. About **69%** done, see the checklist below. |
+| **Prop-firm accounts** | **Only your prop-firm *simulated / evaluation* accounts that you have checked yourself, and only for testing.** Tested on 2 such accounts. Not tested on funded accounts. About **62%** done. Check your firm's copier rules first: nothing here certifies compliance. |
 | **Funded or live accounts** | **No.** Blocked in the default build. Do not add them to the allow-list. |
 
-Read this before you start: it is an **alpha**. Disconnect/reconnect, a rejected stop or Flatten, a stop plus target **without** a shared OCO id (it locks the account), 10-30 accounts and restart recovery are **not yet tested on real NinjaTrader** (or fail safe by locking). Start with **1 lot, 1 follower, Dry run ON**, and keep NinjaTrader's own Orders / Positions tabs open: they are the truth, not this window. It cannot stop trades you place by hand and cannot guarantee fills.
+Read this before you start: it is an **alpha**. A follower disconnect/reconnect is now tested on real NinjaTrader (it locks that account, never catches up). Still untested: the leader's own connection dropping, a rejected stop or Flatten, a stop plus target **without** a shared OCO id (it locks the account), 10-30 accounts and restart recovery are **not yet tested on real NinjaTrader** (or fail safe by locking). Start with **1 lot, 1 follower, Dry run ON**, and keep NinjaTrader's own Orders / Positions tabs open: they are the truth, not this window. It cannot stop trades you place by hand and cannot guarantee fills.
 
 ## Install in 5 steps (Windows + NinjaTrader 8)
 
@@ -50,11 +50,11 @@ Two kinds of evidence are kept apart. **Offline** numbers use fake accounts and 
 ### Achievements: Demo / Prop-firm copying
 
 ```text
-Demo         ████████████████████░░░░░░░░░░  65.5%
-Prop firm    ██████████████████░░░░░░░░░░░░  59.1%
+Demo         █████████████████████░░░░░░░░░  68.9%
+Prop firm    ███████████████████░░░░░░░░░░░  62.1%
 ```
 
-✅ tested on real NinjaTrader · 🟡 offline tests only · ⬜ not yet. Must-haves ✅: Demo 5/14 · Prop 5/15.
+✅ tested on real NinjaTrader · 🟡 offline tests only · ⬜ not yet. Must-haves ✅: Demo 6/14 · Prop 6/15.
 
 - ✅ Core copy: entry / exit / cancel / modify
 - ✅ Per-account Ratio + max-lot cap
@@ -63,7 +63,7 @@ Prop firm    ██████████████████░░░░�
 - 🟡 Flatten selected / all
 - ✅ TP / SL mirroring + OCO
 - 🟡 Auto-lock on danger, no auto-retry
-- 🟡 Disconnect / reconnect safe
+- ✅ Disconnect / reconnect safe
 - 🟡 Partial fills handled
 - 🟡 Fill frontier before resize (#2)
 - 🟡 One stuck account never freezes others (#4)
@@ -101,7 +101,7 @@ Latest offline results / 最新離線結果 (source `28bc4bb3bc47`, also reprodu
 
 | English | 中文 |
 |---|---|
-| **Real NinjaTrader testing is thin**: one leader, two followers, one instrument (MNQ), Market, Limit and Stop orders (including per-account Flat with a TP/SL, and a leader market exit cancelling the followers' TP/SL). Not yet tested for real: disconnect/reconnect, partial fills, a rejected Flatten, a stop + target without an OCO id, slippage, workspace close and restart, multi-monitor DPI, 10–30 accounts | **完全未用真 NinjaTrader 帳戶測試**（連 Sim／Playback 都未）：兩個 Demo 帳戶 Leader→Follower、真實 provider 回報、斷線重連、滑點、關閉 workspace 及重啟、真實多螢幕 DPI、30 戶實際延遲 |
+| **Real NinjaTrader testing is thin**: one leader, two followers, one instrument (MNQ), Market, Limit and Stop orders (including per-account Flat with a TP/SL, and a leader market exit cancelling the followers' TP/SL). Not yet tested for real: the leader disconnecting, partial fills, a rejected Flatten, a stop + target without an OCO id, slippage, workspace close and restart, multi-monitor DPI, 10–30 accounts | **完全未用真 NinjaTrader 帳戶測試**（連 Sim／Playback 都未）：兩個 Demo 帳戶 Leader→Follower、真實 provider 回報、斷線重連、滑點、關閉 workspace 及重啟、真實多螢幕 DPI、30 戶實際延遲 |
 | **The default build still has Start and Flatten disabled**; copying works only in the opt-in SIM TEST build, and only for Simulator / Playback accounts or names in your allow-list. There is no installer or signed release | **Start 同 Flatten 全部封鎖**，所以冇任何跟單，亦冇一鍵全平 |
 | Coherent fill frontier before protective resize ([#2](https://github.com/Kinfxhk/KINFXTradeCopier/issues/2)) | 保護單改量前，成交資料一致性（[#2](https://github.com/Kinfxhk/KINFXTradeCopier/issues/2)） |
 | Group OCO: a still-open group's protection is no longer cancelled when another group completes ([#3](https://github.com/Kinfxhk/KINFXTradeCopier/issues/3), narrow fix **merged**). **Still open:** if a group completes before the entry is fully filled, the account locks and the other group's waiting exit is never sent (lots unprotected until you act; the lock text now says exactly how many lots are UNPROTECTED and tells you to act in NinjaTrader, and the copier never creates the order itself); fractional allocation | 多組 OCO：一組完成唔再取消另一組仍開放嘅保護（[#3](https://github.com/Kinfxhk/KINFXTradeCopier/issues/3)，窄範圍修正**已合併**）。**仍未完成：**入場未全部成交時一組完成，帳戶會鎖定，另一組等待中嘅出場單唔會送出（倉位冇保護，要人手處理）；出場分配 |
