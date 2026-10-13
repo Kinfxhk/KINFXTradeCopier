@@ -570,6 +570,13 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             string c = (cultureName ?? "").ToLowerInvariant();
             return c.StartsWith("zh") ? Chinese : c.StartsWith("ja") ? Japanese : c.StartsWith("ko") ? Korean : English;
         }
+        // NinjaTrader pins its UI thread to en-US, so the Windows display language (installed UI culture) is tried first, then the regional
+        // format culture, then the thread UI culture. The first one that names zh / ja / ko wins; otherwise English.
+        public static string Detect(params string[] cultureNames)
+        {
+            foreach (var name in cultureNames) { string code = FromCulture(name); if (code != English) return code; }
+            return English;
+        }
         static int Col(string code) { return code == Chinese ? 0 : code == Japanese ? 1 : 2; }
         public static string T(string en) { return T(en, current); }
         public static string T(string en, string code)
@@ -1009,7 +1016,11 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             t["Language can only be changed while stopped (not attached to a session)."] = new[] { "僅能在未連接任何跟單工作階段（已停止）時切換語言。", "言語の変更は停止中（セッション未接続）のみ可能です。", "언어는 중지 상태(세션에 연결되지 않음)에서만 변경할 수 있습니다." };
             t["Interface language"] = new[] { "介面語言", "表示言語", "인터페이스 언어" };
             t["(would NOT copy)"] = new[] { "（不會跟單）", "（コピーされません）", "(복사되지 않음)" };
-            t["  /  Copy desk"] = new[] { "  /  交易複製器", "  /  トレードコピー", "  /  트레이드 복사기" };
+            t["  /  Trade Copier"] = new[] { "  /  交易複製器", "  /  トレードコピー", "  /  트레이드 복사기" };
+            t["Alias"] = new[] { "別名", "別名", "별칭" };
+            t["Ratio"] = new[] { "比例", "比率", "비율" };
+            t["Conn"] = new[] { "連線", "接続", "연결" };
+            t["Group"] = new[] { "群組", "グループ", "그룹" };
 #if KINFX_SIM_TEST
             t["SIM TEST BUILD · Simulator / Playback only"] = new[] { "SIM 測試版 · 僅限 Simulator / Playback", "SIMテストビルド · Simulator / Playback のみ", "SIM 테스트 빌드 · Simulator / Playback 전용" };
             t["SIM TEST BUILD: copies between Simulator / Playback accounts only. Any other provider is refused."] = new[] { "SIM 測試版：僅在 Simulator / Playback 帳戶之間跟單。其他任何供應端一律拒絕。", "SIMテストビルド：Simulator / Playback 口座間のみコピー。それ以外のプロバイダーは拒否される。", "SIM 테스트 빌드: Simulator / Playback 계좌 간에만 복사합니다. 그 외 제공자는 거부됩니다." };
@@ -2370,7 +2381,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             foreach(Type type in new[]{typeof(Button),typeof(ToggleButton),typeof(CheckBox),typeof(TextBox),typeof(ComboBox),typeof(TabControl),typeof(DataGrid)})
             {var scope=new Style(type);scope.Setters.Add(new Setter(FrameworkElement.MinWidthProperty,0.0));scope.Setters.Add(new Setter(FrameworkElement.MinHeightProperty,0.0));scope.Setters.Add(new Setter(Control.FontSizeProperty,13.0));scope.Setters.Add(new Setter(Control.ForegroundProperty,Ink));Resources[type]=scope;}
             RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
-            var header=new DockPanel{Margin=new Thickness(0,0,0,14)};StatusText=Text(demo?Lang.T("DEMO · NO TRADES"):DashboardSafety.HeaderShown,11,Warn);DockPanel.SetDock(StatusText,Dock.Right);header.Children.Add(StatusText);LanguageBox=Combo(118);LanguageBox.ToolTip=Lang.T("Interface language");System.Windows.Automation.AutomationProperties.SetName(LanguageBox,Lang.T("Language"));LanguageBox.ItemsSource=Lang.Names;LanguageBox.SelectedIndex=Math.Max(0,Array.IndexOf(Lang.Codes,Lang.Current));LanguageBox.Margin=new Thickness(0,0,14,0);DockPanel.SetDock(LanguageBox,Dock.Right);header.Children.Add(LanguageBox);bool languageGuard=false;LanguageBox.SelectionChanged+=(s,e)=>{if(languageGuard||LanguageBox.SelectedIndex<0)return;string code=Lang.Codes[LanguageBox.SelectedIndex];if(code==Lang.Current)return;var ask=LanguageChanging;if(ask!=null&&!ask(code)){languageGuard=true;LanguageBox.SelectedIndex=Array.IndexOf(Lang.Codes,Lang.Current);languageGuard=false;}};var brand=new StackPanel{Orientation=Orientation.Horizontal};brand.Children.Add(Text("KINFX",20,Accent));brand.Children.Add(new TextBlock{Text=Lang.T("  /  Copy desk"),FontSize=17,Foreground=Ink,VerticalAlignment=VerticalAlignment.Center});header.Children.Add(brand);AddRow(this,header,0);
+            var header=new DockPanel{Margin=new Thickness(0,0,0,14)};StatusText=Text(demo?Lang.T("DEMO · NO TRADES"):DashboardSafety.HeaderShown,11,Warn);DockPanel.SetDock(StatusText,Dock.Right);header.Children.Add(StatusText);LanguageBox=Combo(118);LanguageBox.ToolTip=Lang.T("Interface language");System.Windows.Automation.AutomationProperties.SetName(LanguageBox,Lang.T("Language"));LanguageBox.ItemsSource=Lang.Names;LanguageBox.SelectedIndex=Math.Max(0,Array.IndexOf(Lang.Codes,Lang.Current));LanguageBox.Margin=new Thickness(0,0,14,0);DockPanel.SetDock(LanguageBox,Dock.Right);header.Children.Add(LanguageBox);bool languageGuard=false;LanguageBox.SelectionChanged+=(s,e)=>{if(languageGuard||LanguageBox.SelectedIndex<0)return;string code=Lang.Codes[LanguageBox.SelectedIndex];if(code==Lang.Current)return;var ask=LanguageChanging;if(ask!=null&&!ask(code)){languageGuard=true;LanguageBox.SelectedIndex=Array.IndexOf(Lang.Codes,Lang.Current);languageGuard=false;}};var brand=new StackPanel{Orientation=Orientation.Horizontal};brand.Children.Add(Text("KINFX",20,Accent));brand.Children.Add(new TextBlock{Text=Lang.T("  /  Trade Copier"),FontSize=17,Foreground=Ink,VerticalAlignment=VerticalAlignment.Center});header.Children.Add(brand);AddRow(this,header,0);
             var session=new WrapPanel{Margin=new Thickness(0,0,0,6)};LeaderBox=Combo(232);LeaderBox.ToolTip=Lang.T("Simulation leader account · no live opt-in");session.Children.Add(Labeled(Lang.T("Lead"),LeaderBox));InstrumentBox=Input("MES 12-26",126);InstrumentBox.ToolTip=Lang.T("Exact instrument");session.Children.Add(Labeled(Lang.T("Inst"),InstrumentBox));
             FollowCountText=Text(Lang.T("→  0 followers  "),12,Muted);session.Children.Add(FollowCountText);
             StartButton=Button(Lang.T("▶  Start"),()=>Send("start"),true);StartButton.ToolTip=DashboardSafety.StartTipShown;ToolTipService.SetShowOnDisabled(StartButton,true);StartButton.IsEnabled=DashboardSafety.CanExecute("start")&&!demo;session.Children.Add(StartButton);session.Children.Add(Icon("\uE769",Lang.T("Guarded pause · new entries only"),"pause",()=>Send("pause")));session.Children.Add(Icon("\uE71A",Lang.T("Stop when flat"),"stop",()=>Send("stop")));session.Children.Add(Icon("\uE72C",Lang.T("Refresh accounts"),"refresh",()=>Send("refresh")));AddRow(this,new Border{Background=Panel,BorderBrush=Line,BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(7),Padding=new Thickness(12,8,12,0),Margin=new Thickness(0,0,0,10),Child=session},1);
@@ -2595,7 +2606,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         string DirectoryPath {get {return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),"NinjaTrader 8","templates","KINFXTradeCopier");}}
         string LanguagePath {get{return Path.Combine(DirectoryPath,"language.txt");}}
         // Saved choice wins; otherwise follow the Windows UI language (zh-* / ja / ko, anything else English). A missing or bad file never blocks anything.
-        static string LoadLanguage(string path){try{if(File.Exists(path)){string c=File.ReadAllText(path).Trim().ToLowerInvariant();if(Lang.IsValid(c))return c;}}catch{}return Lang.FromCulture(System.Globalization.CultureInfo.CurrentUICulture.Name);}
+        static string LoadLanguage(string path){try{if(File.Exists(path)){string c=File.ReadAllText(path).Trim().ToLowerInvariant();if(Lang.IsValid(c))return c;}}catch{}return Lang.Detect(System.Globalization.CultureInfo.InstalledUICulture.Name,System.Globalization.CultureInfo.CurrentCulture.Name,System.Globalization.CultureInfo.CurrentUICulture.Name);}
         void SaveLanguage(string code){try{Directory.CreateDirectory(DirectoryPath);File.WriteAllText(LanguagePath,code);}catch(Exception ex){Log("Settings NOT saved: "+ex.Message);}}
         string SettingsPath {get {return Path.Combine(DirectoryPath,instanceId+".xml");}}
         string LatchPath {get{return Path.Combine(DirectoryPath,"risk-latches.xml");}}
