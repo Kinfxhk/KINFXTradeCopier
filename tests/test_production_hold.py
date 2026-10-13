@@ -105,7 +105,9 @@ class SourceSyntaxHoldTests(unittest.TestCase):
         # The only place KINFX_SIM_TEST may appear: the identity guard wrapper, the scope checks in Start/Flatten
         # and DashboardSafety.CanExecute. Anything else is a new bypass and must be reviewed explicitly.
         code = mask_noncode(self.raw)
-        self.assertEqual(code.count("KINFX_SIM_TEST"), 21, "unexpected KINFX_SIM_TEST usage")
+        # 21 earlier blocks + 1 for the generated language table: the SIM-only sentences (SIM TEST / DRY RUN texts) are compiled only in the SIM build,
+        # so the default build never contains them (see test_default_view_drops_every_sim_block).
+        self.assertEqual(code.count("KINFX_SIM_TEST"), 22, "unexpected KINFX_SIM_TEST usage")
         for signature in SIGNATURES:
             body = method(self.raw, signature)
             self.assertIn("#if !KINFX_SIM_TEST", body)

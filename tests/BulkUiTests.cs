@@ -429,9 +429,126 @@ public static class BulkUiTests {
  [STAThread] public static int Main(string[] args){
   try{
    AppDomain.CurrentDomain.AssemblyResolve+=(s,e)=>{string n=e.Name.Split(',')[0];if(n.EndsWith(".resources"))return null;var loaded=AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a=>a.GetName().Name==n);if(loaded!=null)return loaded;string p=System.IO.Path.Combine("C:/Program Files/NinjaTrader 8/bin",n+".dll");return System.IO.File.Exists(p)?System.Reflection.Assembly.LoadFrom(p):null;};
-   var all=new Action[]{CopyColumnsFitWorstCaseContentAndWasteNothing,PlainCheckBoxesStayDark,ComboAndInputStayDarkWhenDisabledOrHovered,TargetAndLossApplyToSelectedOnly,ZeroTurnsLimitOff,RatioStaysIndependent,InvalidInputChangesNothing,NoSelectionIsRefused,LeaderIsNotEdited,AtmToggleBulk,LockedWhenNotEditable,NeverTouchesFollowOrTrading,BarIsOnCopyTabAndKeepsHolds,FromLeaderCopiesToHighlighted,FromLeaderWithoutHighlightHitsAllVisibleFollowers,FromLeaderRespectsSearchFilter,FromLeaderKeepsRatioTickAndOtherFields,ManualEditAfterwardsSticksAndNoLiveLink,FromLeaderRefusedWhenLockedOrNoLeader,FromLeaderNeverTouchesFollowOrTrading,AdviceShownPerRowAndCounted,AdviceUpdatesAfterBulkApply,AdviceNeverBlocksOrChangesSettings,RatioCellFitsCommonValuesAt1160,LogsReadableAndTopAligned,LogClearWorksAndIsEditableIndependent,BadTargetDraftSurvivesRefreshAndBlocksCommit,BadLossDraftSurvivesRefreshAndBlocksCommit,BadTargetDraftSurvivesRecyclingAndStillBlocksCommit,TargetAndLossSetterRejectInvalidNumbers,LockedAccountIsRedWithReasonAndCountedInFooter,LockedCountIgnoresLeaderAndNeverBlocksUi,BadRatioDraftSurvivesRefreshAndBlocksCommit,UnprotectedReasonReachesRowAndDetail,MaxContractsRejectsInvalidAndKeepsDraft,DivergenceChoiceIsPerAccountDefaultsToNotify,DivergenceBulkAndFromLeaderAndNeverTrades,FlattenOnceShowsAWarningNote,FlatColumnExistsAndEveryFollowerRowHasItsOwnButton,FlatButtonOnLeaderRowIsDisabled,FlatButtonRequestsExactlyThatRowAndNothingElse,FlatAndOffAreDifferentControlsWithDifferentGlyphsAndTips,FlatButtonFitsItsCellAtNarrowWidth,FlatCanFlatFollowsSimAndLeaderRules,FlatOnARealViewForwardsExactlyTheClickedRowOnce};
+   var all=new Action[]{CopyColumnsFitWorstCaseContentAndWasteNothing,EveryVisibleHeaderAndTabIsTranslatedExceptKeptAbbreviations,StateFilterWorksInEveryLanguage,LanguagesRenderTranslatedHeadersAndKeepEnglishKeys,LanguagesNeverTruncateOrShowMojibake,LanguageSwitchKeepsRowsAndRefusesOnlyBadInput,PlainCheckBoxesStayDark,ComboAndInputStayDarkWhenDisabledOrHovered,TargetAndLossApplyToSelectedOnly,ZeroTurnsLimitOff,RatioStaysIndependent,InvalidInputChangesNothing,NoSelectionIsRefused,LeaderIsNotEdited,AtmToggleBulk,LockedWhenNotEditable,NeverTouchesFollowOrTrading,BarIsOnCopyTabAndKeepsHolds,FromLeaderCopiesToHighlighted,FromLeaderWithoutHighlightHitsAllVisibleFollowers,FromLeaderRespectsSearchFilter,FromLeaderKeepsRatioTickAndOtherFields,ManualEditAfterwardsSticksAndNoLiveLink,FromLeaderRefusedWhenLockedOrNoLeader,FromLeaderNeverTouchesFollowOrTrading,AdviceShownPerRowAndCounted,AdviceUpdatesAfterBulkApply,AdviceNeverBlocksOrChangesSettings,RatioCellFitsCommonValuesAt1160,LogsReadableAndTopAligned,LogClearWorksAndIsEditableIndependent,BadTargetDraftSurvivesRefreshAndBlocksCommit,BadLossDraftSurvivesRefreshAndBlocksCommit,BadTargetDraftSurvivesRecyclingAndStillBlocksCommit,TargetAndLossSetterRejectInvalidNumbers,LockedAccountIsRedWithReasonAndCountedInFooter,LockedCountIgnoresLeaderAndNeverBlocksUi,BadRatioDraftSurvivesRefreshAndBlocksCommit,UnprotectedReasonReachesRowAndDetail,MaxContractsRejectsInvalidAndKeepsDraft,DivergenceChoiceIsPerAccountDefaultsToNotify,DivergenceBulkAndFromLeaderAndNeverTrades,FlattenOnceShowsAWarningNote,FlatColumnExistsAndEveryFollowerRowHasItsOwnButton,FlatButtonOnLeaderRowIsDisabled,FlatButtonRequestsExactlyThatRowAndNothingElse,FlatAndOffAreDifferentControlsWithDifferentGlyphsAndTips,FlatButtonFitsItsCellAtNarrowWidth,FlatCanFlatFollowsSimAndLeaderRules,FlatOnARealViewForwardsExactlyTheClickedRowOnce};
    int failed=0;foreach(var a in all){try{a();Console.WriteLine("PASS "+a.Method.Name);}catch(Exception ex){failed++;Console.WriteLine("FAIL "+a.Method.Name+" :: "+ex.Message);}}
    return failed==0?0:1;
   }catch(Exception ex){Console.WriteLine("HARNESS "+ex);return 2;}
+ }
+// Appended to BulkUiTests.cs (WPF suite). Renders the REAL DashboardView in each language.
+ static System.Collections.Generic.List<string> Texts(DependencyObject root){
+  var list=new System.Collections.Generic.List<string>();
+  Action<DependencyObject> walk=null;walk=d=>{
+   var tb=d as TextBlock;if(tb!=null&&!string.IsNullOrEmpty(tb.Text))list.Add(tb.Text);
+   var ct=d as ContentControl;if(ct!=null){var s=ct.Content as string;if(!string.IsNullOrEmpty(s))list.Add(s);}
+   int n=System.Windows.Media.VisualTreeHelper.GetChildrenCount(d);for(int i=0;i<n;i++)walk(System.Windows.Media.VisualTreeHelper.GetChild(d,i));};
+  walk(root);return list;
+ }
+ static bool Truncated(FrameworkElement e){
+  var tb=e as TextBlock;if(tb==null||tb.ActualWidth<1)return false;
+  var t=new System.Windows.Media.Typeface(tb.FontFamily,tb.FontStyle,tb.FontWeight,tb.FontStretch);
+  var ft=new System.Windows.Media.FormattedText(tb.Text,System.Globalization.CultureInfo.CurrentUICulture,FlowDirection.LeftToRight,t,tb.FontSize,System.Windows.Media.Brushes.Black);
+  return tb.TextWrapping==TextWrapping.NoWrap&&ft.Width>tb.ActualWidth+1.5&&tb.TextTrimming!=TextTrimming.None;
+ }
+ static void LanguagesRenderTranslatedHeadersAndKeepEnglishKeys(){
+  string was=Lang.Current;
+  try{
+   var english=new System.Collections.Generic.List<string>();
+   foreach(var code in Lang.Codes){
+    Lang.Set(code);var v=Fresh();v.Sections.SelectedIndex=0;Layout(v);
+    var keys=v.AccountGrid.Columns.Select(c=>DashboardView.ColumnKey(c)).ToList();
+    if(code=="en")english=keys;
+    Check(keys.SequenceEqual(english),code+": column keys must stay English and identical to the English build: "+string.Join("|",keys));
+    var headers=v.AccountGrid.Columns.Select(c=>""+c.Header).ToList();
+    if(code!="en"){
+     int changed=0;for(int i=0;i<headers.Count;i++)if(headers[i]!=keys[i])changed++;
+     Check(changed>=6,code+": at least 6 Copy-table headers must be translated; changed="+changed+" headers="+string.Join("|",headers));
+    }
+    // star-width table still finds every column by English key: a translated header must not drop the proportional sizing
+    foreach(var c in v.AccountGrid.Columns){ var k=DashboardView.ColumnKey(c); if(k=="Acct")Check(c.MinWidth>=100,code+": Acct keeps its minimum width ("+c.MinWidth+")"); }
+   }
+  } finally { Lang.Set(was); }
+ }
+ static void LanguagesNeverTruncateOrShowMojibake(){
+  string was=Lang.Current;
+  try{
+   foreach(var code in Lang.Codes){
+    Lang.Set(code);var v=Fresh();
+    for(int tab=0;tab<3;tab++){
+     v.Sections.SelectedIndex=tab;Layout(v);
+     var all=Texts(v);
+     foreach(var s in all){
+      Check(s.IndexOf('\uFFFD')<0,code+" tab "+tab+": replacement character in '"+s+"'");
+      Check(s.Trim().Trim('?').Length>0||s.Trim().Length==0,code+": text is only question marks (lost characters): '"+s+"'");
+     }
+     // anything rendered with NoWrap and clipped (text wider than its box and a trimming mode set) is a truncation
+     Action<DependencyObject> walk=null;int bad=0;string first="";
+     walk=d=>{var fe=d as FrameworkElement;if(fe!=null&&Truncated(fe)){bad++;if(first=="")first=((TextBlock)fe).Text;}int n=System.Windows.Media.VisualTreeHelper.GetChildrenCount(d);for(int i=0;i<n;i++)walk(System.Windows.Media.VisualTreeHelper.GetChild(d,i));};
+     walk(v);
+     Check(bad==0,code+" tab "+tab+": "+bad+" clipped text element(s), first: '"+first+"'");
+    }
+    // the fixed-width header cells (Tgt/DLL/Qty/Bal/State/ATM/Off/Flat/Acct/Alias/Ratio) must fit their header text
+    v.Sections.SelectedIndex=0;Layout(v);
+    foreach(var c in v.AccountGrid.Columns){
+     string h=c.Header as string;if(string.IsNullOrEmpty(h))continue;
+     var t=new System.Windows.Media.Typeface(new System.Windows.Media.FontFamily("Segoe UI"),FontStyles.Normal,FontWeights.SemiBold,FontStretches.Normal);
+     var ft=new System.Windows.Media.FormattedText(h,System.Globalization.CultureInfo.CurrentUICulture,FlowDirection.LeftToRight,t,13,System.Windows.Media.Brushes.Black);
+     Check(c.ActualWidth+0.5>=ft.Width+10,code+": header '"+h+"' ("+Math.Round(ft.Width+10)+" px) must fit its column ("+Math.Round(c.ActualWidth)+" px)");
+    }
+   }
+  } finally { Lang.Set(was); }
+ }
+ static void LanguageSwitchKeepsRowsAndRefusesOnlyBadInput(){
+  // The picker raises LanguageChanging on the real view; the owner may refuse (attached session). A refusal restores the old choice.
+  string was=Lang.Current;
+  try{
+   Lang.Set("en");var v=Fresh();
+   string asked=null;v.LanguageChanging=c=>{asked=c;return false;};
+   v.LanguageBox.SelectedIndex=Array.IndexOf(Lang.Codes,"ja");
+   Check(asked=="ja","picker reports the chosen code");
+   Check(v.LanguageBox.SelectedIndex==Array.IndexOf(Lang.Codes,"en"),"a refused change snaps the picker back to the active language");
+   Check(Lang.Current=="en","the view itself never switches the language; only the owner does");
+   int rows=v.Rows.Count;v.LanguageChanging=c=>true;v.LanguageBox.SelectedIndex=Array.IndexOf(Lang.Codes,"ko");
+   Check(v.Rows.Count==rows,"picking a language does not touch the account rows");
+  } finally { Lang.Set(was); }
+ }
+ static void StateFilterWorksInEveryLanguage(){
+  // The filter compares by position, never by (translated) text: picking "Paused" in zh/ja/ko must still show only the paused/locked rows.
+  string was=Lang.Current;
+  try{
+   foreach(var code in Lang.Codes){
+    Lang.Set(code);var v=Fresh();
+    var filter0=(ComboBox)typeof(DashboardView).GetField("filter",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(v);var follower=v.Rows.First(r=>r.Role!="Leader");follower.Paused=true;follower.Changed();
+    int total=v.VisibleCount;
+    v.AccountGrid.UnselectAll();
+    filter0.SelectedIndex=2; // "Paused"
+    Layout(v);
+    Check(v.VisibleCount>=1&&v.VisibleCount<total,code+": the Paused filter shows only paused/locked rows (visible="+v.VisibleCount+", total="+total+")");
+    filter0.SelectedIndex=0;Layout(v);
+    Check(v.VisibleCount==total,code+": All shows every row again");
+   }
+  } finally { Lang.Set(was); }
+ }
+ static void EveryVisibleHeaderAndTabIsTranslatedExceptKeptAbbreviations(){
+  // Abbreviations that deliberately stay Latin in every language (trading jargon / platform names).
+  var kept=new System.Collections.Generic.HashSet<string>{"Tgt","DLL","ATM","CCY","P/L","Tgt Δ","DLL Δ","Dashboard","KINFX","⚙","⌕"};
+  string was=Lang.Current;
+  try{
+   foreach(var code in new[]{"zh","ja","ko"}){
+    Lang.Set(code);var v=Fresh();
+    var untranslated=new System.Collections.Generic.List<string>();
+    foreach(var grid in new[]{v.AccountGrid,v.RiskGrid})
+     foreach(var c in grid.Columns){
+      string key=DashboardView.ColumnKey(c),shown=""+c.Header;
+      if(string.IsNullOrEmpty(shown)||kept.Contains(key))continue;
+      if(shown==key&&Lang.Row(key)==null)untranslated.Add(key);
+      else if(shown==key&&Lang.Row(key)!=null&&Lang.Row(key)[code=="zh"?0:code=="ja"?1:2]==key)untranslated.Add(key+"(same)");
+     }
+    foreach(TabItem tab in v.Sections.Items){
+     string h=""+tab.Header;
+     if(Lang.Row("Copy")!=null&&(h=="Copy"||h=="Risk"||h=="Logs"))untranslated.Add("tab "+h);
+    }
+    Check(untranslated.Count==0,code+": untranslated visible headers/tabs: "+string.Join(", ",untranslated));
+   }
+  } finally { Lang.Set(was); }
  }
 }
