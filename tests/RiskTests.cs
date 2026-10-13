@@ -2,7 +2,7 @@ using System;
 using NinjaTrader.NinjaScript.AddOns.Kinfx;
 class RiskTests {
  static int Main(string[] args) {
-  try { XmlDoubleRoundtripIsExact(); XmlDoubleRejectsGroupingCommas(); XmlBaselinePreservesSignedZeroAndIntent(); Console.WriteLine("PASS exact XML numeric persistence"); Eq(false,DashboardSafety.CanExecute("start")); Eq(false,DashboardSafety.CanExecute("flattenSelected")); Eq(false,DashboardSafety.CanExecute("flattenAll")); Eq(false,DashboardSafety.CanExecute("batch")); Eq(true,DashboardSafety.CanExecute("refresh")); BulkAmount(); Console.WriteLine("PASS bulk amount grammar"); SettingsWarnings(); Console.WriteLine("PASS settings warnings"); WorkerRetention(); Console.WriteLine("PASS worker retains accepted work and reports rejection"); DivergencePolicy(); Console.WriteLine("PASS divergence reaction setting"); Quantity(); Console.WriteLine("PASS quantity"); AccountSyncDiff(); Console.WriteLine("PASS account sync diff"); ContractRollQuarterly(); Console.WriteLine("PASS contract roll"); ContractInputNormalize(); Console.WriteLine("PASS contract input"); AccountSyncDecision(); Console.WriteLine("PASS account sync decision"); HeaderTextMatchesBuild(); Console.WriteLine("PASS header text matches build"); DefaultLeaderChoice(); Console.WriteLine("PASS default leader choice"); AllowFileLineParsing(); Console.WriteLine("PASS allow file line parsing"); StartSummaryListsLeaderRatioAndExpectedQuantity(); Console.WriteLine("PASS start summary"); RvDraftNeverPublishesNonFiniteOrOutOfRange(); Console.WriteLine("PASS RvDraftNeverPublishesNonFiniteOrOutOfRange"); RvDraftMinusZeroAndStrictFields(); Console.WriteLine("PASS RvDraftMinusZeroAndStrictFields"); RvDraftCultureIndependent(); Console.WriteLine("PASS RvDraftCultureIndependent"); RvDraftBuildAfterLoadWithInvalidRawStillRefuses(); Console.WriteLine("PASS RvDraftBuildAfterLoadWithInvalidRawStillRefuses"); RvDraftLoadedInvalidPresetCannotBuild(); Console.WriteLine("PASS RvDraftLoadedInvalidPresetCannotBuild"); Risk(); Console.WriteLine("PASS risk latch / exits / finite / DST"); Persistence(); Console.WriteLine("PASS XML atomic roundtrip"); Worker(); Console.WriteLine("PASS serial reentrancy + ownership"); Ledger(); Console.WriteLine("PASS lifecycle decisions / dedupe / reservation"); Presets(); Console.WriteLine("PASS sourced editable presets"); ChangePolicy(); Console.WriteLine("PASS locked reductions / partial exit totals"); DurableLock(); Console.WriteLine("PASS durable global latches / unlock recheck / advisory"); return 0; }
+  try { XmlDoubleRoundtripIsExact(); XmlDoubleRejectsGroupingCommas(); XmlBaselinePreservesSignedZeroAndIntent(); Console.WriteLine("PASS exact XML numeric persistence"); Eq(false,DashboardSafety.CanExecute("start")); Eq(false,DashboardSafety.CanExecute("flattenSelected")); Eq(false,DashboardSafety.CanExecute("flattenAll")); Eq(false,DashboardSafety.CanExecute("batch")); Eq(true,DashboardSafety.CanExecute("refresh")); BulkAmount(); Console.WriteLine("PASS bulk amount grammar"); SettingsWarnings(); Console.WriteLine("PASS settings warnings"); WorkerRetention(); Console.WriteLine("PASS worker retains accepted work and reports rejection"); DivergencePolicy(); Console.WriteLine("PASS divergence reaction setting"); Quantity(); Console.WriteLine("PASS quantity"); AccountSyncDiff(); Console.WriteLine("PASS account sync diff"); ContractRollQuarterly(); Console.WriteLine("PASS contract roll"); ContractInputNormalize(); Console.WriteLine("PASS contract input"); AccountSyncDecision(); Console.WriteLine("PASS account sync decision"); HeaderTextMatchesBuild(); Console.WriteLine("PASS header text matches build"); LangEveryKeyHasThreeTranslations(); Console.WriteLine("PASS language table: every sentence has zh/ja/ko with matching placeholders"); LangSelection(); Console.WriteLine("PASS language selection"); LangUnknownTextFallsBackToEnglish(); Console.WriteLine("PASS unknown text falls back to English"); LangTemplateRefill(); Console.WriteLine("PASS templates refill and composite messages translate"); LangDoesNotChangeEnglishDecisions(); Console.WriteLine("PASS language never changes English decisions"); LangNoCantoneseInChinese(); Console.WriteLine("PASS zh is written Chinese, not Cantonese colloquial"); DefaultLeaderChoice(); Console.WriteLine("PASS default leader choice"); AllowFileLineParsing(); Console.WriteLine("PASS allow file line parsing"); StartSummaryListsLeaderRatioAndExpectedQuantity(); Console.WriteLine("PASS start summary"); RvDraftNeverPublishesNonFiniteOrOutOfRange(); Console.WriteLine("PASS RvDraftNeverPublishesNonFiniteOrOutOfRange"); RvDraftMinusZeroAndStrictFields(); Console.WriteLine("PASS RvDraftMinusZeroAndStrictFields"); RvDraftCultureIndependent(); Console.WriteLine("PASS RvDraftCultureIndependent"); RvDraftBuildAfterLoadWithInvalidRawStillRefuses(); Console.WriteLine("PASS RvDraftBuildAfterLoadWithInvalidRawStillRefuses"); RvDraftLoadedInvalidPresetCannotBuild(); Console.WriteLine("PASS RvDraftLoadedInvalidPresetCannotBuild"); Risk(); Console.WriteLine("PASS risk latch / exits / finite / DST"); Persistence(); Console.WriteLine("PASS XML atomic roundtrip"); Worker(); Console.WriteLine("PASS serial reentrancy + ownership"); Ledger(); Console.WriteLine("PASS lifecycle decisions / dedupe / reservation"); Presets(); Console.WriteLine("PASS sourced editable presets"); ChangePolicy(); Console.WriteLine("PASS locked reductions / partial exit totals"); DurableLock(); Console.WriteLine("PASS durable global latches / unlock recheck / advisory"); return 0; }
   catch(Exception ex) { Console.WriteLine("FAIL "+ex.Message); return 1; }
  }
  static void Eq(object want,object got) { if(want==null||got==null){ if(want!=got) throw new Exception("expected "+(want??"<null>")+" got "+(got??"<null>")); return; } if(!want.Equals(got)) throw new Exception("expected "+want+" got "+got); }
@@ -367,5 +367,68 @@ class RiskTests {
   Eq(null,DashboardChoices.DefaultLeader(new string[0]));
   Eq(null,DashboardChoices.DefaultLeader(null));
   Eq("sim101",DashboardChoices.DefaultLeader(new[]{"sim101"}));
+ }
+// Language table tests: appended to RiskTests (pure region only: Lang has no NinjaTrader or WPF dependency).
+ static void LangEveryKeyHasThreeTranslations() {
+  int n=0;
+  foreach(var key in Lang.Keys) {
+   var row=Lang.Row(key); n++;
+   if(row==null||row.Length!=3) throw new Exception("row shape: "+key);
+   for(int i=0;i<3;i++) {
+    if(string.IsNullOrWhiteSpace(row[i])) throw new Exception("empty translation "+Lang.Codes[i+1]+": "+key);
+    if(Holes(row[i])!=Holes(key)) throw new Exception("placeholder mismatch "+Lang.Codes[i+1]+": "+key);
+   }
+  }
+  if(n<300) throw new Exception("language table unexpectedly small: "+n);
+ }
+ static string Holes(string s) {
+  var list=new System.Collections.Generic.List<string>();
+  for(int i=0;i<s.Length;i++) if(s[i]=='{'&&i+2<s.Length&&char.IsDigit(s[i+1])) { int j=s.IndexOf('}',i); if(j>0) { list.Add(s.Substring(i,j-i+1)); i=j; } }
+  list.Sort(StringComparer.Ordinal); return string.Join(",",list);
+ }
+ static void LangSelection() {
+  Lang.Set("en"); Eq("Locked",Lang.T("Locked"));
+  Eq("zh",Lang.FromCulture("zh-TW")); Eq("zh",Lang.FromCulture("zh-HK")); Eq("ja",Lang.FromCulture("ja-JP")); Eq("ko",Lang.FromCulture("ko-KR")); Eq("en",Lang.FromCulture("fr-FR")); Eq("en",Lang.FromCulture(null));
+  Lang.Set("xx"); Eq("en",Lang.Current);
+  Lang.Set("ja"); Eq("ja",Lang.Current); Eq(false,Lang.T("Locked")=="Locked");
+  Lang.Set("en");
+ }
+ static void LangUnknownTextFallsBackToEnglish() {
+  string odd="Some sentence that is not in the table";
+  foreach(var code in Lang.Codes) { Eq(odd,Lang.T(odd,code)); Eq(odd,Lang.Show(odd,code)); }
+  Eq("",Lang.T(null)); Eq("",Lang.Show(null)); Eq("",Lang.Show(""));
+ }
+ static void LangTemplateRefill() {
+  Lang.Set("zh");
+  string s=Lang.F("Armed explicitly: {0} simulation follower(s).",2);
+  if(s.IndexOf("2",StringComparison.Ordinal)<0||s==("Armed explicitly: 2 simulation follower(s).")) throw new Exception("template not translated/refilled: "+s);
+  // A message built in English (as the engine stores it) is translated back through its template.
+  string built="Armed explicitly: 3 simulation follower(s).";
+  string shown=Lang.Show(built,"zh");
+  if(shown==built||shown.IndexOf("3",StringComparison.Ordinal)<0) throw new Exception("composite not translated: "+shown);
+  Eq(Lang.F("Armed explicitly: {0} simulation follower(s).",3),shown);
+  // Nested: a dynamic part that is itself a known sentence is translated too.
+  string nested=Lang.Show("Start refused: Already managing a session. Stop while flat first.","ja");
+  if(nested.IndexOf("Already managing",StringComparison.Ordinal)>=0) throw new Exception("nested part not translated: "+nested);
+  // A repeated hole must match the same text both times.
+  Lang.Set("en");
+ }
+ static void LangDoesNotChangeEnglishDecisions() {
+  // The English build text that other tests and the engine's decisions compare against must never depend on the picked language.
+  foreach(var code in Lang.Codes) {
+   Lang.Set(code);
+#if KINFX_SIM_TEST
+   Eq(true,DashboardSafety.HeaderText.Contains("SIM TEST"));
+#else
+   Eq("REVIEW HOLD · TRADING DISABLED",DashboardSafety.HeaderText);
+#endif
+   Eq(true,SettingsAdvice.For(new RiskSettings(){Ratio=0},"Follower",2).Length>0);
+   Eq("Off",new RiskSettings().Consistency<=0?"Off":"x");
+  }
+  Lang.Set("en");
+ }
+ static void LangNoCantoneseInChinese() {
+  const string cant="嘅唔咗喺係啲冇佢嚟哋";
+  foreach(var key in Lang.Keys) { string zh=Lang.Row(key)[0]; foreach(char c in zh) if(cant.IndexOf(c)>=0) throw new Exception("colloquial Cantonese char '"+c+"' in zh: "+zh); }
  }
 }

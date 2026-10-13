@@ -1,0 +1,2432 @@
+[
+ {
+  "en": "SIM TEST BUILD · Simulator / Playback only",
+  "zh": "SIM 測試版 · 僅限 Simulator / Playback",
+  "ja": "SIMテストビルド · Simulator / Playback のみ",
+  "ko": "SIM 테스트 빌드 · Simulator / Playback 전용"
+ },
+ {
+  "en": "SIM TEST BUILD: copies between Simulator / Playback accounts only. Any other provider is refused.",
+  "zh": "SIM 測試版：僅在 Simulator / Playback 帳戶之間跟單。其他任何供應端一律拒絕。",
+  "ja": "SIMテストビルド：Simulator / Playback 口座間のみコピー。それ以外のプロバイダーは拒否される。",
+  "ko": "SIM 테스트 빌드: Simulator / Playback 계좌 간에만 복사합니다. 그 외 제공자는 거부됩니다."
+ },
+ {
+  "en": "SIM TEST BUILD: Start / Flatten are enabled for Simulator / Playback accounts and any account named in sim-allow.txt. ATM means order mirroring, not a follower native ATM. Orders ARE sent to those accounts.",
+  "zh": "SIM 測試版：Simulator / Playback 帳戶及 sim-allow.txt 中列出的任何帳戶可使用 Start / Flatten。ATM 指委託單鏡像，並非跟單帳戶的原生 ATM。委託單「會」發送至這些帳戶。",
+  "ja": "SIMテストビルド：Simulator / Playback 口座および sim-allow.txt に記載された口座で Start / Flatten が有効。ATM は注文のミラーリングを意味し、フォロワーのネイティブ ATM ではない。これらの口座には注文が送信される。",
+  "ko": "SIM 테스트 빌드: Simulator / Playback 계좌와 sim-allow.txt에 명시된 계좌에서 Start / Flatten이 활성화됩니다. ATM은 주문 미러링을 의미하며 팔로워의 네이티브 ATM이 아닙니다. 해당 계좌로 주문이 전송됩니다."
+ },
+ {
+  "en": "REVIEW HOLD · TRADING DISABLED",
+  "zh": "審查封鎖 · 交易已停用",
+  "ja": "レビュー保留 · 取引無効",
+  "ko": "검토 보류 · 거래 비활성화"
+ },
+ {
+  "en": "REVIEW HOLD: copying unavailable until engine safety issues are fixed",
+  "zh": "審查封鎖：在引擎安全問題修復前，無法跟單",
+  "ja": "レビュー保留：エンジンの安全上の問題が修正されるまでコピー不可",
+  "ko": "검토 보류: 엔진 안전 문제가 해결될 때까지 복사 불가"
+ },
+ {
+  "en": "REVIEW HOLD: Start / Flatten / bulk risk disabled. ATM means order mirroring, not a follower native ATM. No real or simulation orders were submitted by this build verification.",
+  "zh": "審查封鎖：Start / Flatten / 批次風控已停用。ATM 指委託單鏡像，並非跟單帳戶的原生 ATM。本次建置驗證未提交任何真實或模擬委託單。",
+  "ja": "レビュー保留：Start / Flatten / 一括リスクは無効。ATM は注文のミラーリングを意味し、フォロワーのネイティブ ATM ではない。このビルド検証では実際の注文もシミュレーション注文も送信されていない。",
+  "ko": "검토 보류: Start / Flatten / 일괄 리스크가 비활성화되었습니다. ATM은 주문 미러링을 의미하며 팔로워의 네이티브 ATM이 아닙니다. 이 빌드 검증에서는 실거래 주문도 시뮬레이션 주문도 전송되지 않았습니다."
+ },
+ {
+  "en": "Leader",
+  "zh": "主帳戶",
+  "ja": "リーダー",
+  "ko": "리더"
+ },
+ {
+  "en": "Ratio is not a positive number",
+  "zh": "比例不是正數",
+  "ja": "比率が正の数ではない",
+  "ko": "비율이 양수가 아님"
+ },
+ {
+  "en": "On divergence = FlattenOnce is saved but NOT active in this alpha: the engine only locks and notifies, it never flattens by itself",
+  "zh": "On divergence = FlattenOnce 已儲存，但在此 alpha 版本中「未啟用」：引擎僅會鎖定並通知，絕不會自行平倉",
+  "ja": "On divergence = FlattenOnce は保存されるが、このアルファ版では有効ではない：エンジンはロックと通知のみ行い、自動で全決済することはない",
+  "ko": "On divergence = FlattenOnce는 저장되지만 이 알파 버전에서는 활성화되지 않습니다: 엔진은 잠금과 알림만 수행하며 스스로 청산하지 않습니다"
+ },
+ {
+  "en": "no daily target and no daily loss limit (0 = off)",
+  "zh": "無每日目標，亦無每日虧損上限（0 = 關閉）",
+  "ja": "日次目標なし、日次損失上限なし（0 = オフ）",
+  "ko": "일일 목표 없음, 일일 손실 한도 없음 (0 = 끔)"
+ },
+ {
+  "en": "no daily loss limit (0 = off)",
+  "zh": "無每日虧損上限（0 = 關閉）",
+  "ja": "日次損失上限なし（0 = オフ）",
+  "ko": "일일 손실 한도 없음 (0 = 끔)"
+ },
+ {
+  "en": "no daily target (0 = off)",
+  "zh": "無每日目標（0 = 關閉）",
+  "ja": "日次目標なし（0 = オフ）",
+  "ko": "일일 목표 없음 (0 = 끔)"
+ },
+ {
+  "en": "On divergence must be Notify or FlattenOnce",
+  "zh": "On divergence 必須為 Notify 或 FlattenOnce",
+  "ja": "On divergence は Notify または FlattenOnce でなければならない",
+  "ko": "On divergence는 Notify 또는 FlattenOnce여야 합니다"
+ },
+ {
+  "en": "Telemetry error",
+  "zh": "遙測錯誤",
+  "ja": "テレメトリーエラー",
+  "ko": "텔레메트리 오류"
+ },
+ {
+  "en": "Target hit",
+  "zh": "已達目標",
+  "ja": "目標達成",
+  "ko": "목표 도달"
+ },
+ {
+  "en": "Cancelling",
+  "zh": "取消中",
+  "ja": "取消中",
+  "ko": "취소 중"
+ },
+ {
+  "en": "Rechecking",
+  "zh": "重新檢查中",
+  "ja": "再確認中",
+  "ko": "재확인 중"
+ },
+ {
+  "en": "Locked",
+  "zh": "已鎖定",
+  "ja": "ロック中",
+  "ko": "잠김"
+ },
+ {
+  "en": "Error",
+  "zh": "錯誤",
+  "ja": "エラー",
+  "ko": "오류"
+ },
+ {
+  "en": "Paused",
+  "zh": "已暫停",
+  "ja": "停止中",
+  "ko": "일시정지됨"
+ },
+ {
+  "en": "Copying",
+  "zh": "跟單中",
+  "ja": "コピー中",
+  "ko": "복사 중"
+ },
+ {
+  "en": "Offline",
+  "zh": "離線",
+  "ja": "オフライン",
+  "ko": "오프라인"
+ },
+ {
+  "en": "Demo only",
+  "zh": "僅限示範",
+  "ja": "デモのみ",
+  "ko": "데모 전용"
+ },
+ {
+  "en": "Demo",
+  "zh": "示範",
+  "ja": "デモ",
+  "ko": "데모"
+ },
+ {
+  "en": "Selected",
+  "zh": "已選",
+  "ja": "選択済み",
+  "ko": "선택됨"
+ },
+ {
+  "en": "Off",
+  "zh": "關",
+  "ja": "オフ",
+  "ko": "끔"
+ },
+ {
+  "en": " · cancellation not confirmed",
+  "zh": " · 取消尚未確認",
+  "ja": " · キャンセル未確認",
+  "ko": " · 취소 확인되지 않음"
+ },
+ {
+  "en": " · NOTE: ",
+  "zh": " · 注意： ",
+  "ja": " · 注意: ",
+  "ko": " · 참고: "
+ },
+ {
+  "en": "This account Ratio must be finite and > 0",
+  "zh": "此帳戶的比例必須為有限數且大於 0",
+  "ja": "この口座の比率は有限値かつ 0 より大きい必要がある",
+  "ko": "이 계좌의 비율은 유한한 값이며 0보다 커야 합니다"
+ },
+ {
+  "en": "Daily target must be a finite amount >= 0 (0 = off)",
+  "zh": "每日目標必須為大於或等於 0 的有限金額（0 = 關閉）",
+  "ja": "日次目標は 0 以上の有限の金額でなければならない（0 = オフ）",
+  "ko": "일일 목표는 0 이상의 유한한 금액이어야 합니다 (0 = 끔)"
+ },
+ {
+  "en": "Daily loss must be a finite amount >= 0 (0 = off)",
+  "zh": "每日虧損必須為大於或等於 0 的有限金額（0 = 關閉）",
+  "ja": "日次損失は 0 以上の有限の金額でなければならない（0 = オフ）",
+  "ko": "일일 손실은 0 이상의 유한한 금액이어야 합니다 (0 = 끔)"
+ },
+ {
+  "en": "Ratio for THIS account only · finite > 0 · follower qty = floor(leader qty × ratio) · locked while attached",
+  "zh": "僅此帳戶的比例 · 有限數且大於 0 · 跟單帳戶數量 = floor(主帳戶數量 × 比例) · 連接期間鎖定",
+  "ja": "この口座のみの比率 · 有限値かつ 0 より大きい · フォロワー数量 = floor(リーダー数量 × 比率) · 接続中はロック",
+  "ko": "이 계좌에만 적용되는 비율 · 유한값이며 0보다 큼 · 팔로워 수량 = floor(리더 수량 × 비율) · 연결 중 잠금"
+ },
+ {
+  "en": "Follow account; untick stops new entries",
+  "zh": "跟隨此帳戶；取消勾選將停止新進場",
+  "ja": "この口座をフォロー；チェックを外すと新規エントリーを停止",
+  "ko": "이 계좌를 따라감; 선택 해제 시 신규 진입 중지"
+ },
+ {
+  "en": "Explicit follow / OFF · pending cancels and latch may block re-enable",
+  "zh": "明確跟隨 / OFF · 待處理的取消及鎖存可能阻止重新啟用",
+  "ja": "明示的にフォロー / OFF · 保留中のキャンセルとラッチにより再有効化がブロックされる場合がある",
+  "ko": "명시적 팔로우 / OFF · 대기 중인 취소와 래치로 인해 재활성화가 차단될 수 있음"
+ },
+ {
+  "en": "Follower enabled · one click",
+  "zh": "跟單帳戶已啟用 · 一鍵切換",
+  "ja": "フォロワー有効 · ワンクリック",
+  "ko": "팔로워 활성화 · 원클릭"
+ },
+ {
+  "en": "Acct",
+  "zh": "帳戶",
+  "ja": "口座",
+  "ko": "계좌"
+ },
+ {
+  "en": "Exact broker identity · full name on hover · differing suffix emphasized",
+  "zh": "確切的券商身分 · 懸停顯示完整名稱 · 突顯不同的後綴",
+  "ja": "正確なブローカー識別子 · ホバーで全名表示 · 異なる接尾辞を強調",
+  "ko": "정확한 브로커 식별자 · 마우스 오버 시 전체 이름 표시 · 다른 접미사 강조"
+ },
+ {
+  "en": "State",
+  "zh": "狀態",
+  "ja": "状態",
+  "ko": "상태"
+ },
+ {
+  "en": "Observed copy state, NOT connection or follower selection",
+  "zh": "觀察到的跟單狀態，並非連線或跟單帳戶選取狀態",
+  "ja": "観測されたコピー状態であり、接続状態やフォロワーの選択状態ではない",
+  "ko": "관찰된 복사 상태이며 연결 또는 팔로워 선택 상태가 아님"
+ },
+ {
+  "en": "Per-account ATM exit mirroring",
+  "zh": "逐帳戶 ATM 出場單鏡像",
+  "ja": "口座ごとの ATM 決済注文ミラーリング",
+  "ko": "계좌별 ATM 청산 주문 미러링"
+ },
+ {
+  "en": "Per-account ATM exit mirroring, NOT a native ATM clone. OFF ignores non-market SL / TP: follower can be unprotected. Market closes still copy. Frozen while attached.",
+  "zh": "逐帳戶 ATM 出場單鏡像，並非原生 ATM 複製。OFF 會忽略非市價 SL / TP：跟單帳戶可能無保護。市價平倉仍會跟單。連接期間凍結。",
+  "ja": "口座ごとの ATM 決済注文ミラーリングであり、ネイティブ ATM の複製ではない。OFF では成行以外の SL / TP を無視する：フォロワーは保護されない可能性がある。成行の決済は引き続きコピーされる。接続中は固定。",
+  "ko": "계좌별 ATM 청산 주문 미러링이며 네이티브 ATM 복제가 아닙니다. OFF는 시장가 외의 SL / TP를 무시합니다: 팔로워가 보호되지 않을 수 있습니다. 시장가 청산은 계속 복사됩니다. 연결 중에는 고정됩니다."
+ },
+ {
+  "en": "ATM",
+  "zh": "ATM",
+  "ja": "ATM",
+  "ko": "ATM"
+ },
+ {
+  "en": "Independent ATM exit mirror · OFF can leave exposure unprotected",
+  "zh": "獨立的 ATM 出場單鏡像 · OFF 可能使持倉風險無保護",
+  "ja": "独立した ATM 決済注文ミラー · OFF ではエクスポージャーが保護されない可能性がある",
+  "ko": "독립 ATM 청산 주문 미러 · OFF 시 노출 포지션이 보호되지 않을 수 있음"
+ },
+ {
+  "en": "OFF: block new entries / request owned entry cancellation; retain exits. Pending fills may still occur. Explicit follow required again; latch remains.",
+  "zh": "OFF：阻止新進場 / 請求取消自有進場單；保留出場單。待處理的委託仍可能成交。需再次明確跟隨；鎖存仍然保留。",
+  "ja": "OFF：新規エントリーをブロック / 自身のエントリー注文のキャンセルを要求；決済注文は維持。保留中の注文は約定する場合がある。再度の明示的フォローが必要；ラッチは維持される。",
+  "ko": "OFF: 신규 진입 차단 / 자체 진입 주문 취소 요청; 청산 주문은 유지. 대기 중인 주문은 체결될 수 있음. 명시적 팔로우를 다시 해야 하며 래치는 유지됨."
+ },
+ {
+  "en": "Stop following this account",
+  "zh": "停止跟隨此帳戶",
+  "ja": "この口座のフォローを停止",
+  "ko": "이 계좌 따라가기 중지"
+ },
+ {
+  "en": "One-click OFF is not Flatten; current positions / SL / TP remain",
+  "zh": "一鍵 OFF 並非 Flatten；目前持倉 / SL / TP 仍保留",
+  "ja": "ワンクリック OFF は Flatten ではない；現在のポジション / SL / TP は維持される",
+  "ko": "원클릭 OFF는 Flatten이 아님; 현재 포지션 / SL / TP는 유지됨"
+ },
+ {
+  "en": "Flat",
+  "zh": "平倉",
+  "ja": "決済",
+  "ko": "청산"
+ },
+ {
+  "en": "FLAT this account only: cancels its working orders and closes its position in the session instrument after you confirm. Other accounts keep copying. The account goes OFF; re-follow explicitly. Sent once, never retried.",
+  "zh": "僅對此帳戶平倉：經您確認後，取消其掛單並平掉其在本次工作階段商品上的持倉。其他帳戶繼續跟單。此帳戶將轉為 OFF；需明確重新跟隨。僅發送一次，不會重試。",
+  "ja": "この口座のみ全決済：確認後、待機中の注文をキャンセルし、セッション銘柄のポジションを決済する。他の口座はコピーを継続。この口座は OFF になり、再度明示的にフォローする必要がある。送信は 1 回のみで、再試行はしない。",
+  "ko": "이 계좌만 청산: 확인 후 대기 주문을 취소하고 세션 종목의 포지션을 청산합니다. 다른 계좌는 계속 복사합니다. 이 계좌는 OFF가 되며 명시적으로 다시 팔로우해야 합니다. 한 번만 전송하며 재시도하지 않습니다."
+ },
+ {
+  "en": "Flatten this account only",
+  "zh": "僅平倉此帳戶",
+  "ja": "この口座のみ全決済",
+  "ko": "이 계좌만 청산"
+ },
+ {
+  "en": "Flatten ONE account (confirmation names it). Not the same as OFF: OFF keeps the position, Flat closes it.",
+  "zh": "僅平倉「一個」帳戶（確認視窗會列出帳戶名稱）。與 OFF 不同：OFF 保留持倉，平倉則會平掉持倉。",
+  "ja": "1 つの口座のみ全決済（確認画面に口座名が表示される）。OFF とは異なる：OFF はポジションを維持し、全決済はポジションを決済する。",
+  "ko": "계좌 하나만 청산 (확인 창에 계좌 이름 표시). OFF와 다름: OFF는 포지션을 유지하고 청산은 포지션을 닫습니다."
+ },
+ {
+  "en": " · green / amber / red / off",
+  "zh": " · 綠 / 琥珀 / 紅 / 關閉",
+  "ja": " · 緑 / 琥珀 / 赤 / オフ",
+  "ko": " · 녹색 / 주황 / 빨강 / 끔"
+ },
+ {
+  "en": "Tgt",
+  "zh": "Tgt",
+  "ja": "Tgt",
+  "ko": "Tgt"
+ },
+ {
+  "en": "DLL",
+  "zh": "DLL",
+  "ja": "DLL",
+  "ko": "DLL"
+ },
+ {
+  "en": "Qty",
+  "zh": "數量",
+  "ja": "数量",
+  "ko": "수량"
+ },
+ {
+  "en": "Bal",
+  "zh": "餘額",
+  "ja": "残高",
+  "ko": "잔고"
+ },
+ {
+  "en": "DEMO · NO TRADES",
+  "zh": "示範 · 無交易",
+  "ja": "デモ · 取引なし",
+  "ko": "데모 · 거래 없음"
+ },
+ {
+  "en": "Simulation leader account · no live opt-in",
+  "zh": "模擬主帳戶 · 未選擇實盤",
+  "ja": "シミュレーションのリーダー口座 · ライブ未許可",
+  "ko": "시뮬레이션 리더 계좌 · 실거래 미승인"
+ },
+ {
+  "en": "Lead",
+  "zh": "主帳",
+  "ja": "リーダー",
+  "ko": "리더"
+ },
+ {
+  "en": "Exact instrument",
+  "zh": "確切商品",
+  "ja": "正確な銘柄",
+  "ko": "정확한 종목"
+ },
+ {
+  "en": "Inst",
+  "zh": "商品",
+  "ja": "銘柄",
+  "ko": "종목"
+ },
+ {
+  "en": "→  0 followers  ",
+  "zh": "→  0 個跟單帳戶  ",
+  "ja": "→  フォロワー 0  ",
+  "ko": "→  팔로워 0명  "
+ },
+ {
+  "en": "▶  Start",
+  "zh": "▶  開始",
+  "ja": "▶  開始",
+  "ko": "▶  시작"
+ },
+ {
+  "en": "Guarded pause · new entries only",
+  "zh": "保護性暫停 · 僅限新進場",
+  "ja": "ガード付き一時停止 · 新規エントリーのみ",
+  "ko": "보호 일시정지 · 신규 진입만"
+ },
+ {
+  "en": "Stop when flat",
+  "zh": "持倉歸零後停止",
+  "ja": "フラット後に停止",
+  "ko": "청산 후 중지"
+ },
+ {
+  "en": "Refresh accounts",
+  "zh": "重新整理帳戶",
+  "ja": "口座を更新",
+  "ko": "계좌 새로고침"
+ },
+ {
+  "en": "Search account / alias / group / preset · Ctrl+F · Escape clears",
+  "zh": "搜尋帳戶 / 別名 / 群組 / 預設 · Ctrl+F · Escape 清除",
+  "ja": "口座 / エイリアス / グループ / プリセットを検索 · Ctrl+F · Escape でクリア",
+  "ko": "계좌 / 별칭 / 그룹 / 프리셋 검색 · Ctrl+F · Escape로 지우기"
+ },
+ {
+  "en": "Filter displayed account states",
+  "zh": "篩選顯示的帳戶狀態",
+  "ja": "表示する口座状態を絞り込み",
+  "ko": "표시할 계좌 상태 필터"
+ },
+ {
+  "en": "All",
+  "zh": "全部",
+  "ja": "すべて",
+  "ko": "전체"
+ },
+ {
+  "en": "Tick all visible followers",
+  "zh": "勾選所有可見的跟單帳戶",
+  "ja": "表示中のフォロワーをすべて選択",
+  "ko": "표시된 팔로워 모두 선택"
+ },
+ {
+  "en": "Untick all visible followers",
+  "zh": "取消勾選所有可見的跟單帳戶",
+  "ja": "表示中のフォロワーをすべて選択解除",
+  "ko": "표시된 팔로워 모두 선택 해제"
+ },
+ {
+  "en": "Ratio: edit each account row",
+  "zh": "比例：請於各帳戶列編輯",
+  "ja": "比率：各口座行で編集",
+  "ko": "비율: 각 계좌 행에서 편집"
+ },
+ {
+  "en": "Bulk  ",
+  "zh": "批次  ",
+  "ja": "一括  ",
+  "ko": "일괄  "
+ },
+ {
+  "en": "Amount for the highlighted accounts · account currency · 0 = off",
+  "zh": "選取的帳戶之金額 · 帳戶幣別 · 0 = 關閉",
+  "ja": "選択中の口座の金額 · 口座通貨 · 0 = オフ",
+  "ko": "선택한 계좌의 금액 · 계좌 통화 · 0 = 끔"
+ },
+ {
+  "en": "Bulk amount",
+  "zh": "批次金額",
+  "ja": "一括金額",
+  "ko": "일괄 금액"
+ },
+ {
+  "en": "Set Target on highlighted accounts",
+  "zh": "為選取的帳戶設定 Tgt",
+  "ja": "選択中の口座に Tgt を設定",
+  "ko": "선택한 계좌에 Tgt 설정"
+ },
+ {
+  "en": "Set Daily loss on highlighted accounts",
+  "zh": "為選取的帳戶設定每日虧損上限",
+  "ja": "選択中の口座に日次損失上限を設定",
+  "ko": "선택한 계좌에 일일 손실 한도 설정"
+ },
+ {
+  "en": "ATM on",
+  "zh": "ATM 開",
+  "ja": "ATM オン",
+  "ko": "ATM 켬"
+ },
+ {
+  "en": "ATM exit-mirroring ON for highlighted accounts",
+  "zh": "為選取的帳戶開啟 ATM 出場鏡像",
+  "ja": "選択中の口座の ATM 決済ミラーリングをオン",
+  "ko": "선택한 계좌의 ATM 청산 미러링 켬"
+ },
+ {
+  "en": "ATM off",
+  "zh": "ATM 關",
+  "ja": "ATM オフ",
+  "ko": "ATM 끔"
+ },
+ {
+  "en": "ATM exit-mirroring OFF for highlighted accounts",
+  "zh": "為選取的帳戶關閉 ATM 出場鏡像",
+  "ja": "選択中の口座の ATM 決済ミラーリングをオフ",
+  "ko": "선택한 계좌의 ATM 청산 미러링 끔"
+ },
+ {
+  "en": "Div: notify",
+  "zh": "偏離：通知",
+  "ja": "乖離：通知",
+  "ko": "불일치: 알림"
+ },
+ {
+  "en": "On divergence: only lock, show red and notify (default) for highlighted accounts",
+  "zh": "發生偏離時：僅鎖定、以紅色顯示並通知（預設）（套用於選取的帳戶）",
+  "ja": "乖離発生時：ロック、赤表示、通知のみ（デフォルト）（選択中の口座）",
+  "ko": "불일치 발생 시: 잠금, 빨간색 표시 및 알림만 수행(기본값) (선택한 계좌)"
+ },
+ {
+  "en": "Div: flatten 1x",
+  "zh": "偏離：平倉 1 次",
+  "ja": "乖離：全決済 1回",
+  "ko": "불일치: 청산 1회"
+ },
+ {
+  "en": "On divergence: request ONE flatten, never retried (saved only; NOT active in this alpha) for highlighted accounts",
+  "zh": "發生偏離時：僅請求一次平倉，不會重試（僅儲存；本 alpha 版本中尚未啟用）（套用於選取的帳戶）",
+  "ja": "乖離発生時：全決済を1回だけ要求、再試行なし（保存のみ；このアルファ版では有効ではありません）（選択中の口座）",
+  "ko": "불일치 발생 시: 청산을 1회만 요청하며 재시도하지 않음(저장만 됨; 이 알파 버전에서는 활성화되지 않음) (선택한 계좌)"
+ },
+ {
+  "en": "From Leader",
+  "zh": "取自主帳戶",
+  "ja": "リーダーから",
+  "ko": "리더에서"
+ },
+ {
+  "en": "Copy the leader row's Tgt / DLL / ATM to highlighted followers (all visible if none highlighted). One-time copy; edit any row afterwards. Ratio and ticks are not copied.",
+  "zh": "將主帳戶列的 Tgt / DLL / ATM 複製到選取的跟單帳戶（若未選取則套用於所有可見者）。僅複製一次；之後可自行編輯任一列。比例與勾選不會被複製。",
+  "ja": "リーダー行の Tgt / DLL / ATM を選択中のフォロワーにコピー（未選択の場合は表示中のすべて）。1回限りのコピー；以後は各行を編集可能。比率とチェックはコピーされません。",
+  "ko": "리더 행의 Tgt / DLL / ATM을 선택한 팔로워에 복사합니다(선택이 없으면 표시된 모든 팔로워). 1회성 복사이며 이후 각 행을 편집할 수 있습니다. 비율과 선택 표시는 복사되지 않습니다."
+ },
+ {
+  "en": "Optional display alias",
+  "zh": "選填顯示別名",
+  "ja": "表示エイリアス（任意）",
+  "ko": "표시 별칭(선택)"
+ },
+ {
+  "en": "Independent daily local profit target · account CCY / 0 = off",
+  "zh": "獨立的每日本機獲利目標 · 帳戶 CCY / 0 = 關閉",
+  "ja": "独立した日次ローカル利益目標 · 口座 CCY / 0 = オフ",
+  "ko": "독립 일일 로컬 수익 목표 · 계좌 CCY / 0 = 끔"
+ },
+ {
+  "en": "Independent daily loss limit · positive amount / 0 = off",
+  "zh": "獨立的每日虧損上限 · 正數金額 / 0 = 關閉",
+  "ja": "独立した日次損失上限 · 正の金額 / 0 = オフ",
+  "ko": "독립 일일 손실 한도 · 양수 금액 / 0 = 끔"
+ },
+ {
+  "en": "Signed position · + long / − short",
+  "zh": "帶正負號的持倉 · + 多 / − 空",
+  "ja": "符号付きポジション · + ロング / − ショート",
+  "ko": "부호 있는 포지션 · + 매수 / − 매도"
+ },
+ {
+  "en": "Observed session P/L in account currency · baseline is not historical daily accounting",
+  "zh": "以帳戶幣別計的觀察到的本次連線 P/L · 基準值並非歷史每日帳務",
+  "ja": "口座通貨での観測セッション P/L · ベースラインは過去の日次会計ではありません",
+  "ko": "계좌 통화 기준 관측된 세션 P/L · 기준값은 과거 일일 회계가 아님"
+ },
+ {
+  "en": "CashValue in account currency; not NetLiquidation / net equity",
+  "zh": "以帳戶幣別計的 CashValue；並非 NetLiquidation / 淨值",
+  "ja": "口座通貨の CashValue；NetLiquidation / 純資産ではありません",
+  "ko": "계좌 통화 기준 CashValue; NetLiquidation / 순자산이 아님"
+ },
+ {
+  "en": "Batch risk / presets",
+  "zh": "批次風控 / 預設組合",
+  "ja": "一括リスク / プリセット",
+  "ko": "일괄 리스크 / 프리셋"
+ },
+ {
+  "en": "Batch risk / presets · review hold",
+  "zh": "批次風控 / 預設組合 · 審查封鎖",
+  "ja": "一括リスク / プリセット · レビュー保留",
+  "ko": "일괄 리스크 / 프리셋 · 검토 보류"
+ },
+ {
+  "en": "Save settings",
+  "zh": "儲存設定",
+  "ja": "設定を保存",
+  "ko": "설정 저장"
+ },
+ {
+  "en": "Trading-day boundary / timezone",
+  "zh": "交易日分界 / 時區",
+  "ja": "取引日の境界 / タイムゾーン",
+  "ko": "거래일 경계 / 시간대"
+ },
+ {
+  "en": "Pause highlighted accounts",
+  "zh": "暫停選取的帳戶",
+  "ja": "選択中の口座を一時停止",
+  "ko": "선택한 계좌 일시정지"
+ },
+ {
+  "en": "Resume highlighted accounts · latch unchanged / no auto-arm",
+  "zh": "恢復選取的帳戶 · 鎖存狀態不變 / 不會自動武裝",
+  "ja": "選択中の口座を再開 · ラッチは変更なし / 自動アームなし",
+  "ko": "선택한 계좌 재개 · 래치 변경 없음 / 자동 활성화 없음"
+ },
+ {
+  "en": "Flatten highlighted accounts (market-closes their positions)",
+  "zh": "平倉選取的帳戶（以市價平掉其持倉）",
+  "ja": "選択中の口座を全決済（ポジションを成行で決済）",
+  "ko": "선택한 계좌 청산(포지션을 시장가로 청산)"
+ },
+ {
+  "en": "Flatten highlighted accounts · review hold",
+  "zh": "平倉選取的帳戶 · 審查封鎖",
+  "ja": "選択中の口座を全決済 · レビュー保留",
+  "ko": "선택한 계좌 청산 · 검토 보류"
+ },
+ {
+  "en": "Flatten ALL displayed accounts (market-closes every position shown)",
+  "zh": "平倉所有顯示的帳戶（以市價平掉所示的每一筆持倉）",
+  "ja": "表示中のすべての口座を全決済（表示中のすべてのポジションを成行で決済）",
+  "ko": "표시된 모든 계좌 청산(표시된 모든 포지션을 시장가로 청산)"
+ },
+ {
+  "en": "Flatten all displayed accounts · review hold",
+  "zh": "平倉所有顯示的帳戶 · 審查封鎖",
+  "ja": "表示中のすべての口座を全決済 · レビュー保留",
+  "ko": "표시된 모든 계좌 청산 · 검토 보류"
+ },
+ {
+  "en": "Live (RO)",
+  "zh": "即時（唯讀）",
+  "ja": "ライブ（読取専用）",
+  "ko": "라이브(읽기 전용)"
+ },
+ {
+  "en": "Display live accounts read-only · live copying blocked",
+  "zh": "以唯讀方式顯示即時帳戶 · 禁止即時帳戶跟單",
+  "ja": "ライブ口座を読取専用で表示 · ライブ口座へのコピーはブロック",
+  "ko": "라이브 계좌를 읽기 전용으로 표시 · 라이브 복사 차단됨"
+ },
+ {
+  "en": "Grp",
+  "zh": "組",
+  "ja": "グル",
+  "ko": "그룹"
+ },
+ {
+  "en": "Group account rows",
+  "zh": "帳戶列分組",
+  "ja": "口座行をグループ化",
+  "ko": "계좌 행 그룹화"
+ },
+ {
+  "en": "Dry run",
+  "zh": "試運行",
+  "ja": "ドライラン",
+  "ko": "드라이런"
+ },
+ {
+  "en": "DRY RUN: decide and log every order, cancel and flatten as \"DRY RUN would send ...\" but send NOTHING. Fixed for the whole session: change it only while stopped.",
+  "zh": "DRY RUN（試運行）：決定並記錄每一筆下單、取消與平倉為「DRY RUN would send ...」，但不會送出任何內容。整個連線期間固定：僅能在停止時變更。",
+  "ja": "DRY RUN（ドライラン）：すべての注文・取消・全決済を判断し「DRY RUN would send ...」としてログに記録しますが、何も送信しません。セッション中は固定：変更は停止中のみ可能。",
+  "ko": "DRY RUN(드라이런): 모든 주문, 취소, 청산을 판단하여 \"DRY RUN would send ...\"로 기록하지만 아무것도 전송하지 않습니다. 세션 전체 동안 고정: 중지 상태에서만 변경할 수 있습니다."
+ },
+ {
+  "en": "Broker account",
+  "zh": "券商帳戶",
+  "ja": "ブローカー口座",
+  "ko": "브로커 계좌"
+ },
+ {
+  "en": "Display alias",
+  "zh": "顯示別名",
+  "ja": "表示エイリアス",
+  "ko": "표시 별칭"
+ },
+ {
+  "en": "Account group",
+  "zh": "帳戶群組",
+  "ja": "口座グループ",
+  "ko": "계좌 그룹"
+ },
+ {
+  "en": "Daily local profit target · 0 = off",
+  "zh": "每日本機獲利目標 · 0 = 關閉",
+  "ja": "日次ローカル利益目標 · 0 = オフ",
+  "ko": "일일 로컬 수익 목표 · 0 = 끔"
+ },
+ {
+  "en": "Daily loss limit · positive value / 0 = off",
+  "zh": "每日虧損上限 · 正數值 / 0 = 關閉",
+  "ja": "日次損失上限 · 正の値 / 0 = オフ",
+  "ko": "일일 손실 한도 · 양수 값 / 0 = 끔"
+ },
+ {
+  "en": "Max",
+  "zh": "上限",
+  "ja": "最大",
+  "ko": "최대"
+ },
+ {
+  "en": "Maximum exact-instrument contracts",
+  "zh": "完全相同商品的最大合約數",
+  "ja": "同一銘柄の最大契約数",
+  "ko": "동일 종목 최대 계약 수"
+ },
+ {
+  "en": "Observed session P/L",
+  "zh": "觀察到的本次連線 P/L",
+  "ja": "観測セッション P/L",
+  "ko": "관측된 세션 P/L"
+ },
+ {
+  "en": "CCY",
+  "zh": "CCY",
+  "ja": "CCY",
+  "ko": "CCY"
+ },
+ {
+  "en": "Account currency",
+  "zh": "帳戶幣別",
+  "ja": "口座通貨",
+  "ko": "계좌 통화"
+ },
+ {
+  "en": "Tgt Δ",
+  "zh": "Tgt Δ",
+  "ja": "Tgt Δ",
+  "ko": "Tgt Δ"
+ },
+ {
+  "en": "Amount remaining to daily target",
+  "zh": "距離每日目標的剩餘金額",
+  "ja": "日次目標までの残額",
+  "ko": "일일 목표까지 남은 금액"
+ },
+ {
+  "en": "DLL Δ",
+  "zh": "DLL Δ",
+  "ja": "DLL Δ",
+  "ko": "DLL Δ"
+ },
+ {
+  "en": "Loss headroom",
+  "zh": "虧損餘裕",
+  "ja": "損失余裕",
+  "ko": "손실 여유"
+ },
+ {
+  "en": "Signed position",
+  "zh": "帶正負號的持倉",
+  "ja": "符号付きポジション",
+  "ko": "부호 있는 포지션"
+ },
+ {
+  "en": "Connection status",
+  "zh": "連線狀態",
+  "ja": "接続ステータス",
+  "ko": "연결 상태"
+ },
+ {
+  "en": "St",
+  "zh": "狀態",
+  "ja": "状態",
+  "ko": "상태"
+ },
+ {
+  "en": "Status",
+  "zh": "狀態",
+  "ja": "ステータス",
+  "ko": "상태"
+ },
+ {
+  "en": "Copier / risk state",
+  "zh": "跟單 / 風控狀態",
+  "ja": "コピー / リスク状態",
+  "ko": "복사 / 리스크 상태"
+ },
+ {
+  "en": "Preset",
+  "zh": "預設組合",
+  "ja": "プリセット",
+  "ko": "프리셋"
+ },
+ {
+  "en": "Editable firm template",
+  "zh": "可編輯的券商範本",
+  "ja": "編集可能なファーム用テンプレート",
+  "ko": "편집 가능한 펌 템플릿"
+ },
+ {
+  "en": "Cons",
+  "zh": "一致",
+  "ja": "一貫",
+  "ko": "일관"
+ },
+ {
+  "en": "Consistency advisory · not a broker guarantee",
+  "zh": "一致性參考提示 · 非券商保證",
+  "ja": "一貫性の参考情報 · ブローカーの保証ではありません",
+  "ko": "일관성 참고 안내 · 브로커의 보증이 아님"
+ },
+ {
+  "en": "Account risk / template / history",
+  "zh": "帳戶風控 / 範本 / 歷史",
+  "ja": "口座リスク / テンプレート / 履歴",
+  "ko": "계좌 리스크 / 템플릿 / 기록"
+ },
+ {
+  "en": "OFF cancels owned entries, retains exits · Re-follow explicit / only when clean · ATM OFF may be unprotected · Local guards only",
+  "zh": "OFF 會取消自有進場單、保留出場單 · 重新跟單需明確操作 / 僅在乾淨狀態下 · ATM OFF 可能無保護 · 僅限本機防護",
+  "ja": "OFF は自己の新規注文を取消し、決済注文は維持 · 再フォローは明示操作 / クリーンな場合のみ · ATM OFF は保護なしとなる可能性あり · ローカルガードのみ",
+  "ko": "OFF는 자체 진입 주문을 취소하고 청산 주문은 유지 · 재팔로우는 명시적 / 정상 상태일 때만 · ATM OFF는 보호되지 않을 수 있음 · 로컬 가드만 적용"
+ },
+ {
+  "en": "Clear log",
+  "zh": "清除日誌",
+  "ja": "ログをクリア",
+  "ko": "로그 지우기"
+ },
+ {
+  "en": "Clear this log view (does not affect settings, orders or saved latches)",
+  "zh": "清除此日誌檢視（不影響設定、委託單或已儲存的鎖存）",
+  "ja": "このログ表示をクリア（設定・注文・保存済みラッチには影響しません）",
+  "ko": "이 로그 보기 지우기(설정, 주문, 저장된 래치에는 영향 없음)"
+ },
+ {
+  "en": "Demo / not broker data",
+  "zh": "示範 / 非券商資料",
+  "ja": "デモ / ブローカーデータではありません",
+  "ko": "데모 / 브로커 데이터 아님"
+ },
+ {
+  "en": "Locked while attached or on review hold",
+  "zh": "連線期間或審查封鎖時已鎖定",
+  "ja": "接続中またはレビュー保留中はロック",
+  "ko": "연결 중이거나 검토 보류 중에는 잠김"
+ },
+ {
+  "en": "Highlight at least one follower account first",
+  "zh": "請先選取至少一個跟單帳戶",
+  "ja": "先にフォロワー口座を1つ以上選択してください",
+  "ko": "먼저 팔로워 계좌를 하나 이상 선택하세요"
+ },
+ {
+  "en": "Enter a plain amount like 1000 (0 = off); no commas, signs or text",
+  "zh": "請輸入純數字金額，例如 1000（0 = 關閉）；不可含逗號、符號或文字",
+  "ja": "1000 のような数字のみの金額を入力（0 = オフ）。カンマ・符号・文字は不可",
+  "ko": "1000처럼 숫자만 입력하세요 (0 = 끔). 쉼표, 부호, 문자는 사용할 수 없습니다"
+ },
+ {
+  "en": "ATM value must be on or off",
+  "zh": "ATM 值必須為開啟或關閉",
+  "ja": "ATM の値はオンまたはオフにしてください",
+  "ko": "ATM 값은 켜짐 또는 꺼짐이어야 합니다"
+ },
+ {
+  "en": "Unknown bulk field",
+  "zh": "未知的批次欄位",
+  "ja": "不明な一括設定フィールド",
+  "ko": "알 수 없는 일괄 설정 필드"
+ },
+ {
+  "en": "No leader row to copy from",
+  "zh": "沒有可供複製的主帳戶列",
+  "ja": "コピー元のリーダー行がありません",
+  "ko": "복사할 리더 행이 없습니다"
+ },
+ {
+  "en": "No follower accounts to update",
+  "zh": "沒有可更新的跟單帳戶",
+  "ja": "更新対象のフォロワー口座がありません",
+  "ko": "업데이트할 팔로워 계좌가 없습니다"
+ },
+ {
+  "en": "Leader Tgt / DLL are not valid amounts",
+  "zh": "主帳戶的 Tgt / DLL 不是有效金額",
+  "ja": "リーダーの Tgt / DLL が有効な金額ではありません",
+  "ko": "리더의 Tgt / DLL이 유효한 금액이 아닙니다"
+ },
+ {
+  "en": "Copied leader Tgt / DLL / ATM to followers (one-time); Ratio and ticks unchanged. Edit any row to fine-tune.",
+  "zh": "已將主帳戶的 Tgt / DLL / ATM 複製到跟單帳戶（僅一次）；比例與跳動點數未變更。可編輯任一列進行微調。",
+  "ja": "リーダーの Tgt / DLL / ATM をフォロワーにコピーしました（1回のみ）。比率とティックは変更なし。任意の行を編集して微調整できます。",
+  "ko": "리더의 Tgt / DLL / ATM을 팔로워에 복사했습니다 (1회성). 비율과 틱은 변경되지 않았습니다. 행을 편집하여 세부 조정할 수 있습니다."
+ },
+ {
+  "en": "Mixed CCY",
+  "zh": "混合 CCY",
+  "ja": "CCY 混在",
+  "ko": "CCY 혼합"
+ },
+ {
+  "en": "REVIEW HOLD · unexpected attachment",
+  "zh": "審查封鎖 · 非預期的附加項目",
+  "ja": "レビュー保留 · 想定外のアタッチメント",
+  "ko": "검토 보류 · 예상치 못한 첨부"
+ },
+ {
+  "en": "Error — guarded pause; verify exposure manually",
+  "zh": "錯誤 — 保護性暫停；請手動確認持倉風險",
+  "ja": "エラー — ガード付き一時停止。エクスポージャーを手動で確認してください",
+  "ko": "오류 — 보호 일시정지; 노출 포지션을 수동으로 확인하세요"
+ },
+ {
+  "en": "PUBLIC ALPHA SAFETY HOLD — Start blocked for ALL providers, including Sim / Playback. Trading DISABLED.",
+  "zh": "公開 Alpha 安全封鎖 — 所有報價/交易供應端（含 Sim / Playback）均禁止開始。交易已停用。",
+  "ja": "パブリックアルファ安全保留 — Sim / Playback を含む全プロバイダーで開始をブロック。取引は無効。",
+  "ko": "퍼블릭 알파 안전 보류 — Sim / Playback을 포함한 모든 제공자에서 시작이 차단되었습니다. 거래 비활성화."
+ },
+ {
+  "en": "ALL-ACCOUNT SAFETY HOLD — Start blocked, including Simulator / Playback. UI preview only; provider acceptance unverified.",
+  "zh": "全帳戶安全封鎖 — 禁止開始，包含 Simulator / Playback。僅為介面預覽；供應端接受狀況未經驗證。",
+  "ja": "全口座安全保留 — Simulator / Playback を含め開始をブロック。UI プレビューのみ。プロバイダーの受理は未確認。",
+  "ko": "전체 계좌 안전 보류 — Simulator / Playback을 포함하여 시작이 차단되었습니다. UI 미리보기 전용; 제공자 수락 여부는 확인되지 않았습니다."
+ },
+ {
+  "en": "SIM TEST: Start refused — missing leader or follower list.",
+  "zh": "SIM TEST：已拒絕開始 — 缺少主帳戶或跟單帳戶清單。",
+  "ja": "SIM TEST: 開始を拒否 — リーダーまたはフォロワーの一覧がありません。",
+  "ko": "SIM TEST: 시작 거부 — 리더 또는 팔로워 목록이 없습니다."
+ },
+ {
+  "en": "SIM TEST: Start refused — every account must be Simulator / Playback. Live accounts are never accepted.",
+  "zh": "SIM TEST：已拒絕開始 — 所有帳戶都必須是 Simulator / Playback。絕不接受實盤帳戶。",
+  "ja": "SIM TEST: 開始を拒否 — すべての口座が Simulator / Playback である必要があります。実口座は一切受け付けません。",
+  "ko": "SIM TEST: 시작 거부 — 모든 계좌는 Simulator / Playback이어야 합니다. 실계좌는 절대 허용되지 않습니다."
+ },
+ {
+  "en": "Already managing a session. Stop while flat first.",
+  "zh": "已在管理一個工作階段。請先於持倉歸零後停止。",
+  "ja": "すでにセッションを管理中。先にフラット後に停止してください。",
+  "ko": "이미 세션을 관리 중입니다. 먼저 청산 후 중지하세요."
+ },
+ {
+  "en": "LIVE BLOCKED in v0.2. Only Simulator / Playback; no live override is provided.",
+  "zh": "v0.2 禁止實盤。僅支援 Simulator / Playback；不提供實盤覆寫選項。",
+  "ja": "v0.2 ではライブをブロック。Simulator / Playback のみ。ライブへの上書き手段はありません。",
+  "ko": "v0.2에서는 실거래가 차단됩니다. Simulator / Playback만 지원하며 실거래 우회 옵션은 제공되지 않습니다."
+ },
+ {
+  "en": "Start refused: select unlocked, valid followers.",
+  "zh": "已拒絕開始：請選取未鎖定且有效的跟單帳戶。",
+  "ja": "開始を拒否: ロックされていない有効なフォロワーを選択してください。",
+  "ko": "시작 거부: 잠기지 않은 유효한 팔로워를 선택하세요."
+ },
+ {
+  "en": "Start refused: all selected accounts must be connected.",
+  "zh": "已拒絕開始：所有已選帳戶都必須已連線。",
+  "ja": "開始を拒否: 選択したすべての口座が接続されている必要があります。",
+  "ko": "시작 거부: 선택한 모든 계좌가 연결되어 있어야 합니다."
+ },
+ {
+  "en": "Start refused: another copier window owns one of these accounts.",
+  "zh": "已拒絕開始：另一個跟單視窗正在管理其中一個帳戶。",
+  "ja": "開始を拒否: 別のコピーウィンドウがこれらの口座の1つを管理しています。",
+  "ko": "시작 거부: 다른 복사 창이 이 계좌 중 하나를 관리하고 있습니다."
+ },
+ {
+  "en": "Start superseded by guard",
+  "zh": "開始已被防護取代",
+  "ja": "開始はガードにより置き換えられました",
+  "ko": "시작이 가드에 의해 대체됨"
+ },
+ {
+  "en": "Ambiguous provider order identity / transition — no catch-up, manual recovery required",
+  "zh": "供應端委託單身分／狀態轉換不明確 — 不補單，需人工處理",
+  "ja": "プロバイダーの注文識別／遷移が曖昧 — キャッチアップなし、手動での復旧が必要",
+  "ko": "제공자 주문 식별/전환이 모호함 — 캐치업 없음, 수동 복구 필요"
+ },
+ {
+  "en": "Invalid / unsupported leader order — entries blocked",
+  "zh": "無效／不支援的主帳戶委託單 — 已封鎖進場",
+  "ja": "無効／未対応のリーダー注文 — エントリーをブロック",
+  "ko": "유효하지 않거나 지원되지 않는 리더 주문 — 진입 차단"
+ },
+ {
+  "en": "Leader disconnected — no catch-up",
+  "zh": "主帳戶已斷線 — 不補單",
+  "ja": "リーダー切断 — キャッチアップなし",
+  "ko": "리더 연결 끊김 — 캐치업 없음"
+ },
+ {
+  "en": "Session history bound reached — guarded pause; stop flat and restart.",
+  "zh": "已達工作階段歷史上限 — 保護性暫停；請於持倉歸零後停止並重新啟動。",
+  "ja": "セッション履歴の上限に到達 — ガード付き一時停止。フラット後に停止して再起動してください。",
+  "ko": "세션 기록 한도 도달 — 보호 일시정지; 청산 후 중지하고 다시 시작하세요."
+ },
+ {
+  "en": "Oversize follower quantity",
+  "zh": "跟單帳戶數量過大",
+  "ja": "フォロワー数量が過大",
+  "ko": "팔로워 수량 초과"
+ },
+ {
+  "en": "Unsupported leader action / type / OCO / time-in-force transition — submitted order unchanged; manual recovery required",
+  "zh": "不支援的主帳戶動作／類型／OCO／有效期限轉換 — 已送出的委託單未變更；需人工處理",
+  "ja": "未対応のリーダーのアクション／種別／OCO／有効期限の遷移 — 送信済み注文は変更なし。手動での復旧が必要",
+  "ko": "지원되지 않는 리더 동작/유형/OCO/유효 기간 전환 — 제출된 주문은 변경되지 않음; 수동 복구 필요"
+ },
+ {
+  "en": "Exposure ledger overflow",
+  "zh": "風險部位紀錄溢位",
+  "ja": "エクスポージャー台帳のオーバーフロー",
+  "ko": "노출 원장 오버플로"
+ },
+ {
+  "en": "Position / owned execution mismatch — no adoption",
+  "zh": "持倉與自有成交不符 — 不接管",
+  "ja": "ポジションと自己の約定が不一致 — 引き継ぎなし",
+  "ko": "포지션과 자체 체결 불일치 — 인수 안 함"
+ },
+ {
+  "en": "Unknown / opposite exposure — exit adoption blocked",
+  "zh": "未知／反向持倉 — 已封鎖出場接管",
+  "ja": "不明／反対方向のエクスポージャー — 決済の引き継ぎをブロック",
+  "ko": "알 수 없거나 반대 방향의 노출 — 청산 인수 차단"
+ },
+ {
+  "en": "Unknown excess position — protect owned subset only",
+  "zh": "未知的超額持倉 — 僅保護自有部分",
+  "ja": "不明な超過ポジション — 自己保有分のみ保護",
+  "ko": "알 수 없는 초과 포지션 — 자체 보유분만 보호"
+ },
+ {
+  "en": "Ambiguous reversal blocked",
+  "zh": "不明確的反轉已封鎖",
+  "ja": "曖昧な反転をブロック",
+  "ko": "모호한 반전 차단"
+ },
+ {
+  "en": "provider call",
+  "zh": "供應端呼叫",
+  "ja": "プロバイダー呼び出し",
+  "ko": "제공자 호출"
+ },
+ {
+  "en": "Disconnected — no catch-up",
+  "zh": "已斷線 — 不補單",
+  "ja": "切断 — キャッチアップなし",
+  "ko": "연결 끊김 — 캐치업 없음"
+ },
+ {
+  "en": "Exit could not obtain closable exposure within 10s — review protection",
+  "zh": "出場單在 10 秒內無法取得可平倉的持倉 — 請檢查保護",
+  "ja": "決済が10秒以内に決済可能なエクスポージャーを取得できませんでした — 保護を確認してください",
+  "ko": "청산이 10초 내에 청산 가능한 노출을 확보하지 못함 — 보호 상태를 확인하세요"
+ },
+ {
+  "en": "Unsupported order type",
+  "zh": "不支援的委託單類型",
+  "ja": "未対応の注文種別",
+  "ko": "지원되지 않는 주문 유형"
+ },
+ {
+  "en": "Disconnected — protection may be stale",
+  "zh": "已斷線 — 保護可能已過期",
+  "ja": "切断 — 保護が古い可能性あり",
+  "ko": "연결 끊김 — 보호가 오래되었을 수 있음"
+ },
+ {
+  "en": "Ambiguous flat Position conflicts with owned executions — existing exit left unchanged; manual reconciliation required, coverage unverified",
+  "zh": "不明確的持倉為零與自有成交衝突 — 現有出場單維持不變；需人工核對，無法確認已有保護",
+  "ja": "曖昧なフラット Position が自己の約定と矛盾 — 既存の決済注文は変更なし。手動での照合が必要、保護は確認できません",
+  "ko": "모호한 청산 Position이 자체 체결과 충돌 — 기존 청산 주문은 변경되지 않음; 수동 대조 필요, 보호 여부를 확인할 수 없음"
+ },
+ {
+  "en": "Cancel working order",
+  "zh": "取消掛單",
+  "ja": "待機中の注文をキャンセル",
+  "ko": "대기 주문 취소"
+ },
+ {
+  "en": "Flat Position conflicts with owned executions — exits cancelled to prevent reversal; review protection",
+  "zh": "持倉為零與自有成交衝突 — 為防止反轉已取消出場單；請檢查保護",
+  "ja": "フラット Position が自己の約定と矛盾 — 反転防止のため決済注文をキャンセル。保護を確認してください",
+  "ko": "청산 Position이 자체 체결과 충돌 — 반전 방지를 위해 청산 주문이 취소됨; 보호 상태를 확인하세요"
+ },
+ {
+  "en": "Unknown follower order activity — no adoption / manual review",
+  "zh": "未知的跟單帳戶委託單活動 — 不接管／需人工檢查",
+  "ja": "不明なフォロワー注文アクティビティ — 引き継ぎなし／手動確認",
+  "ko": "알 수 없는 팔로워 주문 활동 — 인수 안 함/수동 검토"
+ },
+ {
+  "en": "Follower provider identity transition ambiguous — captured fill evidence retained, manual recovery required",
+  "zh": "跟單帳戶供應端身分轉換不明確 — 已保留擷取的成交證據，需人工處理",
+  "ja": "フォロワーのプロバイダー識別の遷移が曖昧 — 取得済み約定証跡は保持、手動での復旧が必要",
+  "ko": "팔로워 제공자 식별 전환이 모호함 — 수집된 체결 증거 보존, 수동 복구 필요"
+ },
+ {
+  "en": "Follower execution metadata divergence — manual recovery required",
+  "zh": "跟單帳戶成交中繼資料偏離 — 需人工處理",
+  "ja": "フォロワーの約定メタデータが乖離 — 手動での復旧が必要",
+  "ko": "팔로워 체결 메타데이터 불일치 — 수동 복구 필요"
+ },
+ {
+  "en": "Follower terminal-state evidence divergence — older active state cannot revoke terminal acknowledgement; manual recovery required",
+  "zh": "跟單帳戶終態證據偏離 — 較舊的有效狀態無法撤銷終態確認；需人工處理",
+  "ja": "フォロワーの最終状態の証跡が乖離 — 古いアクティブ状態では最終状態の確認を取り消せません。手動での復旧が必要",
+  "ko": "팔로워 최종 상태 증거 불일치 — 이전 활성 상태로는 최종 상태 확인을 철회할 수 없음; 수동 복구 필요"
+ },
+ {
+  "en": "OCO multiple exits filled — durable divergence lock; provider atomicity not guaranteed, manual recovery required",
+  "zh": "OCO 多筆出場單已成交 — 持久性偏離鎖定；供應端不保證原子性，需人工處理",
+  "ja": "OCO の複数の決済注文が約定 — 永続的な乖離ロック。プロバイダーの原子性は保証されません、手動での復旧が必要",
+  "ko": "OCO 복수 청산 주문 체결 — 영구 불일치 잠금; 제공자의 원자성은 보장되지 않음, 수동 복구 필요"
+ },
+ {
+  "en": "Cancel OCO sibling",
+  "zh": "取消 OCO 關聯單",
+  "ja": "OCO の対となる注文をキャンセル",
+  "ko": "OCO 연결 주문 취소"
+ },
+ {
+  "en": "Protective exit terminal with uncovered exposure — manual review required",
+  "zh": "保護性出場單已終結但仍有未受保護的持倉 — 需人工檢查",
+  "ja": "保護的な決済注文が終了したがエクスポージャーが未カバー — 手動での確認が必要",
+  "ko": "보호 청산 주문이 종료되었으나 보호되지 않는 노출 존재 — 수동 검토 필요"
+ },
+ {
+  "en": "Entry fill arrived AFTER the leader exit was ignored as 'nothing to close' — no copied exit covers it; manual recovery required; coverage not established",
+  "zh": "進場成交在主帳戶出場單被視為「無可平倉」而忽略「之後」才出現 — 沒有任何已複製的出場單涵蓋它；需人工處理；無法確認已有保護",
+  "ja": "エントリー約定がリーダーの決済が「決済対象なし」として無視された「後」に到着 — コピーされた決済注文でカバーされていません。手動での復旧が必要、保護は確認できません",
+  "ko": "진입 체결이 리더 청산이 '청산할 것 없음'으로 무시된 '후'에 도착 — 복사된 청산 주문이 이를 보호하지 않음; 수동 복구 필요; 보호 여부를 확인할 수 없음"
+ },
+ {
+  "en": "Late uncovered entry fill after exit completion — manual recovery required; coverage not established",
+  "zh": "出場完成後出現遲到且未受保護的進場成交 — 需人工處理；無法確認已有保護",
+  "ja": "決済完了後に遅れて未カバーのエントリー約定が発生 — 手動での復旧が必要、保護は確認できません",
+  "ko": "청산 완료 후 늦게 보호되지 않은 진입 체결 발생 — 수동 복구 필요; 보호 여부를 확인할 수 없음"
+ },
+ {
+  "en": "Follower order rejected — review protection",
+  "zh": "跟單帳戶委託單被拒 — 請檢查保護",
+  "ja": "フォロワー注文が拒否されました — 保護を確認してください",
+  "ko": "팔로워 주문 거부됨 — 보호 상태를 확인하세요"
+ },
+ {
+  "en": "Awaiting provider flat / order confirmation",
+  "zh": "等待供應端的平倉／委託單確認",
+  "ja": "プロバイダーのフラット／注文確認を待機中",
+  "ko": "제공자의 청산/주문 확인 대기 중"
+ },
+ {
+  "en": "Flatten unconfirmed — no concurrent recovery exits authorized; verify provider state manually before explicit abandonment",
+  "zh": "平倉未獲確認 — 不授權任何並行的復原出場單；明確放棄前請手動確認供應端狀態",
+  "ja": "全決済が未確認 — 並行する復旧用決済注文は許可されません。明示的に放棄する前にプロバイダーの状態を手動で確認してください",
+  "ko": "청산 미확인 — 동시 복구 청산 주문은 허용되지 않음; 명시적으로 포기하기 전에 제공자 상태를 수동으로 확인하세요"
+ },
+ {
+  "en": "Unknown follower order / terminal fill evidence — no adoption; manual recovery required",
+  "zh": "未知的跟單帳戶委託單／終態成交證據 — 不接管；需人工處理",
+  "ja": "不明なフォロワー注文／最終約定の証跡 — 引き継ぎなし、手動での復旧が必要",
+  "ko": "알 수 없는 팔로워 주문/최종 체결 증거 — 인수 안 함; 수동 복구 필요"
+ },
+ {
+  "en": "Provider wrapper diverges from captured order / fill evidence — reservations retained; manual recovery required",
+  "zh": "供應端封裝物件與擷取的委託單／成交證據不一致 — 保留預留量；需人工處理",
+  "ja": "プロバイダーのラッパーが取得済みの注文／約定証跡と乖離 — 予約を保持、手動での復旧が必要",
+  "ko": "제공자 래퍼가 수집된 주문/체결 증거와 불일치 — 예약 유지; 수동 복구 필요"
+ },
+ {
+  "en": "Position diverges from owned execution ledger — manual recovery required",
+  "zh": "持倉與自有成交紀錄偏離 — 需人工處理",
+  "ja": "ポジションが自己の約定台帳と乖離 — 手動での復旧が必要",
+  "ko": "포지션이 자체 체결 원장과 불일치 — 수동 복구 필요"
+ },
+ {
+  "en": "Cancel entry (OFF)",
+  "zh": "取消進場單（OFF）",
+  "ja": "エントリーをキャンセル（OFF）",
+  "ko": "진입 주문 취소 (OFF)"
+ },
+ {
+  "en": "GUARDED PAUSE — no new entries; existing lifecycle + new exits still managed",
+  "zh": "保護性暫停 — 不再新增進場；既有生命週期與新的出場單仍會管理",
+  "ja": "ガード付き一時停止 — 新規エントリーなし。既存のライフサイクルと新規決済は引き続き管理",
+  "ko": "보호 일시정지 — 신규 진입 없음; 기존 수명주기와 신규 청산은 계속 관리됨"
+ },
+ {
+  "en": "Paused NEW entries. Working entries may still fill; new exits and changes/cancels remain mirrored. Flatten explicitly to remove exposure.",
+  "zh": "已暫停新進場。掛單進場仍可能成交；新的出場單與修改／取消仍會同步鏡射。請明確執行平倉以移除持倉風險。",
+  "ja": "新規エントリーを一時停止。待機中のエントリーは約定する可能性があります。新規決済と変更／キャンセルは引き続きミラーされます。エクスポージャーを解消するには明示的に全決済してください。",
+  "ko": "신규 진입을 일시정지했습니다. 대기 중인 진입은 체결될 수 있으며, 신규 청산과 변경/취소는 계속 미러링됩니다. 노출을 제거하려면 명시적으로 청산하세요."
+ },
+ {
+  "en": "GUARDED PAUSE — stop blocked until owned executions reconcile flat / no working orders",
+  "zh": "保護性暫停 — 在自有成交對帳為持倉歸零／無掛單前，禁止停止",
+  "ja": "ガード付き一時停止 — 自己の約定がフラット／待機注文なしで照合されるまで停止をブロック",
+  "ko": "보호 일시정지 — 자체 체결이 청산/대기 주문 없음으로 대조될 때까지 중지가 차단됨"
+ },
+ {
+  "en": "Stop refused: unresolved execution / order evidence. Manual reconciliation required; coverage is not guaranteed.",
+  "zh": "已拒絕停止：存在未解決的成交／委託單證據。需人工核對；不保證已有保護。",
+  "ja": "停止を拒否: 未解決の約定／注文の証跡があります。手動での照合が必要。保護は保証されません。",
+  "ko": "중지 거부: 해결되지 않은 체결/주문 증거가 있습니다. 수동 대조 필요; 보호는 보장되지 않습니다."
+ },
+ {
+  "en": "PUBLIC ALPHA SAFETY HOLD — Flatten blocked for ALL providers, including Sim / Playback. Trading DISABLED.",
+  "zh": "公開 Alpha 安全封鎖 — 所有報價/交易供應端（含 Sim / Playback）均禁止平倉。交易已停用。",
+  "ja": "パブリックアルファ安全保留 — Sim / Playback を含む全プロバイダーで全決済をブロック。取引は無効。",
+  "ko": "퍼블릭 알파 안전 보류 — Sim / Playback을 포함한 모든 제공자에서 청산이 차단되었습니다. 거래 비활성화."
+ },
+ {
+  "en": "ALL-ACCOUNT SAFETY HOLD — Flatten blocked for every account. No trading actions authorized.",
+  "zh": "全帳戶安全封鎖 — 所有帳戶均禁止平倉。未授權任何交易動作。",
+  "ja": "全口座安全保留 — 全口座で全決済をブロック。取引アクションは一切許可されません。",
+  "ko": "전체 계좌 안전 보류 — 모든 계좌에서 청산이 차단되었습니다. 어떤 거래 동작도 허용되지 않습니다."
+ },
+ {
+  "en": "SIM TEST: Flatten refused — no instrument. Nothing was sent.",
+  "zh": "SIM TEST：已拒絕平倉 — 未指定商品。未送出任何請求。",
+  "ja": "SIM TEST: 全決済を拒否 — 銘柄なし。何も送信されていません。",
+  "ko": "SIM TEST: 청산 거부 — 종목 없음. 아무것도 전송되지 않았습니다."
+ },
+ {
+  "en": "SIM TEST: Flatten refused — scope contains a non-Simulator/Playback or missing account. Nothing was sent.",
+  "zh": "SIM TEST：已拒絕平倉 — 範圍內含有非 Simulator/Playback 或不存在的帳戶。未送出任何請求。",
+  "ja": "SIM TEST: 全決済を拒否 — 対象範囲に Simulator/Playback 以外または存在しない口座が含まれています。何も送信されていません。",
+  "ko": "SIM TEST: 청산 거부 — 범위에 Simulator/Playback이 아니거나 없는 계좌가 포함되어 있습니다. 아무것도 전송되지 않았습니다."
+ },
+ {
+  "en": "Flatten blocked: another copier owns an account in this scope.",
+  "zh": "已封鎖平倉：另一個跟單程式擁有此範圍內的帳戶。",
+  "ja": "全決済をブロック: この範囲内の口座を別のコピーが所有しています。",
+  "ko": "청산 차단: 다른 복사 프로그램이 이 범위의 계좌를 소유하고 있습니다."
+ },
+ {
+  "en": "Flatten leader blocked: other managed followers still have exposure/working orders. Include all managed followers or flatten followers first.",
+  "zh": "已封鎖主帳戶平倉：其他受管理的跟單帳戶仍有持倉／掛單。請納入所有受管理的跟單帳戶，或先平倉跟單帳戶。",
+  "ja": "リーダーの全決済をブロック: 他の管理対象フォロワーにまだエクスポージャー／待機注文があります。管理対象のフォロワーをすべて含めるか、先にフォロワーを全決済してください。",
+  "ko": "리더 청산 차단: 다른 관리 대상 팔로워에 아직 노출/대기 주문이 있습니다. 관리 대상 팔로워를 모두 포함하거나 팔로워를 먼저 청산하세요."
+ },
+ {
+  "en": "Request threw — provider acceptance unknown",
+  "zh": "請求拋出例外 — 供應端是否已接受未知",
+  "ja": "リクエストが例外をスロー — プロバイダーの受理は不明",
+  "ko": "요청에서 예외 발생 — 제공자 수락 여부를 알 수 없음"
+ },
+ {
+  "en": ": Flatten ",
+  "zh": "：平倉 ",
+  "ja": ": 全決済 ",
+  "ko": ": 청산 "
+ },
+ {
+  "en": "Flatten refused: copier is stopped; no request was sent.",
+  "zh": "已拒絕平倉：跟單已停止；未送出任何請求。",
+  "ja": "全決済を拒否: コピーは停止中。リクエストは送信されていません。",
+  "ko": "청산 거부: 복사가 중지되었습니다. 요청은 전송되지 않았습니다."
+ },
+ {
+  "en": "Manual flatten abandonment — entries locked; only explicit leader exits managed, no autonomous protection / provider guarantee",
+  "zh": "手動平倉已放棄——進場已鎖定；僅管理主帳戶明確的出場，無自主保護／供應端保證",
+  "ja": "手動フラット化を放棄——エントリーはロック中；リーダーの明示的な決済のみ管理、自律的な保護／プロバイダー保証なし",
+  "ko": "수동 청산 포기 — 진입 잠김; 리더의 명시적 청산만 관리, 자율 보호/제공자 보증 없음"
+ },
+ {
+  "en": "Close refused: owned executions / orders unresolved; callbacks and ownership retained. Resolve manually before closing.",
+  "zh": "拒絕關閉：自有成交／委託尚未解決；回呼與所有權仍保留。請先手動處理後再關閉。",
+  "ja": "クローズを拒否：自己の約定／注文が未解決；コールバックと所有権は保持。クローズ前に手動で解決してください。",
+  "ko": "닫기 거부: 소유한 체결/주문이 미해결; 콜백과 소유권 유지. 닫기 전에 수동으로 해결하십시오."
+ },
+ {
+  "en": "Refresh blocked while managing a session.",
+  "zh": "管理工作階段期間無法重新整理。",
+  "ja": "セッション管理中は更新できません。",
+  "ko": "세션 관리 중에는 새로고침할 수 없습니다."
+ },
+ {
+  "en": "Settings NOT saved: correct invalid per-account Ratio / row values first.",
+  "zh": "設定未儲存：請先修正各帳戶無效的比例／列數值。",
+  "ja": "設定は保存されていません：口座ごとの無効な比率／行の値を先に修正してください。",
+  "ko": "설정이 저장되지 않았습니다: 계좌별 잘못된 비율/행 값을 먼저 수정하십시오."
+ },
+ {
+  "en": "REVIEW HOLD: trading and bulk edits disabled. Inspect Dashboard only; use native NT8 for positions.",
+  "zh": "審查封鎖：交易與批次編輯已停用。僅可檢視儀表板；持倉請使用 NT8 原生介面。",
+  "ja": "レビュー保留：取引と一括編集は無効。ダッシュボードの確認のみ可；ポジションはネイティブの NT8 を使用。",
+  "ko": "검토 보류: 거래 및 일괄 편집 비활성화. 대시보드만 확인 가능; 포지션은 NT8 기본 화면을 사용하십시오."
+ },
+ {
+  "en": "Settings saved; startup stays disarmed.",
+  "zh": "設定已儲存；啟動維持未武裝狀態。",
+  "ja": "設定を保存しました；起動時は非アーム状態のまま。",
+  "ko": "설정이 저장되었습니다; 시작 시 비무장 상태 유지."
+ },
+ {
+  "en": "Settings / enabled edits blocked during session. Pause per account or stop when flat first.",
+  "zh": "工作階段期間無法編輯設定／啟用狀態。請先依帳戶暫停，或於持倉歸零後停止。",
+  "ja": "セッション中は設定／有効化の編集不可。先に口座ごとに一時停止するか、フラット後に停止してください。",
+  "ko": "세션 중에는 설정/활성화 편집이 차단됩니다. 먼저 계좌별로 일시정지하거나 청산 후 중지하십시오."
+ },
+ {
+  "en": "Start refused: unresolved inline validation error.",
+  "zh": "拒絕開始：尚有未解決的內嵌驗證錯誤。",
+  "ja": "開始を拒否：未解決のインライン検証エラーがあります。",
+  "ko": "시작 거부: 해결되지 않은 인라인 검증 오류가 있습니다."
+ },
+ {
+  "en": "Start blocked: settings persistence error. Review / reset while disarmed.",
+  "zh": "開始已封鎖：設定持久化錯誤。請於未武裝狀態下檢視／重設。",
+  "ja": "開始をブロック：設定の永続化エラー。非アーム状態で確認／リセットしてください。",
+  "ko": "시작 차단: 설정 저장 오류. 비무장 상태에서 검토/초기화하십시오."
+ },
+ {
+  "en": "Choose a simulation leader.",
+  "zh": "請選擇模擬主帳戶。",
+  "ja": "シミュレーションのリーダーを選択してください。",
+  "ko": "시뮬레이션 리더를 선택하십시오."
+ },
+ {
+  "en": "Unknown exact instrument.",
+  "zh": "商品不明確。",
+  "ja": "銘柄を特定できません。",
+  "ko": "정확한 종목을 알 수 없습니다."
+ },
+ {
+  "en": "Enable at least one unpaused follower.",
+  "zh": "請至少啟用一個未暫停的跟單帳戶。",
+  "ja": "一時停止中でないフォロワーを少なくとも1つ有効にしてください。",
+  "ko": "일시정지되지 않은 팔로워를 하나 이상 활성화하십시오."
+ },
+ {
+  "en": "Invalid finite settings or risk-latched follower. Review Settings / confirmed reset.",
+  "zh": "有限數值設定無效，或跟單帳戶已觸發風控鎖存。請檢視設定／確認後重設。",
+  "ja": "有限値の設定が無効、またはリスクラッチ中のフォロワーがあります。設定を確認／確認付きリセットしてください。",
+  "ko": "유한 값 설정이 잘못되었거나 리스크 래치된 팔로워가 있습니다. 설정을 검토/확인 후 초기화하십시오."
+ },
+ {
+  "en": "Use global guarded pause for leader.",
+  "zh": "請對主帳戶使用全域保護性暫停。",
+  "ja": "リーダーにはグローバルのガード付き一時停止を使用してください。",
+  "ko": "리더에는 전체 보호 일시정지를 사용하십시오."
+ },
+ {
+  "en": "Select accounts first.",
+  "zh": "請先選取帳戶。",
+  "ja": "先に口座を選択してください。",
+  "ko": "먼저 계좌를 선택하십시오."
+ },
+ {
+  "en": "Stop flat before risk edits. Active engine uses immutable settings snapshots.",
+  "zh": "請先於持倉歸零後停止，再編輯風控。運行中的引擎使用不可變的設定快照。",
+  "ja": "リスク編集の前にフラット後に停止してください。稼働中のエンジンは不変の設定スナップショットを使用します。",
+  "ko": "리스크 편집 전에 청산 후 중지하십시오. 실행 중인 엔진은 변경 불가능한 설정 스냅샷을 사용합니다."
+ },
+ {
+  "en": "Flat: no account.",
+  "zh": "平倉：無帳戶。",
+  "ja": "決済：口座なし。",
+  "ko": "청산: 계좌 없음."
+ },
+ {
+  "en": "REVIEW HOLD: Flat disabled.",
+  "zh": "審查封鎖：平倉已停用。",
+  "ja": "レビュー保留：決済は無効。",
+  "ko": "검토 보류: 청산 비활성화."
+ },
+ {
+  "en": "Flat: the leader row is not a follower; use Flatten all or flatten it in NinjaTrader.",
+  "zh": "平倉：主帳戶列並非跟單帳戶；請使用「全部平倉」，或於 NinjaTrader 中自行平倉。",
+  "ja": "決済：リーダー行はフォロワーではありません；「すべて全決済」を使うか、NinjaTrader で決済してください。",
+  "ko": "청산: 리더 행은 팔로워가 아닙니다; 전체 청산을 사용하거나 NinjaTrader에서 직접 청산하십시오."
+ },
+ {
+  "en": "No accounts in flatten scope.",
+  "zh": "平倉範圍內沒有帳戶。",
+  "ja": "全決済の対象範囲に口座がありません。",
+  "ko": "청산 범위에 계좌가 없습니다."
+ },
+ {
+  "en": "Flatten: exact instrument unknown.",
+  "zh": "平倉：商品不明確。",
+  "ja": "全決済：銘柄を特定できません。",
+  "ko": "청산: 정확한 종목을 알 수 없습니다."
+ },
+ {
+  "en": "Flatten refused: live account in scope; v0.2 simulation only.",
+  "zh": "拒絕平倉：範圍內含真實帳戶；v0.2 僅支援模擬。",
+  "ja": "全決済を拒否：対象にライブ口座を含みます；v0.2 はシミュレーションのみ。",
+  "ko": "청산 거부: 범위에 실계좌가 포함됨; v0.2는 시뮬레이션 전용."
+ },
+ {
+  "en": "Account list changed — will refresh when you finish editing.",
+  "zh": "帳戶清單已變更——將於編輯完成後重新整理。",
+  "ja": "口座リストが変更されました——編集完了後に更新します。",
+  "ko": "계좌 목록이 변경되었습니다 — 편집이 끝나면 새로고침합니다."
+ },
+ {
+  "en": "History required",
+  "zh": "需要歷史資料",
+  "ja": "履歴が必要",
+  "ko": "기록 필요"
+ },
+ {
+  "en": "Settings invalid",
+  "zh": "設定無效",
+  "ja": "設定が無効",
+  "ko": "설정 오류"
+ },
+ {
+  "en": "Telemetry invalid",
+  "zh": "遙測資料無效",
+  "ja": "テレメトリが無効",
+  "ko": "텔레메트리 오류"
+ },
+ {
+  "en": "Daily loss",
+  "zh": "每日虧損",
+  "ja": "日次損失",
+  "ko": "일일 손실"
+ },
+ {
+  "en": "Drawdown floor",
+  "zh": "回撤底線",
+  "ja": "ドローダウン下限",
+  "ko": "드로다운 하한"
+ },
+ {
+  "en": "Unknown risk field",
+  "zh": "未知的風控欄位",
+  "ja": "不明なリスク項目",
+  "ko": "알 수 없는 리스크 필드"
+ },
+ {
+  "en": "Invalid risk value",
+  "zh": "風控值無效",
+  "ja": "無効なリスク値",
+  "ko": "잘못된 리스크 값"
+ },
+ {
+  "en": "Correct the highlighted risk values before Apply.",
+  "zh": "套用前請先修正標示的風控值。",
+  "ja": "適用前にハイライトされたリスク値を修正してください。",
+  "ko": "적용 전에 강조 표시된 리스크 값을 수정하십시오."
+ },
+ {
+  "en": "Every number must be finite; ratio / max quantity positive; monetary guards nonnegative.",
+  "zh": "所有數值必須為有限值；比例／最大數量須為正數；金額防護須為非負數。",
+  "ja": "すべての数値は有限値であること；比率／最大数量は正の数；金額ガードは非負であること。",
+  "ko": "모든 숫자는 유한 값이어야 합니다; 비율/최대 수량은 양수; 금액 가드는 음수가 아니어야 합니다."
+ },
+ {
+  "en": "Supply positive confirmed high-water and trail distance first.",
+  "zh": "請先提供正數的已確認高水位與追蹤距離。",
+  "ja": "先に正の確認済みハイウォーターとトレール距離を指定してください。",
+  "ko": "먼저 양수의 확인된 고점과 트레일 거리를 입력하십시오."
+ },
+ {
+  "en": "Unsupported settings version",
+  "zh": "不支援的設定版本",
+  "ja": "未対応の設定バージョン",
+  "ko": "지원되지 않는 설정 버전"
+ },
+ {
+  "en": "Persisted lock",
+  "zh": "已持久化的鎖定",
+  "ja": "永続化されたロック",
+  "ko": "저장된 잠금"
+ },
+ {
+  "en": "Invalid finite settings: ",
+  "zh": "有限數值設定無效： ",
+  "ja": "有限値の設定が無効： ",
+  "ko": "잘못된 유한 값 설정: "
+ },
+ {
+  "en": "Duplicate account settings",
+  "zh": "帳戶設定重複",
+  "ja": "口座設定が重複",
+  "ko": "계좌 설정 중복"
+ },
+ {
+  "en": "Invalid latch journal",
+  "zh": "鎖存日誌無效",
+  "ja": "無効なラッチジャーナル",
+  "ko": "잘못된 래치 저널"
+ },
+ {
+  "en": "\nSource PT ",
+  "zh": "\n來源 PT ",
+  "ja": "\nソース PT ",
+  "ko": "\n출처 PT "
+ },
+ {
+  "en": "\nSource: propfirmsdrama.com/full-comparison/ — 2026-10-02; TPT 2026-08-31. Verify current firm rules. Funded/eval stages differ; scaling may lower cap.\nDD amount is NOT an absolute equity floor. Con",
+  "zh": "\n來源：propfirmsdrama.com/full-comparison/ — 2026-10-02；TPT 2026-08-31。請核對最新的公司規則。資助／評估階段不同；規模擴增可能降低上限。\nDD 金額並非絕對權益底線。Con",
+  "ja": "\nソース：propfirmsdrama.com/full-comparison/ — 2026-10-02；TPT 2026-08-31。最新のファーム規則を確認すること。ファンデッド／評価の段階で異なる；スケーリングで上限が下がる場合あり。\nDD 金額は絶対的な資産下限ではありません。Con",
+  "ko": "\n출처: propfirmsdrama.com/full-comparison/ — 2026-10-02; TPT 2026-08-31. 최신 회사 규정을 확인하십시오. 펀디드/평가 단계에 따라 다름; 스케일링으로 한도가 낮아질 수 있음.\nDD 금액은 절대적인 자산 하한이 아닙니다. Con"
+ },
+ {
+  "en": "No followers selected.",
+  "zh": "未選取跟單帳戶。",
+  "ja": "フォロワーが選択されていません。",
+  "ko": "선택된 팔로워가 없습니다."
+ },
+ {
+  "en": "Dry run cannot be changed while a session is attached; stop flat first.",
+  "zh": "工作階段連線期間無法變更 Dry run（試運行）；請先於持倉歸零後停止。",
+  "ja": "セッション接続中は Dry run（ドライラン）を変更できません；先にフラット後に停止してください。",
+  "ko": "세션이 연결된 동안에는 Dry run(드라이런)을 변경할 수 없습니다; 먼저 청산 후 중지하십시오."
+ },
+ {
+  "en": "Activity detected while arming. Start again only when flat.",
+  "zh": "武裝期間偵測到活動。請僅在持倉歸零時再次開始。",
+  "ja": "アーム中にアクティビティを検出しました。フラットのときのみ再度開始してください。",
+  "ko": "무장 중 활동이 감지되었습니다. 청산 상태일 때만 다시 시작하십시오."
+ },
+ {
+  "en": "Risk guard latched at start; review telemetry/baseline.",
+  "zh": "啟動時風控防護已鎖存；請檢視遙測資料／基準值。",
+  "ja": "開始時にリスクガードがラッチされました；テレメトリ／ベースラインを確認してください。",
+  "ko": "시작 시 리스크 가드가 래치되었습니다; 텔레메트리/기준값을 검토하십시오."
+ },
+ {
+  "en": " UNPROTECTED (no protective exit working) — check NinjaTrader now and place or flatten by hand; this copier will not create it",
+  "zh": " 未受保護（無保護出場單在運作）——請立即檢查 NinjaTrader，並手動掛出保護單或平倉；本跟單程式不會自行建立",
+  "ja": " 保護なし（保護決済注文が稼働していません）——今すぐ NinjaTrader を確認し、手動で注文を出すか全決済してください；このコピー機能は自動では作成しません",
+  "ko": " 보호 없음(작동 중인 보호 청산 주문 없음) — 지금 NinjaTrader를 확인하고 수동으로 주문하거나 청산하십시오; 이 복사기는 자동으로 생성하지 않습니다"
+ },
+ {
+  "en": "SIM TEST: account is not Simulator / Playback at send time; call was NOT sent",
+  "zh": "模擬測試：送出時帳戶並非 Simulator / Playback；該呼叫未送出",
+  "ja": "SIM テスト：送信時に口座が Simulator / Playback ではありません；呼び出しは送信されませんでした",
+  "ko": "SIM 테스트: 전송 시점에 계좌가 Simulator / Playback이 아닙니다; 호출이 전송되지 않았습니다"
+ },
+ {
+  "en": "provider dispatcher stopped; call was NOT sent",
+  "zh": "供應端調度器已停止；該呼叫未送出",
+  "ja": "プロバイダーのディスパッチャーが停止；呼び出しは送信されませんでした",
+  "ko": "제공자 디스패처 중지됨; 호출이 전송되지 않았습니다"
+ },
+ {
+  "en": "entry not sent: an earlier provider call for this account failed",
+  "zh": "進場單未送出：此帳戶先前的供應端呼叫已失敗",
+  "ja": "エントリー未送信：この口座で先行するプロバイダー呼び出しが失敗",
+  "ko": "진입 미전송: 이 계좌의 이전 제공자 호출이 실패함"
+ },
+ {
+  "en": "Confirmed flat",
+  "zh": "已確認平倉",
+  "ja": "フラット確認済み",
+  "ko": "청산 확인됨"
+ },
+ {
+  "en": "Protective coverage unknown — requested, provider acceptance unconfirmed; no retry / chase",
+  "zh": "保護狀況不明——已提出請求，供應端是否接受未確認；不重試／不追單",
+  "ja": "保護の状況は不明——要求済み、プロバイダーの受理は未確認；再試行／追随なし",
+  "ko": "보호 상태 불명 — 요청됨, 제공자 수락 미확인; 재시도/추격 없음"
+ },
+ {
+  "en": "OFF — cancellation pending",
+  "zh": "OFF——取消待處理",
+  "ja": "OFF——キャンセル保留中",
+  "ko": "OFF — 취소 대기 중"
+ },
+ {
+  "en": "OFF / exits managed",
+  "zh": "OFF／出場管理中",
+  "ja": "OFF／決済管理中",
+  "ko": "OFF / 청산 관리 중"
+ },
+ {
+  "en": "Paused / exits managed",
+  "zh": "已暫停／出場管理中",
+  "ja": "停止中／決済管理中",
+  "ko": "일시정지됨 / 청산 관리 중"
+ },
+ {
+  "en": "DISARMED — explicit Start required",
+  "zh": "未武裝——須明確按下開始",
+  "ja": "非アーム——明示的な開始が必要",
+  "ko": "비무장 — 명시적인 시작 필요"
+ },
+ {
+  "en": "FLATTEN requested — new entries blocked; verify flat status",
+  "zh": "已要求平倉——新進場已封鎖；請確認持倉歸零狀態",
+  "ja": "全決済を要求——新規エントリーはブロック；フラット状態を確認してください",
+  "ko": "청산 요청됨 — 신규 진입 차단; 청산 상태를 확인하십시오"
+ },
+ {
+  "en": "Manually abandoned after provider reconciliation; late close risk remains",
+  "zh": "供應端對帳後已手動放棄；仍有延遲平倉風險",
+  "ja": "プロバイダーの照合後に手動で放棄；遅延クローズのリスクが残ります",
+  "ko": "제공자 대조 후 수동으로 포기됨; 지연 청산 위험이 남아 있음"
+ },
+ {
+  "en": "Daily target",
+  "zh": "每日目標",
+  "ja": "日次目標",
+  "ko": "일일 목표"
+ },
+ {
+  "en": " must be a plain amount like 1000 (0 = off): no commas, signs or text",
+  "zh": " 必須為純數字金額，例如 1000（0＝關閉）：不可含逗號、正負號或文字",
+  "ja": " は1000のような数値のみの金額にしてください（0＝オフ）：カンマ、符号、文字は不可",
+  "ko": " 은(는) 1000과 같은 숫자만의 금액이어야 합니다 (0 = 끔): 쉼표, 부호, 문자 불가"
+ },
+ {
+  "en": "Max contracts must be a whole number >= 1",
+  "zh": "最大合約數必須為 ≥ 1 的整數",
+  "ja": "最大契約数は1以上の整数にしてください",
+  "ko": "최대 계약 수는 1 이상의 정수여야 합니다"
+ },
+ {
+  "en": "Ratio must be a plain positive number like 1 or 0.5: no commas, signs or text",
+  "zh": "比例必須為純正數，例如 1 或 0.5：不可含逗號、正負號或文字",
+  "ja": "比率は1や0.5のような数値のみの正の数にしてください：カンマ、符号、文字は不可",
+  "ko": "비율은 1 또는 0.5와 같은 숫자만의 양수여야 합니다: 쉼표, 부호, 문자 불가"
+ },
+ {
+  "en": "Max must be a whole number >= 1",
+  "zh": "最大值必須為 ≥ 1 的整數",
+  "ja": "Max は1以上の整数にしてください",
+  "ko": "Max는 1 이상의 정수여야 합니다"
+ },
+ {
+  "en": "Close blocked: copier still manages positions / working orders. Guarded pause keeps exits managed. Flatten or resolve the selected instrument, then Stop when flat.",
+  "zh": "關閉已封鎖：跟單程式仍在管理持倉／掛單。保護性暫停會持續管理出場。請先平倉或處理所選商品，再於持倉歸零後停止。",
+  "ja": "クローズをブロック：コピー機能がまだポジション／待機中の注文を管理しています。ガード付き一時停止は決済の管理を継続します。選択した銘柄を全決済または解決してから、フラット後に停止してください。",
+  "ko": "닫기 차단: 복사기가 아직 포지션/대기 주문을 관리 중입니다. 보호 일시정지는 청산 관리를 유지합니다. 선택한 종목을 청산하거나 해결한 후 청산 후 중지하십시오."
+ },
+ {
+  "en": "Local risk controls",
+  "zh": "本機風控",
+  "ja": "ローカルリスク管理",
+  "ko": "로컬 리스크 관리"
+ },
+ {
+  "en": "All values editable. Zero monetary limits = OFF. Values in account denomination. No compliance guarantee, no historical high inferred. Batch overwrites the shown settings on every selected account.",
+  "zh": "所有數值皆可編輯。金額上限為零＝OFF。數值以帳戶幣別計。不保證合規，不推斷歷史高點。批次會以顯示的設定覆寫每個所選帳戶。",
+  "ja": "すべての値を編集可能。金額上限が0＝OFF。値は口座の通貨単位。コンプライアンスは保証されず、過去の高値は推定しません。一括適用は表示中の設定を選択した全口座に上書きします。",
+  "ko": "모든 값을 편집할 수 있습니다. 금액 한도 0 = OFF. 값은 계좌 통화 기준. 규정 준수를 보장하지 않으며 과거 고점을 추정하지 않습니다. 일괄 적용은 표시된 설정을 선택한 모든 계좌에 덮어씁니다."
+ },
+ {
+  "en": "Custom: confirm your absolute floor and maximum instrument quantity manually.",
+  "zh": "自訂：請手動確認您的絕對底線與商品最大數量。",
+  "ja": "カスタム：絶対下限と銘柄の最大数量を手動で確認してください。",
+  "ko": "사용자 지정: 절대 하한과 종목 최대 수량을 수동으로 확인하십시오."
+ },
+ {
+  "en": "Custom settings",
+  "zh": "自訂設定",
+  "ja": "カスタム設定",
+  "ko": "사용자 지정 설정"
+ },
+ {
+  "en": "Explicitly apply optional / soft DLL if source has an amount",
+  "zh": "若來源含金額，明確套用選用／軟性 DLL",
+  "ja": "ソースに金額がある場合、任意／ソフト DLL を明示的に適用",
+  "ko": "소스에 금액이 있으면 선택/소프트 DLL을 명시적으로 적용"
+ },
+ {
+  "en": "Load selected template into editable fields",
+  "zh": "將所選範本載入可編輯欄位",
+  "ja": "選択したテンプレートを編集可能なフィールドに読み込む",
+  "ko": "선택한 템플릿을 편집 가능한 필드로 불러오기"
+ },
+ {
+  "en": "Source mini cap cannot be safely mapped. Set MaxContracts manually for your exact instrument / current scaling.",
+  "zh": "來源迷你上限無法安全對應。請依您的確切商品／目前縮放比例手動設定 MaxContracts。",
+  "ja": "ソースのミニ上限は安全にマッピングできません。正確な銘柄／現在のスケーリングに合わせて MaxContracts を手動で設定してください。",
+  "ko": "소스의 미니 한도는 안전하게 매핑할 수 없습니다. 정확한 종목/현재 스케일링에 맞게 MaxContracts를 수동으로 설정하십시오."
+ },
+ {
+  "en": "Manual quantity required",
+  "zh": "需手動輸入數量",
+  "ja": "数量の手動入力が必要",
+  "ko": "수량 수동 입력 필요"
+ },
+ {
+  "en": "Daily target (local observed P&L)",
+  "zh": "每日目標（本機觀察損益）",
+  "ja": "日次目標（ローカル観測 P&L）",
+  "ko": "일일 목표(로컬 관측 손익)"
+ },
+ {
+  "en": "Daily loss (positive amount)",
+  "zh": "每日虧損（正數金額）",
+  "ja": "日次損失（正の金額）",
+  "ko": "일일 손실(양수 금액)"
+ },
+ {
+  "en": "Confirmed absolute equity floor",
+  "zh": "已確認的絕對淨值下限",
+  "ja": "確認済みの絶対エクイティ下限",
+  "ko": "확인된 절대 자기자본 하한"
+ },
+ {
+  "en": "P&L telemetry baseline (editable)",
+  "zh": "損益遙測基準值（可編輯）",
+  "ja": "P&L テレメトリのベースライン（編集可）",
+  "ko": "손익 텔레메트리 기준값(편집 가능)"
+ },
+ {
+  "en": "User / observed local high water",
+  "zh": "使用者／本機觀察高水位",
+  "ja": "ユーザー／ローカル観測の高値水準",
+  "ko": "사용자/로컬 관측 최고 수위"
+ },
+ {
+  "en": "Max exact-instrument contracts",
+  "zh": "確切商品最大合約數",
+  "ja": "銘柄指定の最大契約数",
+  "ko": "정확한 종목 기준 최대 계약 수"
+ },
+ {
+  "en": "Invalid value — retained until corrected; Apply is blocked.",
+  "zh": "數值無效——保留至修正為止；無法套用。",
+  "ja": "無効な値 — 修正されるまで保持されます。適用はブロックされています。",
+  "ko": "잘못된 값 — 수정될 때까지 유지되며 적용이 차단됩니다."
+ },
+ {
+  "en": "Enable LOCAL intraday high-water guard (not firm EOD calculation)",
+  "zh": "啟用本機盤中高水位防護（非公司收盤後計算）",
+  "ja": "ローカルのイントラデイ高値水準ガードを有効化（会社の EOD 計算ではありません）",
+  "ko": "로컬 장중 최고 수위 가드 사용(회사 EOD 계산 아님)"
+ },
+ {
+  "en": "BestDay / TotalProfit are supplied history, used for consistency advisory only. To unlock a persisted latch use the separate confirmed reset while disarmed. Baseline is never automatically reset on re",
+  "zh": "BestDay / TotalProfit 為提供的歷史資料，僅用於一致性參考。若要解除已持久化的鎖存，請在未啟用狀態下使用另外的確認重設。基準值不會於重新啟動時自動重設。",
+  "ja": "BestDay / TotalProfit は提供された履歴であり、整合性の参考にのみ使用されます。永続化されたラッチを解除するには、解除状態で別の確認付きリセットを使用してください。ベースラインは再起動時に自動リセットされません。",
+  "ko": "BestDay / TotalProfit은 제공된 이력이며 일관성 참고용으로만 사용됩니다. 유지된 래치를 해제하려면 비활성 상태에서 별도의 확인 리셋을 사용하십시오. 기준값은 재시작 시 자동으로 리셋되지 않습니다."
+ },
+ {
+  "en": "Invalid settings",
+  "zh": "設定無效",
+  "ja": "無効な設定",
+  "ko": "잘못된 설정"
+ },
+ {
+  "en": "Reset hour outside 0–23",
+  "zh": "重設時刻超出 0–23",
+  "ja": "リセット時刻が 0–23 の範囲外",
+  "ko": "리셋 시각이 0–23 범위를 벗어남"
+ },
+ {
+  "en": "Previously unreadable settings; preserve original files, restore a verified backup before restarting.",
+  "zh": "先前設定無法讀取；請保留原始檔案，並在重新啟動前還原已驗證的備份。",
+  "ja": "以前に読み取れなかった設定です。元のファイルを保存し、再起動前に検証済みのバックアップを復元してください。",
+  "ko": "이전에 읽을 수 없던 설정입니다. 원본 파일을 보존하고 재시작 전에 검증된 백업을 복원하십시오."
+ },
+ {
+  "en": "Trading-day settings (local observation)",
+  "zh": "交易日設定（本機觀察）",
+  "ja": "取引日設定（ローカル観測）",
+  "ko": "거래일 설정(로컬 관측)"
+ },
+ {
+  "en": "Windows timezone ID (DST aware)",
+  "zh": "Windows 時區 ID（支援日光節約時間）",
+  "ja": "Windows タイムゾーン ID（DST 対応）",
+  "ko": "Windows 시간대 ID(DST 지원)"
+ },
+ {
+  "en": "Reset boundary hour 0–23 (no automatic latch / baseline reset)",
+  "zh": "重設分界時刻 0–23（不會自動重設鎖存／基準值）",
+  "ja": "リセット境界時刻 0–23（ラッチ／ベースラインの自動リセットなし）",
+  "ko": "리셋 경계 시각 0–23(래치/기준값 자동 리셋 없음)"
+ },
+ {
+  "en": "Confirm local day boundary",
+  "zh": "確認本機日界線",
+  "ja": "ローカルの日付境界を確認",
+  "ko": "로컬 일 경계 확인"
+ },
+ {
+  "en": "Hour must be 0–23",
+  "zh": "時刻須為 0–23",
+  "ja": "時刻は 0–23 で指定",
+  "ko": "시각은 0–23이어야 합니다"
+ },
+ {
+  "en": "Invalid trading-day setting",
+  "zh": "交易日設定無效",
+  "ja": "無効な取引日設定",
+  "ko": "잘못된 거래일 설정"
+ },
+ {
+  "en": "Unlock requires selected instrument flat / no working orders.",
+  "zh": "解除鎖定須所選商品已平倉且無掛單。",
+  "ja": "ロック解除には、選択した銘柄がフラットで待機中の注文がないことが必要です。",
+  "ko": "잠금 해제에는 선택한 종목이 청산 상태이고 대기 주문이 없어야 합니다."
+ },
+ {
+  "en": "Current telemetry / floor / local high-water still blocks unlock.",
+  "zh": "目前遙測／下限／本機高水位仍禁止解除鎖定。",
+  "ja": "現在のテレメトリ／下限／ローカル高値水準により、ロック解除は引き続きブロックされています。",
+  "ko": "현재 텔레메트리/하한/로컬 최고 수위로 인해 잠금 해제가 계속 차단됩니다."
+ },
+ {
+  "en": "Cancel",
+  "zh": "取消",
+  "ja": "キャンセル",
+  "ko": "취소"
+ },
+ {
+  "en": "BestDay / TotalProfit are supplied history, used for consistency advisory only. To unlock a persisted latch use the separate confirmed reset while disarmed. Baseline is never automatically reset on restart.",
+  "zh": "BestDay / TotalProfit 為提供的歷史資料，僅用於一致性參考。若要解除已持久化的鎖存，請在未啟用狀態下使用另外的確認重設。基準值不會於重新啟動時自動重設。",
+  "ja": "BestDay / TotalProfit は提供された履歴であり、整合性の参考にのみ使用されます。永続化されたラッチを解除するには、解除状態で別の確認付きリセットを使用してください。ベースラインは再起動時に自動リセットされません。",
+  "ko": "BestDay / TotalProfit은 제공된 이력이며 일관성 참고용으로만 사용됩니다. 유지된 래치를 해제하려면 비활성 상태에서 별도의 확인 리셋을 사용하십시오. 기준값은 재시작 시 자동으로 리셋되지 않습니다."
+ },
+ {
+  "en": "Apply",
+  "zh": "套用",
+  "ja": "適用",
+  "ko": "적용"
+ },
+ {
+  "en": "Active",
+  "zh": "啟用中",
+  "ja": "有効",
+  "ko": "활성"
+ },
+ {
+  "en": "Connected",
+  "zh": "已連線",
+  "ja": "接続",
+  "ko": "연결됨"
+ },
+ {
+  "en": "Connecting",
+  "zh": "連線中",
+  "ja": "接続中",
+  "ko": "연결 중"
+ },
+ {
+  "en": "Synthetic",
+  "zh": "模擬",
+  "ja": "シンセティック",
+  "ko": "합성"
+ },
+ {
+  "en": "On",
+  "zh": "開",
+  "ja": "オン",
+  "ko": "켜짐"
+ },
+ {
+  "en": "Follower",
+  "zh": "跟單帳戶",
+  "ja": "フォロワー",
+  "ko": "팔로워"
+ },
+ {
+  "en": "Target",
+  "zh": "目標",
+  "ja": "目標",
+  "ko": "목표"
+ },
+ {
+  "en": "Loss",
+  "zh": "虧損",
+  "ja": "損失",
+  "ko": "손실"
+ },
+ {
+  "en": "ENGINE ERROR: {0} — entries blocked; coverage unverified, manual recovery required",
+  "zh": "引擎錯誤：{0} — 已封鎖進場；無法確認已有保護，需人工處理",
+  "ja": "エンジンエラー: {0} — エントリーをブロックしました。保護は確認できません。手動での復旧が必要",
+  "ko": "엔진 오류: {0} — 진입 차단됨. 보호 여부를 확인할 수 없음, 수동 복구 필요"
+ },
+ {
+  "en": "{0}: ATM exit mirroring OFF — nonmarket exits skipped; market closes only. No native ATM clone / autonomous protection.",
+  "zh": "{0}：ATM 出場鏡像為 OFF — 略過非市價出場單；僅執行市價平倉。無原生 ATM 複製／自主保護。",
+  "ja": "{0}: ATM 決済ミラーリングが OFF — 成行以外の決済はスキップされ、成行決済のみ実行されます。ネイティブ ATM のクローン／自律的な保護はありません。",
+  "ko": "{0}: ATM 청산 미러링 OFF — 시장가 외 청산은 건너뛰며 시장가 청산만 실행됩니다. 네이티브 ATM 복제/자율 보호 없음."
+ },
+ {
+  "en": "Armed explicitly: {0} simulation follower(s).",
+  "zh": "已明確啟用：{0} 個模擬跟單帳戶。",
+  "ja": "明示的に有効化: {0} 件のシミュレーションフォロワー。",
+  "ko": "명시적으로 활성화됨: 시뮬레이션 팔로워 {0}개."
+ },
+ {
+  "en": "COPYING — {0} / {1}",
+  "zh": "跟單中 — {0} / {1}",
+  "ja": "コピー中 — {0} / {1}",
+  "ko": "복사 중 — {0} / {1}"
+ },
+ {
+  "en": "Start refused: {0}",
+  "zh": "拒絕開始：{0}",
+  "ja": "開始を拒否: {0}",
+  "ko": "시작 거부됨: {0}"
+ },
+ {
+  "en": "Order error: {0}",
+  "zh": "委託錯誤：{0}",
+  "ja": "注文エラー: {0}",
+  "ko": "주문 오류: {0}"
+ },
+ {
+  "en": "Manage error: {0}",
+  "zh": "管理錯誤：{0}",
+  "ja": "管理エラー: {0}",
+  "ko": "관리 오류: {0}"
+ },
+ {
+  "en": "PROVIDER DISPATCH ERROR: {0}",
+  "zh": "供應端派送錯誤：{0}",
+  "ja": "プロバイダーのディスパッチエラー: {0}",
+  "ko": "제공자 디스패치 오류: {0}"
+ },
+ {
+  "en": "PROVIDER COMPLETION ERROR: {0}",
+  "zh": "供應端完成處理錯誤：{0}",
+  "ja": "プロバイダーの完了処理エラー: {0}",
+  "ko": "제공자 완료 처리 오류: {0}"
+ },
+ {
+  "en": "{0}: provider call failed while engine stopping: {1}",
+  "zh": "{0}：引擎停止期間供應端呼叫失敗：{1}",
+  "ja": "{0}: エンジン停止中にプロバイダー呼び出しが失敗: {1}",
+  "ko": "{0}: 엔진 중지 중 제공자 호출 실패: {1}"
+ },
+ {
+  "en": "DRY RUN would send to {0}: {1}",
+  "zh": "DRY RUN（試運行）將傳送至 {0}：{1}",
+  "ja": "DRY RUN（ドライラン）: {0} に送信予定: {1}",
+  "ko": "DRY RUN(드라이런) {0}(으)로 전송 예정: {1}"
+ },
+ {
+  "en": "Flatten {0}",
+  "zh": "平倉 {0}",
+  "ja": "全決済 {0}",
+  "ko": "청산 {0}"
+ },
+ {
+  "en": "Change protective order to qty {0}",
+  "zh": "將保護單數量變更為 {0}",
+  "ja": "保護注文の数量を {0} に変更",
+  "ko": "보호 주문 수량을 {0}(으)로 변경"
+ },
+ {
+  "en": "COPY {0} {1} {2} {3}",
+  "zh": "跟單 {0} {1} {2} {3}",
+  "ja": "コピー {0} {1} {2} {3}",
+  "ko": "복사 {0} {1} {2} {3}"
+ },
+ {
+  "en": "{0}: leader exit ignored, nothing to close",
+  "zh": "{0}：主帳戶出場已忽略，無可平倉部位",
+  "ja": "{0}: リーダーの決済を無視、決済対象なし",
+  "ko": "{0}: 리더 청산 무시됨, 청산할 대상 없음"
+ },
+ {
+  "en": "{0}: entry skipped, projected cap / floor quantity",
+  "zh": "{0}：略過進場，預估數量達上限／下限",
+  "ja": "{0}: エントリーをスキップ、予測数量が上限／下限に到達",
+  "ko": "{0}: 진입 건너뜀, 예상 수량이 한도/하한에 도달"
+ },
+ {
+  "en": "Terminal fill quantity divergence — expected={0}, observed={1}; no makeup / chase, manual reconciliation required",
+  "zh": "最終成交數量偏離 — 預期={0}，實際={1}；不補單／不追單，需人工對帳",
+  "ja": "最終約定数量の乖離 — 期待={0}、観測={1}。補填／追随なし、手動での照合が必要",
+  "ko": "최종 체결 수량 불일치 — 예상={0}, 관측={1}; 보충/추격 없음, 수동 대조 필요"
+ },
+ {
+  "en": "OCO cancellation unresolved: {0}",
+  "zh": "OCO 取消未解決：{0}",
+  "ja": "OCO のキャンセルが未解決: {0}",
+  "ko": "OCO 취소 미해결: {0}"
+ },
+ {
+  "en": "Delayed exit error: {0}",
+  "zh": "延遲出場錯誤：{0}",
+  "ja": "遅延決済エラー: {0}",
+  "ko": "지연 청산 오류: {0}"
+ },
+ {
+  "en": "Protection resize error: {0}",
+  "zh": "保護單調整數量錯誤：{0}",
+  "ja": "保護のサイズ変更エラー: {0}",
+  "ko": "보호 크기 조정 오류: {0}"
+ },
+ {
+  "en": "{0} LOCK: {1}. Coverage not established; manual reconciliation may be required.",
+  "zh": "{0} 鎖定：{1}。無法確認已有保護；可能需要人工對帳。",
+  "ja": "{0} ロック: {1}。保護は確認できません。手動での照合が必要になる場合があります。",
+  "ko": "{0} 잠금: {1}. 보호 여부를 확인할 수 없음; 수동 대조가 필요할 수 있습니다."
+ },
+ {
+  "en": "{0} LOCK: {1}. Local guard only; coverage not established.",
+  "zh": "{0} 鎖定：{1}。僅為本機防護；無法確認已有保護。",
+  "ja": "{0} ロック: {1}。ローカルガードのみ。保護は確認できません。",
+  "ko": "{0} 잠금: {1}. 로컬 가드만 해당; 보호 여부를 확인할 수 없음."
+ },
+ {
+  "en": "{0}: Flat confirmed (position 0, nothing working) — OFF; re-follow explicitly to copy again",
+  "zh": "{0}：已確認平倉（持倉 0，無掛單）— OFF；如需再次跟單，請明確重新跟隨",
+  "ja": "{0}: フラット確認（ポジション 0、待機中の注文なし）— OFF。再度コピーするには明示的に再フォローしてください",
+  "ko": "{0}: 청산 확인됨(포지션 0, 대기 주문 없음) — OFF; 다시 복사하려면 명시적으로 재팔로우하십시오"
+ },
+ {
+  "en": "Telemetry error: {0}",
+  "zh": "遙測錯誤：{0}",
+  "ja": "テレメトリエラー: {0}",
+  "ko": "텔레메트리 오류: {0}"
+ },
+ {
+  "en": "Entry cancellation unresolved: {0}",
+  "zh": "進場取消未解決：{0}",
+  "ja": "エントリーのキャンセルが未解決: {0}",
+  "ko": "진입 취소 미해결: {0}"
+ },
+ {
+  "en": "{0}: Follow refused — clean, connected, unlocked session required",
+  "zh": "{0}：拒絕跟隨 — 需要乾淨、已連線且未鎖定的工作階段",
+  "ja": "{0}: フォローを拒否 — クリーンで接続済み、ロックされていないセッションが必要",
+  "ko": "{0}: 팔로우 거부됨 — 정상적이고 연결되어 있으며 잠기지 않은 세션 필요"
+ },
+ {
+  "en": "LIVE FLATTEN BLOCKED {0}",
+  "zh": "即時平倉遭封鎖 {0}",
+  "ja": "ライブ全決済がブロックされました {0}",
+  "ko": "라이브 청산 차단됨 {0}"
+ },
+ {
+  "en": "Flatten request: {0} / {1} — verify flat, retry manually if error",
+  "zh": "平倉請求：{0} / {1} — 請確認已平倉，若出錯請手動重試",
+  "ja": "全決済リクエスト: {0} / {1} — フラットを確認し、エラーの場合は手動で再試行",
+  "ko": "청산 요청: {0} / {1} — 청산 여부를 확인하고 오류 시 수동으로 재시도"
+ },
+ {
+  "en": "Flatten acceptance uncertain — existing protection retained; duplicate reductions blocked until explicit provider reconciliation: {0}",
+  "zh": "平倉是否被接受無法確定 — 保留現有保護；在明確完成供應端對帳前，封鎖重複減倉：{0}",
+  "ja": "全決済が受理されたか不明 — 既存の保護を維持。プロバイダーとの明示的な照合が完了するまで、重複した数量削減はブロックされます: {0}",
+  "ko": "청산 수락 여부 불확실 — 기존 보호 유지; 제공자와 명시적으로 대조할 때까지 중복 감축 차단: {0}"
+ },
+ {
+  "en": "FLATTEN FAILED {0}: {1}",
+  "zh": "平倉失敗 {0}：{1}",
+  "ja": "全決済に失敗 {0}: {1}",
+  "ko": "청산 실패 {0}: {1}"
+ },
+ {
+  "en": "Flat requested for {0} follower account(s); other accounts keep copying.",
+  "zh": "已對 {0} 個跟單帳戶請求平倉；其他帳戶持續跟單。",
+  "ja": "{0} 件のフォロワー口座に決済をリクエストしました。他の口座はコピーを継続します。",
+  "ko": "팔로워 계좌 {0}개에 청산을 요청했습니다. 다른 계좌는 계속 복사합니다."
+ },
+ {
+  "en": "{0}: flatten abandonment refused — in-flight / unknown working orders remain",
+  "zh": "{0}：拒絕放棄平倉 — 仍有處理中／未知的掛單",
+  "ja": "{0}: 全決済の中止を拒否 — 処理中／不明な待機中の注文が残っています",
+  "ko": "{0}: 청산 포기 거부됨 — 처리 중/알 수 없는 대기 주문이 남아 있음"
+ },
+ {
+  "en": "{0}: flatten abandonment refused — exposure evidence unresolved",
+  "zh": "{0}：拒絕放棄平倉 — 風險部位證據尚未解決",
+  "ja": "{0}: 全決済の中止を拒否 — エクスポージャーの証拠が未解決",
+  "ko": "{0}: 청산 포기 거부됨 — 익스포저 증거 미해결"
+ },
+ {
+  "en": "DURABLE LATCH WRITE FAILED: {0} / {1}. Entries paused; do not restart until reviewed.",
+  "zh": "持久鎖存寫入失敗：{0} / {1}。進場已暫停；審查完成前請勿重新啟動。",
+  "ja": "永続ラッチの書き込みに失敗: {0} / {1}。エントリーを一時停止しました。確認が完了するまで再起動しないでください。",
+  "ko": "영구 래치 쓰기 실패: {0} / {1}. 진입이 일시정지되었습니다. 검토 전에는 재시작하지 마십시오."
+ },
+ {
+  "en": "Settings index unreadable — Start blocked. {0}",
+  "zh": "設定索引無法讀取 — 已封鎖開始。{0}",
+  "ja": "設定インデックスを読み取れません — 開始をブロックしました。{0}",
+  "ko": "설정 색인을 읽을 수 없음 — 시작이 차단되었습니다. {0}"
+ },
+ {
+  "en": "PERSISTENCE FAILURE — lock not durable; manual recovery required: {0}",
+  "zh": "持久化失敗 — 鎖定未能持久保存；需人工處理：{0}",
+  "ja": "永続化失敗 — ロックが永続化されていません；手動での復旧が必要：{0}",
+  "ko": "영속화 실패 — 잠금이 영구 저장되지 않음; 수동 복구 필요: {0}"
+ },
+ {
+  "en": "Refresh error: {0}",
+  "zh": "重新整理錯誤：{0}",
+  "ja": "更新エラー：{0}",
+  "ko": "새로고침 오류: {0}"
+ },
+ {
+  "en": "PERSISTENCE ERROR — entries paused, restart blocked until reviewed: {0}",
+  "zh": "持久化錯誤 — 新進場已暫停，審查前禁止重新啟動：{0}",
+  "ja": "永続化エラー — 新規エントリーは一時停止中、確認が完了するまで再起動をブロック：{0}",
+  "ko": "영속화 오류 — 신규 진입 일시정지됨, 검토 전까지 재시작 차단: {0}"
+ },
+ {
+  "en": "UI action failed: {0}",
+  "zh": "UI 操作失敗：{0}",
+  "ja": "UI操作に失敗：{0}",
+  "ko": "UI 작업 실패: {0}"
+ },
+ {
+  "en": "Invalid baseline telemetry: {0}",
+  "zh": "基準值遙測資料無效：{0}",
+  "ja": "ベースラインのテレメトリが無効：{0}",
+  "ko": "잘못된 기준값 텔레메트리: {0}"
+ },
+ {
+  "en": "{0}: Follow refused — account outside managed session; stop flat and select scope again.",
+  "zh": "{0}：已拒絕跟單 — 帳戶不在受管理的工作階段內；請在持倉歸零後停止，並重新選擇範圍。",
+  "ja": "{0}：フォローを拒否 — 口座が管理対象セッション外です；フラットの状態で停止し、範囲を再選択してください。",
+  "ko": "{0}: 팔로우 거부됨 — 계좌가 관리 세션 밖에 있음; 청산 후 중지하고 범위를 다시 선택하세요."
+ },
+ {
+  "en": "Applied editable risk snapshot to {0} account(s); per-account ratios / latch unchanged for bulk edits.",
+  "zh": "已將可編輯的風控快照套用至 {0} 個帳戶；批次編輯不會變更各帳戶的比例／鎖存。",
+  "ja": "編集可能なリスクスナップショットを {0} 口座に適用；一括編集では口座ごとの比率／ラッチは変更されません。",
+  "ko": "편집 가능한 리스크 스냅샷을 {0}개 계좌에 적용함; 일괄 편집 시 계좌별 비율/래치는 변경되지 않음."
+ },
+ {
+  "en": "Confirmed unlock: {0}; still disarmed.",
+  "zh": "已確認解除鎖定：{0}；仍為未啟動狀態。",
+  "ja": "ロック解除を確認：{0}；引き続きディスアーム状態。",
+  "ko": "잠금 해제 확인됨: {0}; 여전히 해제(disarmed) 상태."
+ },
+ {
+  "en": "Unlock refused: {0}",
+  "zh": "已拒絕解除鎖定：{0}",
+  "ja": "ロック解除を拒否：{0}",
+  "ko": "잠금 해제 거부됨: {0}"
+ },
+ {
+  "en": "Instrument \"{0}\" not recognised. Examples: MNQ, ES 12-26, NQZ6.",
+  "zh": "無法辨識商品「{0}」。範例：MNQ、ES 12-26、NQZ6。",
+  "ja": "銘柄「{0}」を認識できません。例：MNQ、ES 12-26、NQZ6。",
+  "ko": "종목 \"{0}\"을(를) 인식할 수 없음. 예: MNQ, ES 12-26, NQZ6."
+ },
+ {
+  "en": "Instrument {0} is not available in this NinjaTrader (check the contract month / Instrument Manager).",
+  "zh": "此 NinjaTrader 中無法使用商品 {0}（請檢查合約月份／Instrument Manager）。",
+  "ja": "この NinjaTrader では銘柄 {0} を利用できません（限月／Instrument Manager を確認）。",
+  "ko": "이 NinjaTrader에서는 종목 {0}을(를) 사용할 수 없음 (계약월/Instrument Manager 확인)."
+ },
+ {
+  "en": "Account list updated: {0}",
+  "zh": "帳戶清單已更新：{0}",
+  "ja": "口座リストを更新：{0}",
+  "ko": "계좌 목록 업데이트됨: {0}"
+ },
+ {
+  "en": "Account list changed ({0}) — not applied while copying. Stop when flat, then the list refreshes.",
+  "zh": "帳戶清單已變更（{0}）— 跟單期間不會套用。請在持倉歸零後停止，清單才會重新整理。",
+  "ja": "口座リストが変更されました（{0}）— コピー中は適用されません。フラット後に停止すると、リストが更新されます。",
+  "ko": "계좌 목록이 변경됨 ({0}) — 복사 중에는 적용되지 않음. 청산 후 중지하면 목록이 새로고침됩니다."
+ },
+ {
+  "en": "Account sync error: {0}",
+  "zh": "帳戶同步錯誤：{0}",
+  "ja": "口座同期エラー：{0}",
+  "ko": "계좌 동기화 오류: {0}"
+ },
+ {
+  "en": "Trading-day boundary {0} {1}:00 (DST aware). New entries paused. Baseline / latch NOT auto-reset. Confirm new baseline and unlock while flat.",
+  "zh": "交易日界線 {0} {1}:00（已考慮日光節約時間）。新進場已暫停。基準值／鎖存不會自動重設。請在持倉歸零時確認新基準值並解除鎖定。",
+  "ja": "取引日境界 {0} {1}:00（夏時間考慮）。新規エントリーは一時停止中。ベースライン／ラッチは自動リセットされません。フラットの状態で新しいベースラインを確認し、ロックを解除してください。",
+  "ko": "거래일 경계 {0} {1}:00 (서머타임 반영). 신규 진입 일시정지됨. 기준값/래치는 자동 초기화되지 않음. 청산 상태에서 새 기준값을 확인하고 잠금을 해제하세요."
+ },
+ {
+  "en": "Restore failed — Start blocked: {0}",
+  "zh": "還原失敗 — 已封鎖開始：{0}",
+  "ja": "復元に失敗 — 開始をブロックしました：{0}",
+  "ko": "복원 실패 — 시작이 차단되었습니다: {0}"
+ },
+ {
+  "en": "Bulk {0} applied to highlighted followers; Ratio and ticks unchanged.",
+  "zh": "已將批次{0}套用至選取的跟單帳戶；比例與跳動點數不變。",
+  "ja": "一括{0}を選択中のフォロワーに適用；比率とティックは変更なし。",
+  "ko": "일괄 {0}을(를) 선택한 팔로워에 적용함; 비율과 틱은 변경되지 않음."
+ },
+ {
+  "en": "Bulk {0} refused: {1}",
+  "zh": "批次{0}已被拒絕：{1}",
+  "ja": "一括{0}を拒否：{1}",
+  "ko": "일괄 {0} 거부됨: {1}"
+ },
+ {
+  "en": "From Leader refused: {0}",
+  "zh": "取自主帳戶已被拒絕：{0}",
+  "ja": "リーダーからの取得を拒否：{0}",
+  "ko": "리더에서 가져오기 거부됨: {0}"
+ },
+ {
+  "en": "{0} open order(s) [{1}]",
+  "zh": "{0} 筆未平倉委託單 [{1}]",
+  "ja": "未約定注文 {0} 件 [{1}]",
+  "ko": "미체결 주문 {0}건 [{1}]"
+ },
+ {
+  "en": "Blocked by {0}.",
+  "zh": "已被 {0} 封鎖。",
+  "ja": "{0} によりブロックされました。",
+  "ko": "{0}에 의해 차단됨."
+ },
+ {
+  "en": "Selected instrument already has a position / working order. No adoption or catch-up. {0}",
+  "zh": "所選商品已有持倉／掛單。不採納、不補單。{0}",
+  "ja": "選択した銘柄には既にポジション／待機中の注文があります。引き継ぎ・キャッチアップは行いません。{0}",
+  "ko": "선택한 종목에 이미 포지션/대기 주문이 있음. 인수 및 따라잡기 없음. {0}"
+ },
+ {
+  "en": "{0} lot UNPROTECTED (no protective exit working) — check NinjaTrader now and place or flatten by hand; this copier will not create it",
+  "zh": "{0} 口未受保護（無保護出場單掛出）— 請立即檢查 NinjaTrader，並手動下單或平倉；本跟單程式不會建立保護單",
+  "ja": "{0} ロットが保護なし（保護決済注文が待機していません）— 今すぐ NinjaTrader を確認し、手動で注文するか決済してください；このコピーツールは注文を作成しません",
+  "ko": "{0}랏 보호 없음 (대기 중인 보호 청산 주문 없음) — 지금 NinjaTrader를 확인하고 수동으로 주문하거나 청산하세요; 이 복사기는 주문을 생성하지 않습니다"
+ },
+ {
+  "en": "{0} lots UNPROTECTED (no protective exit working) — check NinjaTrader now and place or flatten by hand; this copier will not create it",
+  "zh": "{0} 口未受保護（無保護出場單掛出）— 請立即檢查 NinjaTrader，並手動下單或平倉；本跟單程式不會建立保護單",
+  "ja": "{0} ロットが保護なし（保護決済注文が待機していません）— 今すぐ NinjaTrader を確認し、手動で注文するか決済してください；このコピーツールは注文を作成しません",
+  "ko": "{0}랏 보호 없음 (대기 중인 보호 청산 주문 없음) — 지금 NinjaTrader를 확인하고 수동으로 주문하거나 청산하세요; 이 복사기는 주문을 생성하지 않습니다"
+ },
+ {
+  "en": "CashValue · {0} · {1}\nNetLiquidation (net equity, NOT cash balance): {2} {3}\nAccount.Get reports provider values; currency argument does not convert. Dash = unavailable/disconnected. Synthetic rows are not broker data.",
+  "zh": "CashValue · {0} · {1}\nNetLiquidation（淨值，非現金餘額）：{2} {3}\nAccount.Get 回報的是供應端的數值；幣別參數不會進行換算。破折號 = 無法取得／已斷線。合成列並非券商資料。",
+  "ja": "CashValue · {0} · {1}\nNetLiquidation（純資産、現金残高ではありません）：{2} {3}\nAccount.Get はプロバイダーの値を返します；通貨引数では換算されません。ダッシュ = 取得不可／切断。合成行はブローカーのデータではありません。",
+  "ko": "CashValue · {0} · {1}\nNetLiquidation (순자산, 현금 잔고 아님): {2} {3}\nAccount.Get은 제공자 값을 보고함; 통화 인수는 환산하지 않음. 대시 = 사용 불가/연결 끊김. 합성 행은 브로커 데이터가 아님."
+ },
+ {
+  "en": "→  {0} followers  ",
+  "zh": "→  {0} 個跟單帳戶  ",
+  "ja": "→  フォロワー {0}  ",
+  "ko": "→  팔로워 {0}명  "
+ },
+ {
+  "en": "{0} TICKED  /  {1} ACCTS     ·     P/L  {2}",
+  "zh": "已勾選 {0}  /  帳戶 {1}     ·     P/L  {2}",
+  "ja": "チェック {0}  /  口座 {1}     ·     P/L  {2}",
+  "ko": "체크 {0}  /  계좌 {1}     ·     P/L  {2}"
+ },
+ {
+  "en": "{0} sel / {1} rows",
+  "zh": "已選 {0} / 共 {1} 列",
+  "ja": "選択 {0} / {1} 行",
+  "ko": "선택 {0} / {1}행"
+ },
+ {
+  "en": "● {0} LOCKED · check NinjaTrader, then review each reason",
+  "zh": "● {0} 已鎖定 · 請檢查 NinjaTrader，再逐一審查原因",
+  "ja": "● {0} ロック中 · NinjaTrader を確認し、各理由を確認してください",
+  "ko": "● {0} 잠김 · NinjaTrader를 확인한 후 각 사유를 검토하세요"
+ },
+ {
+  "en": "⚠ {0} account(s) with a settings note · hover State",
+  "zh": "⚠ {0} 個帳戶有設定備註 · 請將游標移至狀態欄",
+  "ja": "⚠ 設定メモのある口座 {0} 件 · 状態にカーソルを合わせてください",
+  "ko": "⚠ 설정 메모가 있는 계좌 {0}개 · 상태에 마우스를 올리세요"
+ },
+ {
+  "en": "Ratio gives 0 lots for a {0}-lot leader order",
+  "zh": "對於 {0} 口的主帳戶委託單，比例換算結果為 0 口",
+  "ja": "リーダーの {0} ロット注文に対し、比率では 0 ロットになります",
+  "ko": "리더의 {0}랏 주문에 대해 비율 적용 결과가 0랏임"
+ },
+ {
+  "en": "size capped by Max {0}",
+  "zh": "數量已受 Max {0} 限制",
+  "ja": "数量は Max {0} で制限されています",
+  "ko": "수량이 Max {0}(으)로 제한됨"
+ },
+ {
+  "en": "Over advisory limit: {0}%",
+  "zh": "超出建議上限：{0}%",
+  "ja": "推奨上限を超過：{0}%",
+  "ko": "권고 한도 초과: {0}%"
+ },
+ {
+  "en": "Within advisory limit: {0}%",
+  "zh": "在建議上限內：{0}%",
+  "ja": "推奨上限内：{0}%",
+  "ko": "권고 한도 이내: {0}%"
+ },
+ {
+  "en": "Start simulation copying to exactly {0} follower account(s) on {1}?\n\n{2}\n\nLocal copier guards only. No adoption; all selected accounts must be flat / no working instrument orders.",
+  "zh": "要對 {1} 上恰好 {0} 個跟單帳戶開始模擬跟單嗎？\n\n{2}\n\n僅有本機跟單防護。不採納既有部位；所有已選帳戶必須為平倉狀態，且該商品無掛單。",
+  "ja": "{1} の正確に {0} 口座のフォロワーへシミュレーションコピーを開始しますか？\n\n{2}\n\nローカルのコピーガードのみ。引き継ぎは行いません；選択した全口座がフラットで、銘柄の待機中の注文がない必要があります。",
+  "ko": "{1}에서 정확히 {0}개 팔로워 계좌로 시뮬레이션 복사를 시작할까요?\n\n{2}\n\n로컬 복사 가드만 적용됨. 인수 없음; 선택한 모든 계좌는 청산 상태이고 해당 종목의 대기 주문이 없어야 함."
+ },
+ {
+  "en": "Account {0} remains LOCKED: {1}.\nRequest unlock? This does NOT arm copying; current risk conditions will be rechecked, baseline unchanged.",
+  "zh": "帳戶 {0} 仍為已鎖定：{1}。\n要申請解除鎖定嗎？這不會啟動跟單；將重新檢查目前的風控條件，基準值不變。",
+  "ja": "口座 {0} は引き続きロック中：{1}。\nロック解除を要求しますか？コピーは開始されません；現在のリスク条件を再確認し、ベースラインは変更されません。",
+  "ko": "계좌 {0}은(는) 여전히 잠김: {1}.\n잠금 해제를 요청할까요? 복사는 시작되지 않음; 현재 리스크 조건을 다시 확인하며 기준값은 변경되지 않음."
+ },
+ {
+  "en": "{0}{1}FLATTEN exactly {2} account(s), only {3}.\n{4}\nNew copies will be blocked BEFORE flatten requests. This cancels working orders and closes positions on that instrument. Retry/error remains visible.",
+  "zh": "{0}{1}對恰好 {2} 個帳戶平倉，僅限 {3}。\n{4}\n在送出平倉請求之前，將先封鎖新的跟單。此操作會取消掛單並平掉該商品的持倉。重試／錯誤仍會顯示。",
+  "ja": "{0}{1}正確に {2} 口座を全決済、対象は {3} のみ。\n{4}\n全決済リクエストの前に新規コピーをブロックします。この操作は待機中の注文をキャンセルし、その銘柄のポジションを決済します。再試行／エラーは引き続き表示されます。",
+  "ko": "{0}{1}정확히 {2}개 계좌를 청산, {3}만 대상.\n{4}\n청산 요청 전에 새 복사가 차단됩니다. 이 작업은 대기 주문을 취소하고 해당 종목의 포지션을 청산합니다. 재시도/오류는 계속 표시됩니다."
+ },
+ {
+  "en": "*** DRY RUN: nothing will be sent; decisions are only logged. ***",
+  "zh": "*** DRY RUN（試運行）：不會送出任何內容；決策僅記錄於日誌。***",
+  "ja": "*** DRY RUN（ドライラン）：何も送信されません；判断はログに記録されるのみ。***",
+  "ko": "*** DRY RUN (드라이런): 아무것도 전송되지 않음; 결정은 로그에만 기록됨. ***"
+ },
+ {
+  "en": "FLAT ONE ACCOUNT. ",
+  "zh": "單一帳戶平倉。 ",
+  "ja": "単一口座を全決済。 ",
+  "ko": "단일 계좌 청산. "
+ },
+ {
+  "en": "Risk settings — {0} account(s)",
+  "zh": "風控設定 — {0} 個帳戶",
+  "ja": "リスク設定 — {0} 口座",
+  "ko": "리스크 설정 — 계좌 {0}개"
+ },
+ {
+  "en": "Apply to {0} account(s)",
+  "zh": "套用至 {0} 個帳戶",
+  "ja": "{0} 口座に適用",
+  "ko": "계좌 {0}개에 적용"
+ },
+ {
+  "en": "Leader: {0}   Instrument: {1}",
+  "zh": "主帳戶：{0}   商品：{1}",
+  "ja": "リーダー：{0}   銘柄：{1}",
+  "ko": "리더: {0}   종목: {1}"
+ },
+ {
+  "en": "{0} follower:",
+  "zh": "{0} 個跟單帳戶：",
+  "ja": "フォロワー {0}：",
+  "ko": "팔로워 {0}명:"
+ },
+ {
+  "en": "{0} followers:",
+  "zh": "{0} 個跟單帳戶：",
+  "ja": "フォロワー {0}：",
+  "ko": "팔로워 {0}명:"
+ },
+ {
+  "en": "  {0}  ratio invalid — will NOT copy",
+  "zh": "  {0}  比例無效 — 將不會跟單",
+  "ja": "  {0}  比率が無効 — コピーされません",
+  "ko": "  {0}  비율 잘못됨 — 복사되지 않음"
+ },
+ {
+  "en": "  {0}  ratio {1}  → {2} lot when the leader trades {3}",
+  "zh": "  {0}  比例 {1}  → 當主帳戶交易 {3} 時為 {2} 口",
+  "ja": "  {0}  比率 {1}  → リーダーが {3} を取引すると {2} ロット",
+  "ko": "  {0}  비율 {1}  → 리더가 {3}을(를) 거래하면 {2}랏"
+ },
+ {
+  "en": "  {0}  ratio {1}  → {2} lots when the leader trades {3}",
+  "zh": "  {0}  比例 {1}  → 當主帳戶交易 {3} 時為 {2} 口",
+  "ja": "  {0}  比率 {1}  → リーダーが {3} を取引すると {2} ロット",
+  "ko": "  {0}  비율 {1}  → 리더가 {3}을(를) 거래하면 {2}랏"
+ },
+ {
+  "en": "(none)",
+  "zh": "（無）",
+  "ja": "（なし）",
+  "ko": "(없음)"
+ },
+ {
+  "en": "Source PT {0}; DD {1} ({2}); DLL {3}; mini cap {4}; consistency {5}",
+  "zh": "來源 PT {0}；DD {1}（{2}）；DLL {3}；迷你合約上限 {4}；一致性 {5}",
+  "ja": "ソース PT {0}；DD {1}（{2}）；DLL {3}；ミニ上限 {4}；一貫性 {5}",
+  "ko": "출처 PT {0}; DD {1} ({2}); DLL {3}; 미니 한도 {4}; 일관성 {5}"
+ },
+ {
+  "en": "Source: propfirmsdrama.com/full-comparison/ — 2026-10-02; TPT 2026-08-31. Verify current firm rules. Funded/eval stages differ; scaling may lower cap.",
+  "zh": "來源：propfirmsdrama.com/full-comparison/ — 2026-10-02；TPT 2026-08-31。請核實最新的公司規則。資金帳戶與評估階段不同；規模擴增可能降低上限。",
+  "ja": "出典：propfirmsdrama.com/full-comparison/ — 2026-10-02；TPT 2026-08-31。最新の会社ルールを確認してください。ファンデッド／評価の段階で異なります；スケーリングで上限が下がる場合があります。",
+  "ko": "출처: propfirmsdrama.com/full-comparison/ — 2026-10-02; TPT 2026-08-31. 최신 업체 규정을 확인하세요. 펀디드/평가 단계에 따라 다르며; 스케일링으로 한도가 낮아질 수 있음."
+ },
+ {
+  "en": "DD amount is NOT an absolute equity floor. Confirm your floor manually. Optional/soft DLL stays off unless chosen. Consistency is advisory, needs supplied history.",
+  "zh": "DD 金額並非絕對的淨值底線。請自行手動確認您的底線。選用／軟性 DLL 除非選擇，否則維持關閉。一致性僅供參考，且需提供歷史資料。",
+  "ja": "DD 金額は絶対的なエクイティの下限ではありません。下限は手動で確認してください。オプション／ソフト DLL は選択しない限りオフのままです。一貫性は参考情報で、履歴データの提供が必要です。",
+  "ko": "DD 금액은 절대적인 자산 하한이 아님. 하한은 직접 확인하세요. 선택/소프트 DLL은 선택하지 않으면 꺼진 상태로 유지됨. 일관성은 참고용이며 제공된 이력이 필요함."
+ },
+ {
+  "en": "Disarmed",
+  "zh": "未啟動",
+  "ja": "アーム解除",
+  "ko": "해제됨"
+ },
+ {
+  "en": "Disconnected",
+  "zh": "已斷線",
+  "ja": "切断",
+  "ko": "연결 끊김"
+ },
+ {
+  "en": "Copy",
+  "zh": "跟單",
+  "ja": "コピー",
+  "ko": "복사"
+ },
+ {
+  "en": "Risk",
+  "zh": "風控",
+  "ja": "リスク",
+  "ko": "리스크"
+ },
+ {
+  "en": "Logs",
+  "zh": "日誌",
+  "ja": "ログ",
+  "ko": "로그"
+ },
+ {
+  "en": "Language",
+  "zh": "語言",
+  "ja": "言語",
+  "ko": "언어"
+ },
+ {
+  "en": "Settings",
+  "zh": "設定",
+  "ja": "設定",
+  "ko": "설정"
+ },
+ {
+  "en": "Language changed to {0}.",
+  "zh": "語言已切換為 {0}。",
+  "ja": "言語を {0} に変更しました。",
+  "ko": "언어가 {0}(으)로 변경되었습니다."
+ },
+ {
+  "en": "Language can only be changed while stopped (not attached to a session).",
+  "zh": "僅能在未連接任何跟單工作階段（已停止）時切換語言。",
+  "ja": "言語の変更は停止中（セッション未接続）のみ可能です。",
+  "ko": "언어는 중지 상태(세션에 연결되지 않음)에서만 변경할 수 있습니다."
+ },
+ {
+  "en": "Interface language",
+  "zh": "介面語言",
+  "ja": "表示言語",
+  "ko": "인터페이스 언어"
+ },
+ {
+  "en": "(would NOT copy)",
+  "zh": "（不會跟單）",
+  "ja": "（コピーされません）",
+  "ko": "(복사되지 않음)"
+ },
+ {
+  "en": "  /  Copy desk",
+  "zh": "  /  交易複製器",
+  "ja": "  /  トレードコピー",
+  "ko": "  /  트레이드 복사기"
+ }
+]
