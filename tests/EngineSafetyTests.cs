@@ -1231,6 +1231,42 @@ class EngineSafetyTests {
    System.Threading.Thread.Sleep(11500);e.Poll();Drain(e);
    Check(a.Submits==before,"nothing to close: no follower order");
    Check(latest==null||!latest.Locked,"flat follower must not be locked by the leader's exit after earlier round trips and a skipped entry; reason: "+(latest==null?"":latest.Reason));}finally{e.Dispose();}}
+ // Real-NT finding 2026-10-13: a 1-lot long, then the leader places a protective STOP (Sell 1) and a profit-target LIMIT (Sell 1) with no OCO between them.
+ // Together they ask for 2 lots of exit capacity on a 1-lot position. The stop is copied; the target must NOT make the engine lock the follower after 10 s
+ // and must not send an exit that could over-close. Whatever the engine decides (copy under an engine-owned OCO, or refuse visibly) the follower must stay usable.
+ static void StopAndTargetWithoutOcoDoNotLockFollower(){var l=Acc("stp lead");var a=Acc("stp follow");AccountTelemetry latest=null;
+  var e=new CopierEngine(m=>{},t=>latest=t,(att,m)=>{},(n,r)=>{});
+  try{e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=1,Target=100},new RiskLatch())});Wait(()=>e.EntriesArmed,"arm");
+   var en=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",1);en.OrderId="stp-in";l.Emit(en);Wait(()=>a.Submits==1,"entry copied");
+   var fi=a.Orders.Last();fi.Filled=1;fi.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=1,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});a.Emit(fi);Drain(e);
+   l.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=1,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});
+   var stop=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"",1);stop.OrderType=NinjaTrader.Cbi.OrderType.StopMarket;stop.StopPrice=30700;stop.LimitPrice=0;stop.OrderId="stp-stop";l.Emit(stop);Wait(()=>a.Submits==2,"stop copied");
+   var fs=a.Orders.Last();fs.OrderState=NinjaTrader.Cbi.OrderState.Working;a.Emit(fs);Drain(e);
+   var tgt=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"",1);tgt.OrderType=NinjaTrader.Cbi.OrderType.Limit;tgt.LimitPrice=30790;tgt.OrderId="stp-tgt";l.Emit(tgt);Drain(e);
+   System.Threading.Thread.Sleep(11500);e.Poll();Drain(e);
+   Check(latest==null||!latest.Locked,"stop + target on a 1-lot position must not lock the follower after 10 s; reason: "+(latest==null?"":latest.Reason));
+   Check(a.Submits<=3,"never more than one exit order per leader exit order; submits="+a.Submits);
+   Check(a.Orders.Where(o=>o.OrderAction==NinjaTrader.Cbi.OrderAction.Sell&&(o.OrderState==NinjaTrader.Cbi.OrderState.Working||o.OrderState==NinjaTrader.Cbi.OrderState.Submitted||o.OrderState==NinjaTrader.Cbi.OrderState.Accepted||o.OrderState==NinjaTrader.Cbi.OrderState.Initialized)).Sum(o=>o.Quantity)<=2,"live exit quantity stays bounded");}
+  finally{e.Dispose();}}
+ // Real-NT finding 2026-10-13 (B): the leader still holds a stop and a target under ONE OCO group (both copied, 1 lot each, 1-lot position) and then sends a
+ // MARKET Sell 1 to close without cancelling them first. The follower already has 1 lot of working exit orders, so the market exit saw no free closable exposure,
+ // waited 10 s and locked the account. A copied market close is the one exit that must reach the follower, because it is what the leader actually did.
+ static void MarketCloseWhileProtectionStillWorkingDoesNotLockFollower(){var l=Acc("mkc lead");var a=Acc("mkc follow");AccountTelemetry latest=null;
+  var e=new CopierEngine(m=>{},t=>latest=t,(att,m)=>{},(n,r)=>{});
+  try{e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=1,Target=100,CopyAtm=true},new RiskLatch())});Wait(()=>e.EntriesArmed,"arm");
+   var en=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",1);en.OrderId="mkc-in";l.Emit(en);Wait(()=>a.Submits==1,"entry copied");
+   var fi=a.Orders.Last();fi.Filled=1;fi.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=1,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});a.Emit(fi);Drain(e);
+   l.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=1,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});
+   var stop=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"mkc oco",1);stop.OrderType=NinjaTrader.Cbi.OrderType.StopMarket;stop.StopPrice=30650;stop.LimitPrice=0;stop.OrderId="mkc-stop";l.Emit(stop);Wait(()=>a.Submits==2,"stop copied");
+   var fs=a.Orders.Last();fs.OrderState=NinjaTrader.Cbi.OrderState.Working;a.Emit(fs);Drain(e);
+   var tgt=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"mkc oco",1);tgt.OrderType=NinjaTrader.Cbi.OrderType.Limit;tgt.LimitPrice=30850;tgt.OrderId="mkc-tgt";l.Emit(tgt);Wait(()=>a.Submits==3,"target copied");
+   var ft=a.Orders.Last();ft.OrderState=NinjaTrader.Cbi.OrderState.Working;a.Emit(ft);Drain(e);
+   int before=a.Submits;
+   var mk=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"",1);mk.OrderType=NinjaTrader.Cbi.OrderType.Market;mk.LimitPrice=0;mk.OrderId="mkc-mkt";l.Emit(mk);Drain(e);
+   System.Threading.Thread.Sleep(11500);e.Poll();Drain(e);
+   Check(latest==null||!latest.Locked,"a leader market close with protection still working must not lock the follower; reason: "+(latest==null?"":latest.Reason));
+   Check(a.Orders.Where(o=>o.OrderAction==NinjaTrader.Cbi.OrderAction.Sell&&o.OrderType==NinjaTrader.Cbi.OrderType.Market).Sum(o=>o.Quantity)<=1,"never more than the 1 held lot is market-sold");}
+  finally{e.Dispose();}}
 // ---- Disconnect / reconnect (no catch-up, per-account isolation) and partial fills. Fake sink only.
  static void Disc(NinjaTrader.Cbi.Account a){a.Connection.Status=NinjaTrader.Cbi.ConnectionStatus.Disconnected;}
  static void Reco(NinjaTrader.Cbi.Account a){a.Connection.Status=NinjaTrader.Cbi.ConnectionStatus.Connected;}
