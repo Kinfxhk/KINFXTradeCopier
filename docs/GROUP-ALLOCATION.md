@@ -1,6 +1,6 @@
 # Issue #3 allocation and protection contract
 
-PR #22 integrates group allocation into the actual extracted CopierEngine, not a separate oracle. All real Account Start/Flatten holds remain. The current command frontier is an authorization boundary; it cannot establish broker OCO atomicity or prevent fills that already raced a cancellation.
+PR #22 integrates group allocation into the actual extracted CopierEngine, not a separate oracle. Default-build Account Start/Flatten holds and upstream SIM-only allowlist/send-time checks remain. The current command frontier is an authorization boundary; it cannot establish broker OCO atomicity or prevent fills that already raced a cancellation.
 
 ## Ownership and integer allocation
 
@@ -26,6 +26,10 @@ Completing A stops new entries when the account is flat; it never certifies B co
 
 No OCO identity is inferred from a stop/target shape. Independent exits reserve separately. When acknowledged protection already covers owned/actual exposure and no entry or protection quantity/cancel command is pending, an excess unsubmitted non-market exit is visibly refused without cancelling sole protection or locking an otherwise healthy follower after 10 seconds. The refused intent is not retried by polling or amendment. Pending ACKs and future entry fills still use the existing conservative waiting path. Explicit market closes retain upstream #24 sizing and orphan-protection cancellation behavior.
 
+## Integration with short entries and confirmed Flat
+
+Upstream ticket-style `Sell` entries from flat own short entry lots just like `SellShort`; only links already classified as entries qualify. A provider-confirmed per-account Flat retires prior entry lots and group demand from future allocation while retaining historical fill/order evidence. Retired certificates keep their actual captured counts but report no current held/future allocation. Explicit re-follow and a new captured entry are required for a new round. Cancellation while an explicit Flat is pending uses the existing Flat confirmation path rather than an uncovered-group lock. Unconfirmed Flat remains locked, and any later execution on a retired entry or exit invalidates ownership and locks without an automatic close/retry.
+
 ## Acceptance evidence
 
 | Requirement | Actual engine regression |
@@ -40,6 +44,7 @@ No OCO identity is inferred from a stop/target shape. Independent exits reserve 
 | Unknown same-OCO work fails conservatively | `UnknownSameOcoActivityCannotCertifyGroupRetirement` |
 | Double-fill/reversal counterexamples | `GroupDoubleFillPermutationsRetainReversalEvidence` (both permutations) |
 | Unacknowledged same-OCO cancellation; existing sibling preservation | All original PR #22 same-OCO cases and controls retained |
+| Ticket-style short entry / confirmed Flat ownership | `SellOpenedShortHasGroupOwnership`, `ConfirmedFlatRetiresPriorGroupOwnership`, `LateGroupExitFillAfterConfirmedFlatLocks` |
 | Independent no-OCO excess intent / pending ACKs | `StopAndTargetWithoutOcoDoNotLockFollower`, `IndependentExitWaitsForCapturedReductionAck`, `UnackedCancelledIndependentExitStillWaits` |
 | Missing intent and actual coverage accounting | `UnprotectedLotsTextIsExactAndNeverOptimistic`, `UnprotectedLotsFigureIsExact` |
 

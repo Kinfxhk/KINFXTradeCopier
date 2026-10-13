@@ -873,6 +873,40 @@ class EngineSafetyTests {
    }
   }
  }
+ static void SellOpenedShortHasGroupOwnership(){var l=Acc("short group lead");var a=Acc("short group follow");
+  using(var e=Arm(l,a)){
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"",2));Drain(e);var entry=a.Orders.Single();
+   entry.Filled=2;entry.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Short});a.Emit(entry);Drain(e);
+   l.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Short});
+   var stop=LeaderLimit(l,NinjaTrader.Cbi.OrderAction.BuyToCover,"short group",2,99);l.Emit(stop);Drain(e);
+   Check(a.Submits==2,"Sell-opened short has its explicit group protection copied");
+   var link=ExitLink(e,a.Orders.Last());Check(ClaimEntry(link)==entry&&link.Group.Quota==2,"group owns captured Sell short entry, not an invented long");
+   Check(UnprotectedNow(e)==0,"short group accounts for both captured lots");}}
+ static void LateGroupExitFillAfterConfirmedFlatLocks(){var l=Acc("late flat exit lead");var a=Acc("late flat exit follow");AccountTelemetry latest=null;
+  using(var e=Arm(l,a,t=>latest=t)){
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",2));Drain(e);Fill(a,2);Drain(e);
+   l.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});
+   l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"late flat exit",2,99));Drain(e);var oldExit=a.Orders.Last();
+   e.Flatten(new[]{a},inst);Drain(e);Thread.Sleep(3600);e.Poll();Drain(e);Check(latest!=null&&!latest.Locked,"Flat confirmed clean before late exit fill");
+   oldExit.Filled=2;oldExit.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Short});a.Emit(oldExit);Drain(e);
+   Check(latest.Locked&&!latest.Following,"late retired-group fill locks even when reversed Position agrees with executions");
+   Check(ExitLink(e,oldExit).ObservedFilled==2&&a.Submits==2&&a.Flattens==1,"late fill retained with no automatic close/retry");}}
+ static void ConfirmedFlatRetiresPriorGroupOwnership(){var l=Acc("flat group lead");var a=Acc("flat group follow");AccountTelemetry latest=null;
+  using(var e=Arm(l,a,t=>latest=t)){
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",2));Drain(e);Fill(a,2);Drain(e);var priorEntry=a.Orders[0];
+   l.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});
+   l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"flat prior",2,99));Drain(e);Check(a.Submits==2,"prior group copied");
+   var priorGroup=ExitLink(e,a.Orders[1]).Group;
+   e.Flatten(new[]{a},inst);Drain(e);Thread.Sleep(3600);e.Poll();Drain(e);e.Poll();Drain(e);
+   Check(latest!=null&&!latest.Locked&&!latest.Following,"provider-confirmed Flat stays clean and OFF; reason: "+(latest==null?"":latest.Reason));
+   e.SetFollowing(a.Name,true);Drain(e);Check(latest.Following&&!latest.Locked,"explicit refollow after confirmed Flat");
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",2));Drain(e);var nextEntry=a.Orders.Last();
+   nextEntry.Filled=2;nextEntry.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});a.Emit(nextEntry);Drain(e);
+   l.Emit(LeaderLimit(l,NinjaTrader.Cbi.OrderAction.Sell,"flat next",2,98));Drain(e);
+   Check(a.Submits==4,"new round has its explicit protection copied");
+   var next=ExitLink(e,a.Orders.Last());Check(ClaimEntry(next)==nextEntry&&ClaimEntry(next)!=priorEntry,"new protection cannot reuse flattened entry lots");
+   Check(ExitLink(e,priorEntry).ObservedFilled==2&&priorGroup.Members.Any(x=>x.Order==a.Orders[1]),"historical ownership evidence retained");
+   Check(next.Group.Quota==2&&UnprotectedNow(e)==0&&!latest.Locked,"new group fully covers only the new round");}}
  static void OcoCompletedGroupDoesNotCancelOtherProtectedGroup(){
   var l=Acc("oco1 lead");var a=Acc("oco1 follow");AccountTelemetry t=null;
   using(var e=Arm(l,a,x=>t=x)){
@@ -1630,9 +1664,9 @@ class EngineSafetyTests {
   try{BothFilled(e,l,a,b,1);
    // B exits normally (copied exit filled), A is flattened by hand: afterwards the whole session is flat and must be detachable.
    e.Flatten(new[]{a},inst);Wait(()=>a.Flattens==1,"A flatten");Drain(e);
-   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"",1));Wait(()=>b.Submits==2,"B exit");var xb=b.Orders.Last();xb.Filled=1;xb.OrderState=NinjaTrader.Cbi.OrderState.Filled;b.Positions.Clear();b.Emit(xb);Drain(e);
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"",1));Wait(()=>b.Submits==2,"B exit");Drain(e);var xb=b.Orders.Last();xb.Filled=1;xb.OrderState=NinjaTrader.Cbi.OrderState.Filled;b.Positions.Clear();b.Emit(xb);Drain(e);
    Thread.Sleep(3600);e.Poll();Drain(e);e.Poll();Drain(e);
-   lock(tele)Check(!tele["flat2 a"].Locked&&!tele["flat2 b"].Locked,"nobody locked after a normal exit plus a user Flat");
+   lock(tele)Check(!tele["flat2 a"].Locked&&!tele["flat2 b"].Locked,"nobody locked after a normal exit plus a user Flat; A: "+tele["flat2 a"].Reason+"; B: "+tele["flat2 b"].Reason);
    l.Positions.Clear();
    e.SetFollowing(a.Name,true);Drain(e);
    lock(tele)Check(tele["flat2 a"].Following,"A can be re-followed once confirmed flat");
