@@ -1,7 +1,24 @@
-# VM progress log / VM 實測進度 (2026-10-12, updated)
+# VM progress log / VM 實測進度
 
-Status: **SIM TEST build compiled and loaded in real NinjaTrader 8.1.8.3 (VM). No order has been sent yet.**
-狀態：SIM TEST 版已喺真 NinjaTrader 編譯並載入；**未落過任何單**。
+Status: **Current integrated candidate NOT accepted for trading.** Historical real-NinjaTrader SIM transactions below belong to their stated older source hashes; the latest baseline is compilation/offline evidence only. Default trading hold remains; funded/live accounts are excluded.
+狀態：**目前整合候選版本尚未通過交易驗收。** 下方真 NinjaTrader 模擬交易記錄只適用於各自標示的舊源碼；最新 baseline 為編譯／離線證據。預設交易封鎖保留，不包括 funded／實盤帳戶。
+
+## Exact-candidate baseline — 2026-10-14 (no new orders)
+
+Candidate commit `9bb76a5282816044bede18a51d5f608251bf5e17`; source SHA-256 `d70b8a49ceeb87e2207fe5c9811203723ea7f0edae90d18ebeab334a10e210a5`; transformed SIM source SHA-256 `cdbf9339a6647ea20aa525ea7a0406e6ddeefb1e0bea1774148cd7369c243740`.
+
+- **Compiled outside the NT process:** default and SIM TEST against installed NT 8.1.8.3 assemblies, both exit 0. Default diagnostics: CS0649 × 9 (unassigned fields) and CS1701 × 1168 (reference identity); SIM: CS1701 × 1293. These warnings are not a count of product defects. This baseline does not establish a new F5 compile/load inside NinjaTrader.
+- **Offline on the Windows VM:** pure 38/0; puresim 38/0; engine 212/0; enginesim 233/0; independent 24 PASS / 1 FAIL, zero harness errors. Known FAIL `ExplicitManualFlatReconciliationAvailable` remains visible: the explicit recovery seam is absent (#9); a decided no-retry policy is not a recovery implementation.
+- **WPF offline host:** 50 PASS / 0 FAIL, exit 0. This instantiated the real Dashboard with synthetic fixture state, not a broker acceptance run.
+- **Scratch installer:** six cases (preview, install, reinstall/backup, duplicate refusal, remove, missing-folder refusal) met expected exits and exact transformed source bytes. Only a fake Documents tree was used; not a clean real-NinjaTrader install/release test.
+- **Real NT read-only/control observation:** Dashboard/tab state read through UIA; an existing disconnect latch was explicitly unlocked through the exact-account confirmation and the log confirmed it remained disarmed. No new orders were sent in this baseline. This is not #9 reconciliation proof.
+- **Incident retained:** the first VM launcher failed because Windows PowerShell Stop preference treated normal native git stderr as terminating. Corrected git exit-code handling ran the full seven-mode baseline; the initial incident was retained separately, not counted as a product RED.
+
+Machine-readable counts, result hashes and WPF case names: [BASELINE-2026-10-14.json](BASELINE-2026-10-14.json). Open safety/acceptance gates: #3 basic shared-OCO provider behavior, #4 real threading/lifecycle, #7 exact-candidate acceptance, #9 explicit reconciliation. Flatten selected/all, risk thresholds, rejection lock, provider timing/isolation and clean installation still need exact-candidate real-system acceptance. No progress level was raised from this baseline.
+
+## Historical 2026-10-12 initial installation snapshot
+
+At this early snapshot the SIM TEST build had compiled and loaded, and no order had yet been sent. That statement is historical; later transaction evidence is recorded below.
 
 ## Verified in NinjaTrader (no orders) / 已驗證（未落單）
 - SIM TEST source compiles in NinjaScript Editor: no compile errors in the NT log.
@@ -38,7 +55,7 @@ Fix (SIM TEST build only): an operator allow-list `Documents\NinjaTrader 8\templ
 - Trading in the default build remains disabled. This log does not lift the hold.
 
 ## Real NinjaTrader 8.1.8.3 (KinTest VM), 2026-10-13, source `28bc4bb3bc47` + `#define KINFX_SIM_TEST` / 真 NT 實測
-Leader `Sim101` (simulated feed) -> followers Lucid `…0059` and Tradeify `…7695` (full account names withheld) (operator-attested in `sim-allow.txt`). Ratio 1, Max 1, no Dry run (the Start dialog was read first: 2 followers, MNQZ6, no `DRY RUN`). Offline suites on the VM at the same source hash: enginesim 207/207, puresim 32/32, independent 24 PASS + 1 known FAIL (`ExplicitManualFlatReconciliationAvailable`), compilesim OK. The SIM TEST build compiled in NinjaTrader (DLL timestamp moved) and the Dashboard reloaded with a new **Flat** column.
+Leader `Sim101` (simulated feed) -> Follower A (Lucid) and Follower B (Tradeify), using nonidentifying aliases; all private account-name fragments are withheld (operator-attested in `sim-allow.txt`). Ratio 1, Max 1, no Dry run (the Start dialog was read first: 2 followers, MNQZ6, no `DRY RUN`). Offline suites on the VM at the same source hash: enginesim 207/207, puresim 32/32, independent 24 PASS + 1 known FAIL (`ExplicitManualFlatReconciliationAvailable`), compilesim OK. The SIM TEST build compiled in NinjaTrader (DLL timestamp moved) and the Dashboard reloaded with a new **Flat** column.
 
 Observed (trace `Cbi.Account.*` lines are the evidence, not the UI):
 - **Buy 1 market on Sim101:** both followers submitted Buy 1 within ~0.1 s of the leader fill and filled ~0.45 s later; both followers Long 1.
@@ -54,4 +71,4 @@ Observed (trace `Cbi.Account.*` lines are the evidence, not the UI):
 
 **Real disconnect / reconnect (2026-10-13 20:17-20:33, source `20dc6707c9e6`):** both followers held 1 lot with a copied stop; NinjaTrader's Connections menu disconnect button was pressed for **Lucid only** and the Warning (`You have 4 active order(s). You have 2 open position(s). Do you really want to disconnect?`) answered Yes. Observed: Lucid `status=Disconnected` at 20:28:03; the copier locked **only Lucid** within 1 s (`LOCK: Disconnected`); Tradeify kept `Copying`. A new leader limit placed while Lucid was down was copied to Tradeify within 0.2 s and **never** to Lucid. After Lucid reconnected (connection table `Connected`) it stayed `Locked` and received **no catch-up order**. Flatten all then closed all three accounts and cancelled every working order. Not covered: the leader's own connection dropping, a disconnect in the middle of an order, and a reconnect with the follower's order filled meanwhile.
 
-Not covered by this run: Flat while a protective TP/SL exists, a Flat that the provider rejects, a disconnect during Flat and a real reconnect were not exercised. Each remains "offline-tested only". The 20 s confirmation window was not stressed on a slow connection.
+Limits of the earlier `28bc4bb3bc47` run: Flat with protective TP/SL and real reconnect were not yet exercised there; the later `20dc6707c9e6` runs above supplied those limited historical observations. Still not covered on the current candidate: a provider-rejected Flat, a disconnect during Flat, and the 20 s confirmation window on a slow connection. None of the historical observations proves resolution of a hidden accepted Flatten request.

@@ -1,90 +1,93 @@
-# 開發者同進度詳情
+# 開發者與狀態詳情
 
-由首頁搬出嚟，等新手先睇到安裝步驟。返回 [README](../README.zh-HK.md)。內容冇刪。首頁嘅進度數字來自 [PROGRESS.json](PROGRESS.json)。
+返回 [README](../README.zh-HK.md) · [English](DEVELOPERS.md)。
 
-### 已完成（已在本 repo）
+## 驗收邊界
 
-- 三個分頁（Copy／Risk／Logs），為 10–30 個帳戶設計；每行有獨立 Ratio、Tgt（每日目標）、DLL（每日虧損）、ATM 出場跟隨、OFF。
-- 批量改 Tgt／DLL／ATM（只改選中帳戶）；**From Leader** 以 Leader 做一次性預設，之後可逐戶微調（Ratio 同勾選唔會被改）。
-- 每戶「反向時反應」設定：`Notify`（預設，只通知）或 `FlattenOnce`。**只係儲存**，引擎唔會自動平倉；揀咗 FlattenOnce 嘅行會顯示「呢個 alpha 未生效」。
-- 設定警告、鎖定帳戶計數、數值欄位草稿保護。
-- 已定安全政策（[#9](https://github.com/Kinfxhk/KINFXTradeCopier/issues/9)）：持倉但讀到 flat，唔取消唯一保護單；Flatten 拋例外後，唔複製新出場單、唔重試，鎖帳戶並通知。代價：該帳戶可能有倉位但冇出場單，要人手處理。
-- 多組 OCO 修正（[#3](https://github.com/Kinfxhk/KINFXTradeCopier/issues/3)，部分）：已寫失敗測試先行，並經獨立覆核；覆核搵到我第一版嘅回歸，已改正後先發佈。
-- Mailbox 修正（[#4](https://github.com/Kinfxhk/KINFXTradeCopier/issues/4)，部分）：worker 停止後被拒絕嘅回報、輪詢、跟單請求、平倉請求，唔再令計數或旗標卡死。已獨立覆核。
-- **每戶獨立 Flat 按鈕**：每個 follower 行一個，確認框列明帳戶同合約，只平該戶，其他戶繼續跟；要 provider 證據（倉位 0、冇 working 單、靜置 3 秒）先確認已平，唔重試，20 秒未確認就鎖。離線同真 NinjaTrader 都測過。
-- **修正鎖死問題**：兩次來回交易後，leader 平倉但 follower 冇倉，10 秒後會鎖死兩個 follower。離線重現（要兩次來回先觸發）、修正，並喺真 NinjaTrader 重放，冇再鎖。
-- 斷線重連同部分成交測試（8 個離線測試，每個都有 mutant）：唔補單、保護單保留、唔補差額。
-- 預設版所有 provider 交易封鎖；可重現測試工具、CI、12 個 Issue、截圖、中英安全說明。
+本項目是 MIT **源碼 alpha**，不是已獲一般模擬／provider 驗收的發佈版。**目前確切源碼尚未驗收。** 預設版對所有原生 NT 帳戶封鎖 Start／Flatten，包含 Simulator／Playback。主動選用的 SIM TEST 版可以向 Simulator／Playback 及操作員 allow-list 中的確切帳戶名稱發送訂單；此能力並非 provider 認證或安全驗收。**禁止用於 funded／實盤帳戶。**
 
-最新離線結果（源碼 `28bc4bb3bc47`，VM 上同樣重現）：C# engine **207 PASS／0 FAIL**；pure 32／32；獨立覆核套件 24 PASS／1 已知 FAIL（[#6](https://github.com/Kinfxhk/KINFXTradeCopier/issues/6)）；Dashboard UI **45／45**；Python 457 OK；完整 AddOn compile-only OK。數字係「次數」，唔係完成百分比；上面嘅進度條先係完成度估算。詳情見 [TEST-MATRIX](TEST-MATRIX.md)。
+首頁分數是**加權歷史檢查清單**，並非發佈就緒百分比。真 NT 勾號指向舊快照 `20dc6707c9e6`，不能視為後續引擎變更的驗收。[歷史 VM 記錄](VM-PROGRESS.md)包含 1 個模擬 Leader、2 個操作員確認的模擬 Prop Firm Follower，使用 MNQ、市價／限價／止損單、逐戶 Flat、TP／SL OCO、Leader 市價出場及 Follower 斷線重連。確實已有真實模擬測試，但範圍有限，並非目前源碼的驗收。
 
-### 未完成
+## 目前離線證據
 
-- **真 NinjaTrader 測試仍然好少**：1 個 Leader、2 個 Follower、1 個合約（MNQ）、市價、限價同止損單（含每戶 Flat 配 TP／SL，以及 Leader 市價平倉時取消 follower 嘅 TP／SL）。未真測：Leader 斷線、部分成交、止損＋止盈但冇共用 OCO（會鎖帳戶）、Flatten 被拒、滑點、關閉 workspace 及重啟、多螢幕 DPI、10–30 個帳戶：兩個 Demo 帳戶 Leader→Follower、真實 provider 回報、斷線重連、滑點、關閉 workspace 及重啟、真實多螢幕 DPI、30 戶實際延遲。
-- **預設版 Start 同 Flatten 仍然封鎖**；只有主動啟用嘅 SIM TEST 版，先可以喺 Simulator／Playback 帳戶或你 allow-list 內嘅帳戶跟單。冇安裝包，亦冇簽署發佈版。
-- 保護單改量前，成交資料一致性（[#2](https://github.com/Kinfxhk/KINFXTradeCopier/issues/2)）。
-- 多組 OCO（[#3](https://github.com/Kinfxhk/KINFXTradeCopier/issues/3)）：一組完成唔再取消另一組仍開放嘅保護，窄範圍修正**已合併**。**仍未完成：**入場未全部成交時一組完成，帳戶會鎖定，另一組等待中嘅出場單唔會送出（倉位冇保護，要人手處理；鎖定文字會明確寫出「X 手冇保護」同叫你去 NinjaTrader 處理，本軟件唔會自己建單）；出場分配。
-- 一個卡住嘅 follower 唔再凍結其他戶（[#4](https://github.com/Kinfxhk/KINFXTradeCopier/issues/4)，已合併，只喺離線假環境驗證）。**仍未完成：**真 NinjaTrader 對呢啲呼叫嘅線程規則未驗證；Dispose 最多等 3 秒。
-- Ratio／Max／Target／DLL 打錯嘅字會保留、標示並阻止提交，唔會被悄悄換走（[#5](https://github.com/Kinfxhk/KINFXTradeCopier/issues/5)，部分已合併）。**仍未完成：**Risk 對話框其他欄位只喺按 Apply 時檢查；高精度 XML 往返；真實視窗焦點、輸入法、貼上。
-- Journal 同重啟後可驗證恢復（[#6](https://github.com/Kinfxhk/KINFXTradeCopier/issues/6)）：**維護者暫時擱置**。
-- 每戶自管 TP／SL、唔跟 Leader 平倉（[#10](https://github.com/Kinfxhk/KINFXTradeCopier/issues/10)）：未開始。
-- 新連接帳戶承接現有倉位再跟方向（[#11](https://github.com/Kinfxhk/KINFXTradeCopier/issues/11)）：未做。
-- 反向時真正嘅反應，例如平倉一次（[#12](https://github.com/Kinfxhk/KINFXTradeCopier/issues/12)）：只有設定，冇行為。
-- 原生 follower ATM 複製、安裝包、編譯版本、prop firm 合規檢查。
+源碼：[`src/AddOns/KINFXTradeCopier.cs`](../src/AddOns/KINFXTradeCopier.cs)，SHA-256：
 
-### 而家可以安全做嘅事
+```text
+d70b8a49ceeb87e2207fe5c9811203723ea7f0edae90d18ebeab334a10e210a5
+```
 
-睇代碼、跑離線測試、覆核或重現失敗、提交細而專注嘅 PR。**唔好**為咗試下而強行解除交易封鎖。
+[確切源碼基線記錄](BASELINE-2026-10-14.json)包含在 Windows VM 上，針對上述源碼重現的以下結果：
 
-## 目標用法（日後）
+| 套件／檢查 | 結果 |
+|---|---|
+| 完整 NT 參考編譯／SIM 編譯（`compile`、`compilesim`） | 均 exit 0；僅編譯 |
+| Pure／SIM pure（`pure`、`puresim`） | 各 38 PASS／0 FAIL |
+| 合成引擎（`engine`） | 212 PASS／0 FAIL |
+| 合成 SIM 引擎（`enginesim`） | 233 PASS／0 FAIL |
+| 獨立覆核（`independent`） | 24 PASS／1 已知 FAIL：`ExplicitManualFlatReconciliationAvailable` |
+| WPF UI（`ui`） | 50 PASS／0 FAIL |
 
-Leader → 勾選 follower → 每戶設定 Ratio → Start。可選擇一併跟 ATM 出場。大量帳戶（10–30 個）要易管理：主表格緊湊、少按鈕多圖示，少用嘅設定放喺 Risk 分頁。
+以上是**離線結果，不是真實 NinjaTrader／provider 交易證據**。合成帳戶及 UI 控制項不能證明 provider ACK 次序、取消時序、線程要求、真實 OCO 原子性、成交、恢復或 funded／實盤安全。數字是各套件的執行次數，不是獨立功能數或完成百分比。可攜 Python 打包／SPEC 套件另行計算，不會運行 C# copier。[建置說明](BUILD.md) · [測試矩陣](TEST-MATRIX.md) · [歷史證據](EVIDENCE.json)。
 
-**Start 同 Flatten 對所有真 NT8 帳戶仍然封鎖。** OFF 唔等於 Flatten。ATM 係指「跟出場單」，唔係複製 follower 原生 ATM。現金顯示 CashValue 同其幣種，唔係權益。冇全局 Ratio。
+## 已實作範圍與剩餘關卡
 
-## 安全參與
+- 單一 Copy／Risk／Logs 儀表板，為 10–30 個帳戶設計；各行獨立 Ratio／Tgt／DLL／ATM／OFF／Flat，批量風控只作用於已選行，**From Leader** 僅複製一次預設值。為 30 個帳戶設計不等於通過真實 30 戶驗收。
+- 已有各行數值草稿、Risk 對話框驗證、精確 XML 數值往返及關閉時的 callback frontier 檢查。舊說明指 #5 僅部分合併、沒有對話框草稿或精度修正，已經過時。原生視窗焦點／IME／剪貼簿／DPI 驗收仍須獨立處理。
+- 各 Follower 的 provider dispatch 及 mailbox 拒絕後狀態修正已合併。#4 仍需要真 NT 線程／延遲及關閉／Dispose 驗收；離線通過不能證明安全關閉或永不返回的呼叫。
+- 逐戶 Flat 確認框列出帳戶與商品。成功確認須呼叫返回、原生持倉為零／沒有掛單及靜置期；未確認或拋例外會鎖定，絕不重試。歷史模擬測試曾驗證逐戶 Flat，不代表此源碼的每條失敗路徑已驗收。
+- **PR #22 已合併。** 分組所有權、分數比例分配、captured／applied frontier 及確切 dispatch 憑證，已取代歷史 #3「等待保護只能人工處理」的缺口。已明確要求、仍有效的 Leader 等待出場單，可以保護其已獲證明的獨立批次；不會憑空建立缺失 bracket 或入場單，已取消／模糊意圖不能恢復，provider 接受狀況不明時絕不重試。已捕捉的保護覆蓋持倉時，多餘的獨立無 OCO 保護會明確拒絕；此規則不等於券商 OCO 原子性。[分配契約](GROUP-ALLOCATION.md)。#3 仍保留安全／provider 驗收阻礙。
+- 持倉偏離時預設鎖定／通知／拒絕不安全延續。`FlattenOnce` 已儲存但未生效，不會自動平倉。自管 TP／SL、承接現有持倉及重啟 journal 恢復是可選功能；安全拒絕仍是必要要求。
 
-需要 Python 3.10+；唔需要額外 Python 套件、交易帳戶或 NT8：
+### Issue 覆核建議——尚未執行
+
+獨立覆核已閱讀 #1–#12。以下是**範圍／狀態修正建議**，不是已執行的關閉 Issue、標籤變更或驗收決定。修改追蹤狀態之前，應核對源碼與 Issue 歷史；[已知問題](KNOWN-ISSUES.md)及[離線狀態](OFFLINE-STATUS.md)的部分舊段落可能描述已被取代的基線。
+
+| Issue | 建議處理與邊界 |
+|---|---|
+| [#1](https://github.com/Kinfxhk/KINFXTradeCopier/issues/1) 建置／測試工具 | 已有確切源碼 VM 編譯及離線重現；建議按工具範圍完成處理，不代表 provider 驗收。 |
+| [#2](https://github.com/Kinfxhk/KINFXTradeCopier/issues/2) 成交 frontier／改量 | 目前整合已有 frontier／預留量控制及測試，不應重複「frontier 未整合」的舊缺口。建議關閉或重訂已實作離線範圍，保留 provider ACK／驗收限制。 |
+| [#3](https://github.com/Kinfxhk/KINFXTradeCopier/issues/3) 多組 OCO | 已合併 #22 取代等待保護／分數分配缺口；保留安全與 provider 驗收阻礙。 |
+| [#4](https://github.com/Kinfxhk/KINFXTradeCopier/issues/4) Mailbox／Dispose／隔離 | 部分修正已合併；保留安全及真 NT 關閉／線程／延遲阻礙。 |
+| [#5](https://github.com/Kinfxhk/KINFXTradeCopier/issues/5) 數值草稿／設定 | 草稿、對話框及 XML 修正已合併；建議按已覆蓋範圍完成處理，不代表原生鍵盤／DPI 或全部設定發佈契約已驗收。 |
+| [#6](https://github.com/Kinfxhk/KINFXTradeCopier/issues/6) Journal／重啟 | 可選的持久 journal／重啟工作，目前擱置；不能吸收或掩蓋 #9 必要的工作階段內明確恢復關卡。 |
+| [#7](https://github.com/Kinfxhk/KINFXTradeCopier/issues/7) 模擬驗收 | 已有有限歷史模擬測試；保留確切源碼驗收、中止／核對及安全阻礙。 |
+| [#8](https://github.com/Kinfxhk/KINFXTradeCopier/issues/8) 原生 UI／DPI | 已有 WPF 離線檢查及 i18n；原生鍵盤、無障礙及多螢幕 DPI 尚未證明。 |
+| [#9](https://github.com/Kinfxhk/KINFXTradeCopier/issues/9) 不確定 Flatten／恢復 | 保留安全阻礙：缺少明確、可驗證已平倉的 ledger 核對路徑，詳見下文。政策決定不等於完成。 |
+| [#10](https://github.com/Kinfxhk/KINFXTradeCopier/issues/10) 自管 TP／SL | 可選，未實作；ATM 是跟隨 Leader 出場單，不是 Follower 原生 ATM 複製。 |
+| [#11](https://github.com/Kinfxhk/KINFXTradeCopier/issues/11) 承接持倉 | 可選，未實作；Start 必須繼續拒絕現有持倉／掛單。 |
+| [#12](https://github.com/Kinfxhk/KINFXTradeCopier/issues/12) 偏離時自動平倉 | 可選，目前僅儲存設定；即使延期自動平倉，鎖定／通知／安全拒絕仍屬必要。 |
+
+### #9：仍缺少明確恢復關卡
+
+獨立測試 `ExplicitManualFlatReconciliationAvailable` 檢查 `AcknowledgeFlattenConfirmed`，因缺少此明確、可驗證已平倉的核對路徑而失敗。這是目前工作階段內的安全／恢復關卡，**不只是可選的 #6 重啟 journal**。Position0、可見訂單全部 terminal、成功手動平倉、一般放棄確認或 UI 風控鎖存重設，都不能證明隱藏的已接受請求已結束，亦不能核對引擎自有成交證據。
+
+模糊的已平倉遙測會保留現有保護單。Flatten 拋例外後，copier 阻止新的跟單出場且不會重試，因原請求可能已獲接受。**代價：**核對完成之前可能仍有持倉而沒有跟單出場。若仍有不確定性，保持鎖定／未啟動；不要清除鎖存或重啟來令 ledger 看似乾淨。原生 Orders／Positions 是操作證據，但不會自動授權恢復跟單。
+
+<a id="dashboard-gallery-and-source"></a>
+## 儀表板圖庫與源碼
+
+以下圖片使用實際 `DashboardView` 控制項，以**合成 DEMO** 模式呈現**虛構帳戶與數值**，未連接帳戶、引擎或訂單。圖片**並非 NinjaTrader／provider 交易證據**。
+
+[儀表板／引擎源碼](../src/AddOns/KINFXTradeCopier.cs) · [截圖呈現程式](screenshots/Screenshots.cs) · [語言表](../i18n/strings.json) · [SIM TEST 安裝腳本源碼](../scripts/install-simtest.ps1)
+
+![Copy 分頁 — 合成 DEMO](screenshots/1-copy.png)
+![Risk 分頁 — 合成 DEMO](screenshots/2-risk.png)
+![Logs 分頁 — 合成 DEMO](screenshots/3-logs.png)
+
+## 不涉及交易的貢獻方式
+
+需要 Python 3.10+，不需要額外套件、帳戶或 NT8：
 
 ```sh
 python -B -m unittest discover -s tests -p 'test_*.py' -v
 ```
 
-呢啲可攜檢查只驗證打包同封鎖，以及獨立 SPEC，**唔會**運行 C# 跟單引擎、券商或真實訂單。Windows 上嘅 Framework-only 引擎測試同完整 NT8 只編譯檢查，見[建置說明](BUILD.md)。本 repo 唔包含任何廠商 DLL。
+可攜檢查涵蓋打包／安全封鎖及獨立 Python SPEC，**不是 C# 引擎實作**或券商執行。可以閱讀代碼、重現合成失敗及提出專注修正。本 repo 不提供廠商 DLL 或已編譯交易程式。有複製源碼的 SIM TEST 安裝腳本，但沒有簽署／已覆核的一般發佈版。
 
-## 先睇再測試
+[建置](BUILD.md) · [測試／遮蓋敏感資料的報告](COMMUNITY-TESTING.md) · [貢獻流程](../CONTRIBUTING.md) · [請勿執行的操作](DO-NOT-DO.md) · [安全封鎖](SAFETY-HOLD.md) · [模擬計劃（歷史計劃，不代表授權）](SIM-TEST-PLAN.md) · [路線圖](ROADMAP.md)。
 
-- [測試矩陣：未測試／失敗／有限範圍證據](TEST-MATRIX.md)
-- [**離線進度：已完成 vs 仍需真環境**](OFFLINE-STATUS.md)
-- [雙帳戶 Sim 測試**計劃**（只係計劃，唔好跑；交易仍然封鎖）](SIM-TEST-PLAN.md)
-- [已知問題](KNOWN-ISSUES.md)
-- [**絕對唔好做嘅事**（軟件無法恢復嘅操作）](DO-NOT-DO.md)
-- [安全封鎖](SAFETY-HOLD.md)
-- [社群路線圖](ROADMAP.md)
-- [貢獻流程](../CONTRIBUTING.md)
-- [測試同匿名 bug 報告](COMMUNITY-TESTING.md)
+日後獲授權的 SIM TEST 演練必須遵循 [README 清理次序](../README.zh-HK.md#第一次使用)：Leader／Follower 已連線且原生狀態乾淨；**Stop 之前**使用原生 NT 取消 Leader 掛單及平掉 Leader 持倉；確認解除連接後才修改 Dry run；只在停止時新增 Follower，並重新閱讀 Start 確認。OFF 不等於 Flatten，不會平倉。不得為了測試通過而移除預設封鎖。
 
-架構同測試計劃請用 [Discussions](https://github.com/Kinfxhk/KINFXTradeCopier/discussions)；可重現失敗同分工請開 Issue，附最小合成 trace 或失敗測試，再提交專注嘅 PR。
+## 尚未證明
 
-| 工作 | Issue |
-|---|---|
-| 乾淨 clone 建置／安全測試工具 | [#1](https://github.com/Kinfxhk/KINFXTradeCopier/issues/1) |
-| 成交一致性／保護單改量 | [#2](https://github.com/Kinfxhk/KINFXTradeCopier/issues/2) |
-| 多組 OCO／出場分配 | [#3](https://github.com/Kinfxhk/KINFXTradeCopier/issues/3) |
-| Mailbox／Dispose／各戶隔離 | [#4](https://github.com/Kinfxhk/KINFXTradeCopier/issues/4) |
-| 數值草稿／設定發佈 | [#5](https://github.com/Kinfxhk/KINFXTradeCopier/issues/5) |
-| Journal／重啟恢復 | [#6](https://github.com/Kinfxhk/KINFXTradeCopier/issues/6) |
-| 日後兩帳戶模擬器測試計劃 | [#7](https://github.com/Kinfxhk/KINFXTradeCopier/issues/7) |
-| 原生 UI／無障礙／DPI | [#8](https://github.com/Kinfxhk/KINFXTradeCopier/issues/8) |
-| 平倉後及 Flatten 失敗後政策 | [#9](https://github.com/Kinfxhk/KINFXTradeCopier/issues/9) |
-| 每戶自管 TP／SL | [#10](https://github.com/Kinfxhk/KINFXTradeCopier/issues/10) |
-| 新連接帳戶承接倉位 | [#11](https://github.com/Kinfxhk/KINFXTradeCopier/issues/11) |
-| 反向時反應：只通知 vs 平倉一次 | [#12](https://github.com/Kinfxhk/KINFXTradeCopier/issues/12) |
-
-**唔好為咗跑到模擬或者令測試變綠而移除封鎖。** Sim 驗收需要另行覆核、明確選用嘅設計，並至少一個 Leader 加一個 follower 測試帳戶；呢個 alpha 並未授權。
-
-## 證據範圍
-
-過往離線測試測過多個不可變候選版本。通過嗰啲候選唔代表佢哋嘅修正已合併入呢度。已發佈源碼係先前封鎖嘅原創基線，加上發佈安全加固，再加上本頁列出嘅有限修正。數字係按套件／產物計，唔係完成百分比。[證據摘要](EVIDENCE.json)分開列出 C# 引擎、UI、測試工具事故同 Python SPEC 結果。
-
-未驗證：完整 provider 驗收、重啟恢復、券商 OCO 原子性、原生 follower ATM、真倉跟單安全、Prop firm 合規。本軟件無法攔截所有手動／策略訂單，亦無法保證成交。現有倉位請用 NT8／券商原生工具管理，唔好靠呢個封鎖版。
+目前源碼的真實 provider 驗收、Leader 斷線、真實部分成交／止損或 Flatten 被拒、不確定已接受請求、完整關閉／恢復、10–30 戶真實延遲及多螢幕 DPI。沒有實盤安全、原生 Follower ATM 或 Prop Firm 合規認證。本軟件無法攔截每筆手動／策略訂單，亦無法保證成交。現有持倉應使用原生 NT／券商工具管理，不應依賴不確定的 copier ledger。

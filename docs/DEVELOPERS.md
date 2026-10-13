@@ -1,93 +1,92 @@
 # Developer and status details
 
-Moved out of the front page so beginners see the install steps first. Back to the [README](../README.md). Nothing here was deleted. Progress numbers on the front page come from [PROGRESS.json](PROGRESS.json).
+Back to the [README](../README.md) · [繁體中文](DEVELOPERS.zh-HK.md).
 
-### Done (in this repository) / 已完成（已在本 repo）
+## Acceptance boundary
 
-| English | 中文 |
+This is an MIT **source alpha**, not a generally accepted simulation/provider release. **The current exact source is not accepted.** The default build blocks Start / Flatten for every native NT account, including Simulator / Playback. The opt-in SIM TEST build can send orders to Simulator / Playback and exact operator-allow-listed names; this capability is not provider verification or safety acceptance. **Funded/live use is prohibited.**
+
+The front-page scores are a **weighted historical checklist**, not release-readiness percentages. Its real-NT ticks refer to the older snapshot `20dc6707c9e6`; they do not accept later engine changes. Historical [VM test records](VM-PROGRESS.md) show one simulator leader and two operator-attested simulated prop-firm followers on MNQ, Market / Limit / Stop, per-account Flat, TP/SL OCO, leader market exit and follower disconnect/reconnect. There has been real simulation testing; it is limited, not current-source acceptance.
+
+## Current offline evidence
+
+Source file: [`src/AddOns/KINFXTradeCopier.cs`](../src/AddOns/KINFXTradeCopier.cs), SHA-256:
+
+```text
+d70b8a49ceeb87e2207fe5c9811203723ea7f0edae90d18ebeab334a10e210a5
+```
+
+The [exact-source baseline record](BASELINE-2026-10-14.json) contains the Windows VM replay for that source:
+
+| Suite / check | Result |
 |---|---|
-| Three-tab dashboard (Copy / Risk / Logs) built for 10–30 accounts; per-account Ratio, Tgt (daily target), DLL (daily loss), ATM exit-mirroring and OFF in each row | 三個分頁（Copy／Risk／Logs），為 10–30 個帳戶設計；每行都有獨立 Ratio、Tgt（每日目標）、DLL（每日虧損）、ATM 出場跟隨、OFF |
-| Bulk edit of Tgt / DLL / ATM for highlighted accounts, and **From Leader** as a one-time default you can fine-tune per row | 批量改 Tgt／DLL／ATM（只改選中嘅帳戶），**From Leader** 一鍵以 Leader 做預設，之後可逐戶手動微調 |
-| Per-account **On divergence** setting (`Notify` default, `FlattenOnce` optional). **Stored only**: the engine never flattens by itself | 每戶「反向時反應」設定（預設只通知，可選平倉一次）。**只係儲存**，引擎唔會自動平倉 |
-| Settings warnings, locked-account count, draft protection for numeric fields | 設定警告、鎖定帳戶計數、數值欄位草稿保護 |
-| Safety policy decided for exits after ambiguous flat telemetry and after a thrown Flatten: lock, keep protection, never retry ([#9](https://github.com/Kinfxhk/KINFXTradeCopier/issues/9)) | 已定政策：持倉但讀到 flat、或 Flatten 拋例外後，鎖帳戶、保留保護單、唔重試（[#9](https://github.com/Kinfxhk/KINFXTradeCopier/issues/9)） |
-| Mailbox fix: a callback or poll refused by a stopped worker can no longer leave counters stuck ([#4](https://github.com/Kinfxhk/KINFXTradeCopier/issues/4), partial; independently reviewed) | Mailbox 修正：worker 停止後被拒絕嘅回報／輪詢唔再令計數卡死（[#4](https://github.com/Kinfxhk/KINFXTradeCopier/issues/4)，部分；已獨立覆核） |
-| **Per-account Flat button** on every follower row: asks for confirmation naming the account and instrument, flattens only that account, the others keep copying; confirmed flat only from provider evidence, never retried, locks if unconfirmed after 20 s. Tested offline and on real NinjaTrader | **每戶獨立 Flat 按鈕**：每個 follower 行一個，確認框列明帳戶同合約，只平該戶，其他戶繼續跟；要 provider 證據先確認已平，唔重試，20 秒未確認就鎖。離線同真 NinjaTrader 都測過 |
-| **Exit lock-up fixed**: after two completed round trips a leader exit with nothing to close locked flat followers after 10 s. Reproduced offline, fixed, replayed on real NinjaTrader | **修正鎖死問題**：兩次來回交易後，leader 平倉但 follower 冇倉，10 秒後鎖死。離線重現、修正，並喺真 NinjaTrader 重放 |
-| Disconnect / reconnect and partial-fill cases (8 offline cases, each with a mutant): no catch-up, protection kept, shortfall never made up | 斷線重連同部分成交測試（8 個離線測試，每個都有 mutant）：唔補單、保護單保留、唔補差額 |
-| Default build keeps the trading hold on every provider; reproducible test runner, CI, 12 tracked issues, screenshots, bilingual safety notes | 預設版所有 provider 交易封鎖；可重現測試工具、CI、12 個 Issue、截圖、中英安全說明 |
+| Full NT reference compile / SIM compile (`compile`, `compilesim`) | Both exit 0; compile-only |
+| Pure / SIM pure (`pure`, `puresim`) | 38 PASS / 0 FAIL each |
+| Synthetic engine (`engine`) | 212 PASS / 0 FAIL |
+| Synthetic SIM engine (`enginesim`) | 233 PASS / 0 FAIL |
+| Independent review (`independent`) | 24 PASS / 1 known FAIL: `ExplicitManualFlatReconciliationAvailable` |
+| WPF UI (`ui`) | 50 PASS / 0 FAIL |
 
-Latest offline results / 最新離線結果 (source `28bc4bb3bc47`, also reproduced on the VM): C# engine **207 PASS / 0 FAIL**, pure 32/32, independent review suite 24 PASS / 1 known FAIL ([#6](https://github.com/Kinfxhk/KINFXTradeCopier/issues/6)), dashboard UI **45/45**, Python 457 OK, full AddOn compile-only OK. Counts are invocations, not a completion percentage; the bar above is the completion estimate. Details and caveats: [TEST-MATRIX](TEST-MATRIX.md).
+These are **offline results, not real NinjaTrader/provider transaction proof**. Synthetic accounts and UI controls do not establish provider ACK ordering, cancel timing, thread affinity, real OCO atomicity, fills, recovery or funded/live safety. Counts are per-suite invocations, not independent features or completion percentages. The portable Python packaging / SPEC suite is separate and does not run the C# copier. [Build instructions](BUILD.md) · [Test matrix](TEST-MATRIX.md) · [Historical evidence](EVIDENCE.json).
 
-### Not done / 未完成
+## Implemented scope and remaining gates
 
-| English | 中文 |
+- One Copy / Risk / Logs dashboard designed for 10–30 accounts, per-row Ratio / Tgt / DLL / ATM / OFF / Flat, highlighted-row bulk risk edits and one-time **From Leader** defaults. Designing for 30 accounts is not real 30-account acceptance.
+- Row-owned numeric drafts and Risk-dialog validation, exact XML numeric round-trip and callback-frontier close checks are present. Earlier descriptions of #5 as only partly merged, without Risk-dialog drafts or precision fixes, are stale. Native focus / IME / clipboard / DPI acceptance remains separate.
+- Per-follower provider dispatch and refused-mailbox bookkeeping fixes are merged. #4 still needs real NT threading/latency and close/Dispose acceptance; an offline pass does not prove safe shutdown or calls that never return.
+- Per-account Flat names the account/instrument in its confirmation. Successful confirmation requires a returned call, native flat/no working orders and the quiet interval; unconfirmed/throwing calls lock and are never retried. Historical sim runs exercised per-account Flat, not every failure path on this source.
+- **PR #22 is merged.** Group ownership, fractional allocation, captured/applied frontiers and exact dispatch certificates supersede the historical #3 manual-only waiting-protection gap. An already-explicit, still-active waiting leader exit can protect its own certified disjoint lots; no missing bracket or entry is invented, cancelled/ambiguous intent cannot resume and unknown provider acceptance is never retried. Excess independent no-OCO protection is visibly refused when captured protection already covers exposure; this is not broker OCO atomicity. [Allocation contract](GROUP-ALLOCATION.md). #3 retains safety/provider-acceptance blockers.
+- Divergence defaults to lock / notify / refuse unsafe continuation. `FlattenOnce` is saved-but-not-active; no automatic divergence flatten is implemented. Self-managed TP/SL, adoption and restart journal recovery are optional; the safety refusals remain mandatory.
+
+### Issue review dispositions — proposals only
+
+The independent review read #1–#12. The following are **proposed scope/status corrections**, not performed issue closures, label changes or acceptance decisions. Consult the source and issue history before changing the tracker; older [known-issue](KNOWN-ISSUES.md) and [offline-status](OFFLINE-STATUS.md) sections may describe superseded baselines.
+
+| Issue | Proposed disposition / boundary |
 |---|---|
-| **Real NinjaTrader testing is thin**: one leader, two followers, one instrument (MNQ), Market, Limit and Stop orders (including per-account Flat with a TP/SL, and a leader market exit cancelling the followers' TP/SL). Not yet tested for real: the leader disconnecting, partial fills, a rejected Flatten, a stop + target without an OCO id, slippage, workspace close and restart, multi-monitor DPI, 10–30 accounts | **完全未用真 NinjaTrader 帳戶測試**（連 Sim／Playback 都未）：兩個 Demo 帳戶 Leader→Follower、真實 provider 回報、斷線重連、滑點、關閉 workspace 及重啟、真實多螢幕 DPI、30 戶實際延遲 |
-| **The default build still has Start and Flatten disabled**; copying works only in the opt-in SIM TEST build, and only for Simulator / Playback accounts or names in your allow-list. There is no installer or signed release | **Start 同 Flatten 全部封鎖**，所以冇任何跟單，亦冇一鍵全平 |
-| Coherent fill frontier before protective resize ([#2](https://github.com/Kinfxhk/KINFXTradeCopier/issues/2)) | 保護單改量前，成交資料一致性（[#2](https://github.com/Kinfxhk/KINFXTradeCopier/issues/2)） |
-| Group OCO: a still-open group's protection is no longer cancelled when another group completes ([#3](https://github.com/Kinfxhk/KINFXTradeCopier/issues/3), narrow fix **merged**). **Still open:** if a group completes before the entry is fully filled, the account locks and the other group's waiting exit is never sent (lots unprotected until you act; the lock text now says exactly how many lots are UNPROTECTED and tells you to act in NinjaTrader, and the copier never creates the order itself); fractional allocation | 多組 OCO：一組完成唔再取消另一組仍開放嘅保護（[#3](https://github.com/Kinfxhk/KINFXTradeCopier/issues/3)，窄範圍修正**已合併**）。**仍未完成：**入場未全部成交時一組完成，帳戶會鎖定，另一組等待中嘅出場單唔會送出（倉位冇保護，要人手處理）；出場分配 |
-| One stalled follower no longer freezes the others: each account has its own provider-call thread ([#4](https://github.com/Kinfxhk/KINFXTradeCopier/issues/4), merged, offline fake only). **Still open:** real NinjaTrader thread rules for these calls are unverified; Dispose waits at most 3 s | 一個卡住嘅 follower 唔再凍結其他戶：每戶有自己嘅 provider 呼叫線程（[#4](https://github.com/Kinfxhk/KINFXTradeCopier/issues/4)，已合併，只喺離線假環境驗證）。**仍未完成：**真 NinjaTrader 對呢啲呼叫嘅線程規則未驗證；Dispose 最多等 3 秒 |
-| Typed Ratio / Max / Target / DLL text is kept, flagged and blocks commit instead of being silently replaced ([#5](https://github.com/Kinfxhk/KINFXTradeCopier/issues/5), partly merged). **Still open:** Risk-dialog fields are only checked on Apply; high-precision XML round-trip; real window focus / IME / paste | Ratio／Max／Target／DLL 打錯嘅字會保留、標示並阻止提交，唔會被悄悄換走（[#5](https://github.com/Kinfxhk/KINFXTradeCopier/issues/5)，部分已合併）。**仍未完成：**Risk 對話框其他欄位只喺按 Apply 時檢查；高精度 XML 往返；真實視窗焦點／輸入法／貼上 |
-| Journal and verified restart recovery ([#6](https://github.com/Kinfxhk/KINFXTradeCopier/issues/6)): **shelved by the maintainer**, not worked on now | Journal 及重啟後可驗證恢復（[#6](https://github.com/Kinfxhk/KINFXTradeCopier/issues/6)）：**維護者暫時擱置** |
-| Per-account self-managed TP/SL that does not follow the leader's exit ([#10](https://github.com/Kinfxhk/KINFXTradeCopier/issues/10)): not started | 每戶自管 TP／SL、唔跟 Leader 平倉（[#10](https://github.com/Kinfxhk/KINFXTradeCopier/issues/10)）：未開始 |
-| Adopt an existing position on a just-connected follower ([#11](https://github.com/Kinfxhk/KINFXTradeCopier/issues/11)): not built | 新連接帳戶承接現有倉位再跟方向（[#11](https://github.com/Kinfxhk/KINFXTradeCopier/issues/11)）：未做 |
-| The actual reaction to divergence, e.g. one-time flatten ([#12](https://github.com/Kinfxhk/KINFXTradeCopier/issues/12)): only the setting exists | 反向時真正嘅反應（例如平倉一次）（[#12](https://github.com/Kinfxhk/KINFXTradeCopier/issues/12)）：只有設定，冇行為 |
-| Native follower ATM cloning, installer, compiled release, prop-firm compliance checks | 原生 follower ATM 複製、安裝包、編譯版本、prop firm 合規檢查 |
+| [#1](https://github.com/Kinfxhk/KINFXTradeCopier/issues/1) build / test runner | Current exact-source VM compile and offline reproduction exist; propose scoped tooling completion, not provider acceptance. |
+| [#2](https://github.com/Kinfxhk/KINFXTradeCopier/issues/2) fill frontier / resize | Current integration has frontier/reservation controls and tests; do not repeat the old standalone “frontier not integrated” gap. Propose close/re-scope the implemented offline work while preserving provider ACK/acceptance limits. |
+| [#3](https://github.com/Kinfxhk/KINFXTradeCopier/issues/3) group OCO | Merged #22 supersedes waiting-protection/fractional gaps; retain safety and provider-acceptance blockers. |
+| [#4](https://github.com/Kinfxhk/KINFXTradeCopier/issues/4) mailbox / Dispose / isolation | Partial repairs merged; retain safety and real NT shutdown/threading/latency blockers. |
+| [#5](https://github.com/Kinfxhk/KINFXTradeCopier/issues/5) numeric drafts / settings | Draft, dialog and XML fixes merged; propose scoped completion, not native keyboard/DPI or every publication contract acceptance. |
+| [#6](https://github.com/Kinfxhk/KINFXTradeCopier/issues/6) journal / restart | Optional durable journal/restart work, currently shelved. Must not absorb or hide #9's mandatory in-session explicit recovery gate. |
+| [#7](https://github.com/Kinfxhk/KINFXTradeCopier/issues/7) simulator acceptance | Historical limited sim runs exist; retain exact-source acceptance, abort/reconciliation and safety blockers. |
+| [#8](https://github.com/Kinfxhk/KINFXTradeCopier/issues/8) native UI / DPI | WPF offline checks and i18n implemented; real native keyboard, accessibility and multi-monitor DPI remain unproved. |
+| [#9](https://github.com/Kinfxhk/KINFXTradeCopier/issues/9) uncertain Flatten / recovery | Retain safety blocker: explicit verified-flat ledger reconciliation is missing; see below. Policy choice alone is not completion. |
+| [#10](https://github.com/Kinfxhk/KINFXTradeCopier/issues/10) self-managed TP/SL | Optional, not implemented; ATM means leader exit mirroring, not a follower-native ATM clone. |
+| [#11](https://github.com/Kinfxhk/KINFXTradeCopier/issues/11) position adoption | Optional, not implemented; Start must continue refusing existing positions/working orders. |
+| [#12](https://github.com/Kinfxhk/KINFXTradeCopier/issues/12) automatic divergence flatten | Optional, stored setting only; lock/notify/safety refusal is mandatory even if automatic flatten is deferred. |
 
-### What you can safely do now / 而家可以安全做嘅事
+### #9: explicit recovery gate is still missing
 
-Read the code, run the offline tests, review or reproduce failures, and send small focused PRs. If you test the SIM TEST build, use only accounts that really are simulated, one leader and at least one follower, read the Start confirmation (it must not say DRY RUN unless you chose it), and keep NinjaTrader's own Orders / Positions tabs open as the source of truth. Do **not** point it at a funded or live account. 睇代碼、跑離線測試、覆核或重現失敗、提交細而專注嘅 PR。**唔好**為咗試下而強行解除交易封鎖。
+`ExplicitManualFlatReconciliationAvailable` independently checks for `AcknowledgeFlattenConfirmed` and fails because that explicit verified-flat reconciliation path is missing. This is a current in-session safety/recovery gate, **not merely optional #6 restart journaling**. A Position0 reading, all visible orders terminal, a successful manual close, normal abandonment or a UI risk-latch reset does not prove closure of a hidden accepted request or reconcile owned execution evidence.
 
-## What is here
+Ambiguous flat telemetry retains the existing protective exit. After a thrown Flatten the copier blocks new copied exits and does not retry: the request may already have been accepted. **Cost:** exposure can remain without a copied exit until native/provider investigation and verified reconciliation. Stay locked/disarmed if uncertainty persists; do not clear a latch or restart to make the ledger look clean. Native Orders / Positions are operational evidence, but not an automatic authorization to resume.
 
-- One native dusk-dark Copy / Risk / Logs dashboard, designed for 10–30 accounts.
-- Independent per-account Ratio, target, daily loss and ATM exit-mirroring intent.
-- Original engine and Framework-only synthetic test fixtures, with known failures disclosed.
-- Separate pure Python NR01/NR02/NR03 **SPEC research**, not a C# engine implementation.
-- Test matrix, priority backlog and contribution templates.
+## Dashboard gallery and source
 
-The intended later flow is Leader → tick followers → set each Ratio → Start. **Start and Flatten remain held for every real NT8 account.** OFF is not Flatten. ATM means exit-order mirroring, not native follower ATM cloning. Cash is CashValue with its denomination, not equity. No global Ratio setting.
+All images render the real `DashboardView` control in **synthetic DEMO** mode: **fake accounts and numbers**, no connected account, engine or orders. They are **not NinjaTrader/provider transaction evidence**.
 
-## Start contributing safely
+[Dashboard / engine source](../src/AddOns/KINFXTradeCopier.cs) · [Screenshot renderer](screenshots/Screenshots.cs) · [Language table](../i18n/strings.json) · [SIM TEST installer source](../scripts/install-simtest.ps1)
 
-Python 3.10+; no Python packages, trading account or NT8 needed:
+![Copy tab — synthetic DEMO](screenshots/1-copy.png)
+![Risk tab — synthetic DEMO](screenshots/2-risk.png)
+![Logs tab — synthetic DEMO](screenshots/3-logs.png)
+
+## Contribute without trading
+
+Python 3.10+, no extra packages, account or NT8 required:
 
 ```sh
 python -B -m unittest discover -s tests -p 'test_*.py' -v
 ```
 
-These portable checks test packaging/holds and a separate SPEC; they do **not** run the C# copier, a broker or real orders. For Windows Framework-only engine tests and full **compile-only** NT8 checks, see [build instructions](BUILD.md). No vendor assemblies are redistributed. No installer or compiled trading binaries are provided.
+These portable checks cover packaging/holds and a separate Python SPEC, **not a C# engine implementation** or broker execution. Read code, reproduce synthetic failures and propose focused patches. No vendor assemblies or compiled trading binaries are provided. A source-copy SIM TEST installer exists; there is no signed/reviewed general release.
 
-## Read before testing
+[Build](BUILD.md) · [Testing / redacted reports](COMMUNITY-TESTING.md) · [Contribution workflow](../CONTRIBUTING.md) · [Do NOT do these](DO-NOT-DO.md) · [Safety hold](SAFETY-HOLD.md) · [Simulator plan (historical plan, not authorization)](SIM-TEST-PLAN.md) · [Roadmap](ROADMAP.md).
 
-- [Test matrix: untested vs failed vs scoped evidence](TEST-MATRIX.md)
-- [**Offline status: done vs needs a real environment**](OFFLINE-STATUS.md)
-- [Two-account Sim test **plan** (PLAN ONLY, do not run; trading stays blocked)](SIM-TEST-PLAN.md)
-- [Known issues](KNOWN-ISSUES.md)
-- [**Do NOT do these things** (actions the software cannot recover from)](DO-NOT-DO.md)
-- [Safety hold](SAFETY-HOLD.md)
-- [Community roadmap](ROADMAP.md)
-- [Contribution workflow](../CONTRIBUTING.md)
-- [Testing and redacted bug reports](COMMUNITY-TESTING.md)
+Any future authorized SIM TEST rehearsal must follow the [README cleanup sequence](../README.md#first-run): connected, native-clean leader/followers; cancel leader orders and close leader via native NT **before Stop**; verify detached before changing Dry run; add followers only while stopped with a new Start confirmation. OFF is not Flatten and does not close positions. Never remove the default hold to get a green test.
 
-Use [Discussions](https://github.com/Kinfxhk/KINFXTradeCopier/discussions) for architecture questions and test-plan proposals; use Issues for reproducible failures and scoped work. Please open an issue with a minimal synthetic trace or failing test, then a focused PR. Start with the [community backlog](https://github.com/Kinfxhk/KINFXTradeCopier/issues):
+## Still unproved
 
-| Workstream | Issue |
-|---|---|
-| Clean-clone build / safe test runner | [#1](https://github.com/Kinfxhk/KINFXTradeCopier/issues/1) |
-| Fill frontier / protective resize | [#2](https://github.com/Kinfxhk/KINFXTradeCopier/issues/2) |
-| Group OCO / fractional allocation | [#3](https://github.com/Kinfxhk/KINFXTradeCopier/issues/3) |
-| Mailbox / Dispose / follower isolation | [#4](https://github.com/Kinfxhk/KINFXTradeCopier/issues/4) |
-| Numeric drafts / settings publication | [#5](https://github.com/Kinfxhk/KINFXTradeCopier/issues/5) |
-| Journal / restart recovery | [#6](https://github.com/Kinfxhk/KINFXTradeCopier/issues/6) |
-| Future two-account simulator test plan | [#7](https://github.com/Kinfxhk/KINFXTradeCopier/issues/7) |
-| Native UI / accessibility / DPI | [#8](https://github.com/Kinfxhk/KINFXTradeCopier/issues/8) |
-
-**Do not remove the hold just to get a simulation run or a green test.** Simulator acceptance needs a separately reviewed opt-in design and at least a leader plus follower test account; it is not authorized by this alpha.
-
-## Current evidence boundary
-
-Past offline runs tested multiple immutable candidates. Passing those candidates does not mean their fixes are merged here. The published source is based on the previously held original baseline plus publication safety hardening only. Counts are per suite/artifact, not a completion percentage. [Evidence summary](EVIDENCE.json) separates C# engine evidence, UI probes, harness incidents and Python SPEC results.
-
-No full provider acceptance, restart recovery, broker OCO atomicity, native follower ATM, live-copy safety or prop-firm compliance is established. This software cannot intercept every manual/strategy order or guarantee fills. Existing positions must be managed with native NT8/broker tools, not this held preview.
+Current-source real provider acceptance, leader disconnect, real partial fills/rejected stop or Flatten, unknown accepted requests, full shutdown/recovery, 10–30 account real latency and multi-monitor DPI. No live-copy safety, native follower ATM or prop-firm compliance certification is established. This software cannot intercept every manual/strategy order or guarantee fills. Existing positions belong in native NT/broker tools, not an uncertain copier ledger.
