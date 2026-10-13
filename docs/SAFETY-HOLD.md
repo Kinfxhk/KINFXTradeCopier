@@ -1,10 +1,22 @@
 # Public alpha safety hold
 
 **Trading is DISABLED for ALL providers, including Sim / Simulator, Playback,
-and live accounts.** This is a collaborative experimental alpha, not a trading
-release, provider acceptance result, or certified firewall. Do not install this
-source in NinjaTrader to trade. No binary release or live/simulation order test
-is authorized by this proof.
+and live accounts, in the default build.** This is a collaborative experimental
+alpha, not a trading release, provider acceptance result, or certified firewall.
+Do not install this source in NinjaTrader to trade. No binary release is
+authorized by this proof.
+
+**Update 2026-10-13: the opt-in SIM TEST build.** Compiling the same source with
+`KINFX_SIM_TEST` lifts the hold **only** for accounts whose provider is Simulator or
+Playback, plus names the operator lists (exact match, one per line) in
+`Documents\NinjaTrader 8\templates\KINFXTradeCopier\sim-allow.txt`, which the operator
+attests are simulated. The provider is re-read when each call is actually sent, one
+Live or unknown account in a Start / Flatten scope refuses the whole request, and the
+default build is unchanged. It has been run on a real NinjaTrader 8.1.8.3 with a
+Simulator leader and two prop-firm simulated evaluation accounts (see
+[VM-PROGRESS](VM-PROGRESS.md) for exactly what was and was not observed). That is
+**not** prop-firm or live acceptance. A wrong allow-list entry can send orders to a
+funded account: the operator carries that risk.
 
 ## Direct compilation boundary
 
