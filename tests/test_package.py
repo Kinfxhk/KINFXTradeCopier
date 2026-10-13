@@ -72,7 +72,7 @@ class PublicPackage(unittest.TestCase):
             self.assertNotIn('scripts\\\\install-simtest', text, name)
             self.assertIn('templates\\KINFXTradeCopier\\sim-allow.txt', text, name)
             self.assertIn('DRY RUN', text, name)
-            self.assertIn('git checkout release-candidate', text, name)
+            self.assertNotIn('git checkout release-candidate', text, name)
         self.assertTrue((ROOT / 'scripts' / 'install-simtest.ps1').is_file())
 
     def test_license_and_alpha_boundary_are_present(self):
