@@ -154,7 +154,8 @@ class ReadinessGateTests(unittest.TestCase):
         for lang in ('en', 'zh'):
             text = progress.render(progress.load(), lang)
             self.assertIn('P0', text)
-            self.assertIn('20dc6707c9e6', text)
+            self.assertIn(progress.load()['snapshot']['source_sha256_prefix'], text)
+            self.assertRegex(progress.load()['snapshot']['source_sha256_prefix'], r'^[0-9a-f]{12}$')
             self.assertIn('not accepted' if lang == 'en' else '尚未通過驗收', text)
 
 

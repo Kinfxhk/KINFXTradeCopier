@@ -1,23 +1,5 @@
 [
  {
-  "en": "SIM TEST BUILD · Simulator / Playback only",
-  "zh": "SIM 測試版 · 僅限 Simulator / Playback",
-  "ja": "SIMテストビルド · Simulator / Playback のみ",
-  "ko": "SIM 테스트 빌드 · Simulator / Playback 전용"
- },
- {
-  "en": "SIM TEST BUILD: copies between Simulator / Playback accounts only. Any other provider is refused.",
-  "zh": "SIM 測試版：僅在 Simulator / Playback 帳戶之間跟單。其他任何供應端一律拒絕。",
-  "ja": "SIMテストビルド：Simulator / Playback 口座間のみコピー。それ以外のプロバイダーは拒否される。",
-  "ko": "SIM 테스트 빌드: Simulator / Playback 계좌 간에만 복사합니다. 그 외 제공자는 거부됩니다."
- },
- {
-  "en": "SIM TEST BUILD: Start / Flatten are enabled for Simulator / Playback accounts and any account named in sim-allow.txt. ATM means order mirroring, not a follower native ATM. Orders ARE sent to those accounts.",
-  "zh": "SIM 測試版：Simulator / Playback 帳戶及 sim-allow.txt 中列出的任何帳戶可使用 Start / Flatten。ATM 指委託單鏡像，並非跟單帳戶的原生 ATM。委託單「會」發送至這些帳戶。",
-  "ja": "SIMテストビルド：Simulator / Playback 口座および sim-allow.txt に記載された口座で Start / Flatten が有効。ATM は注文のミラーリングを意味し、フォロワーのネイティブ ATM ではない。これらの口座には注文が送信される。",
-  "ko": "SIM 테스트 빌드: Simulator / Playback 계좌와 sim-allow.txt에 명시된 계좌에서 Start / Flatten이 활성화됩니다. ATM은 주문 미러링을 의미하며 팔로워의 네이티브 ATM이 아닙니다. 해당 계좌로 주문이 전송됩니다."
- },
- {
   "en": "REVIEW HOLD · TRADING DISABLED",
   "zh": "審查封鎖 · 交易已停用",
   "ja": "レビュー保留 · 取引無効",
@@ -706,30 +688,6 @@
   "zh": "帳戶幣別",
   "ja": "口座通貨",
   "ko": "계좌 통화"
- },
- {
-  "en": "Tgt Δ",
-  "zh": "Tgt Δ",
-  "ja": "Tgt Δ",
-  "ko": "Tgt Δ"
- },
- {
-  "en": "Amount remaining to daily target",
-  "zh": "距離每日目標的剩餘金額",
-  "ja": "日次目標までの残額",
-  "ko": "일일 목표까지 남은 금액"
- },
- {
-  "en": "DLL Δ",
-  "zh": "DLL Δ",
-  "ja": "DLL Δ",
-  "ko": "DLL Δ"
- },
- {
-  "en": "Loss headroom",
-  "zh": "虧損餘裕",
-  "ja": "損失余裕",
-  "ko": "손실 여유"
  },
  {
   "en": "Signed position",
@@ -2494,5 +2452,233 @@
   "zh": "送出授權前等待中的保護邊界已變更；委託單未送出",
   "ja": "送信承認の前に待機中の保護境界が変更されました。送信されていません",
   "ko": "제출 승인 전에 대기 중인 보호 경계가 변경됨; 제출되지 않음"
+ },
+ {
+  "en": "Ask before:",
+  "zh": "操作前確認：",
+  "ja": "実行前に確認：",
+  "ko": "실행 전 확인:"
+ },
+ {
+  "en": "Untick to skip that confirmation window. Unlock and risk warnings are always asked.",
+  "zh": "取消勾選即略過該確認視窗。解鎖及風險警告一律會詢問。",
+  "ja": "チェックを外すとその確認ウィンドウを省略します。ロック解除とリスク警告は常に確認します。",
+  "ko": "체크를 해제하면 해당 확인 창을 건너뜁니다. 잠금 해제와 위험 경고는 항상 확인합니다."
+ },
+ {
+  "en": "Start",
+  "zh": "開始",
+  "ja": "開始",
+  "ko": "시작"
+ },
+ {
+  "en": "Flat (row)",
+  "zh": "單一帳戶平倉",
+  "ja": "行の決済",
+  "ko": "행 청산"
+ },
+ {
+  "en": "Flatten selected / all",
+  "zh": "選取／全部平倉",
+  "ja": "選択／全決済",
+  "ko": "선택/전체 청산"
+ },
+ {
+  "en": "Confirm before Start (follower list and ratios)",
+  "zh": "開始前確認（跟單帳戶清單及比例）",
+  "ja": "開始前に確認（フォロワー一覧と比率）",
+  "ko": "시작 전 확인(팔로워 목록 및 비율)"
+ },
+ {
+  "en": "Confirm before a row's Flat button closes that one account",
+  "zh": "單行平倉按鈕平掉該帳戶前確認",
+  "ja": "行の決済ボタンでその口座を決済する前に確認",
+  "ko": "행의 청산 버튼으로 해당 계좌를 청산하기 전에 확인"
+ },
+ {
+  "en": "Confirm before Flatten selected / Flatten all",
+  "zh": "選取平倉／全部平倉前確認",
+  "ja": "選択決済／全決済の前に確認",
+  "ko": "선택 청산/전체 청산 전에 확인"
+ },
+ {
+  "en": "Limit flat on",
+  "zh": "達限平倉：開",
+  "ja": "上限で決済：オン",
+  "ko": "한도 청산: 켜기"
+ },
+ {
+  "en": "Limit flat off",
+  "zh": "達限平倉：關",
+  "ja": "上限で決済：オフ",
+  "ko": "한도 청산: 끄기"
+ },
+ {
+  "en": "When Tgt or DLL is hit: flatten that account once (never retried) for highlighted accounts",
+  "zh": "選取的帳戶達到每日目標或每日虧損上限時：平倉該帳戶一次（不會重試）",
+  "ja": "選択口座が日次目標または日次損失上限に達したとき：その口座を1回だけ決済（再試行なし）",
+  "ko": "선택한 계좌가 일일 목표 또는 일일 손실 한도에 도달하면: 해당 계좌를 한 번 청산(재시도 없음)"
+ },
+ {
+  "en": "When Tgt or DLL is hit: only lock and stop copying (default) for highlighted accounts",
+  "zh": "選取的帳戶達到每日目標或每日虧損上限時：只鎖定並停止跟單（預設）",
+  "ja": "選択口座が日次目標または日次損失上限に達したとき：ロックしてコピーを停止するのみ（既定）",
+  "ko": "선택한 계좌가 일일 목표 또는 일일 손실 한도에 도달하면: 잠그고 복사만 중지(기본값)"
+ },
+ {
+  "en": "Flat at limit: when this account hits its Tgt or DLL, flatten it ONCE (never retried). Off = only lock and stop copying.",
+  "zh": "達限平倉：此帳戶達到每日目標或每日虧損上限時平倉一次（不會重試）。關閉＝只鎖定並停止跟單。",
+  "ja": "上限で決済：この口座が日次目標または日次損失上限に達したら1回だけ決済（再試行なし）。オフ＝ロックしてコピー停止のみ。",
+  "ko": "한도 청산: 이 계좌가 일일 목표 또는 일일 손실 한도에 도달하면 한 번 청산(재시도 없음). 끄기 = 잠그고 복사만 중지."
+ },
+ {
+  "en": "Flat@Lim",
+  "zh": "達限平倉",
+  "ja": "上限決済",
+  "ko": "한도청산"
+ },
+ {
+  "en": "Confirmation skipped (turned off on the Risk tab): {0}",
+  "zh": "已略過確認（已在風控分頁關閉）：{0}",
+  "ja": "確認を省略（リスクタブでオフ）：{0}",
+  "ko": "확인 생략(리스크 탭에서 끔): {0}"
+ },
+ {
+  "en": "Confirmation turned back on: {0}",
+  "zh": "已重新開啟確認：{0}",
+  "ja": "確認を再びオン：{0}",
+  "ko": "확인 다시 켬: {0}"
+ },
+ {
+  "en": "Confirmation turned off: {0} (risk warnings and Unlock are still always asked)",
+  "zh": "已關閉確認：{0}（風險警告及解鎖仍一律詢問）",
+  "ja": "確認をオフ：{0}（リスク警告とロック解除は常に確認）",
+  "ko": "확인 끔: {0} (위험 경고와 잠금 해제는 항상 확인)"
+ },
+ {
+  "en": "Settings NOT saved: {0}",
+  "zh": "設定未儲存：{0}",
+  "ja": "設定は保存されていません：{0}",
+  "ko": "설정이 저장되지 않았습니다: {0}"
+ },
+ {
+  "en": "Dry run is ON: nothing will be sent.",
+  "zh": "試運行已開啟：不會傳送任何指令。",
+  "ja": "ドライランはオン：何も送信されません。",
+  "ko": "드라이런 켜짐: 아무것도 전송되지 않습니다."
+ },
+ {
+  "en": "Dry run is OFF: real simulation orders WILL be sent.",
+  "zh": "試運行已關閉：將會傳送實際的模擬委託。",
+  "ja": "ドライランはオフ：実際のシミュレーション注文が送信されます。",
+  "ko": "드라이런 꺼짐: 실제 시뮬레이션 주문이 전송됩니다."
+ },
+ {
+  "en": "{0}: dry run: no position was ever opened",
+  "zh": "{0}：試運行：從未開倉",
+  "ja": "{0}: ドライラン: ポジションは一度も建てられていません",
+  "ko": "{0}: 드라이런: 포지션이 열린 적이 없습니다"
+ },
+ {
+  "en": "{0}: Flatten already in progress — not sent again; wait for confirmation or check NinjaTrader",
+  "zh": "{0}：平倉已在進行中 — 不會重複傳送；請等待確認或查看 NinjaTrader",
+  "ja": "{0}: 決済は処理中 — 再送信しません。確認を待つか NinjaTrader を確認してください",
+  "ko": "{0}: 청산 진행 중 — 다시 보내지 않음; 확인을 기다리거나 NinjaTrader를 확인하십시오"
+ },
+ {
+  "en": "Exit order still working on a FLAT account — if it fills it opens a NEW position; cancel it in NinjaTrader",
+  "zh": "已平倉帳戶仍有出場單在運作 — 一旦成交將開出新倉；請在 NinjaTrader 取消該委託",
+  "ja": "決済済み口座で決済注文がまだ有効 — 約定すると新規ポジションになります。NinjaTrader で取消してください",
+  "ko": "포지션이 없는 계좌에 청산 주문이 아직 작동 중 — 체결되면 새 포지션이 열립니다; NinjaTrader에서 취소하십시오"
+ },
+ {
+  "en": "To Tgt",
+  "zh": "距目標",
+  "ja": "目標まで",
+  "ko": "목표까지"
+ },
+ {
+  "en": "Loss left",
+  "zh": "可虧餘額",
+  "ja": "損失余力",
+  "ko": "손실 여유"
+ },
+ {
+  "en": "Amount remaining to daily target (read-only, computed from P/L)",
+  "zh": "距每日目標尚餘金額（唯讀，由損益計算）",
+  "ja": "日次目標までの残り金額（読み取り専用、損益から計算）",
+  "ko": "일일 목표까지 남은 금액 (읽기 전용, 손익으로 계산)"
+ },
+ {
+  "en": "How much more can be lost before the daily loss limit (read-only, computed from P/L)",
+  "zh": "觸及每日虧損上限前尚可虧損的金額（唯讀，由損益計算）",
+  "ja": "日次損失上限に達するまでに失える残り金額（読み取り専用、損益から計算）",
+  "ko": "일일 손실 한도까지 더 잃을 수 있는 금액 (읽기 전용, 손익으로 계산)"
+ },
+ {
+  "en": "Columns",
+  "zh": "欄位",
+  "ja": "列",
+  "ko": "열"
+ },
+ {
+  "en": "Show all columns",
+  "zh": "顯示全部欄位",
+  "ja": "すべての列を表示",
+  "ko": "모든 열 표시"
+ },
+ {
+  "en": "Account, follow tick, state, Off / Flat, Qty and connection are always shown",
+  "zh": "帳戶、跟單勾選、狀態、OFF／平倉、數量及連線一律顯示",
+  "ja": "口座、フォローのチェック、状態、Off／決済、数量、接続は常に表示",
+  "ko": "계좌, 팔로우 체크, 상태, Off/청산, 수량, 연결은 항상 표시"
+ },
+ {
+  "en": "Show or hide columns (also: right-click a column header). Saved for next time.",
+  "zh": "顯示或隱藏欄位（亦可在欄位標題按右鍵）。設定會保存。",
+  "ja": "列の表示／非表示（列見出しの右クリックでも可）。次回も保持されます。",
+  "ko": "열 표시/숨기기 (열 머리글 우클릭으로도 가능). 다음에도 유지됩니다."
+ },
+ {
+  "en": "SIM TEST BUILD · demo / prop-firm evaluation accounts",
+  "zh": "SIM 測試版 · 模擬／自營交易公司考核帳戶",
+  "ja": "SIMテストビルド · デモ／プロップファーム評価口座",
+  "ko": "SIM 테스트 빌드 · 데모 / 프롭펌 평가 계좌"
+ },
+ {
+  "en": "SIM TEST BUILD: copies between simulated accounts. An account not yet confirmed as simulated shows a risk warning first.",
+  "zh": "SIM 測試版：在模擬帳戶之間跟單。尚未確認為模擬的帳戶會先顯示風險警告。",
+  "ja": "SIMテストビルド：シミュレーション口座間でコピーします。シミュレーションと未確認の口座は先にリスク警告を表示します。",
+  "ko": "SIM 테스트 빌드: 시뮬레이션 계좌 간에 복사합니다. 시뮬레이션으로 확인되지 않은 계좌는 먼저 위험 경고를 표시합니다."
+ },
+ {
+  "en": "SIM TEST BUILD: every NinjaTrader account is listed. Simulator / Playback accounts and accounts you confirmed as simulated (sim-allow.txt, filled in for you when you answer the risk warning) can Start / Flatten. ATM means order mirroring, not a follower native ATM. Orders ARE sent to those accounts.",
+  "zh": "SIM 測試版：列出所有 NinjaTrader 帳戶。Simulator / Playback 帳戶及您已確認為模擬的帳戶（sim-allow.txt，回答風險警告後自動填寫）可使用 Start / Flatten。ATM 指委託單鏡像，並非跟單帳戶的原生 ATM。委託單「會」發送至這些帳戶。",
+  "ja": "SIMテストビルド：NinjaTrader の全口座を表示します。Simulator / Playback 口座と、シミュレーションと確認した口座（sim-allow.txt、リスク警告に回答すると自動記入）で Start / Flatten が可能。ATM は注文のミラーリングで、フォロワーのネイティブ ATM ではありません。これらの口座には注文が送信されます。",
+  "ko": "SIM 테스트 빌드: 모든 NinjaTrader 계좌를 표시합니다. Simulator / Playback 계좌와 시뮬레이션으로 확인한 계좌(sim-allow.txt, 위험 경고에 답하면 자동 기록)는 Start / Flatten을 사용할 수 있습니다. ATM은 주문 미러링이며 팔로워의 네이티브 ATM이 아닙니다. 해당 계좌로 주문이 전송됩니다."
+ },
+ {
+  "en": "RISK WARNING: not confirmed as simulated: {0}\nKINFX cannot tell a prop-firm evaluation account from a funded or live account. If any of these is funded or live, REAL MONEY is at risk.\nYes = these are simulated / evaluation accounts; remember them (sim-allow.txt) so this is not asked again. No = cancel.",
+  "zh": "風險警告：以下帳戶尚未確認為模擬帳戶：{0}\nKINFX 無法分辨自營交易公司的考核帳戶與已注資或真實帳戶。若其中任何一個為已注資或真實帳戶，將涉及真實資金。\n是＝這些是模擬／考核帳戶，記住它們（sim-allow.txt），以後不再詢問。否＝取消。",
+  "ja": "リスク警告：シミュレーションと未確認の口座：{0}\nKINFX はプロップファームの評価口座と資金提供済み／ライブ口座を区別できません。いずれかが資金提供済みまたはライブ口座の場合、実際の資金が危険にさらされます。\nはい＝これらはシミュレーション／評価口座です。記憶し（sim-allow.txt）、次回から確認しません。いいえ＝キャンセル。",
+  "ko": "위험 경고: 시뮬레이션으로 확인되지 않은 계좌: {0}\nKINFX는 프롭펌 평가 계좌와 자금 지원 / 실거래 계좌를 구분할 수 없습니다. 이 중 하나라도 자금 지원 또는 실거래 계좌라면 실제 자금이 위험합니다.\n예 = 시뮬레이션 / 평가 계좌이며 기억합니다(sim-allow.txt), 다시 묻지 않습니다. 아니요 = 취소."
+ },
+ {
+  "en": "Cancelled at the risk warning: {0}",
+  "zh": "已在風險警告取消：{0}",
+  "ja": "リスク警告でキャンセル：{0}",
+  "ko": "위험 경고에서 취소: {0}"
+ },
+ {
+  "en": "Account confirmation NOT saved, nothing sent: {0}",
+  "zh": "帳戶確認未儲存，未傳送任何指令：{0}",
+  "ja": "口座の確認は保存されず、何も送信されていません：{0}",
+  "ko": "계좌 확인이 저장되지 않아 아무것도 전송되지 않았습니다: {0}"
+ },
+ {
+  "en": "Confirmed as simulated by you (saved in sim-allow.txt): {0}",
+  "zh": "您已確認為模擬帳戶（已儲存於 sim-allow.txt）：{0}",
+  "ja": "シミュレーションとして確認済み（sim-allow.txt に保存）：{0}",
+  "ko": "시뮬레이션으로 확인됨 (sim-allow.txt에 저장): {0}"
  }
 ]

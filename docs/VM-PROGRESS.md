@@ -3,6 +3,43 @@
 Status: **Current integrated candidate NOT accepted for trading.** Historical real-NinjaTrader SIM transactions below belong to their stated older source hashes; the latest baseline is compilation/offline evidence only. Default trading hold remains; funded/live accounts are excluded.
 狀態：**目前整合候選版本尚未通過交易驗收。** 下方真 NinjaTrader 模擬交易記錄只適用於各自標示的舊源碼；最新 baseline 為編譯／離線證據。預設交易封鎖保留，不包括 funded／實盤帳戶。
 
+## Real NinjaTrader — 2026-10-15, source `bfc8a2531acf` + `#define KINFX_SIM_TEST` / 真 NT 實測
+
+Leader `Sim101` (Simulator); followers are prop-firm **simulated evaluation** accounts (Lucid, Tradeify). MNQ 12-26, 1 lot, Ratio 1.
+
+| Test | Result |
+|---|---|
+| Accounts load automatically (new) | `sim-allow.txt` emptied as for a new user: all 17 NT accounts listed. Start with an unconfirmed follower showed the risk warning naming it; **No** wrote nothing and started nothing; **Yes** appended the line and armed; the next Start showed only the normal window. |
+| Dry run window (bug fixed) | after a Dry run session, unticking Dry run still showed `DRY RUN` in the next Start window; fixed, rechecked on real NT. |
+| Daily target latch | fired on a Lucid follower (`Target hit`). |
+| Flat at limit (new, opt-in per account) | Tgt 5 / DLL 5: 4 s after a copied entry `Daily loss` latched, exactly **one** Flatten request, flat confirmed 4 s later; the leader's later exit was ignored (nothing to close); no retry. |
+| Flatten confirmation No / X / Esc (rival bug check, Replikanto 1.7.1.0) | position and orders unchanged for all three; only **Yes** sent the Close. A second Flat on a flat account sent nothing new. |
+| 10 followers round trip | Buy 1 / Sell 1: every follower exactly 2 orders, all filled, 0 open afterwards. |
+
+Not shown on real NT: 20–30 accounts, leader disconnect, real partial fills, a stalled provider call, a rejected Flatten, restart recovery.
+
+真 NT（SIM TEST 版）：帳戶自動載入及風險警告（否＝不寫入、不啟動；是＝記住）、每日目標鎖定、單一帳戶「到限平倉」只平倉一次、平倉確認視窗按否／X／Esc 均不會平倉、10 個 Follower 來回交易全部正常。已修正 Dry run 確認視窗顯示錯誤。
+
+## Real NinjaTrader, 11 prop-firm sim followers — 2026-10-14, source `c9fbf2cb3005` + `#define KINFX_SIM_TEST` / 真 NT 11 戶實測
+
+Leader `Sim101` (Simulator), followers 5 Lucid + 6 Tradeify **simulated evaluation** accounts listed in `sim-allow.txt`, MNQ 12-26, 1 lot, Ratio 1. Five further Tradeify accounts at max loss were used only for the rejection test. No funded or live account. Installed by hash (installed = expected SHA-256), compiled with F5 in NT, Dashboard reopened.
+
+| Test | Result |
+|---|---|
+| Market entry/exit, 11 followers | all 11 submitted within 6 ms of each other; follower fills 0.9–1.2 s after the leader fill |
+| Leader TP + SL under one OCO | 11/11 followers got both legs Working (bug fixed: NT raises an `Initialized` update from `CreateOrder` before Submit; it used to refuse every follower TP/SL and lock) |
+| Row **Flat** with TP/SL working | TP and SL cancelled, flat confirmed in 3 s, other 10 kept copying, no NT error window |
+| Leader SL rejected by NT → OCO TP cancelled | followers mirrored both cancels and locked with “1 lot UNPROTECTED” (by design) |
+| **Flatten all** after that | one confirmation naming every account; 11/11 confirmed flat in 4 s; **Stop went DISARMED without an NT restart** (bug fixed) |
+| Lucid connection dropped | 5 Lucid locked in under 1 s; 6 Tradeify kept copying a round trip; after reconnect no catch-up, Stop worked (bug fixed: rebuilt filled history after a reconnect blocked Stop) |
+| Daily loss 5 on one follower | latched `Daily loss`; Start refused for it only; unlock refused while the loss persisted, accepted after DLL set to 0 |
+| Max-loss follower | provider Rejected the copy; account locked; exactly 1 Submit, no retry, no market fallback; other follower filled |
+| “Ask before” switches (new) | unticking *Flat (row)* wrote `confirm-prefs.txt`; the next row Flat ran with no window and the log said `Confirmation skipped`; re-ticking removed the line. Flatten all was still asked. |
+
+Not shown on real NT: the daily **target** latch firing (P/L never reached the target), real partial fills, 20–30 accounts, a stalled provider call, restart recovery, multi-monitor DPI. NT's own error window for the rejected leader stop belongs to the leader order, not to the copier.
+
+真 NT（SIM TEST 版）：1 個 Simulator Leader、11 個 Prop Firm 模擬評估帳戶。已修正三個只在真 NT 出現的問題（TP/SL 被拒、斷線重連後無法停止、全部平倉後無法停止），並加入可自訂略過的確認視窗。未測：每日目標觸發、真實部分成交、20–30 戶、重啟還原。
+
 ## Exact-candidate baseline — 2026-10-14 (no new orders)
 
 Candidate commit `9bb76a5282816044bede18a51d5f608251bf5e17`; source SHA-256 `d70b8a49ceeb87e2207fe5c9811203723ea7f0edae90d18ebeab334a10e210a5`; transformed SIM source SHA-256 `cdbf9339a6647ea20aa525ea7a0406e6ddeefb1e0bea1774148cd7369c243740`.
