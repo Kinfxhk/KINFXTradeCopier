@@ -1,0 +1,200 @@
+{
+  "recorded_at": "2026-10-14T01:24:04+08:00",
+  "candidate_commit": "9bb76a5282816044bede18a51d5f608251bf5e17",
+  "source_sha256": "d70b8a49ceeb87e2207fe5c9811203723ea7f0edae90d18ebeab334a10e210a5",
+  "sim_source_sha256": "cdbf9339a6647ea20aa525ea7a0406e6ddeefb1e0bea1774148cd7369c243740",
+  "scope": "KinTest Windows VM, Framework offline tests and compile-only against installed NT 8.1.8.3 assemblies; NOT real-provider transaction acceptance. No new orders.",
+  "modes": [
+    {
+      "mode": "compile",
+      "exit_code": 0,
+      "pass": null,
+      "fail": null,
+      "harness_errors": null,
+      "diagnostic_counts": {
+        "CS0649": 9,
+        "CS1701": 1168
+      },
+      "artifact_id": "compile-b5b18a4acc0e42f1b8c51994cf3891d1",
+      "result_sha256": "723e9cbd8579629690b1e272f572c68fb7a63694a3c13b175cfe76f4253ad679",
+      "source_sha256": "d70b8a49ceeb87e2207fe5c9811203723ea7f0edae90d18ebeab334a10e210a5",
+      "failures": []
+    },
+    {
+      "mode": "compilesim",
+      "exit_code": 0,
+      "pass": null,
+      "fail": null,
+      "harness_errors": null,
+      "diagnostic_counts": {
+        "CS1701": 1293
+      },
+      "artifact_id": "compilesim-cb07ef63e83546ccb5183d141985029c",
+      "result_sha256": "d950d749bf475531a1ab293f165a1c6098653d946c086d2ee2e5c1354caf9907",
+      "source_sha256": "d70b8a49ceeb87e2207fe5c9811203723ea7f0edae90d18ebeab334a10e210a5",
+      "failures": []
+    },
+    {
+      "mode": "engine",
+      "exit_code": 0,
+      "pass": 212,
+      "fail": 0,
+      "harness_errors": 0,
+      "diagnostic_counts": null,
+      "artifact_id": "engine-9de0a48c497c4efe8ffe184282b157c2",
+      "result_sha256": "e128023f9185b68c320d758baa21945b514c1bb23eaa40b77f2b60f59618b436",
+      "source_sha256": "d70b8a49ceeb87e2207fe5c9811203723ea7f0edae90d18ebeab334a10e210a5",
+      "failures": []
+    },
+    {
+      "mode": "enginesim",
+      "exit_code": 0,
+      "pass": 233,
+      "fail": 0,
+      "harness_errors": 0,
+      "diagnostic_counts": null,
+      "artifact_id": "enginesim-c0fbe2e7129e4b8ea36dd106450f1e3b",
+      "result_sha256": "0455c0ae546b1b322994b94fa850e3d08a11991e82a83a807b0df8d40e9a74bc",
+      "source_sha256": "d70b8a49ceeb87e2207fe5c9811203723ea7f0edae90d18ebeab334a10e210a5",
+      "failures": []
+    },
+    {
+      "mode": "independent",
+      "exit_code": 1,
+      "pass": 24,
+      "fail": 1,
+      "harness_errors": 0,
+      "diagnostic_counts": null,
+      "artifact_id": "independent-4f4c254f3e964bf1ab5c57f06626ecb0",
+      "result_sha256": "86f46adf493b639f6e307837b6d7840a3ce9cc1cd7ccce7dd1c60351752e0bc3",
+      "source_sha256": "d70b8a49ceeb87e2207fe5c9811203723ea7f0edae90d18ebeab334a10e210a5",
+      "failures": [
+        {
+          "fixture": "EngineIndependentReview.cs",
+          "case": "ExplicitManualFlatReconciliationAvailable",
+          "status": "FAIL"
+        }
+      ]
+    },
+    {
+      "mode": "pure",
+      "exit_code": 0,
+      "pass": 38,
+      "fail": 0,
+      "harness_errors": 0,
+      "diagnostic_counts": null,
+      "artifact_id": "pure-dd11de2eb5e3401e816deafa54d077a1",
+      "result_sha256": "ad2cc766daa39736e33d8911f961ae55a0ecae3f7514a6e535c9ef4ffcf09116",
+      "source_sha256": "d70b8a49ceeb87e2207fe5c9811203723ea7f0edae90d18ebeab334a10e210a5",
+      "failures": []
+    },
+    {
+      "mode": "puresim",
+      "exit_code": 0,
+      "pass": 38,
+      "fail": 0,
+      "harness_errors": 0,
+      "diagnostic_counts": null,
+      "artifact_id": "puresim-21106fb98f1947d38cf63045b5e9b408",
+      "result_sha256": "2ec16dd993231ecbdc8165ca92be44cf02e26c1577cf5c3c28e2e3e6a815ab30",
+      "source_sha256": "d70b8a49ceeb87e2207fe5c9811203723ea7f0edae90d18ebeab334a10e210a5",
+      "failures": []
+    }
+  ],
+  "wpf_ui": {
+    "pass": 50,
+    "fail": 0,
+    "exit_code": 0,
+    "fixture_sha256": "804bfe59930ab8ca38603a6eb680c4109e782bdf6bce78e0bf8de27cdfac3f6e",
+    "runtime_log_sha256": "8abfe2b863a65fdff4a4017778963d74cca4dc7b03dfa0d1fcb1b1ce9a8746fa",
+    "cases": [
+      "CopyColumnsFitWorstCaseContentAndWasteNothing",
+      "EveryVisibleHeaderAndTabIsTranslatedExceptKeptAbbreviations",
+      "StateFilterWorksInEveryLanguage",
+      "LanguagesRenderTranslatedHeadersAndKeepEnglishKeys",
+      "LanguagesNeverTruncateOrShowMojibake",
+      "LanguageSwitchKeepsRowsAndRefusesOnlyBadInput",
+      "PlainCheckBoxesStayDark",
+      "ComboAndInputStayDarkWhenDisabledOrHovered",
+      "TargetAndLossApplyToSelectedOnly",
+      "ZeroTurnsLimitOff",
+      "RatioStaysIndependent",
+      "InvalidInputChangesNothing",
+      "NoSelectionIsRefused",
+      "LeaderIsNotEdited",
+      "AtmToggleBulk",
+      "LockedWhenNotEditable",
+      "NeverTouchesFollowOrTrading",
+      "BarIsOnCopyTabAndKeepsHolds",
+      "FromLeaderCopiesToHighlighted",
+      "FromLeaderWithoutHighlightHitsAllVisibleFollowers",
+      "FromLeaderRespectsSearchFilter",
+      "FromLeaderKeepsRatioTickAndOtherFields",
+      "ManualEditAfterwardsSticksAndNoLiveLink",
+      "FromLeaderRefusedWhenLockedOrNoLeader",
+      "FromLeaderNeverTouchesFollowOrTrading",
+      "AdviceShownPerRowAndCounted",
+      "AdviceUpdatesAfterBulkApply",
+      "AdviceNeverBlocksOrChangesSettings",
+      "RatioCellFitsCommonValuesAt1160",
+      "LogsReadableAndTopAligned",
+      "LogClearWorksAndIsEditableIndependent",
+      "BadTargetDraftSurvivesRefreshAndBlocksCommit",
+      "BadLossDraftSurvivesRefreshAndBlocksCommit",
+      "BadTargetDraftSurvivesRecyclingAndStillBlocksCommit",
+      "TargetAndLossSetterRejectInvalidNumbers",
+      "LockedAccountIsRedWithReasonAndCountedInFooter",
+      "LockedCountIgnoresLeaderAndNeverBlocksUi",
+      "BadRatioDraftSurvivesRefreshAndBlocksCommit",
+      "UnprotectedReasonReachesRowAndDetail",
+      "MaxContractsRejectsInvalidAndKeepsDraft",
+      "DivergenceChoiceIsPerAccountDefaultsToNotify",
+      "DivergenceBulkAndFromLeaderAndNeverTrades",
+      "FlattenOnceShowsAWarningNote",
+      "FlatColumnExistsAndEveryFollowerRowHasItsOwnButton",
+      "FlatButtonOnLeaderRowIsDisabled",
+      "FlatButtonRequestsExactlyThatRowAndNothingElse",
+      "FlatAndOffAreDifferentControlsWithDifferentGlyphsAndTips",
+      "FlatButtonFitsItsCellAtNarrowWidth",
+      "FlatCanFlatFollowsSimAndLeaderRules",
+      "FlatOnARealViewForwardsExactlyTheClickedRowOnce"
+    ]
+  },
+  "installer_scratch": {
+    "cases": [
+      {
+        "case": "preview",
+        "exit": 0,
+        "expected_success": true
+      },
+      {
+        "case": "install",
+        "exit": 0,
+        "expected_success": true
+      },
+      {
+        "case": "reinstall",
+        "exit": 0,
+        "expected_success": true
+      },
+      {
+        "case": "duplicate",
+        "exit": 1,
+        "expected_success": false
+      },
+      {
+        "case": "remove",
+        "exit": 0,
+        "expected_success": true
+      },
+      {
+        "case": "missing folder",
+        "exit": 1,
+        "expected_success": false
+      }
+    ],
+    "sim_sha256": "cdbf9339a6647ea20aa525ea7a0406e6ddeefb1e0bea1774148cd7369c243740",
+    "scope": "fake NinjaTrader documents only; no real install, compile or provider evidence"
+  },
+  "acceptance": "NOT READY; #3/#4/#7/#9 safety/acceptance gates remain open; full exact-candidate real-NT must-have matrix not complete."
+}
