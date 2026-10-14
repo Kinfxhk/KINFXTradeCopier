@@ -708,30 +708,6 @@
   "ko": "계좌 통화"
  },
  {
-  "en": "Tgt Δ",
-  "zh": "Tgt Δ",
-  "ja": "Tgt Δ",
-  "ko": "Tgt Δ"
- },
- {
-  "en": "Amount remaining to daily target",
-  "zh": "距離每日目標的剩餘金額",
-  "ja": "日次目標までの残額",
-  "ko": "일일 목표까지 남은 금액"
- },
- {
-  "en": "DLL Δ",
-  "zh": "DLL Δ",
-  "ja": "DLL Δ",
-  "ko": "DLL Δ"
- },
- {
-  "en": "Loss headroom",
-  "zh": "虧損餘裕",
-  "ja": "損失余裕",
-  "ko": "손실 여유"
- },
- {
   "en": "Signed position",
   "zh": "帶正負號的持倉",
   "ja": "符号付きポジション",
@@ -2632,5 +2608,53 @@
   "zh": "已平倉帳戶仍有出場單在運作 — 一旦成交將開出新倉；請在 NinjaTrader 取消該委託",
   "ja": "決済済み口座で決済注文がまだ有効 — 約定すると新規ポジションになります。NinjaTrader で取消してください",
   "ko": "포지션이 없는 계좌에 청산 주문이 아직 작동 중 — 체결되면 새 포지션이 열립니다; NinjaTrader에서 취소하십시오"
+ },
+ {
+  "en": "To Tgt",
+  "zh": "距目標",
+  "ja": "目標まで",
+  "ko": "목표까지"
+ },
+ {
+  "en": "Loss left",
+  "zh": "可虧餘額",
+  "ja": "損失余力",
+  "ko": "손실 여유"
+ },
+ {
+  "en": "Amount remaining to daily target (read-only, computed from P/L)",
+  "zh": "距每日目標尚餘金額（唯讀，由損益計算）",
+  "ja": "日次目標までの残り金額（読み取り専用、損益から計算）",
+  "ko": "일일 목표까지 남은 금액 (읽기 전용, 손익으로 계산)"
+ },
+ {
+  "en": "How much more can be lost before the daily loss limit (read-only, computed from P/L)",
+  "zh": "觸及每日虧損上限前尚可虧損的金額（唯讀，由損益計算）",
+  "ja": "日次損失上限に達するまでに失える残り金額（読み取り専用、損益から計算）",
+  "ko": "일일 손실 한도까지 더 잃을 수 있는 금액 (읽기 전용, 손익으로 계산)"
+ },
+ {
+  "en": "Columns",
+  "zh": "欄位",
+  "ja": "列",
+  "ko": "열"
+ },
+ {
+  "en": "Show all columns",
+  "zh": "顯示全部欄位",
+  "ja": "すべての列を表示",
+  "ko": "모든 열 표시"
+ },
+ {
+  "en": "Account, follow tick, state, Off / Flat, Qty and connection are always shown",
+  "zh": "帳戶、跟單勾選、狀態、OFF／平倉、數量及連線一律顯示",
+  "ja": "口座、フォローのチェック、状態、Off／決済、数量、接続は常に表示",
+  "ko": "계좌, 팔로우 체크, 상태, Off/청산, 수량, 연결은 항상 표시"
+ },
+ {
+  "en": "Show or hide columns (also: right-click a column header). Saved for next time.",
+  "zh": "顯示或隱藏欄位（亦可在欄位標題按右鍵）。設定會保存。",
+  "ja": "列の表示／非表示（列見出しの右クリックでも可）。次回も保持されます。",
+  "ko": "열 표시/숨기기 (열 머리글 우클릭으로도 가능). 다음에도 유지됩니다."
  }
 ]
