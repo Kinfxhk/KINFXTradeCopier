@@ -2126,6 +2126,9 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             Order[] seen; lock(f.Account.Orders)seen=f.Account.Orders.ToArray();
             foreach(var o in seen)if(o!=null&&o.Instrument!=null&&o.Instrument.FullName==instrument.FullName)f.AddHistory(o); // the close order is history, never unknown activity
             lock(controlGate){ f.Flattening=false; f.ExitCompleted=true; f.Following=false; }
+            // Provider evidence now shows this account flat with nothing working, so it can no longer hold the session open. The risk latch is NOT touched:
+            // a locked account stays locked and OFF until the user unlocks it (real NT 2026-10-14: Stop stayed refused after Flatten all until NT restarted).
+            if(f.EvidenceUnresolved){f.EvidenceUnresolved=false;log(f.Account.Name+": confirmed flat clears its open-evidence hold; lock kept ("+(f.Latch.Locked?f.Latch.Reason:"not locked")+")");}
             flattenConfirmations[f]="Confirmed flat";
             RecomputeDisablePending(f);
             log(f.Account.Name+": Flat confirmed (position 0, nothing working) — OFF; re-follow explicitly to copy again");
