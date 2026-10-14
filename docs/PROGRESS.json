@@ -1,8 +1,8 @@
 {
  "_comment": "Single source of truth for the progress bar in README.md / README.zh-HK.md. Run `python scripts/progress.py` to recompute and rewrite the marked blocks; `python scripts/progress.py --check` fails if the READMEs are stale. A task earns its weight only at its evidence level: offline = 50%, real NinjaTrader Sim/Demo = 100%. Nothing here is prop-firm or live acceptance. Weights are the maintainer's judgement of how much each item matters for 'safe to copy to Demo / prop-firm Sim accounts', not a measured quantity.",
  "snapshot": {
-  "date": "2026-10-14",
-  "source_sha256_prefix": "c9fbf2cb3005",
+  "date": "2026-10-15",
+  "source_sha256_prefix": "bfc8a2531acf",
   "ninjatrader": "8.1.8.3",
   "branch": "fix/real-nt-create-callback",
   "note": "Levels were assigned by the maintainer's agent from the evidence listed per item and then deliberately lowered where a step was not re-run on the current build. Read the evidence column, not just the bar."
@@ -152,7 +152,7 @@
     "demo",
     "prop"
    ],
-   "evidence": "Real NT 2026-10-14, source c9fbf2cb3005, 11 prop-firm sim followers: leader SL rejected by NT so its OCO TP was cancelled; followers mirrored, each locked '1 lot UNPROTECTED'. Flatten all asked once, named every account (19 incl. Sim101/Playback/Backtest/max-loss accounts), all 11 confirmed flat in 4 s, Stop then went DISARMED without an NT restart (it used to need one). Playback101/Backtest returned 'FLATTEN FAILED: Connection' (not connected) and were logged, not retried. Per-account Flat with a TP+SL working: both cancelled, flat confirmed in 3 s.",
+   "evidence": "Real NT 2026-10-14, source c9fbf2cb3005, 11 prop-firm sim followers: leader SL rejected by NT so its OCO TP was cancelled; followers mirrored, each locked '1 lot UNPROTECTED'. Flatten all asked once, named every account (19 incl. Sim101/Playback/Backtest/max-loss accounts), all 11 confirmed flat in 4 s, Stop then went DISARMED without an NT restart (it used to need one). Playback101/Backtest returned 'FLATTEN FAILED: Connection' (not connected) and were logged, not retried. Per-account Flat with a TP+SL working: both cancelled, flat confirmed in 3 s. Real NT 2026-10-15, source bfc8a2531acf (rival bug check, Replikanto 1.7.1.0): with a 1-lot follower position, the Flatten confirmation answered No, closed with the window X (WM_CLOSE) and dismissed with Esc left the position and orders unchanged; only Yes sent the Close (filled, flat in 3-4 s). A second Flat on an already-flat account sent nothing new to the provider.",
    "ach_en": "Flatten selected / all",
    "ach_zh": "批量／全部 Flatten"
   },
@@ -264,7 +264,7 @@
     "demo",
     "prop"
    ],
-   "evidence": "Real NT 2026-10-14: 1 Simulator leader + 11 prop-firm sim followers (5 Lucid, 6 Tradeify) on MNQ, Market + Limit + Stop, TP/SL OCO. Leader fill to follower Submit: all 11 within 6 ms of each other; follower fills 0.9-1.2 s after the leader fill (sim provider). Not measured: 20-30 accounts, multi-monitor DPI.",
+   "evidence": "Real NT 2026-10-14: 1 Simulator leader + 11 prop-firm sim followers (5 Lucid, 6 Tradeify) on MNQ, Market + Limit + Stop, TP/SL OCO. Leader fill to follower Submit: all 11 within 6 ms of each other; follower fills 0.9-1.2 s after the leader fill (sim provider). Not measured: 20-30 accounts, multi-monitor DPI. Real NT 2026-10-15, source bfc8a2531acf: 10 prop-firm sim followers (4 Lucid, 6 Tradeify) MNQ Buy 1 / Sell 1 round trip, every follower exactly 2 orders (entry + exit), all filled, 0 open positions / orders afterwards.",
    "ach_en": "10-30 accounts on real NT",
    "ach_zh": "真實 NT 的 10–30 個帳戶測試"
   },
@@ -296,7 +296,7 @@
     "demo",
     "prop"
    ],
-   "evidence": "Real NT 2026-10-14: DLL 5 on one Tradeify follower latched 'Daily loss' (Start refused for it, others unaffected); unlock refused while the loss persisted; after DLL was set back to 0 the unlock went through. Daily TARGET latch is offline-only (P/L never reached +5 during the test).",
+   "evidence": "Real NT 2026-10-14: DLL 5 on one Tradeify follower latched 'Daily loss' (Start refused for it, others unaffected); unlock refused while the loss persisted; after DLL was set back to 0 the unlock went through. Daily TARGET latch is offline-only (P/L never reached +5 during the test). Real NT 2026-10-15, source bfc8a2531acf: the daily TARGET latch fired on a Lucid sim follower ('Target hit'); with the new opt-in 'Flat at limit' (Tgt 5 / DLL 5) a 1-lot MNQ copy hit 'Daily loss' 4 s after entry, exactly one Flatten request was sent, flat confirmed 4 s later, the leader's later exit was ignored (nothing to close), never retried. Unlock refused while the limit still applied, accepted after Tgt/DLL were set to 0.",
    "ach_en": "Daily target / loss limit per account",
    "ach_zh": "每戶每日目標／虧損上限"
   },
