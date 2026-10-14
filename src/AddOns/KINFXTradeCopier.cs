@@ -3408,7 +3408,8 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         bool IsDryRun()
         {
 #if KINFX_SIM_TEST
-            return engine.DryRun||(dashboard.DryRunBox!=null&&dashboard.DryRunBox.IsChecked==true);
+            // While attached the session's fixed mode is the truth; while stopped the box is what the NEXT Start will use (engine.DryRun still holds the last session's value).
+            return engine.Attached?engine.DryRun:(dashboard.DryRunBox!=null&&dashboard.DryRunBox.IsChecked==true);
 #else
             return false;
 #endif
@@ -3416,7 +3417,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         string DryRunPrefix()
         {
 #if KINFX_SIM_TEST
-            if(engine.DryRun||(dashboard.DryRunBox!=null&&dashboard.DryRunBox.IsChecked==true))return Lang.T("*** DRY RUN: nothing will be sent; decisions are only logged. ***")+"\n\n";
+            if(IsDryRun())return Lang.T("*** DRY RUN: nothing will be sent; decisions are only logged. ***")+"\n\n";
 #endif
             return "";
         }
