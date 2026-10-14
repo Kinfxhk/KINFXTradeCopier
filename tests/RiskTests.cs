@@ -324,13 +324,13 @@ class RiskTests {
   Eq(true,DashboardSafety.CanExecute("start"));Eq(true,DashboardSafety.CanExecute("flattenAll"));Eq(true,DashboardSafety.CanExecute("batch"));
   Eq(true,DashboardSafety.HeaderText.Contains("SIM TEST"));
   Eq(false,DashboardSafety.HeaderText.Contains("DISABLED"));
-  Eq(true,DashboardSafety.StartTip.Contains("Simulator / Playback"));
+  Eq(true,DashboardSafety.StartTip.Contains("risk warning"));Eq(true,DashboardSafety.ListAllAccounts);
   Eq(false,DashboardSafety.LogNote.Contains("REVIEW HOLD"));
   Eq(true,DashboardSafety.LogNote.Contains("Orders ARE sent"));
 #else
   Eq(false,DashboardSafety.CanExecute("start"));Eq(false,DashboardSafety.CanExecute("flattenSelected"));Eq(false,DashboardSafety.CanExecute("flattenAll"));Eq(false,DashboardSafety.CanExecute("batch"));
   Eq("REVIEW HOLD · TRADING DISABLED",DashboardSafety.HeaderText);
-  Eq("REVIEW HOLD: copying unavailable until engine safety issues are fixed",DashboardSafety.StartTip);
+  Eq("REVIEW HOLD: copying unavailable until engine safety issues are fixed",DashboardSafety.StartTip);Eq(false,DashboardSafety.ListAllAccounts);
   Eq(true,DashboardSafety.LogNote.StartsWith("REVIEW HOLD"));
 #endif
  }

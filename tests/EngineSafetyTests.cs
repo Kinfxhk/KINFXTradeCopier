@@ -2131,6 +2131,32 @@ class EngineSafetyTests {
   CopierEngine.SetSimAllow(null);
   Check(!CopierEngine.Sim(eval),"clearing the list refuses again");
  }
+ // Auto account loading (user request 2026-10-15): every account is listed; an unconfirmed one is NOT tradable until RememberSimulated
+ // (called only after the risk-warning Yes) writes it to sim-allow.txt. File first, then memory; unsafe names refused; existing lines kept.
+ static void SimTestRememberSimulatedWritesFileThenAdmits(){
+  string path=System.IO.Path.Combine(System.IO.Path.GetTempPath(),"kinfx-remember-"+Guid.NewGuid().ToString("N"),"sim-allow.txt");
+  var eval=ProvAcc("REM EVAL 1",NinjaTrader.Cbi.Provider.Live);var other=ProvAcc("REM OTHER",NinjaTrader.Cbi.Provider.Live);
+  CopierEngine.SetSimAllow(null);
+  try{
+   Check(CopierEngine.Listable(eval)&&!CopierEngine.Sim(eval),"listed and tickable, but not tradable before confirmation");
+   using(var e=new CopierEngine(s=>{},t=>{},(b,s)=>{},(n,r)=>{})){var l=ProvAcc("rem lead",NinjaTrader.Cbi.Provider.Simulator);
+    e.Start(l,inst,new[]{Tuple.Create(eval,new RiskSettings{MaxContracts=10},new RiskLatch())});Drain(e);Check(!e.Attached,"engine still refuses an unconfirmed account");}
+   System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path));System.IO.File.WriteAllLines(path,new[]{"# mine","OLD ACCT = Old alias"});
+   Check(CopierEngine.RememberSimulated(new[]{"REM EVAL 1","REM EVAL 1"},path)==null,"remember succeeds");
+   Check(CopierEngine.Sim(eval)&&!CopierEngine.Sim(other),"only the confirmed account is admitted");
+   var lines=System.IO.File.ReadAllLines(path);
+   Check(lines.Contains("# mine")&&lines.Contains("OLD ACCT = Old alias")&&lines.Count(x=>x=="REM EVAL 1")==1,"existing lines and aliases kept, no duplicate: "+string.Join("|",lines));
+   Check(CopierEngine.RememberSimulated(new[]{"REM EVAL 1"},path)==null&&System.IO.File.ReadAllLines(path).Count(x=>x=="REM EVAL 1")==1,"second confirmation adds nothing");
+   foreach(var bad in new[]{"#x","a=b"," pad","",null}){Check(CopierEngine.RememberSimulated(new[]{bad},path)!=null,"unsafe name refused: ["+bad+"]");}
+   Check(!CopierEngine.Sim(ProvAcc("#x",NinjaTrader.Cbi.Provider.Live)),"a refused name is not admitted");
+   // the file cannot be written: nothing admitted
+   // the file itself cannot be written (a directory sits at its path): the folder exists, so only the write fails
+   string blocked=System.IO.Path.Combine(System.IO.Path.GetDirectoryName(path),"blocked","sim-allow.txt");System.IO.Directory.CreateDirectory(blocked);
+   Check(CopierEngine.RememberSimulated(new[]{"REM OTHER"},blocked)!=null&&!CopierEngine.Sim(other),"write failure admits nothing");
+   using(var e=new CopierEngine(s=>{},t=>{},(b,s)=>{},(n,r)=>{})){var l=ProvAcc("rem lead2",NinjaTrader.Cbi.Provider.Simulator);
+    e.Start(l,inst,new[]{Tuple.Create(eval,new RiskSettings{MaxContracts=10},new RiskLatch())});Wait(()=>e.Attached,"confirmed account starts");}
+  }finally{CopierEngine.SetSimAllow(null);try{System.IO.Directory.Delete(System.IO.Path.GetDirectoryName(path),true);}catch{}}
+ }
  static void SimTestScopePolicy(){
   var sim=ProvAcc("scope sim",NinjaTrader.Cbi.Provider.Simulator);var pb=ProvAcc("scope pb",NinjaTrader.Cbi.Provider.Playback);var live=ProvAcc("scope live",NinjaTrader.Cbi.Provider.Live);
   Check(CopierEngine.SimScope(new[]{sim}),"Simulator alone is permitted");

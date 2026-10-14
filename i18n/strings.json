@@ -1,23 +1,5 @@
 [
  {
-  "en": "SIM TEST BUILD · Simulator / Playback only",
-  "zh": "SIM 測試版 · 僅限 Simulator / Playback",
-  "ja": "SIMテストビルド · Simulator / Playback のみ",
-  "ko": "SIM 테스트 빌드 · Simulator / Playback 전용"
- },
- {
-  "en": "SIM TEST BUILD: copies between Simulator / Playback accounts only. Any other provider is refused.",
-  "zh": "SIM 測試版：僅在 Simulator / Playback 帳戶之間跟單。其他任何供應端一律拒絕。",
-  "ja": "SIMテストビルド：Simulator / Playback 口座間のみコピー。それ以外のプロバイダーは拒否される。",
-  "ko": "SIM 테스트 빌드: Simulator / Playback 계좌 간에만 복사합니다. 그 외 제공자는 거부됩니다."
- },
- {
-  "en": "SIM TEST BUILD: Start / Flatten are enabled for Simulator / Playback accounts and any account named in sim-allow.txt. ATM means order mirroring, not a follower native ATM. Orders ARE sent to those accounts.",
-  "zh": "SIM 測試版：Simulator / Playback 帳戶及 sim-allow.txt 中列出的任何帳戶可使用 Start / Flatten。ATM 指委託單鏡像，並非跟單帳戶的原生 ATM。委託單「會」發送至這些帳戶。",
-  "ja": "SIMテストビルド：Simulator / Playback 口座および sim-allow.txt に記載された口座で Start / Flatten が有効。ATM は注文のミラーリングを意味し、フォロワーのネイティブ ATM ではない。これらの口座には注文が送信される。",
-  "ko": "SIM 테스트 빌드: Simulator / Playback 계좌와 sim-allow.txt에 명시된 계좌에서 Start / Flatten이 활성화됩니다. ATM은 주문 미러링을 의미하며 팔로워의 네이티브 ATM이 아닙니다. 해당 계좌로 주문이 전송됩니다."
- },
- {
   "en": "REVIEW HOLD · TRADING DISABLED",
   "zh": "審查封鎖 · 交易已停用",
   "ja": "レビュー保留 · 取引無効",
@@ -2656,5 +2638,47 @@
   "zh": "顯示或隱藏欄位（亦可在欄位標題按右鍵）。設定會保存。",
   "ja": "列の表示／非表示（列見出しの右クリックでも可）。次回も保持されます。",
   "ko": "열 표시/숨기기 (열 머리글 우클릭으로도 가능). 다음에도 유지됩니다."
+ },
+ {
+  "en": "SIM TEST BUILD · demo / prop-firm evaluation accounts",
+  "zh": "SIM 測試版 · 模擬／自營交易公司考核帳戶",
+  "ja": "SIMテストビルド · デモ／プロップファーム評価口座",
+  "ko": "SIM 테스트 빌드 · 데모 / 프롭펌 평가 계좌"
+ },
+ {
+  "en": "SIM TEST BUILD: copies between simulated accounts. An account not yet confirmed as simulated shows a risk warning first.",
+  "zh": "SIM 測試版：在模擬帳戶之間跟單。尚未確認為模擬的帳戶會先顯示風險警告。",
+  "ja": "SIMテストビルド：シミュレーション口座間でコピーします。シミュレーションと未確認の口座は先にリスク警告を表示します。",
+  "ko": "SIM 테스트 빌드: 시뮬레이션 계좌 간에 복사합니다. 시뮬레이션으로 확인되지 않은 계좌는 먼저 위험 경고를 표시합니다."
+ },
+ {
+  "en": "SIM TEST BUILD: every NinjaTrader account is listed. Simulator / Playback accounts and accounts you confirmed as simulated (sim-allow.txt, filled in for you when you answer the risk warning) can Start / Flatten. ATM means order mirroring, not a follower native ATM. Orders ARE sent to those accounts.",
+  "zh": "SIM 測試版：列出所有 NinjaTrader 帳戶。Simulator / Playback 帳戶及您已確認為模擬的帳戶（sim-allow.txt，回答風險警告後自動填寫）可使用 Start / Flatten。ATM 指委託單鏡像，並非跟單帳戶的原生 ATM。委託單「會」發送至這些帳戶。",
+  "ja": "SIMテストビルド：NinjaTrader の全口座を表示します。Simulator / Playback 口座と、シミュレーションと確認した口座（sim-allow.txt、リスク警告に回答すると自動記入）で Start / Flatten が可能。ATM は注文のミラーリングで、フォロワーのネイティブ ATM ではありません。これらの口座には注文が送信されます。",
+  "ko": "SIM 테스트 빌드: 모든 NinjaTrader 계좌를 표시합니다. Simulator / Playback 계좌와 시뮬레이션으로 확인한 계좌(sim-allow.txt, 위험 경고에 답하면 자동 기록)는 Start / Flatten을 사용할 수 있습니다. ATM은 주문 미러링이며 팔로워의 네이티브 ATM이 아닙니다. 해당 계좌로 주문이 전송됩니다."
+ },
+ {
+  "en": "RISK WARNING: not confirmed as simulated: {0}\nKINFX cannot tell a prop-firm evaluation account from a funded or live account. If any of these is funded or live, REAL MONEY is at risk.\nYes = these are simulated / evaluation accounts; remember them (sim-allow.txt) so this is not asked again. No = cancel.",
+  "zh": "風險警告：以下帳戶尚未確認為模擬帳戶：{0}\nKINFX 無法分辨自營交易公司的考核帳戶與已注資或真實帳戶。若其中任何一個為已注資或真實帳戶，將涉及真實資金。\n是＝這些是模擬／考核帳戶，記住它們（sim-allow.txt），以後不再詢問。否＝取消。",
+  "ja": "リスク警告：シミュレーションと未確認の口座：{0}\nKINFX はプロップファームの評価口座と資金提供済み／ライブ口座を区別できません。いずれかが資金提供済みまたはライブ口座の場合、実際の資金が危険にさらされます。\nはい＝これらはシミュレーション／評価口座です。記憶し（sim-allow.txt）、次回から確認しません。いいえ＝キャンセル。",
+  "ko": "위험 경고: 시뮬레이션으로 확인되지 않은 계좌: {0}\nKINFX는 프롭펌 평가 계좌와 자금 지원 / 실거래 계좌를 구분할 수 없습니다. 이 중 하나라도 자금 지원 또는 실거래 계좌라면 실제 자금이 위험합니다.\n예 = 시뮬레이션 / 평가 계좌이며 기억합니다(sim-allow.txt), 다시 묻지 않습니다. 아니요 = 취소."
+ },
+ {
+  "en": "Cancelled at the risk warning: {0}",
+  "zh": "已在風險警告取消：{0}",
+  "ja": "リスク警告でキャンセル：{0}",
+  "ko": "위험 경고에서 취소: {0}"
+ },
+ {
+  "en": "Account confirmation NOT saved, nothing sent: {0}",
+  "zh": "帳戶確認未儲存，未傳送任何指令：{0}",
+  "ja": "口座の確認は保存されず、何も送信されていません：{0}",
+  "ko": "계좌 확인이 저장되지 않아 아무것도 전송되지 않았습니다: {0}"
+ },
+ {
+  "en": "Confirmed as simulated by you (saved in sim-allow.txt): {0}",
+  "zh": "您已確認為模擬帳戶（已儲存於 sim-allow.txt）：{0}",
+  "ja": "シミュレーションとして確認済み（sim-allow.txt に保存）：{0}",
+  "ko": "시뮬레이션으로 확인됨 (sim-allow.txt에 저장): {0}"
  }
 ]
