@@ -150,8 +150,29 @@ public static class BulkUiTests {
  }
  static void BarIsOnCopyTabAndKeepsHolds(){
   var v=Fresh();Layout(v);
-  Check(v.AccountGrid.Columns.Count==14,"14 Copy columns retained (13 + the per-account Flat column)");
+  Check(v.AccountGrid.Columns.Count==15,"15 Copy columns retained (14 + the read-only Drift badge)");
   Check(v.BulkBarPresent,"bulk bar must be on the Copy tab");
+ }
+ static void DriftBadgeIsDisplayOnlyAndDoesNotTrade(){
+  var v=Fresh();Layout(v);
+  var col=v.AccountGrid.Columns.Single(c=>DashboardView.ColumnKey(c)=="Drift");
+  Check(col.IsReadOnly,"Drift column is read-only");
+  Check(v.ConsistencyFooter.Contains("no auto trade"),"footer states the badge does not trade");
+  Check(!v.StartButton.IsEnabled,"Start stays held");
+  int follow=0;v.FollowRow=(r,on)=>follow++;
+  var row=v.Rows[2];
+  row.ApplyConsistency(new PositionConsistencyResult{Status=PositionConsistencyStatus.PriceDiverge,Badge="avg +2t adverse",Reason=PositionConsistency.ReasonPrice,PriceDeltaTicks=2,AdverseTicks=2,QtyDelta=0,ExpectedQuantity=1});
+  Check(row.ConsistencyBadge=="avg +2t adverse","badge is the helper result, not text scraped from the grid");
+  Check(row.ConsistencyStatus=="PriceDiverge","status is the enum name");
+  Check(row.ConsistencyTip.Contains("no auto trade"),"cell tooltip repeats the no-trade line");
+  Check(follow==0,"applying a badge does not follow or submit");
+  Check(!v.StartButton.IsEnabled,"Start stays held after a price-diverge badge");
+  Check(v.AvgWarnBox!=null&&(string)v.AvgWarnBox.Tag=="avgWarn","threshold box is a display preference");
+  v.AvgWarnBox.Text="nope";v.CommitAvgWarn();
+  Check(v.AvgWarnTicks==1&&v.AvgWarnBox.Text=="1","invalid threshold reverts and does not apply");
+  v.AvgWarnBox.Text="4";v.CommitAvgWarn();
+  Check(v.AvgWarnTicks==4,"valid threshold is stored on the view only");
+  Check(follow==0&&!v.StartButton.IsEnabled,"changing the warn threshold does not follow or unlock Start");
  }
  static void SetLeader(DashboardView v,double tgt,double dll,bool atm){var l=v.Rows[0];l.Target=tgt;l.Loss=dll;l.CopyAtm=atm;}
  static void FromLeaderCopiesToHighlighted(){
@@ -555,7 +576,7 @@ public static class BulkUiTests {
  [STAThread] public static int Main(string[] args){
   try{
    AppDomain.CurrentDomain.AssemblyResolve+=(s,e)=>{string n=e.Name.Split(',')[0];if(n.EndsWith(".resources"))return null;var loaded=AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a=>a.GetName().Name==n);if(loaded!=null)return loaded;string p=System.IO.Path.Combine("C:/Program Files/NinjaTrader 8/bin",n+".dll");return System.IO.File.Exists(p)?System.Reflection.Assembly.LoadFrom(p):null;};
-   var all=new Action[]{UnlockAllButtonIsOnCopyTabAndOnlyWhileStopped,PnlIsGreenForProfitRedForLossMutedForZero,AccountNameHiddenByDefaultAliasCarriesTheName,ColumnsCanBeHiddenButSafetyColumnsNever,DeltaColumnsHaveReadableNames,FlatAtLimitIsPerRowDefaultOffAndBulkScoped,RiskColumnsWidthAndBindingsInEveryLanguage,AskBeforeSwitchesDefaultOnAndReportKind,CopyColumnsFitWorstCaseContentAndWasteNothing,EveryVisibleHeaderAndTabIsTranslatedExceptKeptAbbreviations,StateFilterWorksInEveryLanguage,LanguagesRenderTranslatedHeadersAndKeepEnglishKeys,LanguagesNeverTruncateOrShowMojibake,LanguageSwitchKeepsRowsAndRefusesOnlyBadInput,PlainCheckBoxesStayDark,ComboAndInputStayDarkWhenDisabledOrHovered,TargetAndLossApplyToSelectedOnly,ZeroTurnsLimitOff,RatioStaysIndependent,InvalidInputChangesNothing,NoSelectionIsRefused,LeaderIsNotEdited,AtmToggleBulk,LockedWhenNotEditable,NeverTouchesFollowOrTrading,BarIsOnCopyTabAndKeepsHolds,FromLeaderCopiesToHighlighted,FromLeaderWithoutHighlightHitsAllVisibleFollowers,FromLeaderRespectsSearchFilter,FromLeaderKeepsRatioTickAndOtherFields,ManualEditAfterwardsSticksAndNoLiveLink,FromLeaderRefusedWhenLockedOrNoLeader,FromLeaderNeverTouchesFollowOrTrading,AdviceShownPerRowAndCounted,AdviceUpdatesAfterBulkApply,AdviceNeverBlocksOrChangesSettings,RatioCellFitsCommonValuesAt1160,LogsReadableAndTopAligned,LogClearWorksAndIsEditableIndependent,BadTargetDraftSurvivesRefreshAndBlocksCommit,BadLossDraftSurvivesRefreshAndBlocksCommit,BadTargetDraftSurvivesRecyclingAndStillBlocksCommit,TargetAndLossSetterRejectInvalidNumbers,LockedAccountIsRedWithReasonAndCountedInFooter,LockedCountIgnoresLeaderAndNeverBlocksUi,BadRatioDraftSurvivesRefreshAndBlocksCommit,UnprotectedReasonReachesRowAndDetail,MaxContractsRejectsInvalidAndKeepsDraft,DivergenceChoiceIsPerAccountDefaultsToNotify,DivergenceBulkAndFromLeaderAndNeverTrades,FlattenOnceShowsAWarningNote,FlatColumnExistsAndEveryFollowerRowHasItsOwnButton,FlatButtonOnLeaderRowIsDisabled,FlatButtonRequestsExactlyThatRowAndNothingElse,FlatAndOffAreDifferentControlsWithDifferentGlyphsAndTips,FlatButtonFitsItsCellAtNarrowWidth,FlatCanFlatFollowsSimAndLeaderRules,FlatOnARealViewForwardsExactlyTheClickedRowOnce};
+   var all=new Action[]{UnlockAllButtonIsOnCopyTabAndOnlyWhileStopped,PnlIsGreenForProfitRedForLossMutedForZero,AccountNameHiddenByDefaultAliasCarriesTheName,ColumnsCanBeHiddenButSafetyColumnsNever,DeltaColumnsHaveReadableNames,FlatAtLimitIsPerRowDefaultOffAndBulkScoped,RiskColumnsWidthAndBindingsInEveryLanguage,AskBeforeSwitchesDefaultOnAndReportKind,CopyColumnsFitWorstCaseContentAndWasteNothing,EveryVisibleHeaderAndTabIsTranslatedExceptKeptAbbreviations,StateFilterWorksInEveryLanguage,LanguagesRenderTranslatedHeadersAndKeepEnglishKeys,LanguagesNeverTruncateOrShowMojibake,LanguageSwitchKeepsRowsAndRefusesOnlyBadInput,PlainCheckBoxesStayDark,ComboAndInputStayDarkWhenDisabledOrHovered,TargetAndLossApplyToSelectedOnly,ZeroTurnsLimitOff,RatioStaysIndependent,InvalidInputChangesNothing,NoSelectionIsRefused,LeaderIsNotEdited,AtmToggleBulk,LockedWhenNotEditable,NeverTouchesFollowOrTrading,BarIsOnCopyTabAndKeepsHolds,DriftBadgeIsDisplayOnlyAndDoesNotTrade,FromLeaderCopiesToHighlighted,FromLeaderWithoutHighlightHitsAllVisibleFollowers,FromLeaderRespectsSearchFilter,FromLeaderKeepsRatioTickAndOtherFields,ManualEditAfterwardsSticksAndNoLiveLink,FromLeaderRefusedWhenLockedOrNoLeader,FromLeaderNeverTouchesFollowOrTrading,AdviceShownPerRowAndCounted,AdviceUpdatesAfterBulkApply,AdviceNeverBlocksOrChangesSettings,RatioCellFitsCommonValuesAt1160,LogsReadableAndTopAligned,LogClearWorksAndIsEditableIndependent,BadTargetDraftSurvivesRefreshAndBlocksCommit,BadLossDraftSurvivesRefreshAndBlocksCommit,BadTargetDraftSurvivesRecyclingAndStillBlocksCommit,TargetAndLossSetterRejectInvalidNumbers,LockedAccountIsRedWithReasonAndCountedInFooter,LockedCountIgnoresLeaderAndNeverBlocksUi,BadRatioDraftSurvivesRefreshAndBlocksCommit,UnprotectedReasonReachesRowAndDetail,MaxContractsRejectsInvalidAndKeepsDraft,DivergenceChoiceIsPerAccountDefaultsToNotify,DivergenceBulkAndFromLeaderAndNeverTrades,FlattenOnceShowsAWarningNote,FlatColumnExistsAndEveryFollowerRowHasItsOwnButton,FlatButtonOnLeaderRowIsDisabled,FlatButtonRequestsExactlyThatRowAndNothingElse,FlatAndOffAreDifferentControlsWithDifferentGlyphsAndTips,FlatButtonFitsItsCellAtNarrowWidth,FlatCanFlatFollowsSimAndLeaderRules,FlatOnARealViewForwardsExactlyTheClickedRowOnce};
    int failed=0;foreach(var a in all){try{a();Console.WriteLine("PASS "+a.Method.Name);}catch(Exception ex){failed++;Console.WriteLine("FAIL "+a.Method.Name+" :: "+ex.Message);}}
    return failed==0?0:1;
   }catch(Exception ex){Console.WriteLine("HARNESS "+ex);return 2;}

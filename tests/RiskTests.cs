@@ -2,7 +2,7 @@ using System;
 using NinjaTrader.NinjaScript.AddOns.Kinfx;
 class RiskTests {
  static int Main(string[] args) {
-  try { XmlDoubleRoundtripIsExact(); XmlDoubleRejectsGroupingCommas(); XmlBaselinePreservesSignedZeroAndIntent(); Console.WriteLine("PASS exact XML numeric persistence"); Eq(false,DashboardSafety.CanExecute("start")); Eq(false,DashboardSafety.CanExecute("flattenSelected")); Eq(false,DashboardSafety.CanExecute("flattenAll")); Eq(false,DashboardSafety.CanExecute("batch")); Eq(true,DashboardSafety.CanExecute("refresh")); BulkAmount(); Console.WriteLine("PASS bulk amount grammar"); SettingsWarnings(); Console.WriteLine("PASS settings warnings"); WorkerRetention(); Console.WriteLine("PASS worker retains accepted work and reports rejection"); DivergencePolicy(); Console.WriteLine("PASS divergence reaction setting"); Quantity(); Console.WriteLine("PASS quantity"); AccountSyncDiff(); Console.WriteLine("PASS account sync diff"); ContractRollQuarterly(); Console.WriteLine("PASS contract roll"); ContractInputNormalize(); Console.WriteLine("PASS contract input"); AccountSyncDecision(); Console.WriteLine("PASS account sync decision"); HeaderTextMatchesBuild(); Console.WriteLine("PASS header text matches build"); LangEveryKeyHasThreeTranslations(); Console.WriteLine("PASS language table: every sentence has zh/ja/ko with matching placeholders"); LangSelection(); Console.WriteLine("PASS language selection"); LangUnknownTextFallsBackToEnglish(); Console.WriteLine("PASS unknown text falls back to English"); LangTemplateRefill(); Console.WriteLine("PASS templates refill and composite messages translate"); LangDoesNotChangeEnglishDecisions(); Console.WriteLine("PASS language never changes English decisions"); LangNoCantoneseInChinese(); Console.WriteLine("PASS zh is written Chinese, not Cantonese colloquial"); DefaultLeaderChoice(); Console.WriteLine("PASS default leader choice"); AllowFileLineParsing(); ConfirmPrefsDefaultsAskEverything(); ConfirmPrefsRoundTripAndUnknownLines(); ConfirmPrefsRiskWarningIsNeverSkipped();ConfirmPrefsKindFollowsTheButtonNotTheRowCount();ColumnPrefsRoundTripAndSafetyColumnsNeverHidden();MissingColumnsFileUsesDefaults(); Console.WriteLine("PASS allow file line parsing"); StartSummaryListsLeaderRatioAndExpectedQuantity(); Console.WriteLine("PASS start summary"); RvDraftNeverPublishesNonFiniteOrOutOfRange(); Console.WriteLine("PASS RvDraftNeverPublishesNonFiniteOrOutOfRange"); RvDraftMinusZeroAndStrictFields(); Console.WriteLine("PASS RvDraftMinusZeroAndStrictFields"); RvDraftCultureIndependent(); Console.WriteLine("PASS RvDraftCultureIndependent"); RvDraftBuildAfterLoadWithInvalidRawStillRefuses(); Console.WriteLine("PASS RvDraftBuildAfterLoadWithInvalidRawStillRefuses"); RvDraftLoadedInvalidPresetCannotBuild(); Console.WriteLine("PASS RvDraftLoadedInvalidPresetCannotBuild"); Risk(); Console.WriteLine("PASS risk latch / exits / finite / DST"); Persistence(); Console.WriteLine("PASS XML atomic roundtrip"); Worker(); Console.WriteLine("PASS serial reentrancy + ownership"); Ledger(); Console.WriteLine("PASS lifecycle decisions / dedupe / reservation"); Presets(); Console.WriteLine("PASS sourced editable presets"); ChangePolicy(); Console.WriteLine("PASS locked reductions / partial exit totals"); DurableLock(); Console.WriteLine("PASS durable global latches / unlock recheck / advisory"); return 0; }
+  try { XmlDoubleRoundtripIsExact(); XmlDoubleRejectsGroupingCommas(); XmlBaselinePreservesSignedZeroAndIntent(); Console.WriteLine("PASS exact XML numeric persistence"); Eq(false,DashboardSafety.CanExecute("start")); Eq(false,DashboardSafety.CanExecute("flattenSelected")); Eq(false,DashboardSafety.CanExecute("flattenAll")); Eq(false,DashboardSafety.CanExecute("batch")); Eq(true,DashboardSafety.CanExecute("refresh")); BulkAmount(); Console.WriteLine("PASS bulk amount grammar"); SettingsWarnings(); Console.WriteLine("PASS settings warnings"); WorkerRetention(); Console.WriteLine("PASS worker retains accepted work and reports rejection"); DivergencePolicy(); Console.WriteLine("PASS divergence reaction setting"); Quantity(); Console.WriteLine("PASS quantity"); AccountSyncDiff(); Console.WriteLine("PASS account sync diff"); ContractRollQuarterly(); Console.WriteLine("PASS contract roll"); ContractInputNormalize(); Console.WriteLine("PASS contract input"); AccountSyncDecision(); Console.WriteLine("PASS account sync decision"); HeaderTextMatchesBuild(); Console.WriteLine("PASS header text matches build"); LangEveryKeyHasThreeTranslations(); Console.WriteLine("PASS language table: every sentence has zh/ja/ko with matching placeholders"); LangSelection(); Console.WriteLine("PASS language selection"); LangUnknownTextFallsBackToEnglish(); Console.WriteLine("PASS unknown text falls back to English"); LangTemplateRefill(); Console.WriteLine("PASS templates refill and composite messages translate"); LangDoesNotChangeEnglishDecisions(); Console.WriteLine("PASS language never changes English decisions"); LangNoCantoneseInChinese(); Console.WriteLine("PASS zh is written Chinese, not Cantonese colloquial"); PositionConsistencyRules(); Console.WriteLine("PASS position consistency rules"); PositionConsistencyUnknownData(); Console.WriteLine("PASS position consistency unknown data"); PositionConsistencyGraceAndReconnect(); Console.WriteLine("PASS position consistency grace"); PositionConsistencyDisplayPrefs(); Console.WriteLine("PASS position consistency display prefs"); DefaultLeaderChoice(); Console.WriteLine("PASS default leader choice"); AllowFileLineParsing(); ConfirmPrefsDefaultsAskEverything(); ConfirmPrefsRoundTripAndUnknownLines(); ConfirmPrefsRiskWarningIsNeverSkipped();ConfirmPrefsKindFollowsTheButtonNotTheRowCount();ColumnPrefsRoundTripAndSafetyColumnsNeverHidden();MissingColumnsFileUsesDefaults(); Console.WriteLine("PASS allow file line parsing"); StartSummaryListsLeaderRatioAndExpectedQuantity(); Console.WriteLine("PASS start summary"); RvDraftNeverPublishesNonFiniteOrOutOfRange(); Console.WriteLine("PASS RvDraftNeverPublishesNonFiniteOrOutOfRange"); RvDraftMinusZeroAndStrictFields(); Console.WriteLine("PASS RvDraftMinusZeroAndStrictFields"); RvDraftCultureIndependent(); Console.WriteLine("PASS RvDraftCultureIndependent"); RvDraftBuildAfterLoadWithInvalidRawStillRefuses(); Console.WriteLine("PASS RvDraftBuildAfterLoadWithInvalidRawStillRefuses"); RvDraftLoadedInvalidPresetCannotBuild(); Console.WriteLine("PASS RvDraftLoadedInvalidPresetCannotBuild"); Risk(); Console.WriteLine("PASS risk latch / exits / finite / DST"); Persistence(); Console.WriteLine("PASS XML atomic roundtrip"); Worker(); Console.WriteLine("PASS serial reentrancy + ownership"); Ledger(); Console.WriteLine("PASS lifecycle decisions / dedupe / reservation"); Presets(); Console.WriteLine("PASS sourced editable presets"); ChangePolicy(); Console.WriteLine("PASS locked reductions / partial exit totals"); DurableLock(); Console.WriteLine("PASS durable global latches / unlock recheck / advisory"); return 0; }
   catch(Exception ex) { Console.WriteLine("FAIL "+ex.Message); return 1; }
  }
  static void Eq(object want,object got) { if(want==null||got==null){ if(want!=got) throw new Exception("expected "+(want??"<null>")+" got "+(got??"<null>")); return; } if(!want.Equals(got)) throw new Exception("expected "+want+" got "+got); }
@@ -532,5 +532,144 @@ class RiskTests {
   var all=ConfirmPrefs.Parse(new[]{"skip=start","skip=flatOne","skip=flatten","skip=unlock"});
   Eq(3,all.Count);
   foreach(var k in ConfirmPrefs.Kinds){Eq(false,ConfirmPrefs.MustAsk(k,all,false));Eq(true,ConfirmPrefs.MustAsk(k,all,true));}
+ }
+ static readonly DateTime ConsistencyNow=new DateTime(2026,10,14,8,0,0,DateTimeKind.Utc);
+ static PositionSnap ConsistencySnap(int qty,double avg,bool hasAvg,string instrument="MNQ 12-26",double ratio=1,int max=10,long version=1,DateTime? read=null,DateTime? evidence=null,bool connected=true,bool contracts=true)
+ {
+  var t=read??ConsistencyNow;
+  return new PositionSnap{Instrument=instrument,SignedQuantity=qty,HasAveragePrice=hasAvg,AveragePrice=avg,Connected=connected,ContractsVerified=contracts,EvidenceVersion=version,EvidenceUtc=evidence??t,ReadUtc=t,Ratio=ratio,MaxContracts=max};
+ }
+ static PositionConsistencyResult ConsistencyEval(PositionSnap leader,PositionSnap follower,double tick=0.25,int threshold=1,DateTime? now=null,int graceSeconds=3)
+ {
+  return PositionConsistency.Evaluate(leader,follower,tick,threshold,now??ConsistencyNow,TimeSpan.FromSeconds(graceSeconds));
+ }
+ static void NullDelta(int? value){ if(value.HasValue) throw new Exception("expected no delta, got "+value.Value); }
+ // Kills mutants that collapse price into qty, ignore ratio/side, treat missing data as zero, or skip the report grace.
+ static void PositionConsistencyRules()
+ {
+  var match=ConsistencyEval(ConsistencySnap(2,100,true),ConsistencySnap(2,100,true));
+  Eq(PositionConsistencyStatus.QtyMatch,match.Status); Eq(0,match.QtyDelta); Eq("avg 0t",match.Badge); Eq(0,match.PriceDeltaTicks); Eq(0,match.AdverseTicks);
+  var within=ConsistencyEval(ConsistencySnap(2,100,true),ConsistencySnap(2,100.25,true),0.25,1);
+  Eq(PositionConsistencyStatus.QtyMatch,within.Status); Eq(1,within.PriceDeltaTicks); Eq("avg +1t adverse",within.Badge);
+  var boundary=ConsistencyEval(ConsistencySnap(2,100,true),ConsistencySnap(2,100.50,true),0.25,2);
+  Eq(PositionConsistencyStatus.QtyMatch,boundary.Status); Eq(2,boundary.PriceDeltaTicks);
+  var over=ConsistencyEval(ConsistencySnap(2,100,true),ConsistencySnap(2,100.75,true),0.25,2);
+  Eq(PositionConsistencyStatus.PriceDiverge,over.Status); Eq(3,over.PriceDeltaTicks); Eq(3,over.AdverseTicks);
+  var favorable=ConsistencyEval(ConsistencySnap(2,100,true),ConsistencySnap(2,99.50,true),0.25,1);
+  Eq(PositionConsistencyStatus.PriceDiverge,favorable.Status); Eq(-2,favorable.PriceDeltaTicks); Eq(-2,favorable.AdverseTicks); Eq(false,favorable.Badge.Contains("adverse"));
+  var shortMatch=ConsistencyEval(ConsistencySnap(-3,200,true),ConsistencySnap(-3,200,true));
+  Eq(PositionConsistencyStatus.QtyMatch,shortMatch.Status); Eq(0,shortMatch.QtyDelta);
+  var shortAdverse=ConsistencyEval(ConsistencySnap(-3,200,true),ConsistencySnap(-3,199.50,true),0.25,1);
+  Eq(PositionConsistencyStatus.PriceDiverge,shortAdverse.Status); Eq(-2,shortAdverse.PriceDeltaTicks); Eq(2,shortAdverse.AdverseTicks); Eq(true,shortAdverse.Badge.Contains("adverse")); Eq(PositionConsistencyStatus.QtyDiverge!=shortAdverse.Status,true);
+  var scaled=ConsistencyEval(ConsistencySnap(4,100,true),ConsistencySnap(2,100,true,ratio:0.5));
+  Eq(PositionConsistencyStatus.QtyMatch,scaled.Status); Eq(2,scaled.ExpectedQuantity); Eq(0,scaled.QtyDelta);
+  var notForced=ConsistencyEval(ConsistencySnap(4,100,true),ConsistencySnap(4,100,true,ratio:0.5));
+  Eq(PositionConsistencyStatus.QtyDiverge,notForced.Status); Eq(2,notForced.QtyDelta); Eq(PositionConsistencyStatus.PriceDiverge!=notForced.Status,true);
+  var capped=ConsistencyEval(ConsistencySnap(10,100,true),ConsistencySnap(4,100,true,ratio:1,max:4));
+  Eq(PositionConsistencyStatus.QtyMatch,capped.Status); Eq(4,capped.ExpectedQuantity);
+  var overCap=ConsistencyEval(ConsistencySnap(10,100,true),ConsistencySnap(5,100.50,true,ratio:1,max:4),0.25,1);
+  Eq(PositionConsistencyStatus.QtyDiverge,overCap.Status); Eq(1,overCap.QtyDelta); Eq(2,overCap.PriceDeltaTicks); Eq(true,overCap.Badge.StartsWith("qty+1")); Eq(true,overCap.Badge.Contains("avg"));
+  var opposite=ConsistencyEval(ConsistencySnap(2,100,true),ConsistencySnap(-2,100,true));
+  Eq(PositionConsistencyStatus.QtyDiverge,opposite.Status); Eq(-4,opposite.QtyDelta);
+  var followerFlat=ConsistencyEval(ConsistencySnap(2,100,true),ConsistencySnap(0,0,false));
+  Eq(PositionConsistencyStatus.QtyDiverge,followerFlat.Status); Eq(-2,followerFlat.QtyDelta); Eq("qty-2",followerFlat.Badge); NullDelta(followerFlat.PriceDeltaTicks); Eq(false,followerFlat.Badge.Contains("0t"));
+  var both=ConsistencyEval(ConsistencySnap(2,100,true),ConsistencySnap(1,100.50,true),0.25,1);
+  Eq(PositionConsistencyStatus.QtyDiverge,both.Status); Eq(-1,both.QtyDelta); Eq(2,both.PriceDeltaTicks); Eq(PositionConsistencyStatus.PriceDiverge!=both.Status,true);
+  var roundedZero=ConsistencyEval(ConsistencySnap(1,100,true),ConsistencySnap(0,0,false,ratio:0.1));
+  Eq(PositionConsistencyStatus.QtyMatch,roundedZero.Status); Eq("qty 0",roundedZero.Badge); NullDelta(roundedZero.PriceDeltaTicks);
+  Eq(2,PositionConsistency.ExpectedSignedQuantity(4,0.5,10)); Eq(-3,PositionConsistency.ExpectedSignedQuantity(-3,1,10)); Eq(4,PositionConsistency.ExpectedSignedQuantity(10,1,4));
+ }
+ static void PositionConsistencyUnknownData()
+ {
+  var none=PositionConsistency.Evaluate(null,ConsistencySnap(1,100,true),0.25,1);
+  Eq(PositionConsistencyStatus.Unavailable,none.Status); Eq(PositionConsistency.Dash,none.Badge); NullDelta(none.QtyDelta); NullDelta(none.PriceDeltaTicks); Eq(PositionConsistency.ReasonNotComparable,none.Reason);
+  var missingContract=ConsistencyEval(ConsistencySnap(2,100,true,contracts:false),ConsistencySnap(2,100,true));
+  Eq(PositionConsistencyStatus.Unavailable,missingContract.Status); Eq(PositionConsistency.NotAvailable,missingContract.Badge); Eq(PositionConsistency.ReasonContract,missingContract.Reason); NullDelta(missingContract.PriceDeltaTicks);
+  Eq(false,PositionConsistency.ContractsReady(false,false)); Eq(false,PositionConsistency.ContractsReady(true,false)); Eq(false,PositionConsistency.ContractsReady(false,true)); Eq(true,PositionConsistency.ContractsReady(true,true));
+  foreach(double bad in new[]{0d,-0.25d,double.NaN,double.PositiveInfinity})
+  {
+   var tick=ConsistencyEval(ConsistencySnap(2,100,true),ConsistencySnap(2,100,true),bad,1);
+   Eq(PositionConsistencyStatus.Unavailable,tick.Status); Eq(PositionConsistency.Dash,tick.Badge); Eq(PositionConsistency.ReasonTick,tick.Reason); NullDelta(tick.PriceDeltaTicks); Eq(false,tick.Badge.Contains("0t"));
+  }
+  var missingAvg=ConsistencyEval(ConsistencySnap(2,100,true),ConsistencySnap(2,0,false));
+  Eq(PositionConsistencyStatus.Unavailable,missingAvg.Status); Eq(PositionConsistency.Dash,missingAvg.Badge); Eq(PositionConsistency.ReasonAvgMissing,missingAvg.Reason); NullDelta(missingAvg.QtyDelta); NullDelta(missingAvg.PriceDeltaTicks);
+  var qtyOnly=ConsistencyEval(ConsistencySnap(2,100,true),ConsistencySnap(1,0,false));
+  Eq(PositionConsistencyStatus.QtyDiverge,qtyOnly.Status); Eq(-1,qtyOnly.QtyDelta); NullDelta(qtyOnly.PriceDeltaTicks); Eq(false,qtyOnly.Badge.Contains("0"));
+  var leaderFlat=ConsistencyEval(ConsistencySnap(0,0,false),ConsistencySnap(2,100,true));
+  Eq(PositionConsistencyStatus.Unavailable,leaderFlat.Status); Eq(PositionConsistency.Dash,leaderFlat.Badge); Eq(PositionConsistency.ReasonLeaderFlat,leaderFlat.Reason); NullDelta(leaderFlat.QtyDelta); Eq(false,leaderFlat.Badge.Contains("0"));
+  var bothFlat=ConsistencyEval(ConsistencySnap(0,0,false),ConsistencySnap(0,0,false));
+  Eq(PositionConsistency.ReasonLeaderFlat,bothFlat.Reason); Eq(PositionConsistency.Dash,bothFlat.Badge);
+  var mismatch=ConsistencyEval(ConsistencySnap(2,100,true),ConsistencySnap(2,100,true,instrument:"MES 12-26"));
+  Eq(PositionConsistency.ReasonInstrument,mismatch.Reason); Eq(PositionConsistency.Dash,mismatch.Badge); NullDelta(mismatch.PriceDeltaTicks);
+  var blank=ConsistencyEval(ConsistencySnap(2,100,true,instrument:""),ConsistencySnap(2,100,true,instrument:""));
+  Eq(PositionConsistency.ReasonInstrument,blank.Reason);
+  var badScale=ConsistencyEval(ConsistencySnap(2,100,true),ConsistencySnap(2,100,true,ratio:double.NaN,max:0));
+  Eq(PositionConsistency.ReasonScale,badScale.Reason); Eq(PositionConsistency.Dash,badScale.Badge);
+  var badThreshold=ConsistencyEval(ConsistencySnap(2,100,true),ConsistencySnap(2,100,true),0.25,-1);
+  Eq(PositionConsistencyStatus.Unavailable,badThreshold.Status); Eq(PositionConsistency.Dash,badThreshold.Badge);
+  var baseline=PositionConsistency.LeaderBaseline();
+  Eq(PositionConsistency.Dash,baseline.Badge); Eq(PositionConsistency.ReasonLeaderBaseline,baseline.Reason); NullDelta(baseline.QtyDelta);
+ }
+ static void PositionConsistencyGraceAndReconnect()
+ {
+  var lagged=ConsistencyEval(ConsistencySnap(2,100,true,version:5),ConsistencySnap(1,100,true,version:4),0.25,1);
+  Eq(PositionConsistencyStatus.WaitingReports,lagged.Status); Eq("wait",lagged.Badge); NullDelta(lagged.QtyDelta); Eq(PositionConsistencyStatus.QtyDiverge!=lagged.Status,true);
+  var confirmed=ConsistencyEval(ConsistencySnap(2,100,true,version:5,evidence:ConsistencyNow.AddSeconds(-4)),ConsistencySnap(1,100,true,version:4),0.25,1);
+  Eq(PositionConsistencyStatus.QtyDiverge,confirmed.Status); Eq(-1,confirmed.QtyDelta); Eq(PositionConsistencyStatus.QtyMatch!=confirmed.Status,true);
+  var stale=ConsistencyEval(ConsistencySnap(2,100,true,read:ConsistencyNow.AddSeconds(-4)),ConsistencySnap(2,100,true,read:ConsistencyNow.AddSeconds(-4)));
+  Eq(PositionConsistencyStatus.Unavailable,stale.Status); Eq(PositionConsistency.ReasonStale,stale.Reason); Eq(PositionConsistency.Dash,stale.Badge); Eq(PositionConsistencyStatus.QtyMatch!=stale.Status,true);
+  var never=ConsistencyEval(ConsistencySnap(2,100,true,read:DateTime.MinValue),ConsistencySnap(2,100,true));
+  Eq(PositionConsistency.ReasonStale,never.Reason);
+  var down=ConsistencyEval(ConsistencySnap(2,100,true,connected:false),ConsistencySnap(2,100,true));
+  Eq(PositionConsistency.ReasonDisconnected,down.Reason); Eq(PositionConsistency.Dash,down.Badge); NullDelta(down.PriceDeltaTicks);
+  var back=ConsistencyEval(ConsistencySnap(2,100,true,connected:true),ConsistencySnap(2,100.25,true,connected:true),0.25,1);
+  Eq(PositionConsistencyStatus.QtyMatch,back.Status); Eq(1,back.PriceDeltaTicks);
+  var followerDown=ConsistencyEval(ConsistencySnap(2,100,true),ConsistencySnap(2,100,true,connected:false));
+  Eq(PositionConsistency.ReasonDisconnected,followerDown.Reason);
+  var mark=new EvidenceMark();
+  mark=PositionConsistency.Note(mark,2,true,100,ConsistencyNow);
+  Eq(1L,mark.Version);
+  var same=PositionConsistency.Note(mark,2,true,100,ConsistencyNow.AddSeconds(1));
+  Eq(1L,same.Version); Eq(ConsistencyNow,same.EvidenceUtc);
+  var moved=PositionConsistency.Note(same,2,true,100.25,ConsistencyNow.AddSeconds(2));
+  Eq(2L,moved.Version); Eq(100.25,moved.Average);
+  var fresh=DateTime.UtcNow;
+  var live=PositionConsistency.Evaluate(ConsistencySnap(2,100,true,read:fresh,evidence:fresh),ConsistencySnap(2,100,true,read:fresh,evidence:fresh),0.25,1);
+  Eq(PositionConsistencyStatus.QtyMatch,live.Status);
+ }
+ static void PositionConsistencyDisplayPrefs()
+ {
+  int n;
+  Eq(true,DisplayPrefs.TryReadAvgWarnTicks("{\"avgWarnTicks\":2}",out n)); Eq(2,n);
+  Eq(true,DisplayPrefs.TryReadAvgWarnTicks("\n{\n  \"avgWarnTicks\": 0 }\n",out n)); Eq(0,n);
+  Eq(true,DisplayPrefs.TryReadAvgWarnTicks("\uFEFF{\"avgWarnTicks\":100}",out n)); Eq(100,n);
+  Eq(false,DisplayPrefs.TryReadAvgWarnTicks("{\"avgWarnTicks\":-1}",out n));
+  Eq(false,DisplayPrefs.TryReadAvgWarnTicks("{\"avgWarnTicks\":101}",out n));
+  Eq(false,DisplayPrefs.TryReadAvgWarnTicks("{\"avgWarnTicks\":1.5}",out n));
+  Eq(false,DisplayPrefs.TryReadAvgWarnTicks("{\"avgWarnTicks\":01}",out n));
+  Eq(false,DisplayPrefs.TryReadAvgWarnTicks("{\"avgWarnTicks\":1,\"trade\":true}",out n));
+  Eq(false,DisplayPrefs.TryReadAvgWarnTicks("",out n)); Eq(false,DisplayPrefs.TryReadAvgWarnTicks(null,out n));
+  Eq(false,DisplayPrefs.TryParseTicks("-1",out n)); Eq(false,DisplayPrefs.TryParseTicks("1,000",out n)); Eq(true,DisplayPrefs.TryParseTicks("15",out n)); Eq(15,n);
+  Eq("{\"avgWarnTicks\":1}",DisplayPrefs.ToJson(1));
+  string path=System.IO.Path.Combine(Environment.GetEnvironmentVariable("TMPDIR"),"kinfx-display-prefs.json");
+  DisplayPrefs.SaveAvgWarnTicks(path,7);
+  Eq(true,DisplayPrefs.TryReadAvgWarnTicks(System.IO.File.ReadAllText(path),out n)); Eq(7,n);
+  DisplayPrefs.SaveAvgWarnTicks(path,0); Eq(true,DisplayPrefs.TryReadAvgWarnTicks(System.IO.File.ReadAllText(path),out n)); Eq(0,n);
+  System.IO.File.Delete(path);
+  var xml=SettingsStore.ToXml(new[]{new SavedAccount{Name="Sim",Settings=new RiskSettings()}},"MNQ 12-26","UTC",0);
+  Eq(false,xml.ToString().Contains("avgWarnTicks"));
+  string was=Lang.Current;
+  try
+  {
+   Lang.Set("zh");
+   Eq(true,Lang.T(PositionConsistency.Disclaimer).Contains("不會自動交易"));
+   Eq(true,Lang.T(PositionConsistency.ReasonPrice).Contains("成交均價"));
+   Eq(true,Lang.T(PositionConsistency.ReasonQtyDiverge).Contains("數量偏離"));
+   Eq(false,Lang.T(PositionConsistency.ReasonPrice)==PositionConsistency.ReasonPrice);
+   var tip=PositionConsistency.FormatTip(ConsistencyEval(ConsistencySnap(2,100,true),ConsistencySnap(2,100.75,true),0.25,1));
+   Eq(true,tip.Contains("不會自動交易")); Eq(true,tip.Contains("avg +3t adverse"));
+   Eq(true,Lang.Show("Avg drift Sim: avg +3t adverse (display only — no order)","zh").Contains("不會下單"));
+  }
+  finally { Lang.Set(was); }
  }
 }
