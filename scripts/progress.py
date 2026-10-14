@@ -173,9 +173,9 @@ def render(data, lang):
             out.append('- %s %s%s' % (ICON[i['level']], i['ach_en' if en else 'ach_zh'], tag))
     out.append('')
     if en:
-        out.append('Real tests so far: 1 simulator leader, 2 **simulated** prop-firm evaluation accounts, MNQ, Market + Limit. No funded or live account was ever used. Each tick and its limits: [`docs/PROGRESS.json`](docs/PROGRESS.json). Score = weighted: ✅ 100%%, 🟡 50%%, design only 10%%. Snapshot %s, source `%s`.' % (snap['date'], snap['source_sha256_prefix']))
+        out.append('Real tests so far: 1 simulator leader, up to 11 **simulated** prop-firm evaluation accounts (5 Lucid, 6 Tradeify), MNQ, Market + Limit + Stop, TP/SL OCO. No funded or live account was ever used. Each tick and its limits: [`docs/PROGRESS.json`](docs/PROGRESS.json). Score = weighted: ✅ 100%%, 🟡 50%%, design only 10%%. Snapshot %s, source `%s`.' % (snap['date'], snap['source_sha256_prefix']))
     else:
-        out.append('歷史真實測試：1 個模擬 Leader、2 個**模擬** Prop Firm 評估帳戶、MNQ、市價＋限價。從未使用 funded 或實盤帳戶。各項詳情與限制：[`docs/PROGRESS.json`](docs/PROGRESS.json)。計分按權重：✅ 100%%、🟡 50%%、只有設計 10%%。快照 %s，源碼 `%s`。' % (snap['date'], snap['source_sha256_prefix']))
+        out.append('歷史真實測試：1 個模擬 Leader、最多 11 個**模擬** Prop Firm 評估帳戶（Lucid 5 個、Tradeify 6 個）、MNQ、市價＋限價＋停損單、TP/SL OCO。從未使用 funded 或實盤帳戶。各項詳情與限制：[`docs/PROGRESS.json`](docs/PROGRESS.json)。計分按權重：✅ 100%%、🟡 50%%、只有設計 10%%。快照 %s，源碼 `%s`。' % (snap['date'], snap['source_sha256_prefix']))
     return '\n'.join(out)
 
 
