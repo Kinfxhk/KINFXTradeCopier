@@ -1101,6 +1101,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             t["Confirmation turned back on: {0}"] = new[] { "已重新開啟確認：{0}", "確認を再びオン：{0}", "확인 다시 켬: {0}" };
             t["Confirmation turned off: {0} (risk warnings and Unlock are still always asked)"] = new[] { "已關閉確認：{0}（風險警告及解鎖仍一律詢問）", "確認をオフ：{0}（リスク警告とロック解除は常に確認）", "확인 끔: {0} (위험 경고와 잠금 해제는 항상 확인)" };
             t["Settings NOT saved: {0}"] = new[] { "設定未儲存：{0}", "設定は保存されていません：{0}", "설정이 저장되지 않았습니다: {0}" };
+            t["{0}: dry run: no position was ever opened"] = new[] { "{0}：試運行：從未開倉", "{0}: ドライラン: ポジションは一度も建てられていません", "{0}: 드라이런: 포지션이 열린 적이 없습니다" };
 #if KINFX_SIM_TEST
             t["SIM TEST BUILD · Simulator / Playback only"] = new[] { "SIM 測試版 · 僅限 Simulator / Playback", "SIMテストビルド · Simulator / Playback のみ", "SIM 테스트 빌드 · Simulator / Playback 전용" };
             t["SIM TEST BUILD: copies between Simulator / Playback accounts only. Any other provider is refused."] = new[] { "SIM 測試版：僅在 Simulator / Playback 帳戶之間跟單。其他任何供應端一律拒絕。", "SIMテストビルド：Simulator / Playback 口座間のみコピー。それ以外のプロバイダーは拒否される。", "SIM 테스트 빌드: Simulator / Playback 계좌 간에만 복사합니다. 그 외 제공자는 거부됩니다." };
@@ -1114,6 +1115,8 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             t["Dry run cannot be changed while a session is attached; stop flat first."] = new[] { "工作階段連線期間無法變更 Dry run（試運行）；請先於持倉歸零後停止。", "セッション接続中は Dry run（ドライラン）を変更できません；先にフラット後に停止してください。", "세션이 연결된 동안에는 Dry run(드라이런)을 변경할 수 없습니다; 먼저 청산 후 중지하십시오." };
             t["SIM TEST: account is not Simulator / Playback at send time; call was NOT sent"] = new[] { "模擬測試：送出時帳戶並非 Simulator / Playback；該呼叫未送出", "SIM テスト：送信時に口座が Simulator / Playback ではありません；呼び出しは送信されませんでした", "SIM 테스트: 전송 시점에 계좌가 Simulator / Playback이 아닙니다; 호출이 전송되지 않았습니다" };
             t["DRY RUN would send to {0}: {1}"] = new[] { "DRY RUN（試運行）將傳送至 {0}：{1}", "DRY RUN（ドライラン）: {0} に送信予定: {1}", "DRY RUN(드라이런) {0}(으)로 전송 예정: {1}" };
+            t["Dry run is ON: nothing will be sent."] = new[] { "試運行已開啟：不會傳送任何指令。", "ドライランはオン：何も送信されません。", "드라이런 켜짐: 아무것도 전송되지 않습니다." };
+            t["Dry run is OFF: real simulation orders WILL be sent."] = new[] { "試運行已關閉：將會傳送實際的模擬委託。", "ドライランはオフ：実際のシミュレーション注文が送信されます。", "드라이런 꺼짐: 실제 시뮬레이션 주문이 전송됩니다." };
 #endif
             return t;
         }
@@ -1190,7 +1193,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public void AddHistory(Order o){PreSessionTerminal.Add(o);if(!string.IsNullOrEmpty(o.OrderId)&&Order.IsTerminalState(o.OrderState))PreSessionTerminalIds[o.OrderId]=new KeyValuePair<OrderState,int>(o.OrderState,o.Filled);}
         // Copier orders left in Initialized before Start (never sent). Exempt from the unknown-order lock ONLY while they stay Initialized and unfilled.
         public readonly HashSet<Order> PreSessionGhost=new HashSet<Order>();
-        public int DryRunRetired; // dry-run Submits retired as never-sent ghosts (SIM TEST build only)
+        public int DryRunRetired; // dry-run Submits retired as never-sent ghosts; compiled in both builds, only ever non-zero in the SIM TEST build
         public bool LimitFlattenSent; // FlatOnLimit already used this session. Backstop: the "!was" edge already fires it once, as no in-session unlock exists (mutant l4 shows the flag alone is redundant today).
         // When the last follower fill evidence arrived. NinjaTrader raises the order Filled callback ~10 ms BEFORE the PositionUpdate, so for a moment the ledger and Position disagree.
         public DateTime LastFillUtc=DateTime.MinValue;
@@ -1952,7 +1955,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 // Only retain delayed protection if THIS copier has an entry link; never adopt an unrelated later position.
                 if(link.Exit && (!f.ExitCompleted||link.Group!=null&&!link.Group.Completed) && (HasPendingEntryWork(f)||OwnedPosition(f)!=0) && links.Values.SelectMany(x=>x).Any(x=>x.Follower==f&&!x.Exit&&x.Order!=null&&(!x.Cancelled||x.ObservedFilled>0)))
                 { if(DateTime.UtcNow-link.WaitingSince>TimeSpan.FromSeconds(10)){link.Waiting=false;Lock(f,"Exit could not obtain closable exposure within 10s — review protection");}else link.Waiting=true;return; }
-                link.Waiting=false; if(link.Exit){f.ExitDroppedNothingToClose=true;log(f.Account.Name+": leader exit ignored, nothing to close"+(f.DryRunRetired>0?" (dry run: no position was ever opened)":""));} else log(f.Account.Name+": entry skipped, projected cap / floor quantity"); return;
+                link.Waiting=false; if(link.Exit){f.ExitDroppedNothingToClose=true;log(f.Account.Name+": leader exit ignored, nothing to close");if(f.DryRunRetired>0)log(f.Account.Name+": dry run: no position was ever opened");} else log(f.Account.Name+": entry skipped, projected cap / floor quantity"); return;
             }
             var s=link.Latest;
             if(!(s.Type==OrderType.Market||s.Type==OrderType.Limit||s.Type==OrderType.StopMarket||s.Type==OrderType.StopLimit||s.Type==OrderType.MIT)) { Lock(f,"Unsupported order type"); link.Waiting=false; return; }
@@ -2205,11 +2208,13 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             // Provider-confirmed Flat consumes the prior round; keep evidence but never allocate its entry lots again.
             foreach(var group in f.ExitGroups.Values){group.FlatRetired=true;group.Demand=0;group.PlannedQuota=0;group.Revision++;}
             Order[] seen; lock(f.Account.Orders)seen=f.Account.Orders.ToArray();
-            foreach(var o in seen)if(o!=null&&o.Instrument!=null&&o.Instrument.FullName==instrument.FullName)f.AddHistory(o); // the close order is history, never unknown activity
+            // The close order is history, never unknown activity. Only TERMINAL orders: a never-sent KTC> ghost (Initialized) passes Clean but must stay
+            // exempt only while it stays Initialized and unfilled; recording it as history would wave through a later fill of that object.
+            foreach(var o in seen)if(o!=null&&o.Instrument!=null&&o.Instrument.FullName==instrument.FullName&&Order.IsTerminalState(o.OrderState))f.AddHistory(o);
             lock(controlGate){ f.Flattening=false; f.ExitCompleted=true; f.Following=false; }
             // Provider evidence now shows this account flat with nothing working, so it can no longer hold the session open. The risk latch is NOT touched:
             // a locked account stays locked and OFF until the user unlocks it (real NT 2026-10-14: Stop stayed refused after Flatten all until NT restarted).
-            if(f.EvidenceUnresolved){f.EvidenceUnresolved=false;log(f.Account.Name+": confirmed flat clears its open-evidence hold; lock kept ("+(f.Latch.Locked?f.Latch.Reason:"not locked")+")");}
+            if(f.EvidenceUnresolved){f.EvidenceUnresolved=false;f.EvidenceReason=null;log(f.Account.Name+": confirmed flat clears its open-evidence hold; lock kept ("+(f.Latch.Locked?f.Latch.Reason:"not locked")+")");}
             flattenConfirmations[f]="Confirmed flat";
             RecomputeDisablePending(f);
             log(f.Account.Name+": Flat confirmed (position 0, nothing working) — OFF; re-follow explicitly to copy again");
@@ -3118,8 +3123,13 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         // riskWarning=true (an account in scope is not confirmed simulated) always shows the window, whatever was saved.
         bool Confirm(string kind,string text,bool riskWarning)
         {
+            askSkipped=LoadAsk(AskPath); // another Dashboard tab may have changed it: the file is the only truth (unreadable file = ask everything)
             if(ConfirmPrefs.MustAsk(kind,askSkipped,riskWarning))return Confirm(text);
-            Log("Confirmation skipped (turned off on the Risk tab): "+ConfirmPrefs.Label(kind));return true;
+            Log("Confirmation skipped (turned off on the Risk tab): "+ConfirmPrefs.Label(kind));
+#if KINFX_SIM_TEST
+            if(kind==ConfirmPrefs.Start)Log(dashboard.DryRunBox!=null&&dashboard.DryRunBox.IsChecked==true?"Dry run is ON: nothing will be sent.":"Dry run is OFF: real simulation orders WILL be sent.");
+#endif
+            return true;
         }
         HashSet<string> askSkipped=new HashSet<string>(StringComparer.Ordinal);
         string AskPath {get{return Path.Combine(DirectoryPath,"confirm-prefs.txt");}}
@@ -3127,7 +3137,8 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         void SetAsk(string kind,bool ask)
         {
             if(!ConfirmPrefs.Known(kind))return;
-            bool changed=ask?askSkipped.Remove(kind):askSkipped.Add(kind);if(!changed)return;
+            askSkipped=LoadAsk(AskPath); // merge with what other tabs saved, never overwrite it with an older copy
+            bool changed=ask?askSkipped.Remove(kind):askSkipped.Add(kind);if(!changed){ShowAsk();return;}
             try{Directory.CreateDirectory(DirectoryPath);SettingsStore.AtomicWriteLines(AskPath,ConfirmPrefs.Serialize(askSkipped));Log(ask?"Confirmation turned back on: "+ConfirmPrefs.Label(kind):"Confirmation turned off: "+ConfirmPrefs.Label(kind)+" (risk warnings and Unlock are still always asked)");}
             catch(Exception ex){if(ask)askSkipped.Add(kind);else askSkipped.Remove(kind);Log("Settings NOT saved: "+ex.Message);ShowAsk();}
         }

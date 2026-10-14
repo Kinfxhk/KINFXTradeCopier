@@ -1938,6 +1938,41 @@ class EngineSafetyTests {
    abandoned=a.Submits==2;lock(logs)refusedLine=logs.Any(x=>x.Contains("flatten abandonment refused"));}}
  static void FlattenAbandonIgnoresInertGhost(){bool ok,refused;FlattenAbandonGhost(false,out ok,out refused);Check(ok&&!refused,"inert ghost must not refuse abandonment");}
  static void FlattenAbandonRefusedWhenGhostWentWorking(){bool ok,refused;FlattenAbandonGhost(true,out ok,out refused);Check(!ok&&refused,"a working ex-ghost must be refused by the abandonment check itself (refused line="+refused+")");}
+ // Review T2 DEFECT 3: ConfirmFlat must not record a never-sent KTC> ghost as terminal history; if that object is later submitted and fills, it is unknown exposure.
+ static void ConfirmFlatDoesNotTurnGhostIntoHistory(){
+  var l=Acc("cfg lead");var a=Acc("cfg follow");AccountTelemetry latest=null;
+  using(var e=Arm(l,a,t=>latest=t)){
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Wait(()=>a.Submits==1,"entry copied");Fill(a,2);Drain(e);
+   var g=a.CreateOrder(inst,NinjaTrader.Cbi.OrderAction.Buy,NinjaTrader.Cbi.OrderType.Market,NinjaTrader.Cbi.OrderEntry.Manual,NinjaTrader.Cbi.TimeInForce.Day,1,0,0,"","KTC>ghost6",DateTime.MaxValue,null);
+   g.OrderState=NinjaTrader.Cbi.OrderState.Initialized;
+   e.Flatten(new[]{a},inst);Wait(()=>a.Flattens==1,"user flat");Drain(e);
+   // the ghost appears after the flatten request (a failed/never-sent wrapper), so the fake Flatten cannot cancel it
+   ((List<NinjaTrader.Cbi.Order>)typeof(NinjaTrader.Cbi.Account).GetField("orders",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(a)).Add(g);FollowerOf(e).PreSessionGhost.Add(g);
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"",2));Drain(e); lock(l.Positions)l.Positions.Clear();
+   Thread.Sleep(3600);e.Poll();Drain(e);e.Poll();Drain(e);
+   Check(latest!=null&&!latest.Locked,"confirmed flat, unlocked: "+(latest==null?"":latest.Reason));
+   g.OrderState=NinjaTrader.Cbi.OrderState.Filled;g.Filled=1;a.Emit(g);Drain(e);e.Poll();Drain(e);
+   Check(latest.Locked&&latest.Reason.Contains("Unknown follower order"),"a ghost that fills after ConfirmFlat is unknown exposure: "+latest.Reason);
+  }
+ }
+ // Review T2 DEFECT 4: once a confirmed flat clears the open-evidence hold, its old evidence reason is no longer shown; the latch reason stays.
+ static void ConfirmFlatClearsShownEvidenceReasonButKeepsLatch(){
+  var l=Acc("cfr lead");var a=Acc("cfr follow");AccountTelemetry latest=null;
+  using(var e=Arm(l,a,t=>latest=t)){
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Wait(()=>a.Submits==1,"entry copied");Fill(a,2);Drain(e);
+   var stop=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"bracket",2);stop.OrderType=NinjaTrader.Cbi.OrderType.StopMarket;stop.StopPrice=95;l.Emit(stop);
+   Wait(()=>a.Submits==2,"protective stop copied");
+   var rejected=a.Orders[1];rejected.OrderState=NinjaTrader.Cbi.OrderState.Rejected;a.Emit(rejected);Drain(e);
+   Wait(()=>latest!=null&&latest.Locked,"rejected stop locks");
+   var ff=FollowerOf(e);Check(!string.IsNullOrEmpty(ff.EvidenceReason),"open evidence recorded");
+   e.Flatten(new[]{a},inst);Wait(()=>a.Flattens==1,"user flat");Drain(e);
+   foreach(var o in a.Orders.ToArray())if(!NinjaTrader.Cbi.Order.IsTerminalState(o.OrderState)){o.OrderState=NinjaTrader.Cbi.OrderState.Filled;o.Filled=o.Quantity;a.Emit(o);}Drain(e);
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"",2));Drain(e); lock(l.Positions)l.Positions.Clear();
+   Thread.Sleep(3600);e.Poll();Drain(e);e.Poll();Drain(e);
+   Check(latest.Locked,"latch kept");
+   Check(string.IsNullOrEmpty(ff.EvidenceReason)&&latest.Reason==ff.Latch.Reason,"after a confirmed flat only the latch reason is shown: shown="+latest.Reason+" latch="+ff.Latch.Reason);
+  }
+ }
  static EngineAccount FollowerOf(CopierEngine e){var fl=(System.Collections.IEnumerable)typeof(CopierEngine).GetField("followerView",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(e);foreach(EngineAccount x in fl)return x;return null;}
  // ---- Cases from the independent review of the exit-wait change and the follower-only Flat (each reproduced RED first).
  static void WaitingExitIsNotSubmittedWhileThatAccountIsFlattening(){var l=Acc("rvA lead");var a=Acc("rvA a");var tele=new Dictionary<string,AccountTelemetry>();
@@ -2081,7 +2116,7 @@ class EngineSafetyTests {
    e.Poll();Drain(e);
    Check(latest==null||!latest.Locked,"dry-run exit must not lock: "+(latest==null?"":latest.Reason));
    Check(a.Submits==0&&a.SubmitAttempts==0&&a.Flattens==0,"still nothing sent");
-   lock(log)Check(log.Any(x=>x.Contains("leader exit ignored")&&x.Contains("dry run")),"the exit decision is logged and labelled dry run");
+   lock(log)Check(log.Any(x=>x.Contains("leader exit ignored"))&&log.Any(x=>x.Contains(": dry run: no position was ever opened")),"the exit decision is logged and labelled dry run (separate translatable line)");
    lock(l.Positions)l.Positions.Clear(); // the leader's own exit filled
    e.StopFlat();Drain(e);Wait(()=>!e.Attached,"stop after a dry run");
   }
