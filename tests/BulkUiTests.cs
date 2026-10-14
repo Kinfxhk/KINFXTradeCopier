@@ -488,6 +488,11 @@ public static class BulkUiTests {
    m.RaiseEvent(new RoutedEventArgs(ContextMenu.OpenedEvent,m));
    var ticks=m.Items.OfType<MenuItem>().Where(x=>x.IsCheckable).Select(x=>((string)x.Tag).Substring(grid.Length+5)).ToArray();
    Check(ticks.Length==ColumnPrefs.Hideable(grid).Length&&ticks.All(k=>ColumnPrefs.CanHide(grid,k)),grid+": menu lists exactly the hideable columns: "+string.Join(",",ticks));}
+  // the menu tick itself hides the column (IsChecked change, as UI Automation Toggle / keyboard do; no Click event)
+  {var m=v.ColumnMenuFor("risk");m.RaiseEvent(new RoutedEventArgs(ContextMenu.OpenedEvent,m));var it=m.Items.OfType<MenuItem>().First(x=>(string)x.Tag=="col:risk:Grp");it.IsChecked=false;Layout(v);
+   Check(Col(v.RiskGrid,"Grp").Visibility==Visibility.Collapsed&&saved.Contains("risk:Grp"),"unticking the menu item hides Grp and reports it");
+   m.RaiseEvent(new RoutedEventArgs(ContextMenu.OpenedEvent,m));it=m.Items.OfType<MenuItem>().First(x=>(string)x.Tag=="col:risk:Grp");Check(it.IsChecked==false,"menu reopens with Grp unticked");
+   it.IsChecked=true;Layout(v);Check(Col(v.RiskGrid,"Grp").Visibility==Visibility.Visible&&!saved.Contains("risk:Grp"),"ticking shows it again");}
   // hidden columns survive a language change (new view, same saved set)
   var keep=Lang.Current;try{Lang.Set("zh");var z=Fresh();z.ApplyColumns(saved);Layout(z);Check(Col(z.RiskGrid,"Preset").Visibility==Visibility.Collapsed,"zh view applies the saved set by key");}finally{Lang.Set(keep);}
   // Show all

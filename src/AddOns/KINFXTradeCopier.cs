@@ -2680,7 +2680,8 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 {
                     string key=ColumnKey(c);if(!ColumnPrefs.CanHide(grid,key))continue;
                     var item=new MenuItem{Header=(c.Header as string)??key,IsCheckable=true,IsChecked=c.Visibility==Visibility.Visible,StaysOpenOnClick=true,Tag="col:"+grid+":"+key};
-                    string k=key;item.Click+=(s2,e2)=>SetColumnVisible(grid,k,((MenuItem)s2).IsChecked);menu.Items.Add(item);
+                    // Checked / Unchecked, not Click: keyboard, UI Automation Toggle and mouse all change IsChecked, but only the mouse raises Click.
+                    string k=key;item.Checked+=(s2,e2)=>SetColumnVisible(grid,k,true);item.Unchecked+=(s2,e2)=>SetColumnVisible(grid,k,false);menu.Items.Add(item);
                 }
                 menu.Items.Add(new Separator());
                 var all=new MenuItem{Header=Lang.T("Show all columns"),Tag="col:"+grid+":*"};
