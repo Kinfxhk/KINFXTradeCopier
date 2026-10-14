@@ -3,6 +3,23 @@
 Status: **Current integrated candidate NOT accepted for trading.** Historical real-NinjaTrader SIM transactions below belong to their stated older source hashes; the latest baseline is compilation/offline evidence only. Default trading hold remains; funded/live accounts are excluded.
 狀態：**目前整合候選版本尚未通過交易驗收。** 下方真 NinjaTrader 模擬交易記錄只適用於各自標示的舊源碼；最新 baseline 為編譯／離線證據。預設交易封鎖保留，不包括 funded／實盤帳戶。
 
+## Real NinjaTrader — 2026-10-15, source `bfc8a2531acf` + `#define KINFX_SIM_TEST` / 真 NT 實測
+
+Leader `Sim101` (Simulator); followers are prop-firm **simulated evaluation** accounts (Lucid, Tradeify). MNQ 12-26, 1 lot, Ratio 1.
+
+| Test | Result |
+|---|---|
+| Accounts load automatically (new) | `sim-allow.txt` emptied as for a new user: all 17 NT accounts listed. Start with an unconfirmed follower showed the risk warning naming it; **No** wrote nothing and started nothing; **Yes** appended the line and armed; the next Start showed only the normal window. |
+| Dry run window (bug fixed) | after a Dry run session, unticking Dry run still showed `DRY RUN` in the next Start window; fixed, rechecked on real NT. |
+| Daily target latch | fired on a Lucid follower (`Target hit`). |
+| Flat at limit (new, opt-in per account) | Tgt 5 / DLL 5: 4 s after a copied entry `Daily loss` latched, exactly **one** Flatten request, flat confirmed 4 s later; the leader's later exit was ignored (nothing to close); no retry. |
+| Flatten confirmation No / X / Esc (rival bug check, Replikanto 1.7.1.0) | position and orders unchanged for all three; only **Yes** sent the Close. A second Flat on a flat account sent nothing new. |
+| 10 followers round trip | Buy 1 / Sell 1: every follower exactly 2 orders, all filled, 0 open afterwards. |
+
+Not shown on real NT: 20–30 accounts, leader disconnect, real partial fills, a stalled provider call, a rejected Flatten, restart recovery.
+
+真 NT（SIM TEST 版）：帳戶自動載入及風險警告（否＝不寫入、不啟動；是＝記住）、每日目標鎖定、單一帳戶「到限平倉」只平倉一次、平倉確認視窗按否／X／Esc 均不會平倉、10 個 Follower 來回交易全部正常。已修正 Dry run 確認視窗顯示錯誤。
+
 ## Real NinjaTrader, 11 prop-firm sim followers — 2026-10-14, source `c9fbf2cb3005` + `#define KINFX_SIM_TEST` / 真 NT 11 戶實測
 
 Leader `Sim101` (Simulator), followers 5 Lucid + 6 Tradeify **simulated evaluation** accounts listed in `sim-allow.txt`, MNQ 12-26, 1 lot, Ratio 1. Five further Tradeify accounts at max loss were used only for the rejection test. No funded or live account. Installed by hash (installed = expected SHA-256), compiled with F5 in NT, Dashboard reopened.
