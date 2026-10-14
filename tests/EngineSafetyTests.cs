@@ -1973,6 +1973,77 @@ class EngineSafetyTests {
    Check(string.IsNullOrEmpty(ff.EvidenceReason)&&latest.Reason==ff.Latch.Reason,"after a confirmed flat only the latch reason is shown: shown="+latest.Reason+" latch="+ff.Latch.Reason);
   }
  }
+ // Rival 1.7.1.0 lesson (Flatten never repeated): a second Flatten for an account whose Flatten is still unconfirmed must NOT reach the provider.
+ // On real NT a second Account.Flatten while the first close is in flight can close the same lots twice = reverse position.
+ static void SecondFlattenWhileFirstUnconfirmedIsNotSent(){var l=Acc("dbl lead");var a=Acc("dbl follow");var b=Acc("dbl other");var logs=new List<string>();
+  var e=new CopierEngine(s=>{lock(logs)logs.Add(s);},t=>{},(at,s)=>{},(n,r)=>{});
+  e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10,Target=100},new RiskLatch()),Tuple.Create(b,new RiskSettings{MaxContracts=10,Target=100},new RiskLatch())});Wait(()=>e.EntriesArmed,"arm");
+  using(e){BothFilled(e,l,a,b,2);
+   a.NoopFlatten=true;e.Flatten(new[]{a},inst);Drain(e);Check(a.Flattens==1,"first flatten sent");
+   e.Flatten(new[]{a},inst);Drain(e);
+   Check(a.Flattens==1,"second flatten for the same unconfirmed account is not sent: "+a.Flattens);
+   lock(logs)Check(logs.Any(x=>x.Contains("already in progress")),"the refusal is logged");
+   b.NoopFlatten=true;e.Flatten(new[]{a,b},inst);Drain(e);
+   Check(a.Flattens==1&&b.Flattens==1,"a mixed scope still flattens the account not yet flattening, never the pending one: a="+a.Flattens+" b="+b.Flattens);
+  }}
+ // After a confirmed flat the account is no longer Flattening: a later explicit Flatten is a new request and is sent.
+ static void FlattenAfterConfirmedFlatIsSentAgain(){var l=Acc("dbl2 lead");var a=Acc("dbl2 follow");AccountTelemetry latest=null;
+  using(var e=Arm(l,a,t=>latest=t)){
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Wait(()=>a.Submits==1,"entry copied");Fill(a,2);Drain(e);
+   e.Flatten(new[]{a},inst);Wait(()=>a.Flattens==1,"first flat");Drain(e);
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"",2));Drain(e);lock(l.Positions)l.Positions.Clear();
+   Thread.Sleep(3600);e.Poll();Drain(e);e.Poll();Drain(e);
+   e.Flatten(new[]{a},inst);Drain(e);
+   Check(a.Flattens==2,"a new Flatten after a confirmed flat is sent: "+a.Flattens);
+  }}
+ // Rival 1.7.1.0 lesson (OCO leftover on a flat follower): TP filled, the sibling stop cancel is never acknowledged, the follower is flat with a live stop.
+ // A fill of that stop opens a NEW position. The lock must name it plainly so the user cancels it by hand; the copier does not retry the cancel.
+ static void LiveExitOnFlatFollowerIsNamedInTheLock(){var l=Acc("lex lead");var a=Acc("lex follow");AccountTelemetry latest=null;
+  var keep=CopierEngine.LiveExitOnFlatGrace;CopierEngine.LiveExitOnFlatGrace=TimeSpan.FromMilliseconds(400);
+  try{var e=new CopierEngine(s=>{},t=>latest=t,(at,s)=>{},(n,r)=>{});e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10,Target=100},new RiskLatch())});Wait(()=>e.EntriesArmed,"arm");
+  using(e){l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",1));Wait(()=>a.Submits==1,"entry");Fill(a,1);Drain(e);
+   l.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=1,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});
+   var tp=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"ocoL",1);tp.OrderType=NinjaTrader.Cbi.OrderType.Limit;tp.LimitPrice=120;tp.OrderId="l-tp";l.Emit(tp);Wait(()=>a.Submits==2,"tp");
+   var sl=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"ocoL",1);sl.OrderType=NinjaTrader.Cbi.OrderType.StopMarket;sl.StopPrice=90;sl.LimitPrice=0;sl.OrderId="l-sl";l.Emit(sl);Wait(()=>a.Submits==3,"sl");
+   var ftp=a.Orders[1];var fsl=a.Orders[2];ftp.OrderState=NinjaTrader.Cbi.OrderState.Working;fsl.OrderState=NinjaTrader.Cbi.OrderState.Working;a.Emit(ftp);a.Emit(fsl);Drain(e);
+   a.AsyncCancel=true;
+   ftp.Filled=1;ftp.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Emit(ftp);Drain(e);a.Positions.Clear();
+   for(int i=0;i<4;i++){Thread.Sleep(300);e.Poll();Drain(e);}
+   Check(fsl.OrderState==NinjaTrader.Cbi.OrderState.Working,"precondition: the stop is still live on the provider");
+   Check(latest!=null&&latest.Locked&&latest.Reason.Contains("still working on a FLAT account"),"lock names the live exit on a flat account: "+(latest==null?"":latest.Reason));
+   Check(a.Cancels==1,"the cancel is never retried: "+a.Cancels);
+  }}finally{CopierEngine.LiveExitOnFlatGrace=keep;}}
+ // Guard: the normal path (sibling cancel acknowledged at once) never raises it.
+ static void AckedOcoSiblingCancelRaisesNoFlatExitWarning(){var l=Acc("lex2 lead");var a=Acc("lex2 follow");AccountTelemetry latest=null;
+  var keep=CopierEngine.LiveExitOnFlatGrace;CopierEngine.LiveExitOnFlatGrace=TimeSpan.FromMilliseconds(400);
+  try{var e=new CopierEngine(s=>{},t=>latest=t,(at,s)=>{},(n,r)=>{});e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10,Target=100},new RiskLatch())});Wait(()=>e.EntriesArmed,"arm");
+  using(e){l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",1));Wait(()=>a.Submits==1,"entry");Fill(a,1);Drain(e);
+   l.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=1,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});
+   var tp=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"ocoM",1);tp.OrderType=NinjaTrader.Cbi.OrderType.Limit;tp.LimitPrice=120;tp.OrderId="m-tp";l.Emit(tp);Wait(()=>a.Submits==2,"tp");
+   var sl=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"ocoM",1);sl.OrderType=NinjaTrader.Cbi.OrderType.StopMarket;sl.StopPrice=90;sl.LimitPrice=0;sl.OrderId="m-sl";l.Emit(sl);Wait(()=>a.Submits==3,"sl");
+   var ftp=a.Orders[1];var fsl=a.Orders[2];ftp.OrderState=NinjaTrader.Cbi.OrderState.Working;fsl.OrderState=NinjaTrader.Cbi.OrderState.Working;a.Emit(ftp);a.Emit(fsl);Drain(e);
+   ftp.Filled=1;ftp.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Emit(ftp);Drain(e);a.Positions.Clear();
+   for(int i=0;i<4;i++){Thread.Sleep(300);e.Poll();Drain(e);}
+   Check(fsl.OrderState==NinjaTrader.Cbi.OrderState.Cancelled,"precondition: sibling cancelled");
+   Check(latest==null||latest.Reason==null||!latest.Reason.Contains("still working on a FLAT account"),"no false warning: "+(latest==null?"":latest.Reason));
+  }}finally{CopierEngine.LiveExitOnFlatGrace=keep;}}
+ // Grace: a sibling cancel that is acknowledged a moment later (normal provider latency) never raises the flat-exit lock text.
+ static void SlowButAckedSiblingCancelWithinGraceRaisesNoFlatExitWarning(){var l=Acc("lex3 lead");var a=Acc("lex3 follow");AccountTelemetry latest=null;
+  var keep=CopierEngine.LiveExitOnFlatGrace;CopierEngine.LiveExitOnFlatGrace=TimeSpan.FromSeconds(5);
+  try{var e=new CopierEngine(s=>{},t=>latest=t,(at,s)=>{},(n,r)=>{});e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10,Target=100},new RiskLatch())});Wait(()=>e.EntriesArmed,"arm");
+  using(e){l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",1));Wait(()=>a.Submits==1,"entry");Fill(a,1);Drain(e);
+   l.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=1,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});
+   var tp=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"ocoN",1);tp.OrderType=NinjaTrader.Cbi.OrderType.Limit;tp.LimitPrice=120;tp.OrderId="n-tp";l.Emit(tp);Wait(()=>a.Submits==2,"tp");
+   var sl=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"ocoN",1);sl.OrderType=NinjaTrader.Cbi.OrderType.StopMarket;sl.StopPrice=90;sl.LimitPrice=0;sl.OrderId="n-sl";l.Emit(sl);Wait(()=>a.Submits==3,"sl");
+   var ftp=a.Orders[1];var fsl=a.Orders[2];ftp.OrderState=NinjaTrader.Cbi.OrderState.Working;fsl.OrderState=NinjaTrader.Cbi.OrderState.Working;a.Emit(ftp);a.Emit(fsl);Drain(e);
+   a.AsyncCancel=true;
+   ftp.Filled=1;ftp.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Emit(ftp);Drain(e);a.Positions.Clear();
+   for(int i=0;i<3;i++){Thread.Sleep(200);e.Poll();Drain(e);}
+   Check(latest==null||latest.Reason==null||!latest.Reason.Contains("still working on a FLAT account"),"no flat-exit text inside the grace: "+(latest==null?"":latest.Reason));
+   fsl.OrderState=NinjaTrader.Cbi.OrderState.Cancelled;a.Emit(fsl);Drain(e);
+   Thread.Sleep(5200);e.Poll();Drain(e);
+   Check(latest==null||latest.Reason==null||!latest.Reason.Contains("still working on a FLAT account"),"acked cancel never raises it later: "+(latest==null?"":latest.Reason));
+  }}finally{CopierEngine.LiveExitOnFlatGrace=keep;}}
  static EngineAccount FollowerOf(CopierEngine e){var fl=(System.Collections.IEnumerable)typeof(CopierEngine).GetField("followerView",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(e);foreach(EngineAccount x in fl)return x;return null;}
  // ---- Cases from the independent review of the exit-wait change and the follower-only Flat (each reproduced RED first).
  static void WaitingExitIsNotSubmittedWhileThatAccountIsFlattening(){var l=Acc("rvA lead");var a=Acc("rvA a");var tele=new Dictionary<string,AccountTelemetry>();

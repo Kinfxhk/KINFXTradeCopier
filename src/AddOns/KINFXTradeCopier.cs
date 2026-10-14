@@ -1102,6 +1102,8 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             t["Confirmation turned off: {0} (risk warnings and Unlock are still always asked)"] = new[] { "已關閉確認：{0}（風險警告及解鎖仍一律詢問）", "確認をオフ：{0}（リスク警告とロック解除は常に確認）", "확인 끔: {0} (위험 경고와 잠금 해제는 항상 확인)" };
             t["Settings NOT saved: {0}"] = new[] { "設定未儲存：{0}", "設定は保存されていません：{0}", "설정이 저장되지 않았습니다: {0}" };
             t["{0}: dry run: no position was ever opened"] = new[] { "{0}：試運行：從未開倉", "{0}: ドライラン: ポジションは一度も建てられていません", "{0}: 드라이런: 포지션이 열린 적이 없습니다" };
+            t["{0}: Flatten already in progress — not sent again; wait for confirmation or check NinjaTrader"] = new[] { "{0}：平倉已在進行中 — 不會重複傳送；請等待確認或查看 NinjaTrader", "{0}: 決済は処理中 — 再送信しません。確認を待つか NinjaTrader を確認してください", "{0}: 청산 진행 중 — 다시 보내지 않음; 확인을 기다리거나 NinjaTrader를 확인하십시오" };
+            t["Exit order still working on a FLAT account — if it fills it opens a NEW position; cancel it in NinjaTrader"] = new[] { "已平倉帳戶仍有出場單在運作 — 一旦成交將開出新倉；請在 NinjaTrader 取消該委託", "決済済み口座で決済注文がまだ有効 — 約定すると新規ポジションになります。NinjaTrader で取消してください", "포지션이 없는 계좌에 청산 주문이 아직 작동 중 — 체결되면 새 포지션이 열립니다; NinjaTrader에서 취소하십시오" };
 #if KINFX_SIM_TEST
             t["SIM TEST BUILD · Simulator / Playback only"] = new[] { "SIM 測試版 · 僅限 Simulator / Playback", "SIMテストビルド · Simulator / Playback のみ", "SIM 테스트 빌드 · Simulator / Playback 전용" };
             t["SIM TEST BUILD: copies between Simulator / Playback accounts only. Any other provider is refused."] = new[] { "SIM 測試版：僅在 Simulator / Playback 帳戶之間跟單。其他任何供應端一律拒絕。", "SIMテストビルド：Simulator / Playback 口座間のみコピー。それ以外のプロバイダーは拒否される。", "SIM 테스트 빌드: Simulator / Playback 계좌 간에만 복사합니다. 그 외 제공자는 거부됩니다." };
@@ -2194,6 +2196,8 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         // A Position update that trails the order fill by a few milliseconds is normal. Only a divergence that outlives this window is unknown exposure.
         static readonly TimeSpan PositionLagGrace=TimeSpan.FromSeconds(3);
         internal static TimeSpan FlattenConfirmTimeout=TimeSpan.FromSeconds(20);
+        // How long a copier exit may stay live on a follower that is already flat before the lock names it (rival 1.7.1.0 lesson: a fill there opens a NEW position).
+        internal static TimeSpan LiveExitOnFlatGrace=TimeSpan.FromSeconds(10);
         bool FlatConfirmable(EngineAccount f)
         {
             if(!Connected(f.Account)||!Clean(f.Account,instrument)||HasPendingEntryWork(f)||Volatile.Read(ref pendingFollowerCallbacks)!=0)return false;
@@ -2239,6 +2243,9 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 if(Volatile.Read(ref pendingFollowerCallbacks)==0&&links.Values.SelectMany(v=>v).Any(x=>x.Follower==f&&x.Order!=null&&(x.Order.Filled!=x.ObservedFilled||(Order.IsTerminalState(x.Order.OrderState)&&x.Order.OrderState!=x.ObservedState))))
                     Lock(f,"Provider wrapper diverges from captured order / fill evidence — reservations retained; manual recovery required");
                 int position=Position(f.Account,instrument), execution=OwnedPosition(f);
+                // A copier exit still live on a FLAT follower long after the last fill: if it fills it opens a new position. Name it; never retry the cancel.
+                if(position==0&&(DateTime.UtcNow-f.LastFillUtc)>LiveExitOnFlatGrace&&links.Values.SelectMany(v=>v).Any(x=>x.Follower==f&&x.Exit&&x.Order!=null&&!Order.IsTerminalState(x.Order.OrderState)&&(x.Order.OrderState!=OrderState.Initialized||x.Order.Filled>0)))
+                {const string why="Exit order still working on a FLAT account — if it fills it opens a NEW position; cancel it in NinjaTrader";if(f.EvidenceReason!=why)Lock(f,why);}
                 if(Volatile.Read(ref pendingFollowerCallbacks)<=1&&position!=0&&(execution==0||Math.Sign(position)!=Math.Sign(execution)||Math.Abs((long)position)>Math.Abs((long)execution))&&(DateTime.UtcNow-f.LastFillUtc)>PositionLagGrace)Lock(f,"Position diverges from owned execution ledger — manual recovery required");
             }
             double raw=f.Account.Get(AccountItem.RealizedProfitLoss,f.Account.Denomination)+f.Account.Get(AccountItem.UnrealizedProfitLoss,f.Account.Denomination);
@@ -2387,6 +2394,11 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 if(!SessionOwnership.Acquire(targets.Select(a=>"account:"+a.Name),this)){if(!followerOnly)suppressNew=false;log("Flatten blocked: another copier owns an account in this scope.");return;}
                 if(attached && targets.Contains(leader) && followers.Any(f=>!targets.Contains(f.Account) && !Clean(f.Account,instrument)))
                 {suppressNew=false;log("Flatten leader blocked: other managed followers still have exposure/working orders. Include all managed followers or flatten followers first.");return;}
+                // Never a second Flatten for an account whose earlier Flatten is still unconfirmed: on the provider a second close while the first is in flight
+                // can close the same lots twice and open a reverse position. That account is dropped from this request; it waits for confirmation or manual abandonment.
+                var pending=followers.Where(f=>f.Flattening&&targets.Contains(f.Account)).Select(f=>f.Account).ToArray();
+                foreach(var p in pending)log(p.Name+": Flatten already in progress — not sent again; wait for confirmation or check NinjaTrader");
+                if(pending.Length>0){targets=targets.Where(a=>!pending.Contains(a)).ToArray();if(targets.Length==0){if(!followerOnly)suppressNew=false;if(!attached)SessionOwnership.Release(this);return;}}
                 foreach(var f in followers.Where(f=>targets.Contains(f.Account)))
                 {
                     lock(controlGate){ f.Flattening=true; f.Following=false; f.FlattenRequestedUtc=DateTime.UtcNow; f.FlattenAcceptedUtc=DateTime.MinValue; }
