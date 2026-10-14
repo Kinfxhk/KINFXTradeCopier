@@ -1,384 +1,396 @@
 {
-  "_comment": "Single source of truth for the progress bar in README.md / README.zh-HK.md. Run `python scripts/progress.py` to recompute and rewrite the marked blocks; `python scripts/progress.py --check` fails if the READMEs are stale. A task earns its weight only at its evidence level: offline = 50%, real NinjaTrader Sim/Demo = 100%. Nothing here is prop-firm or live acceptance. Weights are the maintainer's judgement of how much each item matters for 'safe to copy to Demo / prop-firm Sim accounts', not a measured quantity.",
-  "snapshot": {
-    "date": "2026-10-13",
-    "source_sha256_prefix": "20dc6707c9e6",
-    "ninjatrader": "8.1.8.3",
-    "branch": "release-candidate",
-    "note": "Levels were assigned by the maintainer's agent from the evidence listed per item and then deliberately lowered where a step was not re-run on the current build. Read the evidence column, not just the bar."
+ "_comment": "Single source of truth for the progress bar in README.md / README.zh-HK.md. Run `python scripts/progress.py` to recompute and rewrite the marked blocks; `python scripts/progress.py --check` fails if the READMEs are stale. A task earns its weight only at its evidence level: offline = 50%, real NinjaTrader Sim/Demo = 100%. Nothing here is prop-firm or live acceptance. Weights are the maintainer's judgement of how much each item matters for 'safe to copy to Demo / prop-firm Sim accounts', not a measured quantity.",
+ "snapshot": {
+  "date": "2026-10-14",
+  "source_sha256_prefix": "c9fbf2cb3005",
+  "ninjatrader": "8.1.8.3",
+  "branch": "fix/real-nt-create-callback",
+  "note": "Levels were assigned by the maintainer's agent from the evidence listed per item and then deliberately lowered where a step was not re-run on the current build. Read the evidence column, not just the bar."
+ },
+ "levels": {
+  "0": {
+   "label": "not started",
+   "credit": 0.0
   },
-  "levels": {
-    "0": {
-      "label": "not started",
-      "credit": 0.0
-    },
-    "1": {
-      "label": "designed / documented only",
-      "credit": 0.1
-    },
-    "2": {
-      "label": "implemented, offline tests pass (fake accounts)",
-      "credit": 0.5
-    },
-    "3": {
-      "label": "offline PLUS verified on real NinjaTrader Simulator / prop-firm Sim accounts (SIM TEST build)",
-      "credit": 1.0
-    }
+  "1": {
+   "label": "designed / documented only",
+   "credit": 0.1
   },
-  "targets": {
-    "demo": {
-      "name_en": "Copy to Demo / Simulator accounts",
-      "name_zh": "複製到 Demo／模擬帳戶",
-      "ready_when": "every item with must=true is at level 3, and there is no open P0 safety defect"
-    },
-    "prop": {
-      "name_en": "Copy to prop-firm simulated accounts (evaluation / demo only)",
-      "name_zh": "複製到 Prop Firm 模擬帳戶（僅評估／Demo）",
-      "ready_when": "demo target ready, plus prop-only items at level 3, plus a rule review per firm by the user (never certified by this software)"
-    }
+  "2": {
+   "label": "implemented, offline tests pass (fake accounts)",
+   "credit": 0.5
   },
-  "safety_gates": [
-    {
-      "id": "issue-3",
-      "status": "open",
-      "targets": ["demo", "prop"],
-      "evidence": "Basic shared-OCO safety on the integrated candidate is not accepted on real NinjaTrader. PR #22 supersedes the historical missing waiting-group implementation; synthetic tests alone do not accept provider cancellation behavior. Multi-group allocation is not silently removed from scope."
-    },
-    {
-      "id": "issue-4",
-      "status": "open",
-      "targets": ["demo", "prop"],
-      "evidence": "Per-account provider threads, accepted callback retention and close races remain unaccepted on real NinjaTrader for the integrated candidate. Two followers still exercise this boundary; healthy timing is not stalled-provider isolation proof."
-    },
-    {
-      "id": "issue-7",
-      "status": "open",
-      "targets": ["demo", "prop"],
-      "evidence": "Historical real-NT evidence is pinned to older candidates. Source d70b8a49ceeb87e2207fe5c9811203723ea7f0edae90d18ebeab334a10e210a5 has compiled and run offline suites on the VM, not completed the exact-candidate real-provider must-have matrix."
-    },
-    {
-      "id": "issue-9",
-      "status": "open",
-      "targets": ["demo", "prop"],
-      "evidence": "ExplicitManualFlatReconciliationAvailable still fails on the integrated candidate. Position=0, visible terminal orders or ordinary unlock do not resolve an ambiguous accepted Flatten or the attached owned ledger; no reviewed end-to-end confirmed-flat recovery path exists."
-    }
-  ],
-  "items": [
-    {
-      "id": "copy_core",
-      "group": "Core copying",
-      "en": "Leader to followers: entry, exit, cancel, modify; short and long",
-      "zh": "Leader 跟單：入場、平倉、取消、改單；做多做空",
-      "weight": 14,
-      "level": 3,
-      "must": true,
-      "targets": [
-        "demo",
-        "prop"
-      ],
-      "evidence": "Real NT on the current build (2026-10-13): Buy/Sell market round trips, a passive Limit copied and its cancel mirrored, exit copied to the follower that was not flattened. Only two follower accounts, only Limit and Market orders, MNQ only. StopMarket entries and a real multi-lot partial fill were not seen.",
-      "ach_en": "Core copy: entry / exit / cancel / modify",
-      "ach_zh": "核心跟單：入場／平倉／取消／改單"
-    },
-    {
-      "id": "ratio_cap",
-      "group": "Core copying",
-      "en": "Per-account Ratio and max-lot cap, over-cap entry skipped",
-      "zh": "每戶 Ratio 同最大手數，超過上限唔落單",
-      "weight": 6,
-      "level": 3,
-      "must": true,
-      "targets": [
-        "demo",
-        "prop"
-      ],
-      "evidence": "Real NT: Buy 2 above a 1-lot cap sent nothing to either follower. Ratio 1 only on real NT; fractional ratios are offline.",
-      "ach_en": "Per-account Ratio + max-lot cap",
-      "ach_zh": "每戶 Ratio ＋ 最大手數"
-    },
-    {
-      "id": "exit_nolock",
-      "group": "Core copying",
-      "en": "Leader exit with nothing to close does not lock a flat follower",
-      "zh": "Leader 平倉但 follower 冇倉，唔會鎖死",
-      "weight": 6,
-      "level": 3,
-      "must": true,
-      "targets": [
-        "demo",
-        "prop"
-      ],
-      "evidence": "Reproduced offline (needs 2 prior round trips), fixed, replayed on real NT.",
-      "ach_en": "No lock-up on a flat follower",
-      "ach_zh": "Follower 無持倉時不會鎖定"
-    },
-    {
-      "id": "flat_one",
-      "group": "Core copying",
-      "en": "Per-account Flat button (one account only, confirmation, never retried)",
-      "zh": "每帳戶獨立 Flat 按鈕（只平一戶、要確認、唔重試）",
-      "weight": 8,
-      "level": 3,
-      "must": true,
-      "targets": [
-        "demo",
-        "prop"
-      ],
-      "evidence": "Real NT (2 sessions): Flat on one follower; the other kept copying; that account's working orders cancelled. Also with a stop and target (same OCO id) still working: both cancelled, account closed, other follower unaffected. A Flat the provider rejects and a disconnect during Flat are not tested on real NT.",
-      "ach_en": "Flat button on every account",
-      "ach_zh": "每個帳戶獨立 Flat 按鈕"
-    },
-    {
-      "id": "flat_all",
-      "group": "Core copying",
-      "en": "Flatten selected / all, with confirmation naming accounts",
-      "zh": "批量／全部 Flatten，確認框列出帳戶",
-      "weight": 4,
-      "level": 2,
-      "must": true,
-      "targets": [
-        "demo",
-        "prop"
-      ],
-      "evidence": "Offline Flatten cases (selected / all / subset / thrown / dry-run). On real NT only the per-account Flat was exercised on purpose; Flatten-all was used for cleanup, its behaviour was not checked step by step. Demoted from real-NT tested.",
-      "ach_en": "Flatten selected / all",
-      "ach_zh": "批量／全部 Flatten"
-    },
-    {
-      "id": "protect_tpsl",
-      "group": "Protection",
-      "en": "ATM / TP-SL exit mirroring with OCO between legs",
-      "zh": "ATM／TP-SL 出場跟隨，兩邊 OCO",
-      "weight": 8,
-      "level": 3,
-      "must": true,
-      "targets": [
-        "demo",
-        "prop"
-      ],
-      "evidence": "Real NT: leader Stop + Limit under one OCO id copied to both followers (Working), per-account Flat cancels them, and a leader MARKET exit closes the follower and cancels both once (after the market-exit fix). NOT covered on real NT: modify of price/quantity this session, a rejected stop, fractional multi-group OCO (#3), and a stop + target WITHOUT an OCO id (locks the account, open).",
-      "ach_en": "TP / SL mirroring + OCO",
-      "ach_zh": "TP／SL 跟隨 ＋ OCO"
-    },
-    {
-      "id": "locks",
-      "group": "Protection",
-      "en": "Fail-closed locks (unknown exposure, thrown Flatten, rejected stop), no auto-retry, explicit unlock",
-      "zh": "異常即鎖帳戶（未知倉位、Flatten 失敗、保護單被拒）、唔自動重試、要人手解鎖",
-      "weight": 8,
-      "level": 2,
-      "must": true,
-      "targets": [
-        "demo",
-        "prop"
-      ],
-      "evidence": "Many offline cases + mutants; unlock prompt used on real NT. Real provider rejections not exercised.",
-      "ach_en": "Auto-lock on danger, no auto-retry",
-      "ach_zh": "異常自動鎖定帳戶，不會自動重試"
-    },
-    {
-      "id": "disconnect",
-      "group": "Protection",
-      "en": "Disconnect / reconnect: lock, no catch-up, protection kept",
-      "zh": "斷線／重連：鎖定、唔補單、保護單保留",
-      "weight": 7,
-      "level": 3,
-      "must": true,
-      "targets": [
-        "demo",
-        "prop"
-      ],
-      "evidence": "Real NT: Lucid disconnected from the Connections menu with 1 lot + a copied stop open. Only Lucid locked (<1 s), Tradeify kept copying, an order placed during the outage was never caught up on Lucid, and Lucid stayed locked after it reconnected. NOT tested: the leader's own connection dropping, a disconnect mid-order, a reconnect after the follower's order filled meanwhile.",
-      "ach_en": "Disconnect / reconnect safe",
-      "ach_zh": "斷線重連安全"
-    },
-    {
-      "id": "partial_fill",
-      "group": "Protection",
-      "en": "Partial fills: exit sized to filled lots, shortfall never made up",
-      "zh": "部分成交：平倉按已成交手數、唔補差額",
-      "weight": 6,
-      "level": 2,
-      "must": true,
-      "targets": [
-        "demo",
-        "prop"
-      ],
-      "evidence": "Offline cases + mutant. Real partial fills not observed (sim fills whole).",
-      "ach_en": "Partial fills handled",
-      "ach_zh": "部分成交處理"
-    },
-    {
-      "id": "frontier",
-      "group": "Protection",
-      "en": "Coherent fill frontier before protective resize (#2)",
-      "zh": "保護單改量前成交一致性 (#2)",
-      "weight": 5,
-      "level": 2,
-      "must": true,
-      "targets": [
-        "demo",
-        "prop"
-      ],
-      "evidence": "Quantity freeze + 150-combination sweep offline; full design open.",
-      "ach_en": "Fill frontier before resize (#2)",
-      "ach_zh": "改量前成交一致 (#2)"
-    },
-    {
-      "id": "isolation",
-      "group": "Protection",
-      "en": "One stalled follower cannot freeze the others; clean Dispose (#4)",
-      "zh": "一戶卡住唔影響其他；安全關閉 (#4)",
-      "weight": 5,
-      "level": 2,
-      "must": true,
-      "targets": [
-        "demo",
-        "prop"
-      ],
-      "evidence": "Per-account dispatcher offline (10/20/30 fake). Real call timing unmeasured.",
-      "ach_en": "One stuck account never freezes others (#4)",
-      "ach_zh": "單一帳戶停滯不影響其他帳戶 (#4)"
-    },
-    {
-      "id": "scale_real",
-      "group": "Scale",
-      "en": "10-30 accounts on real NinjaTrader (latency, UI)",
-      "zh": "真 NT 跑 10-30 個帳戶（延遲、介面）",
-      "weight": 7,
-      "level": 1,
-      "must": true,
-      "targets": [
-        "demo",
-        "prop"
-      ],
-      "evidence": "Only 2 real sim accounts tested. 30 synthetic rows in the UI test.",
-      "ach_en": "10-30 accounts on real NT",
-      "ach_zh": "真實 NT 的 10–30 個帳戶測試"
-    },
-    {
-      "id": "ui",
-      "group": "Usability",
-      "en": "Dashboard: dense table, per-row Tgt/DLL/Ratio/ATM/OFF/Flat, bulk edit, lock reasons, logs",
-      "zh": "介面：緊湊表格、每行設定、批量改、鎖定原因、Log",
-      "weight": 5,
-      "level": 3,
-      "must": false,
-      "targets": [
-        "demo",
-        "prop"
-      ],
-      "evidence": "45 offline UI cases; used on real NT. Real DPI / IME / paste untested (#8).",
-      "ach_en": "Dashboard (table, bulk edit, lock reasons)",
-      "ach_zh": "介面（表格、批量改、鎖定原因）"
-    },
-    {
-      "id": "risk_limits",
-      "group": "Risk",
-      "en": "Per-account daily target and daily loss limit with one-click OFF",
-      "zh": "每戶每日目標／虧損上限、一鍵 OFF",
-      "weight": 5,
-      "level": 2,
-      "must": true,
-      "targets": [
-        "demo",
-        "prop"
-      ],
-      "evidence": "Offline latch cases. The limit was never actually hit on a real account.",
-      "ach_en": "Daily target / loss limit per account",
-      "ach_zh": "每戶每日目標／虧損上限"
-    },
-    {
-      "id": "restart",
-      "group": "Recovery",
-      "en": "Journal and verified restart recovery (#6) - shelved",
-      "zh": "Journal 同重啟恢復 (#6)：擱置",
-      "weight": 5,
-      "level": 1,
-      "must": false,
-      "targets": [
-        "demo",
-        "prop"
-      ],
-      "evidence": "Latches persist across restart (seen on real NT). Position/ledger recovery not built.",
-      "ach_en": "Restart recovery (#6, shelved)",
-      "ach_zh": "重啟恢復 (#6，擱置)"
-    },
-    {
-      "id": "divergence",
-      "group": "Risk",
-      "en": "Reaction to divergence: flatten once (#12)",
-      "zh": "反向時平倉一次 (#12)",
-      "weight": 3,
-      "level": 1,
-      "must": false,
-      "targets": [
-        "prop"
-      ],
-      "evidence": "Setting stored only; engine never flattens by itself.",
-      "ach_en": "Flatten once on divergence (#12)",
-      "ach_zh": "反向時平倉一次 (#12)"
-    },
-    {
-      "id": "adopt",
-      "group": "Risk",
-      "en": "Adopt an existing follower position (#11)",
-      "zh": "承接 follower 現有倉位 (#11)",
-      "weight": 2,
-      "level": 0,
-      "must": false,
-      "targets": [
-        "prop"
-      ],
-      "evidence": "Not built.",
-      "ach_en": "Adopt existing position (#11)",
-      "ach_zh": "承接現有倉位 (#11)"
-    },
-    {
-      "id": "selfmanaged",
-      "group": "Risk",
-      "en": "Self-managed TP/SL per account (#10)",
-      "zh": "每戶自管 TP/SL (#10)",
-      "weight": 2,
-      "level": 0,
-      "must": false,
-      "targets": [
-        "prop"
-      ],
-      "evidence": "Not started.",
-      "ach_en": "Self-managed TP/SL (#10)",
-      "ach_zh": "每戶自管 TP/SL (#10)"
-    },
-    {
-      "id": "package",
-      "group": "Release",
-      "en": "Installer / compiled release, release hold lifted by a reviewed decision",
-      "zh": "安裝包／編譯版本、經覆核解除交易封鎖",
-      "weight": 6,
-      "level": 1,
-      "must": true,
-      "targets": [
-        "demo",
-        "prop"
-      ],
-      "evidence": "Only a SIM TEST build with an operator allow-list exists; default build is still held; no installer.",
-      "ach_en": "Installer + reviewed release",
-      "ach_zh": "安裝包 ＋ 覆核後發佈"
-    },
-    {
-      "id": "firm_rules",
-      "group": "Release",
-      "en": "Prop-firm rule compliance (per firm, per phase)",
-      "zh": "各 Prop Firm 規則合規",
-      "weight": 5,
-      "level": 0,
-      "must": true,
-      "targets": [
-        "prop"
-      ],
-      "evidence": "Deliberately out of scope: the software never certifies compliance; the user must read each firm's rules.",
-      "ach_en": "Prop-firm rule check (never certified)",
-      "ach_zh": "Prop Firm 規則檢查（本軟件不作認證）"
-    }
-  ]
+  "3": {
+   "label": "offline PLUS verified on real NinjaTrader Simulator / prop-firm Sim accounts (SIM TEST build)",
+   "credit": 1.0
+  }
+ },
+ "targets": {
+  "demo": {
+   "name_en": "Copy to Demo / Simulator accounts",
+   "name_zh": "複製到 Demo／模擬帳戶",
+   "ready_when": "every item with must=true is at level 3, and there is no open P0 safety defect"
+  },
+  "prop": {
+   "name_en": "Copy to prop-firm simulated accounts (evaluation / demo only)",
+   "name_zh": "複製到 Prop Firm 模擬帳戶（僅評估／Demo）",
+   "ready_when": "demo target ready, plus prop-only items at level 3, plus a rule review per firm by the user (never certified by this software)"
+  }
+ },
+ "safety_gates": [
+  {
+   "id": "issue-3",
+   "status": "open",
+   "targets": [
+    "demo",
+    "prop"
+   ],
+   "evidence": "Basic shared-OCO safety on the integrated candidate is not accepted on real NinjaTrader. PR #22 supersedes the historical missing waiting-group implementation; synthetic tests alone do not accept provider cancellation behavior. Multi-group allocation is not silently removed from scope."
+  },
+  {
+   "id": "issue-4",
+   "status": "open",
+   "targets": [
+    "demo",
+    "prop"
+   ],
+   "evidence": "Per-account provider threads, accepted callback retention and close races remain unaccepted on real NinjaTrader for the integrated candidate. Two followers still exercise this boundary; healthy timing is not stalled-provider isolation proof."
+  },
+  {
+   "id": "issue-7",
+   "status": "open",
+   "targets": [
+    "demo",
+    "prop"
+   ],
+   "evidence": "Historical real-NT evidence is pinned to older candidates. Source d70b8a49ceeb87e2207fe5c9811203723ea7f0edae90d18ebeab334a10e210a5 has compiled and run offline suites on the VM, not completed the exact-candidate real-provider must-have matrix."
+  },
+  {
+   "id": "issue-9",
+   "status": "open",
+   "targets": [
+    "demo",
+    "prop"
+   ],
+   "evidence": "ExplicitManualFlatReconciliationAvailable still fails on the integrated candidate. Position=0, visible terminal orders or ordinary unlock do not resolve an ambiguous accepted Flatten or the attached owned ledger; no reviewed end-to-end confirmed-flat recovery path exists."
+  }
+ ],
+ "items": [
+  {
+   "id": "copy_core",
+   "group": "Core copying",
+   "en": "Leader to followers: entry, exit, cancel, modify; short and long",
+   "zh": "Leader 跟單：入場、平倉、取消、改單；做多做空",
+   "weight": 14,
+   "level": 3,
+   "must": true,
+   "targets": [
+    "demo",
+    "prop"
+   ],
+   "evidence": "Real NT on the current build (2026-10-13): Buy/Sell market round trips, a passive Limit copied and its cancel mirrored, exit copied to the follower that was not flattened. Only two follower accounts, only Limit and Market orders, MNQ only. StopMarket entries and a real multi-lot partial fill were not seen.",
+   "ach_en": "Core copy: entry / exit / cancel / modify",
+   "ach_zh": "核心跟單：入場／平倉／取消／改單"
+  },
+  {
+   "id": "ratio_cap",
+   "group": "Core copying",
+   "en": "Per-account Ratio and max-lot cap, over-cap entry skipped",
+   "zh": "每戶 Ratio 同最大手數，超過上限唔落單",
+   "weight": 6,
+   "level": 3,
+   "must": true,
+   "targets": [
+    "demo",
+    "prop"
+   ],
+   "evidence": "Real NT: Buy 2 above a 1-lot cap sent nothing to either follower. Ratio 1 only on real NT; fractional ratios are offline.",
+   "ach_en": "Per-account Ratio + max-lot cap",
+   "ach_zh": "每戶 Ratio ＋ 最大手數"
+  },
+  {
+   "id": "exit_nolock",
+   "group": "Core copying",
+   "en": "Leader exit with nothing to close does not lock a flat follower",
+   "zh": "Leader 平倉但 follower 冇倉，唔會鎖死",
+   "weight": 6,
+   "level": 3,
+   "must": true,
+   "targets": [
+    "demo",
+    "prop"
+   ],
+   "evidence": "Reproduced offline (needs 2 prior round trips), fixed, replayed on real NT.",
+   "ach_en": "No lock-up on a flat follower",
+   "ach_zh": "Follower 無持倉時不會鎖定"
+  },
+  {
+   "id": "flat_one",
+   "group": "Core copying",
+   "en": "Per-account Flat button (one account only, confirmation, never retried)",
+   "zh": "每帳戶獨立 Flat 按鈕（只平一戶、要確認、唔重試）",
+   "weight": 8,
+   "level": 3,
+   "must": true,
+   "targets": [
+    "demo",
+    "prop"
+   ],
+   "evidence": "Real NT (2 sessions): Flat on one follower; the other kept copying; that account's working orders cancelled. Also with a stop and target (same OCO id) still working: both cancelled, account closed, other follower unaffected. A Flat the provider rejects and a disconnect during Flat are not tested on real NT.",
+   "ach_en": "Flat button on every account",
+   "ach_zh": "每個帳戶獨立 Flat 按鈕"
+  },
+  {
+   "id": "flat_all",
+   "group": "Core copying",
+   "en": "Flatten selected / all, with confirmation naming accounts",
+   "zh": "批量／全部 Flatten，確認框列出帳戶",
+   "weight": 4,
+   "level": 3,
+   "must": true,
+   "targets": [
+    "demo",
+    "prop"
+   ],
+   "evidence": "Real NT 2026-10-14, source c9fbf2cb3005, 11 prop-firm sim followers: leader SL rejected by NT so its OCO TP was cancelled; followers mirrored, each locked '1 lot UNPROTECTED'. Flatten all asked once, named every account (19 incl. Sim101/Playback/Backtest/max-loss accounts), all 11 confirmed flat in 4 s, Stop then went DISARMED without an NT restart (it used to need one). Playback101/Backtest returned 'FLATTEN FAILED: Connection' (not connected) and were logged, not retried. Per-account Flat with a TP+SL working: both cancelled, flat confirmed in 3 s.",
+   "ach_en": "Flatten selected / all",
+   "ach_zh": "批量／全部 Flatten"
+  },
+  {
+   "id": "protect_tpsl",
+   "group": "Protection",
+   "en": "ATM / TP-SL exit mirroring with OCO between legs",
+   "zh": "ATM／TP-SL 出場跟隨，兩邊 OCO",
+   "weight": 8,
+   "level": 3,
+   "must": true,
+   "targets": [
+    "demo",
+    "prop"
+   ],
+   "evidence": "Real NT: leader Stop + Limit under one OCO id copied to both followers (Working), per-account Flat cancels them, and a leader MARKET exit closes the follower and cancels both once (after the market-exit fix). NOT covered on real NT: modify of price/quantity this session, a rejected stop, fractional multi-group OCO (#3), and a stop + target WITHOUT an OCO id (locks the account, open).",
+   "ach_en": "TP / SL mirroring + OCO",
+   "ach_zh": "TP／SL 跟隨 ＋ OCO"
+  },
+  {
+   "id": "locks",
+   "group": "Protection",
+   "en": "Fail-closed locks (unknown exposure, thrown Flatten, rejected stop), no auto-retry, explicit unlock",
+   "zh": "異常即鎖帳戶（未知倉位、Flatten 失敗、保護單被拒）、唔自動重試、要人手解鎖",
+   "weight": 8,
+   "level": 3,
+   "must": true,
+   "targets": [
+    "demo",
+    "prop"
+   ],
+   "evidence": "Real NT 2026-10-14 (11 followers): a max-loss Tradeify follower's copy was Rejected by the provider -> account locked 'Follower order rejected', exactly 1 Submit, no retry, no market fallback, the other follower filled. Rejected leader SL -> every follower locked with the unprotected-lot count. Lucid disconnect -> 5 Lucid accounts locked in under 1 s. Unlock refused while a daily-loss breach persisted. Offline: many cases + mutants.",
+   "ach_en": "Auto-lock on danger, no auto-retry",
+   "ach_zh": "異常自動鎖定帳戶，不會自動重試"
+  },
+  {
+   "id": "disconnect",
+   "group": "Protection",
+   "en": "Disconnect / reconnect: lock, no catch-up, protection kept",
+   "zh": "斷線／重連：鎖定、唔補單、保護單保留",
+   "weight": 7,
+   "level": 3,
+   "must": true,
+   "targets": [
+    "demo",
+    "prop"
+   ],
+   "evidence": "Real NT 2026-10-14, 11 followers: Lucid connection dropped -> 5 Lucid followers locked in under 1 s; 6 Tradeify kept copying a Buy/Sell round trip; after reconnect no catch-up order was sent to Lucid and Stop went DISARMED (fixed: NT rebuilds today's filled history as new Order objects after a reconnect; they used to block Stop). Earlier: 1 lot + copied stop kept through a disconnect.",
+   "ach_en": "Disconnect / reconnect safe",
+   "ach_zh": "斷線重連安全"
+  },
+  {
+   "id": "partial_fill",
+   "group": "Protection",
+   "en": "Partial fills: exit sized to filled lots, shortfall never made up",
+   "zh": "部分成交：平倉按已成交手數、唔補差額",
+   "weight": 6,
+   "level": 2,
+   "must": true,
+   "targets": [
+    "demo",
+    "prop"
+   ],
+   "evidence": "Offline cases + mutant. Real partial fills not observed (sim fills whole).",
+   "ach_en": "Partial fills handled",
+   "ach_zh": "部分成交處理"
+  },
+  {
+   "id": "frontier",
+   "group": "Protection",
+   "en": "Coherent fill frontier before protective resize (#2)",
+   "zh": "保護單改量前成交一致性 (#2)",
+   "weight": 5,
+   "level": 2,
+   "must": true,
+   "targets": [
+    "demo",
+    "prop"
+   ],
+   "evidence": "Quantity freeze + 150-combination sweep offline; full design open.",
+   "ach_en": "Fill frontier before resize (#2)",
+   "ach_zh": "改量前成交一致 (#2)"
+  },
+  {
+   "id": "isolation",
+   "group": "Protection",
+   "en": "One stalled follower cannot freeze the others; clean Dispose (#4)",
+   "zh": "一戶卡住唔影響其他；安全關閉 (#4)",
+   "weight": 5,
+   "level": 2,
+   "must": true,
+   "targets": [
+    "demo",
+    "prop"
+   ],
+   "evidence": "Per-account dispatcher offline (10/20/30 fake). Real NT with 11 followers: one rejected follower and 5 disconnected followers never delayed the others' submits (same 6 ms window). A truly stalled provider call was not reproduced on real NT.",
+   "ach_en": "One stuck account never freezes others (#4)",
+   "ach_zh": "單一帳戶停滯不影響其他帳戶 (#4)"
+  },
+  {
+   "id": "scale_real",
+   "group": "Scale",
+   "en": "10-30 accounts on real NinjaTrader (latency, UI)",
+   "zh": "真 NT 跑 10-30 個帳戶（延遲、介面）",
+   "weight": 7,
+   "level": 3,
+   "must": true,
+   "targets": [
+    "demo",
+    "prop"
+   ],
+   "evidence": "Real NT 2026-10-14: 1 Simulator leader + 11 prop-firm sim followers (5 Lucid, 6 Tradeify) on MNQ, Market + Limit + Stop, TP/SL OCO. Leader fill to follower Submit: all 11 within 6 ms of each other; follower fills 0.9-1.2 s after the leader fill (sim provider). Not measured: 20-30 accounts, multi-monitor DPI.",
+   "ach_en": "10-30 accounts on real NT",
+   "ach_zh": "真實 NT 的 10–30 個帳戶測試"
+  },
+  {
+   "id": "ui",
+   "group": "Usability",
+   "en": "Dashboard: dense table, per-row Tgt/DLL/Ratio/ATM/OFF/Flat, bulk edit, lock reasons, logs",
+   "zh": "介面：緊湊表格、每行設定、批量改、鎖定原因、Log",
+   "weight": 5,
+   "level": 3,
+   "must": false,
+   "targets": [
+    "demo",
+    "prop"
+   ],
+   "evidence": "45 offline UI cases; used on real NT. Real DPI / IME / paste untested (#8).",
+   "ach_en": "Dashboard (table, bulk edit, lock reasons)",
+   "ach_zh": "介面（表格、批量改、鎖定原因）"
+  },
+  {
+   "id": "risk_limits",
+   "group": "Risk",
+   "en": "Per-account daily target and daily loss limit with one-click OFF",
+   "zh": "每戶每日目標／虧損上限、一鍵 OFF",
+   "weight": 5,
+   "level": 3,
+   "must": true,
+   "targets": [
+    "demo",
+    "prop"
+   ],
+   "evidence": "Real NT 2026-10-14: DLL 5 on one Tradeify follower latched 'Daily loss' (Start refused for it, others unaffected); unlock refused while the loss persisted; after DLL was set back to 0 the unlock went through. Daily TARGET latch is offline-only (P/L never reached +5 during the test).",
+   "ach_en": "Daily target / loss limit per account",
+   "ach_zh": "每戶每日目標／虧損上限"
+  },
+  {
+   "id": "restart",
+   "group": "Recovery",
+   "en": "Journal and verified restart recovery (#6) - shelved",
+   "zh": "Journal 同重啟恢復 (#6)：擱置",
+   "weight": 5,
+   "level": 1,
+   "must": false,
+   "targets": [
+    "demo",
+    "prop"
+   ],
+   "evidence": "Latches persist across restart (seen on real NT). Position/ledger recovery not built.",
+   "ach_en": "Restart recovery (#6, shelved)",
+   "ach_zh": "重啟恢復 (#6，擱置)"
+  },
+  {
+   "id": "divergence",
+   "group": "Risk",
+   "en": "Reaction to divergence: flatten once (#12)",
+   "zh": "反向時平倉一次 (#12)",
+   "weight": 3,
+   "level": 1,
+   "must": false,
+   "targets": [
+    "prop"
+   ],
+   "evidence": "Setting stored only; engine never flattens by itself.",
+   "ach_en": "Flatten once on divergence (#12)",
+   "ach_zh": "反向時平倉一次 (#12)"
+  },
+  {
+   "id": "adopt",
+   "group": "Risk",
+   "en": "Adopt an existing follower position (#11)",
+   "zh": "承接 follower 現有倉位 (#11)",
+   "weight": 2,
+   "level": 0,
+   "must": false,
+   "targets": [
+    "prop"
+   ],
+   "evidence": "Not built.",
+   "ach_en": "Adopt existing position (#11)",
+   "ach_zh": "承接現有倉位 (#11)"
+  },
+  {
+   "id": "selfmanaged",
+   "group": "Risk",
+   "en": "Self-managed TP/SL per account (#10)",
+   "zh": "每戶自管 TP/SL (#10)",
+   "weight": 2,
+   "level": 0,
+   "must": false,
+   "targets": [
+    "prop"
+   ],
+   "evidence": "Not started.",
+   "ach_en": "Self-managed TP/SL (#10)",
+   "ach_zh": "每戶自管 TP/SL (#10)"
+  },
+  {
+   "id": "package",
+   "group": "Release",
+   "en": "Installer / compiled release, release hold lifted by a reviewed decision",
+   "zh": "安裝包／編譯版本、經覆核解除交易封鎖",
+   "weight": 6,
+   "level": 1,
+   "must": true,
+   "targets": [
+    "demo",
+    "prop"
+   ],
+   "evidence": "Only a SIM TEST build with an operator allow-list exists; default build is still held; no installer.",
+   "ach_en": "Installer + reviewed release",
+   "ach_zh": "安裝包 ＋ 覆核後發佈"
+  },
+  {
+   "id": "firm_rules",
+   "group": "Release",
+   "en": "Prop-firm rule compliance (per firm, per phase)",
+   "zh": "各 Prop Firm 規則合規",
+   "weight": 5,
+   "level": 0,
+   "must": true,
+   "targets": [
+    "prop"
+   ],
+   "evidence": "Deliberately out of scope: the software never certifies compliance; the user must read each firm's rules.",
+   "ach_en": "Prop-firm rule check (never certified)",
+   "ach_zh": "Prop Firm 規則檢查（本軟件不作認證）"
+  }
+ ]
 }

@@ -11,8 +11,8 @@ Copy trades from one NinjaTrader 8 account to many others (prop-firm **simulated
 
 | | |
 |---|---|
-| **Demo / Simulator accounts** | **Not ready: current candidate unaccepted.** About **69%** done in the weighted historical checklist, not a release-readiness percentage. |
-| **Prop-firm accounts** | **Not ready: current candidate unaccepted.** About **62%** done in the same historical checklist. An older build was tested on 2 operator-attested *simulated / evaluation* accounts; this is not current-source acceptance or firm compliance. |
+| **Demo / Simulator accounts** | **Not ready: current candidate unaccepted.** About **83%** done in the weighted historical checklist, not a release-readiness percentage. |
+| **Prop-firm accounts** | **Not ready: current candidate unaccepted.** About **75%** done in the same historical checklist. Source `c9fbf2cb3005` (SIM TEST build) was run on real NinjaTrader with 11 operator-attested *simulated / evaluation* accounts on 2026-10-14; this is not release acceptance or firm compliance. |
 | **Funded or live accounts** | **No.** |
 <!-- QUICKSTART:END -->
 
@@ -22,11 +22,11 @@ Copy trades from one NinjaTrader 8 account to many others (prop-firm **simulated
 ### Achievements: Demo / Prop-firm copying
 
 ```text
-Demo         █████████████████████░░░░░░░░░  68.9%
-Prop firm    ███████████████████░░░░░░░░░░░  62.1%
+Demo         █████████████████████████░░░░░  83.0%
+Prop firm    ██████████████████████░░░░░░░░  74.7%
 ```
 
-✅ tested on real NinjaTrader · 🟡 offline tests only · ⬜ not yet. Must-haves ✅: Demo 6/14 · Prop 6/15.
+✅ tested on real NinjaTrader · 🟡 offline tests only · ⬜ not yet. Must-haves ✅: Demo 10/14 · Prop 10/15.
 
 Historical checklist evidence, not acceptance of the current candidate. The current candidate is not accepted for trading. Safety P0 / acceptance gates: issue-3, issue-4, issue-7, issue-9. Demo ready=False; Prop ready=False. No funded/live acceptance.
 
@@ -34,16 +34,16 @@ Historical checklist evidence, not acceptance of the current candidate. The curr
 - ✅ Per-account Ratio + max-lot cap
 - ✅ No lock-up on a flat follower
 - ✅ Flat button on every account
-- 🟡 Flatten selected / all
+- ✅ Flatten selected / all
 - ✅ TP / SL mirroring + OCO
-- 🟡 Auto-lock on danger, no auto-retry
+- ✅ Auto-lock on danger, no auto-retry
 - ✅ Disconnect / reconnect safe
 - 🟡 Partial fills handled
 - 🟡 Fill frontier before resize (#2)
 - 🟡 One stuck account never freezes others (#4)
-- ⬜ 10-30 accounts on real NT
+- ✅ 10-30 accounts on real NT
 - ✅ Dashboard (table, bulk edit, lock reasons) _(optional)_
-- 🟡 Daily target / loss limit per account
+- ✅ Daily target / loss limit per account
 - ⬜ Flatten once on divergence (#12) _(optional)_
 - ⬜ Adopt existing position (#11) _(optional)_
 - ⬜ Self-managed TP/SL (#10) _(optional)_
@@ -51,7 +51,7 @@ Historical checklist evidence, not acceptance of the current candidate. The curr
 - ⬜ Installer + reviewed release
 - ⬜ Prop-firm rule check (never certified)
 
-Real tests so far: 1 simulator leader, 2 **simulated** prop-firm evaluation accounts, MNQ, Market + Limit. No funded or live account was ever used. Each tick and its limits: [`docs/PROGRESS.json`](docs/PROGRESS.json). Score = weighted: ✅ 100%, 🟡 50%, design only 10%. Snapshot 2026-10-13, source `20dc6707c9e6`.
+Real tests so far: 1 simulator leader, up to 11 **simulated** prop-firm evaluation accounts (5 Lucid, 6 Tradeify), MNQ, Market + Limit + Stop, TP/SL OCO. No funded or live account was ever used. Each tick and its limits: [`docs/PROGRESS.json`](docs/PROGRESS.json). Score = weighted: ✅ 100%, 🟡 50%, design only 10%. Snapshot 2026-10-14, source `c9fbf2cb3005`.
 <!-- PROGRESS:END -->
 
 The ticks and percentages are a **weighted historical checklist**, **not a release-readiness percentage**. The real-NinjaTrader snapshot refers to older source `20dc6707c9e6`, not acceptance of the current exact source. [Tick evidence and limits](docs/PROGRESS.json) · [Historical NT test log](docs/VM-PROGRESS.md) · [Current offline results and safety blockers](docs/DEVELOPERS.md).
