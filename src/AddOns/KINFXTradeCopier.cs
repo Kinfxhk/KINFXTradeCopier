@@ -260,6 +260,21 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         {
             lock(IoGate) {var all=ReadLatches(path);all.Remove(account);AtomicSave(path,new XElement("Latches",all.Select(kv=>new XElement("Lock",new XAttribute("account",kv.Key),new XAttribute("reason",kv.Value)))));}
         }
+        // Same temp-file-then-replace pattern as AtomicSave, for a small text file (one line per entry).
+        public static void AtomicWriteLines(string path, string[] lines)
+        {
+            lock (IoGate)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(path));
+                string temp=path+"."+Guid.NewGuid().ToString("N")+".tmp";
+                try
+                {
+                    using (var f=new FileStream(temp,FileMode.CreateNew,FileAccess.Write,FileShare.None)) using (var w=new StreamWriter(f,new System.Text.UTF8Encoding(false))) { foreach(var l in lines) w.WriteLine(l); w.Flush(); f.Flush(true); }
+                    if (File.Exists(path)) File.Replace(temp,path,null); else File.Move(temp,path);
+                }
+                finally { if (File.Exists(temp)) File.Delete(temp); }
+            }
+        }
         public static void AtomicSave(string path, XElement xml)
         {
             lock (IoGate)
@@ -509,6 +524,39 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
     }
     // Pure helpers shared by the dashboard and the offline tests. No Account, engine or UI access.
     public sealed class StartSummaryRow { public string Name=""; public double Ratio=1; }
+    // Which confirmation windows the user chose not to see again. Stored one "skip=<kind>" per line in confirm-prefs.txt; unknown kinds and lines are ignored.
+    // A window whose text carries a risk warning (an account in scope is not confirmed simulated) is ALWAYS shown, whatever was saved. Pure: no file access.
+    public static class ConfirmPrefs
+    {
+        // Unlock is deliberately not here: it is the only explicit unlock path, so its question is always asked.
+        public const string Start="start", FlatOne="flatOne", Flatten="flatten";
+        public static readonly string[] Kinds={Start,FlatOne,Flatten};
+        public static bool Known(string kind){return kind!=null&&Array.IndexOf(Kinds,kind)>=0;}
+        public static HashSet<string> Parse(IEnumerable<string> lines)
+        {
+            var h=new HashSet<string>(StringComparer.Ordinal);
+            if(lines==null)return h;
+            foreach(var raw in lines)
+            {
+                if(raw==null)continue; string t=raw.Trim(); if(t.Length==0||t.StartsWith("#"))continue;
+                int eq=t.IndexOf('='); if(eq<0)continue;
+                string key=t.Substring(0,eq).Trim(), kind=t.Substring(eq+1).Trim();
+                if(key=="skip"&&Known(kind))h.Add(kind);
+            }
+            return h;
+        }
+        public static string[] Serialize(HashSet<string> skipped)
+        {
+            var list=new List<string>{"# KINFX Trade Copier: confirmation windows turned off by the user. Delete a line (or this file) to be asked again."};
+            foreach(var k in Kinds)if(skipped!=null&&skipped.Contains(k))list.Add("skip="+k);
+            return list.ToArray();
+        }
+        public static bool MustAsk(string kind,HashSet<string> skipped,bool riskWarning)
+        {
+            if(riskWarning||!Known(kind)||skipped==null)return true;
+            return !skipped.Contains(kind);
+        }
+    }
     public static class DashboardChoices
     {
         // Text shown before Start: who leads, on what, and for each follower what the engine WILL do for a sample leader order.
@@ -1028,6 +1076,14 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             t["Protective group terminal with uncovered allocated exposure — manual recovery required"] = new[] { "保護群組已終結，但分配的部位仍未受保護 — 需人工處理", "保護グループが終了したが、割り当てた建玉が未保護 — 手動での復旧が必要", "보호 그룹이 종료되었으나 배분된 포지션이 보호되지 않음 — 수동 복구 필요" };
             t["group support frontier changed before cancel authorization; cancellation NOT sent"] = new[] { "取消授權前群組支援邊界已變更；取消單未送出", "キャンセル承認の前にグループのサポート境界が変更されました。キャンセルは送信されていません", "취소 승인 전에 그룹 지원 경계가 변경됨; 취소는 전송되지 않음" };
             t["waiting protection frontier changed before submit authorization; submission NOT sent"] = new[] { "送出授權前等待中的保護邊界已變更；委託單未送出", "送信承認の前に待機中の保護境界が変更されました。送信されていません", "제출 승인 전에 대기 중인 보호 경계가 변경됨; 제출되지 않음" };
+            t["Ask before:"] = new[] { "操作前確認：", "実行前に確認：", "실행 전 확인:" };
+            t["Untick to skip that confirmation window. Unlock and risk warnings are always asked."] = new[] { "取消勾選即略過該確認視窗。解鎖及風險警告一律會詢問。", "チェックを外すとその確認ウィンドウを省略します。ロック解除とリスク警告は常に確認します。", "체크를 해제하면 해당 확인 창을 건너뜁니다. 잠금 해제와 위험 경고는 항상 확인합니다." };
+            t["Start"] = new[] { "開始", "開始", "시작" };
+            t["Flat (row)"] = new[] { "單戶平倉", "行の決済", "행 청산" };
+            t["Flatten selected / all"] = new[] { "選取／全部平倉", "選択／全決済", "선택/전체 청산" };
+            t["Confirm before Start (follower list and ratios)"] = new[] { "開始前確認（跟單帳戶清單及比例）", "開始前に確認（フォロワー一覧と比率）", "시작 전 확인(팔로워 목록 및 비율)" };
+            t["Confirm before a row's Flat button closes that one account"] = new[] { "單行平倉按鈕平掉該帳戶前確認", "行の決済ボタンでその口座を決済する前に確認", "행의 청산 버튼으로 해당 계좌를 청산하기 전에 확인" };
+            t["Confirm before Flatten selected / Flatten all"] = new[] { "選取平倉／全部平倉前確認", "選択決済／全決済の前に確認", "선택 청산/전체 청산 전에 확인" };
 #if KINFX_SIM_TEST
             t["SIM TEST BUILD · Simulator / Playback only"] = new[] { "SIM 測試版 · 僅限 Simulator / Playback", "SIMテストビルド · Simulator / Playback のみ", "SIM 테스트 빌드 · Simulator / Playback 전용" };
             t["SIM TEST BUILD: copies between Simulator / Playback accounts only. Any other provider is refused."] = new[] { "SIM 測試版：僅在 Simulator / Playback 帳戶之間跟單。其他任何供應端一律拒絕。", "SIMテストビルド：Simulator / Playback 口座間のみコピー。それ以外のプロバイダーは拒否される。", "SIM 테스트 빌드: Simulator / Playback 계좌 간에만 복사합니다. 그 외 제공자는 거부됩니다." };
@@ -2502,6 +2558,10 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         internal Action<AccountRow,bool> FollowRow;
         // Per-account Flat: one account, one click. The tab confirms (names the account and instrument) before anything is sent.
         internal Action<AccountRow> FlatRow;
+        // "Ask before" switches (Risk tab). Ticked = the confirmation window is shown. Unlock and every risk warning are always asked and have no switch.
+        internal CheckBox AskStartBox, AskFlatOneBox, AskFlattenBox;
+        internal Action<string,bool> AskChanged;
+        internal CheckBox AskBox(string kind){return kind==ConfirmPrefs.Start?AskStartBox:kind==ConfirmPrefs.FlatOne?AskFlatOneBox:kind==ConfirmPrefs.Flatten?AskFlattenBox:null;}
         readonly ICollectionView view;
         readonly TextBox search;
         readonly ComboBox filter;
@@ -2709,6 +2769,11 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             var risk=new Grid();risk.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});risk.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});risk.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});var tools=new WrapPanel{Margin=new Thickness(0,0,0,10)};
             var batch=Icon("\uE713",DashboardSafety.CanExecute("batch")?Lang.T("Batch risk / presets"):Lang.T("Batch risk / presets · review hold"),"batch",()=>Send("batch"));batch.IsEnabled=DashboardSafety.CanExecute("batch");tools.Children.Add(batch);tools.Children.Add(Icon("\uE74E",Lang.T("Save settings"),"save",()=>Send("save")));tools.Children.Add(Icon("\uE787",Lang.T("Trading-day boundary / timezone"),"daySettings",()=>Send("daySettings")));tools.Children.Add(Icon("\uE769",Lang.T("Pause highlighted accounts"),"pauseSelected",()=>SetSelectedPause(true)));tools.Children.Add(Icon("\uE768",Lang.T("Resume highlighted accounts · latch unchanged / no auto-arm"),"resumeSelected",()=>SetSelectedPause(false)));var fs=Icon("\uE74D",DashboardSafety.CanExecute("flattenSelected")?Lang.T("Flatten highlighted accounts (market-closes their positions)"):Lang.T("Flatten highlighted accounts · review hold"),"flattenSelected",()=>Send("flattenSelected"));fs.IsEnabled=DashboardSafety.CanExecute("flattenSelected");tools.Children.Add(fs);var fa=Icon("\uE7BA",DashboardSafety.CanExecute("flattenAll")?Lang.T("Flatten ALL displayed accounts (market-closes every position shown)"):Lang.T("Flatten all displayed accounts · review hold"),"flattenAll",()=>Send("flattenAll"));fa.IsEnabled=DashboardSafety.CanExecute("flattenAll");tools.Children.Add(fa);
             ShowLive=new CheckBox{Template=PlainCheckTemplate(),Content=Lang.T("Live (RO)"),Foreground=Muted,Margin=new Thickness(12,6,16,0),ToolTip=Lang.T("Display live accounts read-only · live copying blocked")};tools.Children.Add(ShowLive);var group=new CheckBox{Template=PlainCheckTemplate(),Content=Lang.T("Grp"),Foreground=Muted,Margin=new Thickness(0,6,0,0),ToolTip=Lang.T("Group account rows")};tools.Children.Add(group);
+            tools.Children.Add(new TextBlock{Text=Lang.T("Ask before:"),Foreground=Muted,FontSize=12,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(16,6,6,0),ToolTip=Lang.T("Untick to skip that confirmation window. Unlock and risk warnings are always asked.")});
+            Func<string,string,string,CheckBox> askSwitch=(kind,label,tip)=>{var cb=new CheckBox{Template=PlainCheckTemplate(),Content=label,Foreground=Muted,IsChecked=true,Margin=new Thickness(0,6,10,0),ToolTip=tip,Tag="ask:"+kind};System.Windows.Automation.AutomationProperties.SetName(cb,Lang.T("Ask before:")+" "+label);cb.Checked+=(s2,e2)=>{var cbk=AskChanged;if(cbk!=null)cbk(kind,true);};cb.Unchecked+=(s2,e2)=>{var cbk=AskChanged;if(cbk!=null)cbk(kind,false);};tools.Children.Add(cb);return cb;};
+            AskStartBox=askSwitch(ConfirmPrefs.Start,Lang.T("Start"),Lang.T("Confirm before Start (follower list and ratios)"));
+            AskFlatOneBox=askSwitch(ConfirmPrefs.FlatOne,Lang.T("Flat (row)"),Lang.T("Confirm before a row's Flat button closes that one account"));
+            AskFlattenBox=askSwitch(ConfirmPrefs.Flatten,Lang.T("Flatten selected / all"),Lang.T("Confirm before Flatten selected / Flatten all"));
 #if KINFX_SIM_TEST
             DryRunBox=new CheckBox{Template=PlainCheckTemplate(),Content=Lang.T("Dry run"),Foreground=Warn,Margin=new Thickness(16,6,0,0),ToolTip=Lang.T("DRY RUN: decide and log every order, cancel and flatten as \"DRY RUN would send ...\" but send NOTHING. Fixed for the whole session: change it only while stopped.")};tools.Children.Add(DryRunBox);
 #endif
@@ -2886,7 +2951,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         string leaderName="";
         public KINFXTradeCopierTab()
         {
-            TabName="Dashboard";Lang.Set(LoadLanguage(LanguagePath));dashboard=new DashboardView();Content=dashboard;
+            TabName="Dashboard";Lang.Set(LoadLanguage(LanguagePath));askSkipped=LoadAsk(AskPath);dashboard=new DashboardView();Content=dashboard;
             engine=new CopierEngine(Log,OnTelemetry,(attached,status)=>{int session=engine.SessionGeneration;Dispatch(()=>dashboard.TrySetSessionState(attached,status,session,engine.SessionGeneration,engine.Attached));},PersistLatch);
             WireDashboard();
             LoadDefault();Refresh();syncNames=CurrentAccountNames();
@@ -2895,7 +2960,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         // Everything that attaches this tab to a DashboardView. Repeated for a rebuilt view after a language change.
         void WireDashboard()
         {
-            dashboard.LanguageChanging=ChangeLanguage;dashboard.Command=Command;dashboard.BulkNotice=Log;dashboard.PauseRow=Pause;dashboard.RowSettings=r=>Edit(new[]{r});dashboard.FollowRow=Follow;dashboard.FlatRow=FlatOne;
+            dashboard.LanguageChanging=ChangeLanguage;dashboard.Command=Command;dashboard.BulkNotice=Log;dashboard.PauseRow=Pause;dashboard.RowSettings=r=>Edit(new[]{r});dashboard.FollowRow=Follow;dashboard.FlatRow=FlatOne;ShowAsk();dashboard.AskChanged=SetAsk;
             dashboard.LeaderBox.SelectionChanged+=(s,e)=>{if(engine.Attached)return;leaderName=dashboard.LeaderBox.SelectedItem as string ?? "";foreach(var row in dashboard.Rows){row.Role=row.Name==leaderName?"Leader":"Follower";if(row.Role=="Leader")row.Enabled=false;row.Changed();}};
             dashboard.AccountGrid.RowEditEnding+=(s,e)=>Dispatch(()=>{foreach(var row in dashboard.Rows){row.Changed();}dashboard.UpdateCards();});
             dashboard.InstrumentBox.LostKeyboardFocus+=(s,e)=>NormalizeInstrumentBox();
@@ -2993,6 +3058,24 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         AccountRow[] Selected() {return dashboard.SelectedRows();}
         // Title stays English: automation finds this dialog by it and must not depend on the picked language. Body text is translated.
         bool Confirm(string text) {return MessageBox.Show(Window.GetWindow(this),text,"KINFX confirmation",MessageBoxButton.YesNo,MessageBoxImage.Warning)==MessageBoxResult.Yes;}
+        // A skippable confirmation. When the user turned this kind off (Risk tab, "Ask before") the action goes ahead and the Logs tab says so.
+        // riskWarning=true (an account in scope is not confirmed simulated) always shows the window, whatever was saved.
+        bool Confirm(string kind,string text,bool riskWarning)
+        {
+            if(ConfirmPrefs.MustAsk(kind,askSkipped,riskWarning))return Confirm(text);
+            Log("Confirmation skipped (turned off on the Risk tab): "+kind);return true;
+        }
+        HashSet<string> askSkipped=new HashSet<string>(StringComparer.Ordinal);
+        string AskPath {get{return Path.Combine(DirectoryPath,"confirm-prefs.txt");}}
+        static HashSet<string> LoadAsk(string path){try{if(File.Exists(path))return ConfirmPrefs.Parse(File.ReadAllLines(path));}catch{}return new HashSet<string>(StringComparer.Ordinal);}
+        void SetAsk(string kind,bool ask)
+        {
+            if(!ConfirmPrefs.Known(kind))return;
+            bool changed=ask?askSkipped.Remove(kind):askSkipped.Add(kind);if(!changed)return;
+            try{Directory.CreateDirectory(DirectoryPath);SettingsStore.AtomicWriteLines(AskPath,ConfirmPrefs.Serialize(askSkipped));Log(ask?"Confirmation turned back on: "+kind:"Confirmation turned off: "+kind+" (risk warnings and Unlock are still always asked)");}
+            catch(Exception ex){if(ask)askSkipped.Add(kind);else askSkipped.Remove(kind);Log("Settings NOT saved: "+ex.Message);ShowAsk();}
+        }
+        void ShowAsk(){foreach(var k in ConfirmPrefs.Kinds){var cb=dashboard.AskBox(k);if(cb!=null)cb.IsChecked=!askSkipped.Contains(k);}}
         void Command(string c)
         {
             try
@@ -3028,7 +3111,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             MergeLatches();foreach(var row in dashboard.Rows){SavedAccount stored;if(saved.TryGetValue(row.Name,out stored)&&stored.Latch.Locked)row.Latch=stored.Latch;}
             var selected=dashboard.Rows.Where(r=>r.Enabled&&r!=leader&&!r.Paused).ToArray();if(selected.Length==0){Log("Enable at least one unpaused follower.");return;}
             if(selected.Any(r=>!r.Settings.Valid()||r.Latch.Locked)){Log("Invalid finite settings or risk-latched follower. Review Settings / confirmed reset.");return;}
-            if(!Confirm(Lang.F("Start simulation copying to exactly {0} follower account(s) on {1}?\n\n{2}\n\nLocal copier guards only. No adoption; all selected accounts must be flat / no working instrument orders.",selected.Length,inst.FullName,DashboardChoices.StartSummary(leader.Name,inst.FullName,2,selected.Select(r=>new StartSummaryRow{Name=string.IsNullOrEmpty(r.Settings.Alias)?r.Name:r.Settings.Alias+" ("+r.Name+")",Ratio=r.Settings.Ratio}).ToArray(),IsDryRun()))))return;
+            if(!Confirm(ConfirmPrefs.Start,Lang.F("Start simulation copying to exactly {0} follower account(s) on {1}?\n\n{2}\n\nLocal copier guards only. No adoption; all selected accounts must be flat / no working instrument orders.",selected.Length,inst.FullName,DashboardChoices.StartSummary(leader.Name,inst.FullName,2,selected.Select(r=>new StartSummaryRow{Name=string.IsNullOrEmpty(r.Settings.Alias)?r.Name:r.Settings.Alias+" ("+r.Name+")",Ratio=r.Settings.Ratio}).ToArray(),IsDryRun())),selected.Any(r=>!CopierEngine.Sim(r.Account))||!CopierEngine.Sim(leader.Account)))return;
             // Explicit observed baseline initialization, persisted BEFORE subscriptions can arm.
             foreach(var r in selected)if(!r.Settings.BaselineSet){double raw=r.Account.Get(AccountItem.RealizedProfitLoss,r.Account.Denomination)+r.Account.Get(AccountItem.UnrealizedProfitLoss,r.Account.Denomination);if(!RiskPolicy.Finite(raw)){Log("Invalid baseline telemetry: "+r.Name);return;}r.Settings.Baseline=raw;r.Settings.BaselineSet=true;}
             Persist();if(settingsCorrupt)return;
@@ -3080,7 +3163,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             if(rows.Length==0){Log("No accounts in flatten scope.");return;}var inst=Instrument.GetInstrument(InstrumentText(),false);if(inst==null){Log("Flatten: exact instrument unknown.");return;}
             var targets=rows.Where(r=>r.Account!=null).Select(r=>r.Account).Distinct().ToArray();
             if(targets.Any(a=>!CopierEngine.Sim(a))){Log("Flatten refused: live account in scope; v0.2 simulation only.");return;}
-            if(!Confirm(Lang.F("{0}{1}FLATTEN exactly {2} account(s), only {3}.\n{4}\nNew copies will be blocked BEFORE flatten requests. This cancels working orders and closes positions on that instrument. Retry/error remains visible.",DryRunPrefix(),rows.Length==1?Lang.T("FLAT ONE ACCOUNT. "):"",targets.Length,inst.FullName,string.Join("\n",targets.Select(a=>a.Name)))))return;
+            if(!Confirm(rows.Length==1?ConfirmPrefs.FlatOne:ConfirmPrefs.Flatten,Lang.F("{0}{1}FLATTEN exactly {2} account(s), only {3}.\n{4}\nNew copies will be blocked BEFORE flatten requests. This cancels working orders and closes positions on that instrument. Retry/error remains visible.",DryRunPrefix(),rows.Length==1?Lang.T("FLAT ONE ACCOUNT. "):"",targets.Length,inst.FullName,string.Join("\n",targets.Select(a=>a.Name))),targets.Any(a=>!CopierEngine.Sim(a))))return;
             engine.Flatten(targets,inst);
         }
         void OnTelemetry(AccountTelemetry t)

@@ -2494,5 +2494,53 @@
   "zh": "送出授權前等待中的保護邊界已變更；委託單未送出",
   "ja": "送信承認の前に待機中の保護境界が変更されました。送信されていません",
   "ko": "제출 승인 전에 대기 중인 보호 경계가 변경됨; 제출되지 않음"
+ },
+ {
+  "en": "Ask before:",
+  "zh": "操作前確認：",
+  "ja": "実行前に確認：",
+  "ko": "실행 전 확인:"
+ },
+ {
+  "en": "Untick to skip that confirmation window. Unlock and risk warnings are always asked.",
+  "zh": "取消勾選即略過該確認視窗。解鎖及風險警告一律會詢問。",
+  "ja": "チェックを外すとその確認ウィンドウを省略します。ロック解除とリスク警告は常に確認します。",
+  "ko": "체크를 해제하면 해당 확인 창을 건너뜁니다. 잠금 해제와 위험 경고는 항상 확인합니다."
+ },
+ {
+  "en": "Start",
+  "zh": "開始",
+  "ja": "開始",
+  "ko": "시작"
+ },
+ {
+  "en": "Flat (row)",
+  "zh": "單戶平倉",
+  "ja": "行の決済",
+  "ko": "행 청산"
+ },
+ {
+  "en": "Flatten selected / all",
+  "zh": "選取／全部平倉",
+  "ja": "選択／全決済",
+  "ko": "선택/전체 청산"
+ },
+ {
+  "en": "Confirm before Start (follower list and ratios)",
+  "zh": "開始前確認（跟單帳戶清單及比例）",
+  "ja": "開始前に確認（フォロワー一覧と比率）",
+  "ko": "시작 전 확인(팔로워 목록 및 비율)"
+ },
+ {
+  "en": "Confirm before a row's Flat button closes that one account",
+  "zh": "單行平倉按鈕平掉該帳戶前確認",
+  "ja": "行の決済ボタンでその口座を決済する前に確認",
+  "ko": "행의 청산 버튼으로 해당 계좌를 청산하기 전에 확인"
+ },
+ {
+  "en": "Confirm before Flatten selected / Flatten all",
+  "zh": "選取平倉／全部平倉前確認",
+  "ja": "選択決済／全決済の前に確認",
+  "ko": "선택 청산/전체 청산 전에 확인"
  }
 ]
