@@ -1831,6 +1831,113 @@ class EngineSafetyTests {
    Check(e.Attached,"a working order is still on the account: Stop must stay refused");
   }
  }
+ // Real NT 2026-10-14 (user request): Target hit only locked new entries and left the position open. Per-account opt-in FlatOnLimit:
+ // when Target or Daily loss latches, that account (only) gets ONE Flatten request, never retried; the other follower keeps copying.
+ static CopierEngine ArmLimit(NinjaTrader.Cbi.Account l,NinjaTrader.Cbi.Account a,NinjaTrader.Cbi.Account b,RiskSettings sa,Dictionary<string,AccountTelemetry> tele){
+  var e=new CopierEngine(s=>{},t=>{lock(tele)tele[t.Name]=t;},(attached,s)=>{},(n,r)=>{});
+  e.Start(l,inst,new[]{Tuple.Create(a,sa,new RiskLatch()),Tuple.Create(b,new RiskSettings{MaxContracts=10},new RiskLatch())});Wait(()=>e.EntriesArmed,"limit arm");return e;}
+ static void LimitHit(bool loss,bool flatOnLimit,out NinjaTrader.Cbi.Account a,out NinjaTrader.Cbi.Account b,out CopierEngine e,out Dictionary<string,AccountTelemetry> tele){
+  var l=Acc("lim lead "+loss+flatOnLimit);a=Acc("lim a "+loss+flatOnLimit);b=Acc("lim b "+loss+flatOnLimit);tele=new Dictionary<string,AccountTelemetry>();
+  e=ArmLimit(l,a,b,new RiskSettings{MaxContracts=10,Target=loss?0:10,Loss=loss?10:0,FlatOnLimit=flatOnLimit},tele);
+  BothFilled(e,l,a,b,1);
+  a.Pnl=loss?-25:25;e.Poll();Drain(e);Thread.Sleep(100);Drain(e);
+ }
+ static void TargetHitWithFlatOnLimitFlattensThatAccountOnce(){
+  NinjaTrader.Cbi.Account a,b;CopierEngine e;Dictionary<string,AccountTelemetry> tele;LimitHit(false,true,out a,out b,out e,out tele);
+  using(e){
+   Wait(()=>a.Flattens==1,"target hit requests one flatten for that account");
+   lock(tele)Check(tele[a.Name].Locked&&tele[a.Name].Reason.StartsWith("Target hit"),"latched Target hit: "+tele[a.Name].Reason);
+   Check(b.Flattens==0,"the other follower is not flattened");
+   e.Poll();Drain(e);Thread.Sleep(150);e.Poll();Drain(e);
+   Check(a.Flattens==1,"never repeated on later polls");
+  }
+ }
+ static void DailyLossWithFlatOnLimitFlattensThatAccountOnce(){
+  NinjaTrader.Cbi.Account a,b;CopierEngine e;Dictionary<string,AccountTelemetry> tele;LimitHit(true,true,out a,out b,out e,out tele);
+  using(e){Wait(()=>a.Flattens==1,"daily loss requests one flatten");Check(b.Flattens==0,"other untouched");e.Poll();Drain(e);Check(a.Flattens==1,"once");}
+ }
+ static void LimitHitWithoutOptInNeverFlattens(){
+  NinjaTrader.Cbi.Account a,b;CopierEngine e;Dictionary<string,AccountTelemetry> tele;LimitHit(false,false,out a,out b,out e,out tele);
+  using(e){Thread.Sleep(200);e.Poll();Drain(e);lock(tele)Check(tele[a.Name].Locked,"still latched");Check(a.Flattens==0,"default: lock only, no flatten");}
+ }
+ // Only Target / Daily loss trigger it: a disconnect lock with the opt-in on must NOT flatten (no catch-up, no autonomous action on uncertain state).
+ static void FlatOnLimitIgnoresOtherLockReasons(){
+  var l=Acc("lim disc lead");var a=Acc("lim disc a");var b=Acc("lim disc b");var tele=new Dictionary<string,AccountTelemetry>();
+  using(var e=ArmLimit(l,a,b,new RiskSettings{MaxContracts=10,Target=10,FlatOnLimit=true},tele)){
+   BothFilled(e,l,a,b,1);
+   a.Connection.Status=NinjaTrader.Cbi.ConnectionStatus.Disconnected;e.Poll();Drain(e);Thread.Sleep(150);e.Poll();Drain(e);
+   lock(tele)Check(tele[a.Name].Locked,"disconnect locks");Check(a.Flattens==0,"a disconnect never auto-flattens");
+  }
+ }
+ // A thrown auto-flatten is never retried and leaves the account locked for manual review.
+ static void FlatOnLimitThrownFlattenIsNotRetried(){
+  var l=Acc("lim throw lead");var a=Acc("lim throw a");var b=Acc("lim throw b");var tele=new Dictionary<string,AccountTelemetry>();
+  using(var e=ArmLimit(l,a,b,new RiskSettings{MaxContracts=10,Target=10,FlatOnLimit=true},tele)){
+   BothFilled(e,l,a,b,1);a.ThrowFlatten=true;
+   a.Pnl=25;e.Poll();Drain(e);Thread.Sleep(150);e.Poll();Drain(e);Thread.Sleep(150);e.Poll();Drain(e);
+   lock(tele)Check(tele[a.Name].Locked,"still locked");
+   Check(a.Positions.Count==1,"position untouched by any retry");
+  }
+ }
+ // Review 2026-10-14 DEFECT 1: a REJECTED order from today's history, rebuilt after a reconnect, must not lock the account (it is the same history).
+ static void ReconnectRebuiltRejectedHistoryDoesNotLock(){
+  var l=Acc("rr lead");var a=Acc("rr follow");AccountTelemetry latest=null;
+  var old=a.CreateOrder(inst,NinjaTrader.Cbi.OrderAction.Buy,NinjaTrader.Cbi.OrderType.Market,NinjaTrader.Cbi.OrderEntry.Manual,NinjaTrader.Cbi.TimeInForce.Day,1,0,0,"","",DateTime.MaxValue,null);
+  old.OrderId="695407360777";old.OrderState=NinjaTrader.Cbi.OrderState.Rejected;lock(a.Orders)a.Orders.Add(old);
+  using(var e=Arm(l,a,t=>latest=t)){
+   lock(a.Orders)a.Orders.Clear();
+   var rebuilt=a.CreateOrder(inst,NinjaTrader.Cbi.OrderAction.Buy,NinjaTrader.Cbi.OrderType.Market,NinjaTrader.Cbi.OrderEntry.Manual,NinjaTrader.Cbi.TimeInForce.Day,1,0,0,"","",DateTime.MaxValue,null);
+   rebuilt.OrderId="695407360777";rebuilt.OrderState=NinjaTrader.Cbi.OrderState.Rejected;lock(a.Orders)a.Orders.Add(rebuilt);a.Emit(rebuilt);Drain(e);e.Poll();Drain(e);
+   Check(latest==null||!latest.Locked,"rebuilt rejected history must not lock: "+(latest==null?"":latest.Reason));
+  }
+ }
+ // Review DEFECT 2: history is matched by id AND by its captured terminal state and filled quantity. Same id with MORE fills is new exposure.
+ static void ReconnectSameIdWithDifferentFillStillLocks(){
+  var l=Acc("rf lead");var a=Acc("rf follow");AccountTelemetry latest=null;
+  var old=a.CreateOrder(inst,NinjaTrader.Cbi.OrderAction.Buy,NinjaTrader.Cbi.OrderType.Limit,NinjaTrader.Cbi.OrderEntry.Manual,NinjaTrader.Cbi.TimeInForce.Day,3,90,0,"","",DateTime.MaxValue,null);
+  old.OrderId="695407360888";old.Filled=0;old.OrderState=NinjaTrader.Cbi.OrderState.Cancelled;lock(a.Orders)a.Orders.Add(old);
+  using(var e=Arm(l,a,t=>latest=t)){
+   lock(a.Orders)a.Orders.Clear();
+   var rebuilt=a.CreateOrder(inst,NinjaTrader.Cbi.OrderAction.Buy,NinjaTrader.Cbi.OrderType.Limit,NinjaTrader.Cbi.OrderEntry.Manual,NinjaTrader.Cbi.TimeInForce.Day,3,90,0,"","",DateTime.MaxValue,null);
+   rebuilt.OrderId="695407360888";rebuilt.Filled=2;rebuilt.OrderState=NinjaTrader.Cbi.OrderState.Filled;lock(a.Orders)a.Orders.Add(rebuilt);a.Emit(rebuilt);Drain(e);e.Poll();Drain(e);
+   Check(latest!=null&&latest.Locked&&latest.Reason.Contains("Unknown follower order"),"same id but different state / fills is not history: "+(latest==null?"":latest.Reason));
+  }
+ }
+ // Review 2026-10-14 (task 0): a never-sent copier ghost (KTC>, Initialized, 0 filled) is inert; it must not block an explicit re-follow forever.
+ static void NeverSentGhostDoesNotBlockRefollow(){var l=Acc("ghostre lead");var a=Acc("ghostre follow");AccountTelemetry latest=null;
+  var g=a.CreateOrder(inst,NinjaTrader.Cbi.OrderAction.Buy,NinjaTrader.Cbi.OrderType.Market,NinjaTrader.Cbi.OrderEntry.Manual,NinjaTrader.Cbi.TimeInForce.Day,1,0,0,"","KTC>ghost3",DateTime.MaxValue,null);
+  g.OrderState=NinjaTrader.Cbi.OrderState.Initialized;
+  ((List<NinjaTrader.Cbi.Order>)typeof(NinjaTrader.Cbi.Account).GetField("orders",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(a)).Add(g);
+  using(var e=Arm(l,a,t=>latest=t)){
+   e.SetFollowing(a.Name,false);Drain(e);Check(latest!=null&&!latest.Following,"OFF");
+   e.SetFollowing(a.Name,true);Drain(e);Check(latest.Following&&!latest.Locked,"re-follow allowed with only an inert ghost: following="+latest.Following+" locked="+latest.Locked);
+  }}
+ // The ghost stops being inert the moment it is no longer Initialized/unfilled: a ghost that went Working blocks re-follow (and locks as unknown).
+ static void GhostThatWentWorkingStillBlocksRefollow(){var l=Acc("ghostwk lead");var a=Acc("ghostwk follow");AccountTelemetry latest=null;
+  var g=a.CreateOrder(inst,NinjaTrader.Cbi.OrderAction.Buy,NinjaTrader.Cbi.OrderType.Limit,NinjaTrader.Cbi.OrderEntry.Manual,NinjaTrader.Cbi.TimeInForce.Day,1,90,0,"","KTC>ghost4",DateTime.MaxValue,null);
+  g.OrderState=NinjaTrader.Cbi.OrderState.Initialized;
+  ((List<NinjaTrader.Cbi.Order>)typeof(NinjaTrader.Cbi.Account).GetField("orders",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(a)).Add(g);
+  using(var e=Arm(l,a,t=>latest=t)){
+   e.SetFollowing(a.Name,false);Drain(e);
+   g.OrderState=NinjaTrader.Cbi.OrderState.Working;
+   e.SetFollowing(a.Name,true);Drain(e);Check(latest!=null&&!latest.Following,"a working ex-ghost blocks re-follow");
+  }}
+ // Abandon path: an inert ghost must not refuse abandonment; a ghost that went Working must (the abandon path has no Clean() backstop, so this pins the Inert scope).
+ static void FlattenAbandonGhost(bool working,out bool abandoned,out bool refusedLine){refusedLine=false;var l=Acc("abg lead "+working);var a=Acc("abg follow "+working);abandoned=false;
+  var g=a.CreateOrder(inst,NinjaTrader.Cbi.OrderAction.Sell,NinjaTrader.Cbi.OrderType.Limit,NinjaTrader.Cbi.OrderEntry.Manual,NinjaTrader.Cbi.TimeInForce.Day,1,120,0,"","KTC>ghost5",DateTime.MaxValue,null);
+  g.OrderState=NinjaTrader.Cbi.OrderState.Initialized;
+  ((List<NinjaTrader.Cbi.Order>)typeof(NinjaTrader.Cbi.Account).GetField("orders",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(a)).Add(g);
+  var logs=new List<string>();var e=new CopierEngine(s=>{lock(logs)logs.Add(s);},t=>{},(at,s)=>{},(n,r)=>{});e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10,Target=100},new RiskLatch())});Wait(()=>e.EntriesArmed,"arm");
+  using(e){l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Wait(()=>a.Submits==1,"entry");
+   var copied=a.Orders.First(o=>o!=g);copied.Filled=2;copied.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});a.Emit(copied);Drain(e);
+   a.NoopFlatten=true;e.Flatten(new[]{a},inst);Drain(e);e.Poll();Drain(e);
+   if(working)g.OrderState=NinjaTrader.Cbi.OrderState.Working;
+   e.AcknowledgeFlattenAbandoned(a.Name);Drain(e);
+   if(Environment.GetEnvironmentVariable("KTC_DUMP")=="1")lock(logs)foreach(var x in logs)Console.WriteLine("LOG "+x);
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"after abandon"));Drain(e);
+   abandoned=a.Submits==2;lock(logs)refusedLine=logs.Any(x=>x.Contains("flatten abandonment refused"));}}
+ static void FlattenAbandonIgnoresInertGhost(){bool ok,refused;FlattenAbandonGhost(false,out ok,out refused);Check(ok&&!refused,"inert ghost must not refuse abandonment");}
+ static void FlattenAbandonRefusedWhenGhostWentWorking(){bool ok,refused;FlattenAbandonGhost(true,out ok,out refused);Check(!ok&&refused,"a working ex-ghost must be refused by the abandonment check itself (refused line="+refused+")");}
  static EngineAccount FollowerOf(CopierEngine e){var fl=(System.Collections.IEnumerable)typeof(CopierEngine).GetField("followerView",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(e);foreach(EngineAccount x in fl)return x;return null;}
  // ---- Cases from the independent review of the exit-wait change and the follower-only Flat (each reproduced RED first).
  static void WaitingExitIsNotSubmittedWhileThatAccountIsFlattening(){var l=Acc("rvA lead");var a=Acc("rvA a");var tele=new Dictionary<string,AccountTelemetry>();
