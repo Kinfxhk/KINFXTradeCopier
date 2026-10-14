@@ -1104,6 +1104,10 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public readonly HashSet<string> Ignored=new HashSet<string>();
         // Orders that were already terminal when the session started (the platform reloads today's filled orders after a restart). They are history, never unknown live activity.
         public readonly HashSet<Order> PreSessionTerminal=new HashSet<Order>();
+        // Provider ids of that terminal history. After a reconnect NinjaTrader rebuilds the same filled history as NEW Order objects with the same id.
+        public readonly HashSet<string> PreSessionTerminalIds=new HashSet<string>(StringComparer.Ordinal);
+        public bool KnownHistory(Order o,OrderState state,string providerId){return PreSessionTerminal.Contains(o)||(Order.IsTerminalState(state)&&!string.IsNullOrEmpty(providerId)&&PreSessionTerminalIds.Contains(providerId));}
+        public void AddHistory(Order o){PreSessionTerminal.Add(o);if(!string.IsNullOrEmpty(o.OrderId))PreSessionTerminalIds.Add(o.OrderId);}
         // Copier orders left in Initialized before Start (never sent). Exempt from the unknown-order lock ONLY while they stay Initialized and unfilled.
         public readonly HashSet<Order> PreSessionGhost=new HashSet<Order>();
         public int DryRunRetired; // dry-run Submits retired as never-sent ghosts (SIM TEST build only)
@@ -1404,7 +1408,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                     leader=selected; instrument=inst;mirrorAtm=copyAtm;sessionAccounts=accounts; DisposeDispatchers(); followers.Clear(); links.Clear(); tombstones.Clear();
                     lock(identityGate) { identities.Clear(); providerIdentities.Clear(); wrapperProviderIds.Clear(); }
                     foreach(var item in list) followers.Add(new EngineAccount { Dispatcher=NewDispatcher(),Account=item.Item1,Settings=item.Item2.Clone(),Latch=new RiskLatch {Locked=item.Item3.Locked,Reason=item.Item3.Reason},HighWater=item.Item2.HighWater });
-                    foreach(var f in followers){ Order[] existing; lock(f.Account.Orders)existing=f.Account.Orders.ToArray(); foreach(var o in existing){ if(o==null||o.Instrument==null||o.Instrument.FullName!=inst.FullName)continue; if(Order.IsTerminalState(o.OrderState))f.PreSessionTerminal.Add(o); else if(o.OrderState==OrderState.Initialized&&o.Name!=null&&o.Name.StartsWith("KTC>",StringComparison.Ordinal))f.PreSessionGhost.Add(o); } }
+                    foreach(var f in followers){ Order[] existing; lock(f.Account.Orders)existing=f.Account.Orders.ToArray(); foreach(var o in existing){ if(o==null||o.Instrument==null||o.Instrument.FullName!=inst.FullName)continue; if(Order.IsTerminalState(o.OrderState))f.AddHistory(o); else if(o.OrderState==OrderState.Initialized&&o.Name!=null&&o.Name.StartsWith("KTC>",StringComparison.Ordinal))f.PreSessionGhost.Add(o); } }
                     foreach(var f in followers.Where(x=>!x.Settings.CopyAtm||!copyAtm))log(f.Account.Name+": ATM exit mirroring OFF — nonmarket exits skipped; market closes only. No native ATM clone / autonomous protection.");
                     followerView=followers.ToArray();
                     attached=true; entries=false;suppressNew=false;
@@ -1996,7 +2000,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 var f=followers.FirstOrDefault(x=>x.Account==snapshot.Account); if(f==null)return;
                 var link=FindFollowerLink(f,order,snapshot.ProviderId);
                 f.LastOrderEventUtc=DateTime.UtcNow;
-                if(link==null&&!f.Flattening&&!f.PreSessionTerminal.Contains(order)){f.AllocationUncertain=true;Lock(f,"Unknown follower order activity — no adoption / manual review");}
+                if(link==null&&!f.Flattening&&!f.KnownHistory(order,eventState,snapshot.ProviderId)){f.AllocationUncertain=true;Lock(f,"Unknown follower order activity — no adoption / manual review");}
                 if(link!=null)
                 {
                     // Real providers replace the pre-submit client id (state Initialized) by the exchange id exactly once. Any other change stays ambiguous.
@@ -2120,7 +2124,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             // Provider-confirmed Flat consumes the prior round; keep evidence but never allocate its entry lots again.
             foreach(var group in f.ExitGroups.Values){group.FlatRetired=true;group.Demand=0;group.PlannedQuota=0;group.Revision++;}
             Order[] seen; lock(f.Account.Orders)seen=f.Account.Orders.ToArray();
-            foreach(var o in seen)if(o!=null&&o.Instrument!=null&&o.Instrument.FullName==instrument.FullName)f.PreSessionTerminal.Add(o); // the close order is history, never unknown activity
+            foreach(var o in seen)if(o!=null&&o.Instrument!=null&&o.Instrument.FullName==instrument.FullName)f.AddHistory(o); // the close order is history, never unknown activity
             lock(controlGate){ f.Flattening=false; f.ExitCompleted=true; f.Following=false; }
             flattenConfirmations[f]="Confirmed flat";
             RecomputeDisablePending(f);
@@ -2142,7 +2146,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             if(!f.Flattening)
             {
                 Order[] actual; lock(f.Account.Orders)actual=f.Account.Orders.ToArray();
-                if(actual.Any(o=>o.Instrument!=null&&o.Instrument.FullName==instrument.FullName&&(!Order.IsTerminalState(o.OrderState)||o.Filled>0)&&!f.PreSessionTerminal.Contains(o)&&!(f.PreSessionGhost.Contains(o)&&o.OrderState==OrderState.Initialized&&o.Filled==0)&&FindFollowerLink(f,o,o.OrderId)==null)){f.AllocationUncertain=true;Lock(f,"Unknown follower order / terminal fill evidence — no adoption; manual recovery required");}
+                if(actual.Any(o=>o.Instrument!=null&&o.Instrument.FullName==instrument.FullName&&(!Order.IsTerminalState(o.OrderState)||o.Filled>0)&&!f.KnownHistory(o,o.OrderState,o.OrderId)&&!(f.PreSessionGhost.Contains(o)&&o.OrderState==OrderState.Initialized&&o.Filled==0)&&FindFollowerLink(f,o,o.OrderId)==null)){f.AllocationUncertain=true;Lock(f,"Unknown follower order / terminal fill evidence — no adoption; manual recovery required");}
                 if(Volatile.Read(ref pendingFollowerCallbacks)==0&&links.Values.SelectMany(v=>v).Any(x=>x.Follower==f&&x.Order!=null&&(x.Order.Filled!=x.ObservedFilled||(Order.IsTerminalState(x.Order.OrderState)&&x.Order.OrderState!=x.ObservedState))))
                     Lock(f,"Provider wrapper diverges from captured order / fill evidence — reservations retained; manual recovery required");
                 int position=Position(f.Account,instrument), execution=OwnedPosition(f);

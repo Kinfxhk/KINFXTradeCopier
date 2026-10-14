@@ -1748,6 +1748,43 @@ class EngineSafetyTests {
    Check(latest.Locked&&latest.Reason.Contains("Unknown follower order activity"),"a foreign Initialized order is unknown activity and locks at its own callback, not only at a later poll; got "+latest.Reason);
   }
  }
+ // Real NT 2026-10-14: after a follower connection drops and returns, NinjaTrader rebuilds today's FILLED history as NEW Order objects (same order id).
+ // They are the same history captured at Start, not unknown activity: they must not lock the account or block Stop when flat.
+ static void ReconnectRebuiltHistoryIsNotUnknownActivity(){
+  var l=Acc("rh lead");var a=Acc("rh follow");AccountTelemetry latest=null;
+  var old=a.CreateOrder(inst,NinjaTrader.Cbi.OrderAction.Buy,NinjaTrader.Cbi.OrderType.Market,NinjaTrader.Cbi.OrderEntry.Manual,NinjaTrader.Cbi.TimeInForce.Day,1,0,0,"","",DateTime.MaxValue,null);
+  old.OrderId="695407360320";old.Filled=1;old.OrderState=NinjaTrader.Cbi.OrderState.Filled;lock(a.Orders)a.Orders.Add(old);
+  using(var e=Arm(l,a,t=>latest=t)){
+   a.Connection.Status=NinjaTrader.Cbi.ConnectionStatus.Disconnected;e.Poll();Drain(e);
+   lock(a.Orders)a.Orders.Clear();
+   var rebuilt=a.CreateOrder(inst,NinjaTrader.Cbi.OrderAction.Buy,NinjaTrader.Cbi.OrderType.Market,NinjaTrader.Cbi.OrderEntry.Manual,NinjaTrader.Cbi.TimeInForce.Day,1,0,0,"","",DateTime.MaxValue,null);
+   rebuilt.OrderId="695407360320";rebuilt.Filled=1;rebuilt.OrderState=NinjaTrader.Cbi.OrderState.Filled;lock(a.Orders)a.Orders.Add(rebuilt);
+   a.Connection.Status=NinjaTrader.Cbi.ConnectionStatus.Connected;a.Emit(rebuilt);Drain(e);e.Poll();Drain(e);
+   Check(latest.Locked&&latest.Reason.StartsWith("Disconnected"),"the disconnect latch itself stays: "+latest.Reason);
+   Check(!latest.Reason.Contains("Unknown follower order"),"rebuilt history is not unknown activity: "+latest.Reason);
+   e.StopFlat();Drain(e);Wait(()=>!e.Attached,"stop when flat after a reconnect");
+  }
+ }
+ // The guard stays: a NEW filled order with an id never seen before still locks after a reconnect.
+ static void ReconnectNewFilledOrderStillLocks(){
+  var l=Acc("rn lead");var a=Acc("rn follow");AccountTelemetry latest=null;
+  using(var e=Arm(l,a,t=>latest=t)){
+   var fresh=a.CreateOrder(inst,NinjaTrader.Cbi.OrderAction.Buy,NinjaTrader.Cbi.OrderType.Market,NinjaTrader.Cbi.OrderEntry.Manual,NinjaTrader.Cbi.TimeInForce.Day,1,0,0,"","",DateTime.MaxValue,null);
+   fresh.OrderId="695407369999";fresh.Filled=1;fresh.OrderState=NinjaTrader.Cbi.OrderState.Filled;lock(a.Orders)a.Orders.Add(fresh);a.Emit(fresh);Drain(e);e.Poll();Drain(e);
+   Check(latest.Locked&&latest.Reason.Contains("Unknown follower order"),"an unseen filled order id is still unknown activity: "+(latest==null?"":latest.Reason));
+  }
+ }
+ // Only TERMINAL history is matched by id: a rebuilt WORKING order with a history id is live and still locks.
+ static void ReconnectWorkingOrderWithHistoryIdStillLocks(){
+  var l=Acc("rw lead");var a=Acc("rw follow");AccountTelemetry latest=null;
+  var old=a.CreateOrder(inst,NinjaTrader.Cbi.OrderAction.Buy,NinjaTrader.Cbi.OrderType.Market,NinjaTrader.Cbi.OrderEntry.Manual,NinjaTrader.Cbi.TimeInForce.Day,1,0,0,"","",DateTime.MaxValue,null);
+  old.OrderId="695407360555";old.Filled=1;old.OrderState=NinjaTrader.Cbi.OrderState.Filled;lock(a.Orders)a.Orders.Add(old);
+  using(var e=Arm(l,a,t=>latest=t)){
+   var live=a.CreateOrder(inst,NinjaTrader.Cbi.OrderAction.Buy,NinjaTrader.Cbi.OrderType.Limit,NinjaTrader.Cbi.OrderEntry.Manual,NinjaTrader.Cbi.TimeInForce.Day,1,99,0,"","",DateTime.MaxValue,null);
+   live.OrderId="695407360555";live.OrderState=NinjaTrader.Cbi.OrderState.Working;lock(a.Orders)a.Orders.Add(live);a.Emit(live);Drain(e);
+   Check(latest.Locked&&latest.Reason.Contains("Unknown follower order"),"a working order is never history, whatever its id: "+(latest==null?"":latest.Reason));
+  }
+ }
  static EngineAccount FollowerOf(CopierEngine e){var fl=(System.Collections.IEnumerable)typeof(CopierEngine).GetField("followerView",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(e);foreach(EngineAccount x in fl)return x;return null;}
  // ---- Cases from the independent review of the exit-wait change and the follower-only Flat (each reproduced RED first).
  static void WaitingExitIsNotSubmittedWhileThatAccountIsFlattening(){var l=Acc("rvA lead");var a=Acc("rvA a");var tele=new Dictionary<string,AccountTelemetry>();
