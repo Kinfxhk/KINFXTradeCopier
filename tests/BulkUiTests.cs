@@ -435,10 +435,37 @@ public static class BulkUiTests {
   v.AskFlatOneBox.IsChecked=false;v.AskFlatOneBox.IsChecked=true;v.AskStartBox.IsChecked=false;
   Check(string.Join(",",got)=="flatOne=False,flatOne=True,start=False","switches report their own kind: "+string.Join(",",got));
  }
+ // Risk tab widths (user request 2026-10-14): Tgt / DLL wider, St / Preset / Cons narrower; long St / Preset / Cons text keeps its full text as tooltip.
+ // Binding paths are property names in every language (the St / Preset paths used to be the translated label, so they were blank in Chinese).
+ static void RiskColumnsWidthAndBindingsInEveryLanguage(){
+  string keep=Lang.Current;
+  try{
+   foreach(var code in Lang.Codes){
+    Lang.Set(code);var v=Fresh();v.Sections.SelectedIndex=1;Layout(v);
+    v.Rows[3].Status="Disconnected | Unknown follower order / terminal fill evidence — no adoption; manual recovery required";
+    Func<string,DataGridColumn> col=key=>v.RiskGrid.Columns.First(c=>DashboardView.ColumnKey(c)==key);
+    Check(col("Tgt").Width.Value>=100&&col("DLL").Width.Value>=100,code+": Tgt / DLL at least 100 px");
+    foreach(var k in new[]{"St","Preset","Cons"})Check(col(k).Width.Value<=120,code+": "+k+" at most 120 px ("+col(k).Width.Value+")");
+    foreach(var k in new[]{"St","Preset"}){var b=((DataGridTextColumn)col(k)).Binding as System.Windows.Data.Binding;Check(b!=null&&(b.Path.Path=="Status"||b.Path.Path=="Preset"),code+": "+k+" binds a property, not a label: "+(b==null?"null":b.Path.Path));}
+    foreach(var k in new[]{"St","Preset","Cons"}){var st=((DataGridTextColumn)col(k)).ElementStyle;Check(st.Setters.OfType<Setter>().Any(x=>x.Property==FrameworkElement.ToolTipProperty),code+": "+k+" has a full-text tooltip");}
+   }
+  }finally{Lang.Set(keep);}
+ }
+ // Flat at limit: per-row tick on the Risk tab, default OFF, bulk on/off acts on highlighted followers only, From Leader copies it.
+ static void FlatAtLimitIsPerRowDefaultOffAndBulkScoped(){
+  var v=Fresh();
+  Check(v.Rows.All(r=>!r.FlatOnLimit),"default OFF on every row");
+  Check(v.RiskGrid.Columns.Any(c=>DashboardView.ColumnKey(c)=="FlatLim"),"Risk tab has the Flat@Lim column");
+  Select(v,1,2);Check(v.BulkApply("LimitFlat","on")==null,"bulk on");
+  Check(v.Rows[1].FlatOnLimit&&v.Rows[2].FlatOnLimit&&!v.Rows[3].FlatOnLimit&&!v.Rows[0].FlatOnLimit,"only highlighted followers, never the leader");
+  Check(v.Rows[1].CopyAtm==true,"ATM untouched by the Flat@Lim bulk button");
+  Select(v,2);Check(v.BulkApply("LimitFlat","off")==null&&!v.Rows[2].FlatOnLimit&&v.Rows[1].FlatOnLimit,"bulk off on one row");
+  Check(v.BulkApply("LimitFlat","maybe")!=null,"bad value refused");
+ }
  [STAThread] public static int Main(string[] args){
   try{
    AppDomain.CurrentDomain.AssemblyResolve+=(s,e)=>{string n=e.Name.Split(',')[0];if(n.EndsWith(".resources"))return null;var loaded=AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a=>a.GetName().Name==n);if(loaded!=null)return loaded;string p=System.IO.Path.Combine("C:/Program Files/NinjaTrader 8/bin",n+".dll");return System.IO.File.Exists(p)?System.Reflection.Assembly.LoadFrom(p):null;};
-   var all=new Action[]{AskBeforeSwitchesDefaultOnAndReportKind,CopyColumnsFitWorstCaseContentAndWasteNothing,EveryVisibleHeaderAndTabIsTranslatedExceptKeptAbbreviations,StateFilterWorksInEveryLanguage,LanguagesRenderTranslatedHeadersAndKeepEnglishKeys,LanguagesNeverTruncateOrShowMojibake,LanguageSwitchKeepsRowsAndRefusesOnlyBadInput,PlainCheckBoxesStayDark,ComboAndInputStayDarkWhenDisabledOrHovered,TargetAndLossApplyToSelectedOnly,ZeroTurnsLimitOff,RatioStaysIndependent,InvalidInputChangesNothing,NoSelectionIsRefused,LeaderIsNotEdited,AtmToggleBulk,LockedWhenNotEditable,NeverTouchesFollowOrTrading,BarIsOnCopyTabAndKeepsHolds,FromLeaderCopiesToHighlighted,FromLeaderWithoutHighlightHitsAllVisibleFollowers,FromLeaderRespectsSearchFilter,FromLeaderKeepsRatioTickAndOtherFields,ManualEditAfterwardsSticksAndNoLiveLink,FromLeaderRefusedWhenLockedOrNoLeader,FromLeaderNeverTouchesFollowOrTrading,AdviceShownPerRowAndCounted,AdviceUpdatesAfterBulkApply,AdviceNeverBlocksOrChangesSettings,RatioCellFitsCommonValuesAt1160,LogsReadableAndTopAligned,LogClearWorksAndIsEditableIndependent,BadTargetDraftSurvivesRefreshAndBlocksCommit,BadLossDraftSurvivesRefreshAndBlocksCommit,BadTargetDraftSurvivesRecyclingAndStillBlocksCommit,TargetAndLossSetterRejectInvalidNumbers,LockedAccountIsRedWithReasonAndCountedInFooter,LockedCountIgnoresLeaderAndNeverBlocksUi,BadRatioDraftSurvivesRefreshAndBlocksCommit,UnprotectedReasonReachesRowAndDetail,MaxContractsRejectsInvalidAndKeepsDraft,DivergenceChoiceIsPerAccountDefaultsToNotify,DivergenceBulkAndFromLeaderAndNeverTrades,FlattenOnceShowsAWarningNote,FlatColumnExistsAndEveryFollowerRowHasItsOwnButton,FlatButtonOnLeaderRowIsDisabled,FlatButtonRequestsExactlyThatRowAndNothingElse,FlatAndOffAreDifferentControlsWithDifferentGlyphsAndTips,FlatButtonFitsItsCellAtNarrowWidth,FlatCanFlatFollowsSimAndLeaderRules,FlatOnARealViewForwardsExactlyTheClickedRowOnce};
+   var all=new Action[]{FlatAtLimitIsPerRowDefaultOffAndBulkScoped,RiskColumnsWidthAndBindingsInEveryLanguage,AskBeforeSwitchesDefaultOnAndReportKind,CopyColumnsFitWorstCaseContentAndWasteNothing,EveryVisibleHeaderAndTabIsTranslatedExceptKeptAbbreviations,StateFilterWorksInEveryLanguage,LanguagesRenderTranslatedHeadersAndKeepEnglishKeys,LanguagesNeverTruncateOrShowMojibake,LanguageSwitchKeepsRowsAndRefusesOnlyBadInput,PlainCheckBoxesStayDark,ComboAndInputStayDarkWhenDisabledOrHovered,TargetAndLossApplyToSelectedOnly,ZeroTurnsLimitOff,RatioStaysIndependent,InvalidInputChangesNothing,NoSelectionIsRefused,LeaderIsNotEdited,AtmToggleBulk,LockedWhenNotEditable,NeverTouchesFollowOrTrading,BarIsOnCopyTabAndKeepsHolds,FromLeaderCopiesToHighlighted,FromLeaderWithoutHighlightHitsAllVisibleFollowers,FromLeaderRespectsSearchFilter,FromLeaderKeepsRatioTickAndOtherFields,ManualEditAfterwardsSticksAndNoLiveLink,FromLeaderRefusedWhenLockedOrNoLeader,FromLeaderNeverTouchesFollowOrTrading,AdviceShownPerRowAndCounted,AdviceUpdatesAfterBulkApply,AdviceNeverBlocksOrChangesSettings,RatioCellFitsCommonValuesAt1160,LogsReadableAndTopAligned,LogClearWorksAndIsEditableIndependent,BadTargetDraftSurvivesRefreshAndBlocksCommit,BadLossDraftSurvivesRefreshAndBlocksCommit,BadTargetDraftSurvivesRecyclingAndStillBlocksCommit,TargetAndLossSetterRejectInvalidNumbers,LockedAccountIsRedWithReasonAndCountedInFooter,LockedCountIgnoresLeaderAndNeverBlocksUi,BadRatioDraftSurvivesRefreshAndBlocksCommit,UnprotectedReasonReachesRowAndDetail,MaxContractsRejectsInvalidAndKeepsDraft,DivergenceChoiceIsPerAccountDefaultsToNotify,DivergenceBulkAndFromLeaderAndNeverTrades,FlattenOnceShowsAWarningNote,FlatColumnExistsAndEveryFollowerRowHasItsOwnButton,FlatButtonOnLeaderRowIsDisabled,FlatButtonRequestsExactlyThatRowAndNothingElse,FlatAndOffAreDifferentControlsWithDifferentGlyphsAndTips,FlatButtonFitsItsCellAtNarrowWidth,FlatCanFlatFollowsSimAndLeaderRules,FlatOnARealViewForwardsExactlyTheClickedRowOnce};
    int failed=0;foreach(var a in all){try{a();Console.WriteLine("PASS "+a.Method.Name);}catch(Exception ex){failed++;Console.WriteLine("FAIL "+a.Method.Name+" :: "+ex.Message);}}
    return failed==0?0:1;
   }catch(Exception ex){Console.WriteLine("HARNESS "+ex);return 2;}
@@ -456,6 +483,9 @@ public static class BulkUiTests {
   var tb=e as TextBlock;if(tb==null||tb.ActualWidth<1)return false;
   var t=new System.Windows.Media.Typeface(tb.FontFamily,tb.FontStyle,tb.FontWeight,tb.FontStretch);
   var ft=new System.Windows.Media.FormattedText(tb.Text,System.Globalization.CultureInfo.CurrentUICulture,FlowDirection.LeftToRight,t,tb.FontSize,System.Windows.Media.Brushes.Black);
+  // A deliberately narrow column (Risk tab St / Preset / Cons) shows "…" AND carries the exact full text as its tooltip: nothing is lost, so it is not a truncation.
+  // Any other clipped text (no tooltip, or a tooltip that differs from the text) still counts.
+  if(tb.TextTrimming==TextTrimming.CharacterEllipsis&&(tb.ToolTip as string)==tb.Text&&!string.IsNullOrEmpty(tb.Text))return false;
   return tb.TextWrapping==TextWrapping.NoWrap&&ft.Width>tb.ActualWidth+1.5&&tb.TextTrimming!=TextTrimming.None;
  }
  static void LanguagesRenderTranslatedHeadersAndKeepEnglishKeys(){

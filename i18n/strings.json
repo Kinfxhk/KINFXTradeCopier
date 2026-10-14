@@ -2515,7 +2515,7 @@
  },
  {
   "en": "Flat (row)",
-  "zh": "單戶平倉",
+  "zh": "單一帳戶平倉",
   "ja": "行の決済",
   "ko": "행 청산"
  },
@@ -2542,5 +2542,65 @@
   "zh": "選取平倉／全部平倉前確認",
   "ja": "選択決済／全決済の前に確認",
   "ko": "선택 청산/전체 청산 전에 확인"
+ },
+ {
+  "en": "Limit flat on",
+  "zh": "達限平倉：開",
+  "ja": "上限で決済：オン",
+  "ko": "한도 청산: 켜기"
+ },
+ {
+  "en": "Limit flat off",
+  "zh": "達限平倉：關",
+  "ja": "上限で決済：オフ",
+  "ko": "한도 청산: 끄기"
+ },
+ {
+  "en": "When Tgt or DLL is hit: flatten that account once (never retried) for highlighted accounts",
+  "zh": "選取的帳戶達到每日目標或每日虧損上限時：平倉該帳戶一次（不會重試）",
+  "ja": "選択口座が日次目標または日次損失上限に達したとき：その口座を1回だけ決済（再試行なし）",
+  "ko": "선택한 계좌가 일일 목표 또는 일일 손실 한도에 도달하면: 해당 계좌를 한 번 청산(재시도 없음)"
+ },
+ {
+  "en": "When Tgt or DLL is hit: only lock and stop copying (default) for highlighted accounts",
+  "zh": "選取的帳戶達到每日目標或每日虧損上限時：只鎖定並停止跟單（預設）",
+  "ja": "選択口座が日次目標または日次損失上限に達したとき：ロックしてコピーを停止するのみ（既定）",
+  "ko": "선택한 계좌가 일일 목표 또는 일일 손실 한도에 도달하면: 잠그고 복사만 중지(기본값)"
+ },
+ {
+  "en": "Flat at limit: when this account hits its Tgt or DLL, flatten it ONCE (never retried). Off = only lock and stop copying.",
+  "zh": "達限平倉：此帳戶達到每日目標或每日虧損上限時平倉一次（不會重試）。關閉＝只鎖定並停止跟單。",
+  "ja": "上限で決済：この口座が日次目標または日次損失上限に達したら1回だけ決済（再試行なし）。オフ＝ロックしてコピー停止のみ。",
+  "ko": "한도 청산: 이 계좌가 일일 목표 또는 일일 손실 한도에 도달하면 한 번 청산(재시도 없음). 끄기 = 잠그고 복사만 중지."
+ },
+ {
+  "en": "Flat@Lim",
+  "zh": "達限平倉",
+  "ja": "上限決済",
+  "ko": "한도청산"
+ },
+ {
+  "en": "Confirmation skipped (turned off on the Risk tab): {0}",
+  "zh": "已略過確認（已在風控分頁關閉）：{0}",
+  "ja": "確認を省略（リスクタブでオフ）：{0}",
+  "ko": "확인 생략(리스크 탭에서 끔): {0}"
+ },
+ {
+  "en": "Confirmation turned back on: {0}",
+  "zh": "已重新開啟確認：{0}",
+  "ja": "確認を再びオン：{0}",
+  "ko": "확인 다시 켬: {0}"
+ },
+ {
+  "en": "Confirmation turned off: {0} (risk warnings and Unlock are still always asked)",
+  "zh": "已關閉確認：{0}（風險警告及解鎖仍一律詢問）",
+  "ja": "確認をオフ：{0}（リスク警告とロック解除は常に確認）",
+  "ko": "확인 끔: {0} (위험 경고와 잠금 해제는 항상 확인)"
+ },
+ {
+  "en": "Settings NOT saved: {0}",
+  "zh": "設定未儲存：{0}",
+  "ja": "設定は保存されていません：{0}",
+  "ko": "설정이 저장되지 않았습니다: {0}"
  }
 ]

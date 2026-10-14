@@ -206,7 +206,7 @@ class SourceSyntaxHoldTests(unittest.TestCase):
         self.assertEqual(len(re.findall(r"\bengine\.Start\s*\(", code)), 1)
         self.assertEqual(len(re.findall(r"\bengine\.Flatten\s*\(", code)), 1)
         self.assertIn("engine.Start(", method(self.text, "void Start()"))
-        self.assertIn("engine.Flatten(", method(self.text, "void Flatten(AccountRow[] rows)"))
+        self.assertIn("engine.Flatten(", method(self.text, "void Flatten(AccountRow[] rows,string kind)"))
         for signature in ("void ApplyXml(XElement x)", "void Tick()",
                           "public KINFXTradeCopierTab()", "protected override void Restore(XElement element)"):
             automatic = mask_noncode(method(self.text, signature))
