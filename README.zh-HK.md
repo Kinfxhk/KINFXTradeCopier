@@ -11,8 +11,8 @@
 
 | | |
 |---|---|
-| **Demo／模擬帳戶** | **尚未就緒：目前候選版本未驗收。** 完成度約 **69%**，僅指加權歷史檢查清單，並非發佈就緒百分比。 |
-| **Prop Firm 帳戶** | **尚未就緒：目前候選版本未驗收。** 完成度約 **62%**，僅指同一歷史檢查清單。舊版本曾使用 2 個操作員確認的模擬／評估帳戶測試；不是目前源碼的驗收或公司合規認證。 |
+| **Demo／模擬帳戶** | **尚未就緒：目前候選版本未驗收。** 完成度約 **83%**，僅指加權歷史檢查清單，並非發佈就緒百分比。 |
+| **Prop Firm 帳戶** | **尚未就緒：目前候選版本未驗收。** 完成度約 **75%**，僅指同一歷史檢查清單。源碼 `c9fbf2cb3005`（SIM TEST 版）已於 2026-10-14 在真 NinjaTrader 上以 11 個操作員確認的模擬／評估帳戶執行；此非發佈驗收，亦非公司合規認證。 |
 | **Funded／實盤帳戶** | **禁止使用。** |
 <!-- QUICKSTART:END -->
 
@@ -22,11 +22,11 @@
 ### 成就：Demo／Prop Firm 跟單完成度
 
 ```text
-Demo         █████████████████████░░░░░░░░░  68.9%
-Prop firm    ███████████████████░░░░░░░░░░░  62.1%
+Demo         █████████████████████████░░░░░  83.0%
+Prop firm    ██████████████████████░░░░░░░░  74.7%
 ```
 
-✅ 真 NinjaTrader 已測 · 🟡 只有離線測試 · ⬜ 尚未完成。必要項目 ✅：Demo 6/14 · Prop 6/15。
+✅ 真 NinjaTrader 已測 · 🟡 只有離線測試 · ⬜ 尚未完成。必要項目 ✅：Demo 10/14 · Prop 10/15。
 
 以下為歷史清單證據，不代表目前候選版本已通過驗收。目前候選版本尚未通過驗收，不可宣稱可用。安全 P0／驗收關卡：issue-3, issue-4, issue-7, issue-9。Demo ready=False；Prop ready=False。不包括 funded／實盤驗收。
 
@@ -34,16 +34,16 @@ Prop firm    ███████████████████░░░�
 - ✅ 每戶 Ratio ＋ 最大手數
 - ✅ Follower 無持倉時不會鎖定
 - ✅ 每個帳戶獨立 Flat 按鈕
-- 🟡 批量／全部 Flatten
+- ✅ 批量／全部 Flatten
 - ✅ TP／SL 跟隨 ＋ OCO
-- 🟡 異常自動鎖定帳戶，不會自動重試
+- ✅ 異常自動鎖定帳戶，不會自動重試
 - ✅ 斷線重連安全
 - 🟡 部分成交處理
 - 🟡 改量前成交一致 (#2)
 - 🟡 單一帳戶停滯不影響其他帳戶 (#4)
-- ⬜ 真實 NT 的 10–30 個帳戶測試
+- ✅ 真實 NT 的 10–30 個帳戶測試
 - ✅ 介面（表格、批量改、鎖定原因） _（可選）_
-- 🟡 每戶每日目標／虧損上限
+- ✅ 每戶每日目標／虧損上限
 - ⬜ 反向時平倉一次 (#12) _（可選）_
 - ⬜ 承接現有倉位 (#11) _（可選）_
 - ⬜ 每戶自管 TP/SL (#10) _（可選）_
@@ -51,10 +51,10 @@ Prop firm    ███████████████████░░░�
 - ⬜ 安裝包 ＋ 覆核後發佈
 - ⬜ Prop Firm 規則檢查（本軟件不作認證）
 
-歷史真實測試：1 個模擬 Leader、2 個**模擬** Prop Firm 評估帳戶、MNQ、市價＋限價。從未使用 funded 或實盤帳戶。各項詳情與限制：[`docs/PROGRESS.json`](docs/PROGRESS.json)。計分按權重：✅ 100%、🟡 50%、只有設計 10%。快照 2026-10-13，源碼 `20dc6707c9e6`。
+歷史真實測試：1 個模擬 Leader、最多 11 個**模擬** Prop Firm 評估帳戶（Lucid 5 個、Tradeify 6 個）、MNQ、市價＋限價＋停損單、TP/SL OCO。從未使用 funded 或實盤帳戶。各項詳情與限制：[`docs/PROGRESS.json`](docs/PROGRESS.json)。計分按權重：✅ 100%、🟡 50%、只有設計 10%。快照 2026-10-15，源碼 `bfc8a2531acf`。
 <!-- PROGRESS:END -->
 
-勾號及分數是**加權歷史檢查清單**，**並非發佈就緒百分比**。真 NinjaTrader 快照指向舊源碼 `20dc6707c9e6`，不是目前確切源碼的驗收。[各項證據與限制](docs/PROGRESS.json) · [歷史 NT 測試記錄](docs/VM-PROGRESS.md) · [目前離線結果與安全阻礙](docs/DEVELOPERS.zh-HK.md)。
+勾號及分數是**加權歷史檢查清單**，**並非發佈就緒百分比**。最近一次真 NinjaTrader 測試（2026-10-15）使用源碼 `bfc8a2531acf`（SIM TEST 版），屬測試證據，不是目前確切源碼的驗收。[各項證據與限制](docs/PROGRESS.json) · [歷史 NT 測試記錄](docs/VM-PROGRESS.md) · [目前離線結果與安全阻礙](docs/DEVELOPERS.zh-HK.md)。
 
 ## 安裝（Windows ＋ NinjaTrader 8；僅限已覆核測試候選版本）
 
@@ -67,13 +67,15 @@ Prop firm    ███████████████████░░░�
    ```
    腳本會將 SIM TEST 源碼複製至 `Documents\NinjaTrader 8\bin\Custom\AddOns`，取代舊檔前會備份，不會操作帳戶。`-WhatIf` 可預覽，`-Remove` 可移除。
 3. **編譯。** 在 NinjaTrader 選擇 *New > NinjaScript Editor*，按 **F5**，等待 *Compile succeeded*。若出錯，請停止。
-4. **列明模擬帳戶。** Simulator／Playback 無須 allow-list。使用由操作員確認的 Prop Firm **模擬**帳戶時，請**先建立資料夾** `Documents\NinjaTrader 8\templates\KINFXTradeCopier`（安裝腳本**不會建立此資料夾**），再建立 `Documents\NinjaTrader 8\templates\KINFXTradeCopier\sim-allow.txt`。每行填寫一個 NinjaTrader Account `Name`，區分大小寫、須完全相符，不能使用登入名稱或顯示別名（`= 別名` 為可選）：
+4. **帳戶自動載入。** 開啟 copier 後會列出所有 NinjaTrader 帳戶，可直接勾選，無須輸入帳戶名稱。首次對 copier 尚未確認為模擬的帳戶（Simulator／Playback 以外，例如 Prop Firm 評估帳戶）按 **Start** 或 **Flatten** 時，會顯示**列明該帳戶的風險警告**：KINFX 無法分辨評估帳戶與已注資或實盤帳戶。按**是**＝您確認為模擬帳戶，帳戶會寫入 `Documents\NinjaTrader 8\templates\KINFXTradeCopier\sim-allow.txt`，以後不再詢問；按**否**＝不儲存、不發送任何指令。此警告不能關閉。如需再次詢問，請從檔案刪除該行。
+
+   仍可手動填寫檔案。請**先建立資料夾** `Documents\NinjaTrader 8\templates\KINFXTradeCopier`（安裝腳本**不會建立此資料夾**），每行填寫一個 NinjaTrader Account `Name`，區分大小寫、須完全相符，不能使用登入名稱或顯示別名（`= 別名` 為可選）：
    ```text
    # 僅列出操作員已確認為模擬的帳戶
    MYFIRM-SIM-12345 = Firm A
    MYFIRM-SIM-67890 = Firm B
    ```
-   錯誤名稱可能授權向 funded／實盤帳戶發送訂單：這是操作員聲明，不是 provider 認證。檔案只在**靜態初始化**時讀取，不會因重新開啟儀表板而重讀。建立或修改後，保持停止及已平倉，關閉 copier 視窗；如有需要，以 F5 編譯預定的 SIM TEST 源碼，再**重新啟動 NinjaTrader**，開啟儀表板並確認帳戶資格後才考慮 Start。**僅按 F5** 並不保證即時重載。檔案缺失或無法讀取時，非 Simulator／Playback 帳戶會被拒絕。
+   錯誤名稱可能授權向 funded／實盤帳戶發送訂單：這是操作員聲明，不是 provider 認證。手動修改的檔案只在**靜態初始化**時讀取，不會因重新開啟儀表板而重讀：修改後請保持停止及已平倉，關閉 copier 視窗，再**重新啟動 NinjaTrader**。**僅按 F5** 並不保證即時重載。（在風險警告中的回答會即時生效。）
 
 ## 第一次使用
 
@@ -91,7 +93,7 @@ Prop firm    ███████████████████░░░�
 
 ## 使用限制
 
-- 本項目是**源碼 alpha**，不是已一般驗收的交易版本。歷史 NinjaTrader 8.1.8.3 測試使用 1 個模擬 Leader、2 個操作員確認的模擬 Follower 及 MNQ；進度快照指向 `20dc6707c9e6`。**目前源碼尚未證明：**真實 provider 次序／接受狀況、10–30 戶、Leader 斷線、真實部分成交、止損／Flatten 被拒及恢復。離線編譯／測試不能證明以上行為。
+- 本項目是**源碼 alpha**，不是已一般驗收的交易版本。NinjaTrader 8.1.8.3 測試（最近一次 2026-10-15，源碼 `bfc8a2531acf`）使用 1 個模擬 Leader、最多 11 個操作員確認的 Prop Firm 模擬 Follower 及 MNQ。**尚未證明：**20–30 戶、Leader 斷線、真實部分成交、provider 呼叫停滯、Flatten 被拒及重啟恢復。離線編譯／測試不能證明以上行為。
 - **Locked** 須在原生 NinjaTrader 調查並核對。風控鎖存重設**不等於**核對不確定的引擎 ledger、隱藏已接受請求或拋例外的 Flatten。仍缺少明確、可驗證已平倉的恢復關卡（[#9](https://github.com/Kinfxhk/KINFXTradeCopier/issues/9)，已知 FAIL `ExplicitManualFlatReconciliationAvailable`）；若證據仍不確定，請保持未啟動／鎖定並尋求覆核。copier 不會重試 Flatten 或在斷線後補單。
 - 以 NinjaTrader 原生 Orders／Positions 分頁為操作依據，而非此視窗。本軟件不能阻止手動下單或保證成交。
 - 不得為了試用而移除預設版安全封鎖。

@@ -2,7 +2,7 @@ using System;
 using NinjaTrader.NinjaScript.AddOns.Kinfx;
 class RiskTests {
  static int Main(string[] args) {
-  try { XmlDoubleRoundtripIsExact(); XmlDoubleRejectsGroupingCommas(); XmlBaselinePreservesSignedZeroAndIntent(); Console.WriteLine("PASS exact XML numeric persistence"); Eq(false,DashboardSafety.CanExecute("start")); Eq(false,DashboardSafety.CanExecute("flattenSelected")); Eq(false,DashboardSafety.CanExecute("flattenAll")); Eq(false,DashboardSafety.CanExecute("batch")); Eq(true,DashboardSafety.CanExecute("refresh")); BulkAmount(); Console.WriteLine("PASS bulk amount grammar"); SettingsWarnings(); Console.WriteLine("PASS settings warnings"); WorkerRetention(); Console.WriteLine("PASS worker retains accepted work and reports rejection"); DivergencePolicy(); Console.WriteLine("PASS divergence reaction setting"); Quantity(); Console.WriteLine("PASS quantity"); AccountSyncDiff(); Console.WriteLine("PASS account sync diff"); ContractRollQuarterly(); Console.WriteLine("PASS contract roll"); ContractInputNormalize(); Console.WriteLine("PASS contract input"); AccountSyncDecision(); Console.WriteLine("PASS account sync decision"); HeaderTextMatchesBuild(); Console.WriteLine("PASS header text matches build"); LangEveryKeyHasThreeTranslations(); Console.WriteLine("PASS language table: every sentence has zh/ja/ko with matching placeholders"); LangSelection(); Console.WriteLine("PASS language selection"); LangUnknownTextFallsBackToEnglish(); Console.WriteLine("PASS unknown text falls back to English"); LangTemplateRefill(); Console.WriteLine("PASS templates refill and composite messages translate"); LangDoesNotChangeEnglishDecisions(); Console.WriteLine("PASS language never changes English decisions"); LangNoCantoneseInChinese(); Console.WriteLine("PASS zh is written Chinese, not Cantonese colloquial"); DefaultLeaderChoice(); Console.WriteLine("PASS default leader choice"); AllowFileLineParsing(); Console.WriteLine("PASS allow file line parsing"); StartSummaryListsLeaderRatioAndExpectedQuantity(); Console.WriteLine("PASS start summary"); RvDraftNeverPublishesNonFiniteOrOutOfRange(); Console.WriteLine("PASS RvDraftNeverPublishesNonFiniteOrOutOfRange"); RvDraftMinusZeroAndStrictFields(); Console.WriteLine("PASS RvDraftMinusZeroAndStrictFields"); RvDraftCultureIndependent(); Console.WriteLine("PASS RvDraftCultureIndependent"); RvDraftBuildAfterLoadWithInvalidRawStillRefuses(); Console.WriteLine("PASS RvDraftBuildAfterLoadWithInvalidRawStillRefuses"); RvDraftLoadedInvalidPresetCannotBuild(); Console.WriteLine("PASS RvDraftLoadedInvalidPresetCannotBuild"); Risk(); Console.WriteLine("PASS risk latch / exits / finite / DST"); Persistence(); Console.WriteLine("PASS XML atomic roundtrip"); Worker(); Console.WriteLine("PASS serial reentrancy + ownership"); Ledger(); Console.WriteLine("PASS lifecycle decisions / dedupe / reservation"); Presets(); Console.WriteLine("PASS sourced editable presets"); ChangePolicy(); Console.WriteLine("PASS locked reductions / partial exit totals"); DurableLock(); Console.WriteLine("PASS durable global latches / unlock recheck / advisory"); return 0; }
+  try { XmlDoubleRoundtripIsExact(); XmlDoubleRejectsGroupingCommas(); XmlBaselinePreservesSignedZeroAndIntent(); Console.WriteLine("PASS exact XML numeric persistence"); Eq(false,DashboardSafety.CanExecute("start")); Eq(false,DashboardSafety.CanExecute("flattenSelected")); Eq(false,DashboardSafety.CanExecute("flattenAll")); Eq(false,DashboardSafety.CanExecute("batch")); Eq(true,DashboardSafety.CanExecute("refresh")); BulkAmount(); Console.WriteLine("PASS bulk amount grammar"); SettingsWarnings(); Console.WriteLine("PASS settings warnings"); WorkerRetention(); Console.WriteLine("PASS worker retains accepted work and reports rejection"); DivergencePolicy(); Console.WriteLine("PASS divergence reaction setting"); Quantity(); Console.WriteLine("PASS quantity"); AccountSyncDiff(); Console.WriteLine("PASS account sync diff"); ContractRollQuarterly(); Console.WriteLine("PASS contract roll"); ContractInputNormalize(); Console.WriteLine("PASS contract input"); AccountSyncDecision(); Console.WriteLine("PASS account sync decision"); HeaderTextMatchesBuild(); Console.WriteLine("PASS header text matches build"); LangEveryKeyHasThreeTranslations(); Console.WriteLine("PASS language table: every sentence has zh/ja/ko with matching placeholders"); LangSelection(); Console.WriteLine("PASS language selection"); LangUnknownTextFallsBackToEnglish(); Console.WriteLine("PASS unknown text falls back to English"); LangTemplateRefill(); Console.WriteLine("PASS templates refill and composite messages translate"); LangDoesNotChangeEnglishDecisions(); Console.WriteLine("PASS language never changes English decisions"); LangNoCantoneseInChinese(); Console.WriteLine("PASS zh is written Chinese, not Cantonese colloquial"); DefaultLeaderChoice(); Console.WriteLine("PASS default leader choice"); AllowFileLineParsing(); ConfirmPrefsDefaultsAskEverything(); ConfirmPrefsRoundTripAndUnknownLines(); ConfirmPrefsRiskWarningIsNeverSkipped();ConfirmPrefsKindFollowsTheButtonNotTheRowCount();ColumnPrefsRoundTripAndSafetyColumnsNeverHidden(); Console.WriteLine("PASS allow file line parsing"); StartSummaryListsLeaderRatioAndExpectedQuantity(); Console.WriteLine("PASS start summary"); RvDraftNeverPublishesNonFiniteOrOutOfRange(); Console.WriteLine("PASS RvDraftNeverPublishesNonFiniteOrOutOfRange"); RvDraftMinusZeroAndStrictFields(); Console.WriteLine("PASS RvDraftMinusZeroAndStrictFields"); RvDraftCultureIndependent(); Console.WriteLine("PASS RvDraftCultureIndependent"); RvDraftBuildAfterLoadWithInvalidRawStillRefuses(); Console.WriteLine("PASS RvDraftBuildAfterLoadWithInvalidRawStillRefuses"); RvDraftLoadedInvalidPresetCannotBuild(); Console.WriteLine("PASS RvDraftLoadedInvalidPresetCannotBuild"); Risk(); Console.WriteLine("PASS risk latch / exits / finite / DST"); Persistence(); Console.WriteLine("PASS XML atomic roundtrip"); Worker(); Console.WriteLine("PASS serial reentrancy + ownership"); Ledger(); Console.WriteLine("PASS lifecycle decisions / dedupe / reservation"); Presets(); Console.WriteLine("PASS sourced editable presets"); ChangePolicy(); Console.WriteLine("PASS locked reductions / partial exit totals"); DurableLock(); Console.WriteLine("PASS durable global latches / unlock recheck / advisory"); return 0; }
   catch(Exception ex) { Console.WriteLine("FAIL "+ex.Message); return 1; }
  }
  static void Eq(object want,object got) { if(want==null||got==null){ if(want!=got) throw new Exception("expected "+(want??"<null>")+" got "+(got??"<null>")); return; } if(!want.Equals(got)) throw new Exception("expected "+want+" got "+got); }
@@ -324,13 +324,13 @@ class RiskTests {
   Eq(true,DashboardSafety.CanExecute("start"));Eq(true,DashboardSafety.CanExecute("flattenAll"));Eq(true,DashboardSafety.CanExecute("batch"));
   Eq(true,DashboardSafety.HeaderText.Contains("SIM TEST"));
   Eq(false,DashboardSafety.HeaderText.Contains("DISABLED"));
-  Eq(true,DashboardSafety.StartTip.Contains("Simulator / Playback"));
+  Eq(true,DashboardSafety.StartTip.Contains("risk warning"));Eq(true,DashboardSafety.ListAllAccounts);
   Eq(false,DashboardSafety.LogNote.Contains("REVIEW HOLD"));
   Eq(true,DashboardSafety.LogNote.Contains("Orders ARE sent"));
 #else
   Eq(false,DashboardSafety.CanExecute("start"));Eq(false,DashboardSafety.CanExecute("flattenSelected"));Eq(false,DashboardSafety.CanExecute("flattenAll"));Eq(false,DashboardSafety.CanExecute("batch"));
   Eq("REVIEW HOLD · TRADING DISABLED",DashboardSafety.HeaderText);
-  Eq("REVIEW HOLD: copying unavailable until engine safety issues are fixed",DashboardSafety.StartTip);
+  Eq("REVIEW HOLD: copying unavailable until engine safety issues are fixed",DashboardSafety.StartTip);Eq(false,DashboardSafety.ListAllAccounts);
   Eq(true,DashboardSafety.LogNote.StartsWith("REVIEW HOLD"));
 #endif
  }
@@ -439,5 +439,50 @@ class RiskTests {
  static void LangNoCantoneseInChinese() {
   const string cant="嘅唔咗喺係啲冇佢嚟哋";
   foreach(var key in Lang.Keys) { string zh=Lang.Row(key)[0]; foreach(char c in zh) if(cant.IndexOf(c)>=0) throw new Exception("colloquial Cantonese char '"+c+"' in zh: "+zh); }
+ }
+ // Confirmation windows: every kind is asked by default; the user may turn single kinds off; a risk warning (account not confirmed simulated) can never be turned off.
+ static void ConfirmPrefsDefaultsAskEverything() {
+  var none=ConfirmPrefs.Parse(null);
+  foreach(var k in ConfirmPrefs.Kinds) Eq(true,ConfirmPrefs.MustAsk(k,none,false));
+  Eq(3,ConfirmPrefs.Kinds.Length);
+  // Unlock is the only explicit unlock path and can never be skipped.
+  Eq(true,ConfirmPrefs.MustAsk("unlock",ConfirmPrefs.Parse(new[]{"skip=unlock"}),false));
+  Eq(true,ConfirmPrefs.MustAsk("somethingElse",ConfirmPrefs.Parse(new[]{"skip=somethingElse"}),false));
+ }
+ static void ConfirmPrefsRoundTripAndUnknownLines() {
+  var s=ConfirmPrefs.Parse(new[]{"# comment","skip=start"," skip = flatOne ","skip=bogus","ask=flatten","","garbage"});
+  Eq(false,ConfirmPrefs.MustAsk("start",s,false));Eq(false,ConfirmPrefs.MustAsk("flatOne",s,false));
+  Eq(true,ConfirmPrefs.MustAsk("flatten",s,false));Eq(true,ConfirmPrefs.MustAsk("unlock",s,false));
+  Eq(false,s.Contains("bogus"));
+  var again=ConfirmPrefs.Parse(ConfirmPrefs.Serialize(s));
+  Eq(2,again.Count);Eq(true,again.Contains("start")&&again.Contains("flatOne"));
+ }
+ // Review 2026-10-14 DEFECT 1: the switch follows the button, not the row count. One highlighted row + "Flatten selected" = the Flatten switch.
+ static void ConfirmPrefsKindFollowsTheButtonNotTheRowCount() {
+  Eq("flatOne",ConfirmPrefs.KindFor("flatOne"));
+  Eq("flatten",ConfirmPrefs.KindFor("flattenSelected"));
+  Eq("flatten",ConfirmPrefs.KindFor("flattenAll"));
+  Eq("start",ConfirmPrefs.KindFor("start"));
+  var onlyRowOff=ConfirmPrefs.Parse(new[]{"skip=flatOne"});
+  Eq(true,ConfirmPrefs.MustAsk(ConfirmPrefs.KindFor("flattenSelected"),onlyRowOff,false));
+  Eq("Flat (row)",ConfirmPrefs.Label("flatOne"));Eq("Flatten selected / all",ConfirmPrefs.Label("flatten"));Eq("Start",ConfirmPrefs.Label("start"));
+  Eq(false,Lang.Show("Confirmation turned off: Flat (row) (risk warnings and Unlock are still always asked)","zh").StartsWith("Confirmation"));
+  Eq(false,Lang.Show("Confirmation skipped (turned off on the Risk tab): Start","zh").StartsWith("Confirmation"));
+ }
+ // Column prefs: hidden set round-trips; a hand-edited file can never hide a safety column; garbage lines are ignored.
+ static void ColumnPrefsRoundTripAndSafetyColumnsNeverHidden() {
+  var s=ColumnPrefs.Parse(new[]{"# c","hide=risk:Preset"," hide = copy:Bal ","hide=copy:Flat","hide=risk:St","hide=copy:Acct","hide=risk:Tgt","hide=nogrid:Bal","show=risk:Cons","junk",""});
+  Eq(2,s.Count);Eq(true,s.Contains("risk:Preset")&&s.Contains("copy:Bal"));
+  Eq(false,ColumnPrefs.Visible("risk","Preset",s));Eq(true,ColumnPrefs.Visible("risk","Cons",s));
+  foreach(var k in new[]{"Acct","On","Ratio","Qty","State","Conn","Off","Flat"})Eq(false,ColumnPrefs.CanHide("copy",k));
+  foreach(var k in new[]{"Acct","Tgt","DLL","Qty","St","Conn"})Eq(false,ColumnPrefs.CanHide("risk",k));
+  Eq(true,ColumnPrefs.Visible("copy","Flat",new System.Collections.Generic.HashSet<string>{"copy:Flat"}));
+  var again=ColumnPrefs.Parse(ColumnPrefs.Serialize(s));Eq(2,again.Count);Eq(true,again.SetEquals(s));
+  Eq(0,ColumnPrefs.Parse(null).Count);
+ }
+ static void ConfirmPrefsRiskWarningIsNeverSkipped() {
+  var all=ConfirmPrefs.Parse(new[]{"skip=start","skip=flatOne","skip=flatten","skip=unlock"});
+  Eq(3,all.Count);
+  foreach(var k in ConfirmPrefs.Kinds){Eq(false,ConfirmPrefs.MustAsk(k,all,false));Eq(true,ConfirmPrefs.MustAsk(k,all,true));}
  }
 }

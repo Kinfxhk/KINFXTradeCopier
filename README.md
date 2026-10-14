@@ -11,8 +11,8 @@ Copy trades from one NinjaTrader 8 account to many others (prop-firm **simulated
 
 | | |
 |---|---|
-| **Demo / Simulator accounts** | **Not ready: current candidate unaccepted.** About **69%** done in the weighted historical checklist, not a release-readiness percentage. |
-| **Prop-firm accounts** | **Not ready: current candidate unaccepted.** About **62%** done in the same historical checklist. An older build was tested on 2 operator-attested *simulated / evaluation* accounts; this is not current-source acceptance or firm compliance. |
+| **Demo / Simulator accounts** | **Not ready: current candidate unaccepted.** About **83%** done in the weighted historical checklist, not a release-readiness percentage. |
+| **Prop-firm accounts** | **Not ready: current candidate unaccepted.** About **75%** done in the same historical checklist. Source `c9fbf2cb3005` (SIM TEST build) was run on real NinjaTrader with 11 operator-attested *simulated / evaluation* accounts on 2026-10-14; this is not release acceptance or firm compliance. |
 | **Funded or live accounts** | **No.** |
 <!-- QUICKSTART:END -->
 
@@ -22,11 +22,11 @@ Copy trades from one NinjaTrader 8 account to many others (prop-firm **simulated
 ### Achievements: Demo / Prop-firm copying
 
 ```text
-Demo         █████████████████████░░░░░░░░░  68.9%
-Prop firm    ███████████████████░░░░░░░░░░░  62.1%
+Demo         █████████████████████████░░░░░  83.0%
+Prop firm    ██████████████████████░░░░░░░░  74.7%
 ```
 
-✅ tested on real NinjaTrader · 🟡 offline tests only · ⬜ not yet. Must-haves ✅: Demo 6/14 · Prop 6/15.
+✅ tested on real NinjaTrader · 🟡 offline tests only · ⬜ not yet. Must-haves ✅: Demo 10/14 · Prop 10/15.
 
 Historical checklist evidence, not acceptance of the current candidate. The current candidate is not accepted for trading. Safety P0 / acceptance gates: issue-3, issue-4, issue-7, issue-9. Demo ready=False; Prop ready=False. No funded/live acceptance.
 
@@ -34,16 +34,16 @@ Historical checklist evidence, not acceptance of the current candidate. The curr
 - ✅ Per-account Ratio + max-lot cap
 - ✅ No lock-up on a flat follower
 - ✅ Flat button on every account
-- 🟡 Flatten selected / all
+- ✅ Flatten selected / all
 - ✅ TP / SL mirroring + OCO
-- 🟡 Auto-lock on danger, no auto-retry
+- ✅ Auto-lock on danger, no auto-retry
 - ✅ Disconnect / reconnect safe
 - 🟡 Partial fills handled
 - 🟡 Fill frontier before resize (#2)
 - 🟡 One stuck account never freezes others (#4)
-- ⬜ 10-30 accounts on real NT
+- ✅ 10-30 accounts on real NT
 - ✅ Dashboard (table, bulk edit, lock reasons) _(optional)_
-- 🟡 Daily target / loss limit per account
+- ✅ Daily target / loss limit per account
 - ⬜ Flatten once on divergence (#12) _(optional)_
 - ⬜ Adopt existing position (#11) _(optional)_
 - ⬜ Self-managed TP/SL (#10) _(optional)_
@@ -51,10 +51,10 @@ Historical checklist evidence, not acceptance of the current candidate. The curr
 - ⬜ Installer + reviewed release
 - ⬜ Prop-firm rule check (never certified)
 
-Real tests so far: 1 simulator leader, 2 **simulated** prop-firm evaluation accounts, MNQ, Market + Limit. No funded or live account was ever used. Each tick and its limits: [`docs/PROGRESS.json`](docs/PROGRESS.json). Score = weighted: ✅ 100%, 🟡 50%, design only 10%. Snapshot 2026-10-13, source `20dc6707c9e6`.
+Real tests so far: 1 simulator leader, up to 11 **simulated** prop-firm evaluation accounts (5 Lucid, 6 Tradeify), MNQ, Market + Limit + Stop, TP/SL OCO. No funded or live account was ever used. Each tick and its limits: [`docs/PROGRESS.json`](docs/PROGRESS.json). Score = weighted: ✅ 100%, 🟡 50%, design only 10%. Snapshot 2026-10-15, source `bfc8a2531acf`.
 <!-- PROGRESS:END -->
 
-The ticks and percentages are a **weighted historical checklist**, **not a release-readiness percentage**. The real-NinjaTrader snapshot refers to older source `20dc6707c9e6`, not acceptance of the current exact source. [Tick evidence and limits](docs/PROGRESS.json) · [Historical NT test log](docs/VM-PROGRESS.md) · [Current offline results and safety blockers](docs/DEVELOPERS.md).
+The ticks and percentages are a **weighted historical checklist**, **not a release-readiness percentage**. The latest real-NinjaTrader run (2026-10-15) used source `bfc8a2531acf` (SIM TEST build); it is test evidence, not acceptance of the current exact source. [Tick evidence and limits](docs/PROGRESS.json) · [Historical NT test log](docs/VM-PROGRESS.md) · [Current offline results and safety blockers](docs/DEVELOPERS.md).
 
 ## Install (Windows + NinjaTrader 8; reviewed test candidates only)
 
@@ -67,13 +67,15 @@ The ticks and percentages are a **weighted historical checklist**, **not a relea
    ```
    It copies the SIM TEST build into `Documents\NinjaTrader 8\bin\Custom\AddOns`, backs up anything it replaces and touches no account. `-WhatIf` previews, `-Remove` uninstalls.
 3. **Compile.** In NinjaTrader: *New > NinjaScript Editor*, press **F5**, wait for *Compile succeeded*. If it errors, stop.
-4. **Name your simulated accounts.** Simulator / Playback need no allow-list. For operator-confirmed prop-firm **simulated** accounts, **Create the directory first**: `Documents\NinjaTrader 8\templates\KINFXTradeCopier` (the installer **does not create this directory**). Then create `Documents\NinjaTrader 8\templates\KINFXTradeCopier\sim-allow.txt`, one exact, case-sensitive NinjaTrader Account `Name` per line (not the login or display alias; `= alias` is optional):
+4. **Accounts load by themselves.** Open the copier: every NinjaTrader account is listed and can be ticked; you type no account names. The first time you press **Start** or **Flatten** with an account the copier has not seen as simulated (anything other than Simulator / Playback, e.g. a prop-firm evaluation account), a **risk warning names it**: KINFX cannot tell an evaluation account from a funded or live one. **Yes** = you confirm it is simulated; it is saved to `Documents\NinjaTrader 8\templates\KINFXTradeCopier\sim-allow.txt` and not asked again. **No** = nothing is saved or sent. This warning can never be switched off. To be asked again, delete that line from the file.
+
+   Writing the file by hand still works. **Create the directory first**: `Documents\NinjaTrader 8\templates\KINFXTradeCopier` (the installer **does not create this directory**), one exact, case-sensitive NinjaTrader Account `Name` per line (not the login or display alias; `= alias` is optional):
    ```text
    # only accounts YOU have confirmed are simulated
    MYFIRM-SIM-12345 = Firm A
    MYFIRM-SIM-67890 = Firm B
    ```
-   A wrong entry can authorize orders to a funded/live account: the file is operator attestation, not provider verification. The file is read once at **static initialization**, not when you reopen the dashboard. After creating/changing it, remain stopped and flat, close copier windows, compile the intended SIM TEST source with F5 if needed, then **restart NinjaTrader** and reopen the dashboard to check eligibility before any Start. **Pressing F5 alone** is not a documented hot-reload guarantee. Missing/unreadable file refuses non-Simulator/Playback accounts.
+   A wrong entry can authorize orders to a funded/live account: the file is operator attestation, not provider verification. A hand-edited file is read once at **static initialization**, not when you reopen the dashboard: after editing it, remain stopped and flat, close copier windows, then **restart NinjaTrader**. **Pressing F5 alone** is not a documented hot-reload guarantee. (Answers given in the risk warning take effect at once.)
 
 ## First run
 
@@ -91,7 +93,7 @@ Each row has its own **Ratio, daily target (Tgt), daily loss (DLL), ATM exit-mir
 
 ## Know the limits
 
-- It is a **source alpha**, not a generally accepted trading build. Historical NinjaTrader 8.1.8.3 runs used 1 simulator leader, 2 operator-attested simulated followers and MNQ; the progress snapshot is source `20dc6707c9e6`. **Not proved on the current source:** real provider ordering/acceptance, 10–30 accounts, leader disconnect, real partial fills, rejected stop / Flatten and recovery. Offline compile/tests do not prove these.
+- It is a **source alpha**, not a generally accepted trading build. NinjaTrader 8.1.8.3 runs (latest 2026-10-15, source `bfc8a2531acf`) used 1 simulator leader, up to 11 operator-attested simulated prop-firm followers and MNQ. **Not proved yet:** 20–30 accounts, leader disconnect, real partial fills, a stalled provider call, a rejected Flatten and restart recovery. Offline compile/tests do not prove these.
 - A **Locked** row requires native NinjaTrader investigation and reconciliation. A risk-latch reset is **not** reconciliation of an uncertain engine ledger, hidden accepted request or thrown Flatten. The explicit verified-flat recovery gate is missing ([#9](https://github.com/Kinfxhk/KINFXTradeCopier/issues/9); known FAIL `ExplicitManualFlatReconciliationAvailable`); remain disarmed/locked and seek review if evidence remains uncertain. The copier never retries a Flatten or catches up after disconnect.
 - NinjaTrader's own Orders and Positions tabs are the truth, not this window. It cannot stop orders you place by hand and cannot guarantee fills.
 - Do not remove the safety hold in the default build to "just try it".

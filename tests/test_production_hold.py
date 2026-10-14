@@ -107,7 +107,10 @@ class SourceSyntaxHoldTests(unittest.TestCase):
         code = mask_noncode(self.raw)
         # 21 earlier blocks + 1 for the generated language table: the SIM-only sentences (SIM TEST / DRY RUN texts) are compiled only in the SIM build,
         # so the default build never contains them (see test_default_view_drops_every_sim_block).
-        self.assertEqual(code.count("KINFX_SIM_TEST"), 22, "unexpected KINFX_SIM_TEST usage")
+        # +1 (2026-10-14): dry-run Submit completion reconciles close evidence (no provider callback ever arrives for a dry-run wrapper).
+        # +1 (2026-10-14): a skipped Start confirmation logs whether Dry run is ON/OFF (log text only, no order path).
+        # +1 (2026-10-15): ConfirmScope: in the SIM build an unconfirmed account asks the risk warning and is remembered on Yes; the default build keeps LIVE BLOCKED.
+        self.assertEqual(code.count("KINFX_SIM_TEST"), 25, "unexpected KINFX_SIM_TEST usage")
         for signature in SIGNATURES:
             body = method(self.raw, signature)
             self.assertIn("#if !KINFX_SIM_TEST", body)
@@ -205,7 +208,7 @@ class SourceSyntaxHoldTests(unittest.TestCase):
         self.assertEqual(len(re.findall(r"\bengine\.Start\s*\(", code)), 1)
         self.assertEqual(len(re.findall(r"\bengine\.Flatten\s*\(", code)), 1)
         self.assertIn("engine.Start(", method(self.text, "void Start()"))
-        self.assertIn("engine.Flatten(", method(self.text, "void Flatten(AccountRow[] rows)"))
+        self.assertIn("engine.Flatten(", method(self.text, "void Flatten(AccountRow[] rows,string kind)"))
         for signature in ("void ApplyXml(XElement x)", "void Tick()",
                           "public KINFXTradeCopierTab()", "protected override void Restore(XElement element)"):
             automatic = mask_noncode(method(self.text, signature))
