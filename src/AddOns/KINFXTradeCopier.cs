@@ -529,6 +529,40 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
     public sealed class StartSummaryRow { public string Name=""; public double Ratio=1; }
     // Which confirmation windows the user chose not to see again. Stored one "skip=<kind>" per line in confirm-prefs.txt; unknown kinds and lines are ignored.
     // A window whose text carries a risk warning (an account in scope is not confirmed simulated) is ALWAYS shown, whatever was saved. Pure: no file access.
+    // Which grid columns the user hid. One "hide=<grid>:<column key>" per line in columns.txt; unknown grids / keys / lines are ignored.
+    // Safety columns (identity, follow tick, state, Off, Flat, Qty, connection, Tgt, DLL ...) can never be hidden, whatever the file says. Pure: no file or UI access.
+    public static class ColumnPrefs
+    {
+        public const string Copy="copy", Risk="risk";
+        static readonly Dictionary<string,string[]> hideable=new Dictionary<string,string[]>(StringComparer.Ordinal)
+        {
+            {Copy,new[]{"Alias","Tgt","DLL","P/L","Bal"}},
+            {Risk,new[]{"Alias","Grp","FlatLim","Max","P/L","CCY","To Tgt","Loss left","Preset","Cons"}},
+        };
+        public static string[] Hideable(string grid){string[] k;return grid!=null&&hideable.TryGetValue(grid,out k)?(string[])k.Clone():new string[0];}
+        public static bool CanHide(string grid,string key){string[] k;return grid!=null&&key!=null&&hideable.TryGetValue(grid,out k)&&Array.IndexOf(k,key)>=0;}
+        public static HashSet<string> Parse(IEnumerable<string> lines)
+        {
+            var h=new HashSet<string>(StringComparer.Ordinal);
+            if(lines==null)return h;
+            foreach(var raw in lines)
+            {
+                if(raw==null)continue; string t=raw.Trim(); if(t.Length==0||t.StartsWith("#"))continue;
+                int eq=t.IndexOf('='); if(eq<0||t.Substring(0,eq).Trim()!="hide")continue;
+                string v=t.Substring(eq+1).Trim(); int c=v.IndexOf(':'); if(c<0)continue;
+                string grid=v.Substring(0,c).Trim(), key=v.Substring(c+1).Trim();
+                if(CanHide(grid,key))h.Add(grid+":"+key);
+            }
+            return h;
+        }
+        public static string[] Serialize(HashSet<string> hidden)
+        {
+            var list=new List<string>{"# KINFX Trade Copier: columns hidden by the user (right-click a column header, or the Columns button). Delete a line (or this file) to show it again."};
+            foreach(var grid in new[]{Copy,Risk})foreach(var k in hideable[grid])if(hidden!=null&&hidden.Contains(grid+":"+k))list.Add("hide="+grid+":"+k);
+            return list.ToArray();
+        }
+        public static bool Visible(string grid,string key,HashSet<string> hidden){return !CanHide(grid,key)||hidden==null||!hidden.Contains(grid+":"+key);}
+    }
     public static class ConfirmPrefs
     {
         // Unlock is deliberately not here: it is the only explicit unlock path, so its question is always asked.
@@ -792,10 +826,6 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             t["Observed session P/L"] = new[] { "觀察到的本次連線 P/L", "観測セッション P/L", "관측된 세션 P/L" };
             t["CCY"] = new[] { "CCY", "CCY", "CCY" };
             t["Account currency"] = new[] { "帳戶幣別", "口座通貨", "계좌 통화" };
-            t["Tgt Δ"] = new[] { "Tgt Δ", "Tgt Δ", "Tgt Δ" };
-            t["Amount remaining to daily target"] = new[] { "距離每日目標的剩餘金額", "日次目標までの残額", "일일 목표까지 남은 금액" };
-            t["DLL Δ"] = new[] { "DLL Δ", "DLL Δ", "DLL Δ" };
-            t["Loss headroom"] = new[] { "虧損餘裕", "損失余裕", "손실 여유" };
             t["Signed position"] = new[] { "帶正負號的持倉", "符号付きポジション", "부호 있는 포지션" };
             t["Connection status"] = new[] { "連線狀態", "接続ステータス", "연결 상태" };
             t["St"] = new[] { "狀態", "状態", "상태" };
@@ -1104,6 +1134,14 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             t["{0}: dry run: no position was ever opened"] = new[] { "{0}：試運行：從未開倉", "{0}: ドライラン: ポジションは一度も建てられていません", "{0}: 드라이런: 포지션이 열린 적이 없습니다" };
             t["{0}: Flatten already in progress — not sent again; wait for confirmation or check NinjaTrader"] = new[] { "{0}：平倉已在進行中 — 不會重複傳送；請等待確認或查看 NinjaTrader", "{0}: 決済は処理中 — 再送信しません。確認を待つか NinjaTrader を確認してください", "{0}: 청산 진행 중 — 다시 보내지 않음; 확인을 기다리거나 NinjaTrader를 확인하십시오" };
             t["Exit order still working on a FLAT account — if it fills it opens a NEW position; cancel it in NinjaTrader"] = new[] { "已平倉帳戶仍有出場單在運作 — 一旦成交將開出新倉；請在 NinjaTrader 取消該委託", "決済済み口座で決済注文がまだ有効 — 約定すると新規ポジションになります。NinjaTrader で取消してください", "포지션이 없는 계좌에 청산 주문이 아직 작동 중 — 체결되면 새 포지션이 열립니다; NinjaTrader에서 취소하십시오" };
+            t["To Tgt"] = new[] { "距目標", "目標まで", "목표까지" };
+            t["Loss left"] = new[] { "可虧餘額", "損失余力", "손실 여유" };
+            t["Amount remaining to daily target (read-only, computed from P/L)"] = new[] { "距每日目標尚餘金額（唯讀，由損益計算）", "日次目標までの残り金額（読み取り専用、損益から計算）", "일일 목표까지 남은 금액 (읽기 전용, 손익으로 계산)" };
+            t["How much more can be lost before the daily loss limit (read-only, computed from P/L)"] = new[] { "觸及每日虧損上限前尚可虧損的金額（唯讀，由損益計算）", "日次損失上限に達するまでに失える残り金額（読み取り専用、損益から計算）", "일일 손실 한도까지 더 잃을 수 있는 금액 (읽기 전용, 손익으로 계산)" };
+            t["Columns"] = new[] { "欄位", "列", "열" };
+            t["Show all columns"] = new[] { "顯示全部欄位", "すべての列を表示", "모든 열 표시" };
+            t["Account, follow tick, state, Off / Flat, Qty and connection are always shown"] = new[] { "帳戶、跟單勾選、狀態、OFF／平倉、數量及連線一律顯示", "口座、フォローのチェック、状態、Off／決済、数量、接続は常に表示", "계좌, 팔로우 체크, 상태, Off/청산, 수량, 연결은 항상 표시" };
+            t["Show or hide columns (also: right-click a column header). Saved for next time."] = new[] { "顯示或隱藏欄位（亦可在欄位標題按右鍵）。設定會保存。", "列の表示／非表示（列見出しの右クリックでも可）。次回も保持されます。", "열 표시/숨기기 (열 머리글 우클릭으로도 가능). 다음에도 유지됩니다." };
 #if KINFX_SIM_TEST
             t["SIM TEST BUILD · Simulator / Playback only"] = new[] { "SIM 測試版 · 僅限 Simulator / Playback", "SIMテストビルド · Simulator / Playback のみ", "SIM 테스트 빌드 · Simulator / Playback 전용" };
             t["SIM TEST BUILD: copies between Simulator / Playback accounts only. Any other provider is refused."] = new[] { "SIM 測試版：僅在 Simulator / Playback 帳戶之間跟單。其他任何供應端一律拒絕。", "SIMテストビルド：Simulator / Playback 口座間のみコピー。それ以外のプロバイダーは拒否される。", "SIM 테스트 빌드: Simulator / Playback 계좌 간에만 복사합니다. 그 외 제공자는 거부됩니다." };
@@ -2614,6 +2652,56 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         // "Ask before" switches (Risk tab). Ticked = the confirmation window is shown. Unlock and every risk warning are always asked and have no switch.
         internal CheckBox AskStartBox, AskFlatOneBox, AskFlattenBox;
         internal Action<string,bool> AskChanged;
+        // Column visibility. The tab owns the file; the view only applies a set and reports a user change.
+        internal Action<HashSet<string>> ColumnsChanged;
+        HashSet<string> hiddenColumns=new HashSet<string>(StringComparer.Ordinal);
+        Panel columnsBarCopy, columnsBarRisk;
+        internal HashSet<string> HiddenColumns{get{return new HashSet<string>(hiddenColumns,StringComparer.Ordinal);}}
+        internal void ApplyColumns(HashSet<string> hidden)
+        {
+            hiddenColumns=new HashSet<string>((hidden??new HashSet<string>()).Where(x=>{int c=x.IndexOf(':');return c>0&&ColumnPrefs.CanHide(x.Substring(0,c),x.Substring(c+1));}),StringComparer.Ordinal);
+            foreach(var pair in new[]{Tuple.Create(ColumnPrefs.Copy,AccountGrid),Tuple.Create(ColumnPrefs.Risk,RiskGrid)})
+                if(pair.Item2!=null)foreach(var c in pair.Item2.Columns)c.Visibility=ColumnPrefs.Visible(pair.Item1,ColumnKey(c),hiddenColumns)?Visibility.Visible:Visibility.Collapsed;
+        }
+        internal void SetColumnVisible(string grid,string key,bool visible)
+        {
+            if(!ColumnPrefs.CanHide(grid,key))return;
+            var next=HiddenColumns;string id=grid+":"+key;if(visible)next.Remove(id);else next.Add(id);
+            ApplyColumns(next);var cb=ColumnsChanged;if(cb!=null)cb(HiddenColumns);
+        }
+        // One menu per grid: a tick per hideable column, plus "Show all". Opened from the Columns button and from a right-click on any column header.
+        ContextMenu ColumnMenu(string grid,DataGrid g)
+        {
+            var menu=new ContextMenu();
+            menu.Opened+=(s,e)=>
+            {
+                menu.Items.Clear();
+                foreach(var c in g.Columns)
+                {
+                    string key=ColumnKey(c);if(!ColumnPrefs.CanHide(grid,key))continue;
+                    var item=new MenuItem{Header=(c.Header as string)??key,IsCheckable=true,IsChecked=c.Visibility==Visibility.Visible,StaysOpenOnClick=true,Tag="col:"+grid+":"+key};
+                    string k=key;item.Click+=(s2,e2)=>SetColumnVisible(grid,k,((MenuItem)s2).IsChecked);menu.Items.Add(item);
+                }
+                menu.Items.Add(new Separator());
+                var all=new MenuItem{Header=Lang.T("Show all columns"),Tag="col:"+grid+":*"};
+                all.Click+=(s2,e2)=>{var next=HiddenColumns;next.RemoveWhere(x=>x.StartsWith(grid+":",StringComparison.Ordinal));ApplyColumns(next);var cb=ColumnsChanged;if(cb!=null)cb(HiddenColumns);};
+                menu.Items.Add(all);
+                var note=new MenuItem{Header=Lang.T("Account, follow tick, state, Off / Flat, Qty and connection are always shown"),IsEnabled=false};menu.Items.Add(note);
+            };
+            return menu;
+        }
+        void AttachColumnMenu(string grid,DataGrid g,Panel bar)
+        {
+            var menu=ColumnMenu(grid,g);
+            var hs=new Style(typeof(DataGridColumnHeader),g.ColumnHeaderStyle);hs.Setters.Add(new Setter(FrameworkElement.ContextMenuProperty,menu));g.ColumnHeaderStyle=hs;
+            // Add to each column's own header style (keeps its tooltip setter first-level); wrap only a style that is already sealed.
+            foreach(var c in g.Columns)if(c.HeaderStyle!=null){if(!c.HeaderStyle.IsSealed)c.HeaderStyle.Setters.Add(new Setter(FrameworkElement.ContextMenuProperty,menu));else{var own=new Style(typeof(DataGridColumnHeader),c.HeaderStyle);own.Setters.Add(new Setter(FrameworkElement.ContextMenuProperty,menu));c.HeaderStyle=own;}}
+            Button b=null;b=Button(Lang.T("Columns"),()=>{menu.PlacementTarget=b;menu.Placement=PlacementMode.Bottom;menu.IsOpen=true;});
+            b.FontSize=12;b.Height=30;b.MinWidth=0;b.Padding=new Thickness(9,0,9,0);b.Margin=new Thickness(8,0,4,6);b.Tag="columns:"+grid;
+            string tip=Lang.T("Show or hide columns (also: right-click a column header). Saved for next time.");b.ToolTip=tip;System.Windows.Automation.AutomationProperties.SetName(b,tip);
+            bar.Children.Add(b);
+        }
+        internal ContextMenu ColumnMenuFor(string grid){var g=grid==ColumnPrefs.Copy?AccountGrid:RiskGrid;var hs=g.Columns.Select(c=>c.HeaderStyle).FirstOrDefault(x=>x!=null);if(hs==null)return null;foreach(var st in hs.Setters.OfType<Setter>())if(st.Property==FrameworkElement.ContextMenuProperty)return st.Value as ContextMenu;var bs=hs.BasedOn;while(bs!=null){foreach(var st in bs.Setters.OfType<Setter>())if(st.Property==FrameworkElement.ContextMenuProperty)return st.Value as ContextMenu;bs=bs.BasedOn;}return null;}
         internal CheckBox AskBox(string kind){return kind==ConfirmPrefs.Start?AskStartBox:kind==ConfirmPrefs.FlatOne?AskFlatOneBox:kind==ConfirmPrefs.Flatten?AskFlattenBox:null;}
         readonly ICollectionView view;
         readonly TextBox search;
@@ -2837,7 +2925,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             Sections=new TabControl{Background=Canvas,Foreground=Ink,BorderBrush=Line,Padding=new Thickness(0,10,0,0),ItemContainerStyle=TabStyle()};AddRow(this,Sections,2);
             var copy=new Grid();copy.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});copy.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});
             var toolbar=new WrapPanel{Margin=new Thickness(0,0,0,9)};
-            search=Input("",185);search.ToolTip=Lang.T("Search account / alias / group / preset · Ctrl+F · Escape clears");toolbar.Children.Add(Labeled("⌕",search,17));filter=Combo(120);filter.ToolTip=Lang.T("Filter displayed account states");filter.ItemsSource=new[]{Lang.T("All"),Lang.T("On"),Lang.T("Paused"),Lang.T("Target")};filter.SelectedIndex=0;toolbar.Children.Add(filter);var ticks=new StackPanel{Orientation=Orientation.Horizontal,Margin=new Thickness(0,0,0,6)};ticks.Children.Add(Icon("\uE73A",Lang.T("Tick all visible followers"),"tickAll",()=>TickVisible(true),true));ticks.Children.Add(Icon("\uE711",Lang.T("Untick all visible followers"),"tickNone",()=>TickVisible(false),true));toolbar.Children.Add(ticks);toolbar.Children.Add(new TextBlock{Text=Lang.T("Ratio: edit each account row"),Foreground=Muted,FontSize=12,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(8,0,8,6)});var bulk=new StackPanel{Orientation=Orientation.Horizontal,Margin=new Thickness(0,0,0,6)};bulk.Tag="bulkbar";bulk.Children.Add(Text(Lang.T("Bulk  "),11,Muted));var bulkValue=Input("",78);bulkValue.ToolTip=Lang.T("Amount for the highlighted accounts · account currency · 0 = off");System.Windows.Automation.AutomationProperties.SetName(bulkValue,Lang.T("Bulk amount"));bulk.Children.Add(bulkValue);bulk.Children.Add(TextTool(Lang.T("Tgt"),Lang.T("Set Target on highlighted accounts"),"bulkTgt",()=>BulkClick("Tgt",bulkValue.Text)));bulk.Children.Add(TextTool(Lang.T("DLL"),Lang.T("Set Daily loss on highlighted accounts"),"bulkDll",()=>BulkClick("DLL",bulkValue.Text)));bulk.Children.Add(TextTool(Lang.T("ATM on"),Lang.T("ATM exit-mirroring ON for highlighted accounts"),"bulkAtmOn",()=>BulkClick("ATM","on")));bulk.Children.Add(TextTool(Lang.T("Limit flat on"),Lang.T("When Tgt or DLL is hit: flatten that account once (never retried) for highlighted accounts"),"bulkLimitFlatOn",()=>BulkClick("LimitFlat","on")));bulk.Children.Add(TextTool(Lang.T("Limit flat off"),Lang.T("When Tgt or DLL is hit: only lock and stop copying (default) for highlighted accounts"),"bulkLimitFlatOff",()=>BulkClick("LimitFlat","off")));bulk.Children.Add(TextTool(Lang.T("ATM off"),Lang.T("ATM exit-mirroring OFF for highlighted accounts"),"bulkAtmOff",()=>BulkClick("ATM","off")));bulk.Children.Add(TextTool(Lang.T("Div: notify"),Lang.T("On divergence: only lock, show red and notify (default) for highlighted accounts"),"bulkDivNotify",()=>BulkClick("Diverge","Notify")));bulk.Children.Add(TextTool(Lang.T("Div: flatten 1x"),Lang.T("On divergence: request ONE flatten, never retried (saved only; NOT active in this alpha) for highlighted accounts"),"bulkDivFlat",()=>BulkClick("Diverge","FlattenOnce")));bulk.Children.Insert(1,TextTool(Lang.T("From Leader"),Lang.T("Copy the leader row's Tgt / DLL / ATM to highlighted followers (all visible if none highlighted). One-time copy; edit any row afterwards. Ratio and ticks are not copied."),"bulkLeader",()=>BulkLeaderClick()));bulkBar=bulk;toolbar.Children.Add(bulk);AddRow(copy,toolbar,0);
+            search=Input("",185);search.ToolTip=Lang.T("Search account / alias / group / preset · Ctrl+F · Escape clears");toolbar.Children.Add(Labeled("⌕",search,17));filter=Combo(120);filter.ToolTip=Lang.T("Filter displayed account states");filter.ItemsSource=new[]{Lang.T("All"),Lang.T("On"),Lang.T("Paused"),Lang.T("Target")};filter.SelectedIndex=0;toolbar.Children.Add(filter);var ticks=new StackPanel{Orientation=Orientation.Horizontal,Margin=new Thickness(0,0,0,6)};ticks.Children.Add(Icon("\uE73A",Lang.T("Tick all visible followers"),"tickAll",()=>TickVisible(true),true));ticks.Children.Add(Icon("\uE711",Lang.T("Untick all visible followers"),"tickNone",()=>TickVisible(false),true));toolbar.Children.Add(ticks);toolbar.Children.Add(new TextBlock{Text=Lang.T("Ratio: edit each account row"),Foreground=Muted,FontSize=12,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(8,0,8,6)});var bulk=new StackPanel{Orientation=Orientation.Horizontal,Margin=new Thickness(0,0,0,6)};bulk.Tag="bulkbar";bulk.Children.Add(Text(Lang.T("Bulk  "),11,Muted));var bulkValue=Input("",78);bulkValue.ToolTip=Lang.T("Amount for the highlighted accounts · account currency · 0 = off");System.Windows.Automation.AutomationProperties.SetName(bulkValue,Lang.T("Bulk amount"));bulk.Children.Add(bulkValue);bulk.Children.Add(TextTool(Lang.T("Tgt"),Lang.T("Set Target on highlighted accounts"),"bulkTgt",()=>BulkClick("Tgt",bulkValue.Text)));bulk.Children.Add(TextTool(Lang.T("DLL"),Lang.T("Set Daily loss on highlighted accounts"),"bulkDll",()=>BulkClick("DLL",bulkValue.Text)));bulk.Children.Add(TextTool(Lang.T("ATM on"),Lang.T("ATM exit-mirroring ON for highlighted accounts"),"bulkAtmOn",()=>BulkClick("ATM","on")));bulk.Children.Add(TextTool(Lang.T("Limit flat on"),Lang.T("When Tgt or DLL is hit: flatten that account once (never retried) for highlighted accounts"),"bulkLimitFlatOn",()=>BulkClick("LimitFlat","on")));bulk.Children.Add(TextTool(Lang.T("Limit flat off"),Lang.T("When Tgt or DLL is hit: only lock and stop copying (default) for highlighted accounts"),"bulkLimitFlatOff",()=>BulkClick("LimitFlat","off")));bulk.Children.Add(TextTool(Lang.T("ATM off"),Lang.T("ATM exit-mirroring OFF for highlighted accounts"),"bulkAtmOff",()=>BulkClick("ATM","off")));bulk.Children.Add(TextTool(Lang.T("Div: notify"),Lang.T("On divergence: only lock, show red and notify (default) for highlighted accounts"),"bulkDivNotify",()=>BulkClick("Diverge","Notify")));bulk.Children.Add(TextTool(Lang.T("Div: flatten 1x"),Lang.T("On divergence: request ONE flatten, never retried (saved only; NOT active in this alpha) for highlighted accounts"),"bulkDivFlat",()=>BulkClick("Diverge","FlattenOnce")));bulk.Children.Insert(1,TextTool(Lang.T("From Leader"),Lang.T("Copy the leader row's Tgt / DLL / ATM to highlighted followers (all visible if none highlighted). One-time copy; edit any row afterwards. Ratio and ticks are not copied."),"bulkLeader",()=>BulkLeaderClick()));bulkBar=bulk;toolbar.Children.Add(bulk);AddRow(copy,toolbar,0);columnsBarCopy=toolbar;
             AccountGrid=GridTable();TickColumn(AccountGrid);AccountColumn(AccountGrid);Column(AccountGrid,"Alias","Alias",100,false,Lang.T("Optional display alias"));RatioColumn(AccountGrid);Column(AccountGrid,"Tgt","TargetText",78,false,Lang.T("Independent daily local profit target · account CCY / 0 = off"),null,true);Column(AccountGrid,"DLL","LossText",78,false,Lang.T("Independent daily loss limit · positive amount / 0 = off"),null,true);AtmColumn(AccountGrid);Column(AccountGrid,"Qty","Position",55,true,Lang.T("Signed position · + long / − short"),null,true);Column(AccountGrid,"P/L","Pnl",95,true,Lang.T("Observed session P/L in account currency · baseline is not historical daily accounting"),"N2",true);Column(AccountGrid,"Bal","BalanceText",130,true,Lang.T("CashValue in account currency; not NetLiquidation / net equity"),null,true);((DataGridTextColumn)AccountGrid.Columns.Last()).ElementStyle.Setters.Add(new Setter(FrameworkElement.ToolTipProperty,new Binding("BalanceDetail")));((DataGridTextColumn)AccountGrid.Columns.Last()).ElementStyle.Setters.Add(new Setter(System.Windows.Automation.AutomationProperties.NameProperty,new Binding("BalanceDetail")));LightColumn(AccountGrid,"Conn","ConnLight","Connection");StateColumn(AccountGrid);OffColumn(AccountGrid);FlatColumn(AccountGrid);AccountGrid.FrozenColumnCount=2;ProportionalCopyColumns(AccountGrid);AddRow(copy,AccountGrid,1);Sections.Items.Add(new TabItem{Header=Lang.T("Copy"),Content=copy});
             var risk=new Grid();risk.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});risk.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});risk.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});var tools=new WrapPanel{Margin=new Thickness(0,0,0,10)};
             var batch=Icon("\uE713",DashboardSafety.CanExecute("batch")?Lang.T("Batch risk / presets"):Lang.T("Batch risk / presets · review hold"),"batch",()=>Send("batch"));batch.IsEnabled=DashboardSafety.CanExecute("batch");tools.Children.Add(batch);tools.Children.Add(Icon("\uE74E",Lang.T("Save settings"),"save",()=>Send("save")));tools.Children.Add(Icon("\uE787",Lang.T("Trading-day boundary / timezone"),"daySettings",()=>Send("daySettings")));tools.Children.Add(Icon("\uE769",Lang.T("Pause highlighted accounts"),"pauseSelected",()=>SetSelectedPause(true)));tools.Children.Add(Icon("\uE768",Lang.T("Resume highlighted accounts · latch unchanged / no auto-arm"),"resumeSelected",()=>SetSelectedPause(false)));var fs=Icon("\uE74D",DashboardSafety.CanExecute("flattenSelected")?Lang.T("Flatten highlighted accounts (market-closes their positions)"):Lang.T("Flatten highlighted accounts · review hold"),"flattenSelected",()=>Send("flattenSelected"));fs.IsEnabled=DashboardSafety.CanExecute("flattenSelected");tools.Children.Add(fs);var fa=Icon("\uE7BA",DashboardSafety.CanExecute("flattenAll")?Lang.T("Flatten ALL displayed accounts (market-closes every position shown)"):Lang.T("Flatten all displayed accounts · review hold"),"flattenAll",()=>Send("flattenAll"));fa.IsEnabled=DashboardSafety.CanExecute("flattenAll");tools.Children.Add(fa);
@@ -2850,13 +2938,13 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
 #if KINFX_SIM_TEST
             DryRunBox=new CheckBox{Template=PlainCheckTemplate(),Content=Lang.T("Dry run"),Foreground=Warn,Margin=new Thickness(16,6,0,0),ToolTip=Lang.T("DRY RUN: decide and log every order, cancel and flatten as \"DRY RUN would send ...\" but send NOTHING. Fixed for the whole session: change it only while stopped.")};tools.Children.Add(DryRunBox);
 #endif
-            AddRow(risk,tools,0);
-            RiskGrid=GridTable();Column(RiskGrid,"Acct","Name",155,true,Lang.T("Broker account"));Column(RiskGrid,"Alias","Alias",115,false,Lang.T("Display alias"));Column(RiskGrid,"Grp","Group",90,false,Lang.T("Account group"));Column(RiskGrid,"Tgt","TargetText",105,false,Lang.T("Daily local profit target · 0 = off"),null,true);Column(RiskGrid,"DLL","LossText",105,false,Lang.T("Daily loss limit · positive value / 0 = off"),null,true);FlatOnLimitColumn(RiskGrid);Column(RiskGrid,"Max","MaxText",60,false,Lang.T("Maximum exact-instrument contracts"),null,true);RatioColumn(RiskGrid);Column(RiskGrid,"P/L","Pnl",95,true,Lang.T("Observed session P/L"),"N2",true);Column(RiskGrid,"CCY","Currency",55,true,Lang.T("Account currency"));Column(RiskGrid,"Tgt Δ","TargetRemaining",80,true,Lang.T("Amount remaining to daily target"),null,true);Column(RiskGrid,"DLL Δ","LossRemaining",80,true,Lang.T("Loss headroom"),null,true);Column(RiskGrid,"Qty","Position",50,true,Lang.T("Signed position"),null,true);Column(RiskGrid,"Conn","Connection",100,true,Lang.T("Connection status"));Column(RiskGrid,"St","Status",120,true,Lang.T("Copier / risk state"));FullTextTip(RiskGrid,"Status");Column(RiskGrid,"Preset","Preset",110,true,Lang.T("Editable firm template"));FullTextTip(RiskGrid,"Preset");Column(RiskGrid,"Cons","ConsistencyAdvice",110,true,Lang.T("Consistency advisory · not a broker guarantee"));FullTextTip(RiskGrid,"ConsistencyAdvice");
+            AddRow(risk,tools,0);columnsBarRisk=tools;
+            RiskGrid=GridTable();Column(RiskGrid,"Acct","Name",155,true,Lang.T("Broker account"));Column(RiskGrid,"Alias","Alias",115,false,Lang.T("Display alias"));Column(RiskGrid,"Grp","Group",90,false,Lang.T("Account group"));Column(RiskGrid,"Tgt","TargetText",105,false,Lang.T("Daily local profit target · 0 = off"),null,true);Column(RiskGrid,"DLL","LossText",105,false,Lang.T("Daily loss limit · positive value / 0 = off"),null,true);FlatOnLimitColumn(RiskGrid);Column(RiskGrid,"Max","MaxText",60,false,Lang.T("Maximum exact-instrument contracts"),null,true);RatioColumn(RiskGrid);Column(RiskGrid,"P/L","Pnl",95,true,Lang.T("Observed session P/L"),"N2",true);Column(RiskGrid,"CCY","Currency",55,true,Lang.T("Account currency"));Column(RiskGrid,"To Tgt","TargetRemaining",80,true,Lang.T("Amount remaining to daily target (read-only, computed from P/L)"),null,true);Column(RiskGrid,"Loss left","LossRemaining",80,true,Lang.T("How much more can be lost before the daily loss limit (read-only, computed from P/L)"),null,true);Column(RiskGrid,"Qty","Position",50,true,Lang.T("Signed position"),null,true);Column(RiskGrid,"Conn","Connection",100,true,Lang.T("Connection status"));Column(RiskGrid,"St","Status",120,true,Lang.T("Copier / risk state"));FullTextTip(RiskGrid,"Status");Column(RiskGrid,"Preset","Preset",110,true,Lang.T("Editable firm template"));FullTextTip(RiskGrid,"Preset");Column(RiskGrid,"Cons","ConsistencyAdvice",110,true,Lang.T("Consistency advisory · not a broker guarantee"));FullTextTip(RiskGrid,"ConsistencyAdvice");
             var action=new FrameworkElementFactory(typeof(Button));CompactCellButton(action,28);action.SetValue(Control.TemplateProperty,OffTemplate());action.SetValue(ContentControl.ContentProperty,"\uE713");action.SetValue(Control.FontFamilyProperty,new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"));action.SetValue(Control.BackgroundProperty,Panel);action.SetValue(Control.ForegroundProperty,Ink);action.SetValue(Control.BorderBrushProperty,Line);action.SetValue(Control.PaddingProperty,new Thickness(4,1,4,1));action.SetValue(FrameworkElement.ToolTipProperty,Lang.T("Account risk / template / history"));var gearStyle=new Style(typeof(Button));var gearLocked=new DataTrigger{Binding=new Binding("IsReadOnly"){RelativeSource=new RelativeSource(RelativeSourceMode.FindAncestor,typeof(DataGrid),1)},Value=true};gearLocked.Setters.Add(new Setter(UIElement.IsEnabledProperty,false));gearStyle.Triggers.Add(gearLocked);action.SetValue(FrameworkElement.StyleProperty,gearStyle);action.AddHandler(ButtonBase.ClickEvent,new RoutedEventHandler((s,e)=>{if(!editable){e.Handled=true;return;}var r=(s as FrameworkElement).DataContext as AccountRow;if(r!=null&&RowSettings!=null)RowSettings(r);}));RiskGrid.Columns.Add(new DataGridTemplateColumn{Header="⚙",Width=40,CellTemplate=new DataTemplate{VisualTree=action}});AddRow(risk,RiskGrid,1);
             AddRow(risk,new TextBlock{Text=Lang.T("OFF cancels owned entries, retains exits · Re-follow explicit / only when clean · ATM OFF may be unprotected · Local guards only"),Foreground=Muted,FontSize=11,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,10,0,0)},2);Sections.Items.Add(new TabItem{Header=Lang.T("Risk"),Content=risk});
             var logPanel=new Grid();logPanel.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});logPanel.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});logPanel.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});AddRow(logPanel,new TextBlock{Text=DashboardSafety.LogNoteShown,Foreground=Warn,FontSize=12,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,10)},0);LogBox=Input("",double.NaN);LogBox.IsReadOnly=true;LogBox.FontFamily=new FontFamily("Consolas");LogBox.FontSize=12;LogBox.Foreground=Brush("#E4E1EC");LogBox.VerticalContentAlignment=VerticalAlignment.Top;LogBox.VerticalScrollBarVisibility=ScrollBarVisibility.Auto;LogBox.HorizontalScrollBarVisibility=ScrollBarVisibility.Auto;var logTools=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,0,0,6)};logTools.Children.Add(TextTool(Lang.T("Clear log"),Lang.T("Clear this log view (does not affect settings, orders or saved latches)"),"logClear",()=>ClearLog()));AddRow(logPanel,logTools,1);AddRow(logPanel,LogBox,2);Sections.Items.Add(new TabItem{Header=Lang.T("Logs"),Content=logPanel});Sections.SelectedIndex=0;
             var footer=new DockPanel{Margin=new Thickness(0,10,0,0)};lockedLine=Text("",12,Bad);lockedLine.FontWeight=FontWeights.SemiBold;lockedLine.Margin=new Thickness(12,0,12,0);DockPanel.SetDock(lockedLine,Dock.Right);footer.Children.Add(lockedLine);adviceLine=Text("",12,Warn);adviceLine.Margin=new Thickness(12,0,12,0);DockPanel.SetDock(adviceLine,Dock.Right);footer.Children.Add(adviceLine);selection=Text("",12,Muted);DockPanel.SetDock(selection,Dock.Right);footer.Children.Add(selection);SessionText=Text(Lang.T("Disarmed"),11,Muted);SessionText.Margin=new Thickness(12,0,12,0);DockPanel.SetDock(SessionText,Dock.Right);footer.Children.Add(SessionText);summary=Text("",12,Muted);footer.Children.Add(summary);AddRow(this,footer,3);
-            Rows.CollectionChanged+=(s,e)=>{if(e.OldItems!=null)foreach(AccountRow r in e.OldItems)r.FollowRequested-=OnFollowRequested;if(e.NewItems!=null)foreach(AccountRow r in e.NewItems)r.FollowRequested+=OnFollowRequested;};view=CollectionViewSource.GetDefaultView(Rows);view.Filter=Matches;AccountGrid.ItemsSource=view;RiskGrid.ItemsSource=view;
+            Rows.CollectionChanged+=(s,e)=>{if(e.OldItems!=null)foreach(AccountRow r in e.OldItems)r.FollowRequested-=OnFollowRequested;if(e.NewItems!=null)foreach(AccountRow r in e.NewItems)r.FollowRequested+=OnFollowRequested;};view=CollectionViewSource.GetDefaultView(Rows);view.Filter=Matches;AccountGrid.ItemsSource=view;RiskGrid.ItemsSource=view;AttachColumnMenu(ColumnPrefs.Copy,AccountGrid,columnsBarCopy);AttachColumnMenu(ColumnPrefs.Risk,RiskGrid,columnsBarRisk);
             PreviewKeyDown+=(s,e)=>{if(e.Key==System.Windows.Input.Key.F&&System.Windows.Input.Keyboard.Modifiers==System.Windows.Input.ModifierKeys.Control){FocusSearch();e.Handled=true;}else if(e.Key==System.Windows.Input.Key.Escape&&search.IsKeyboardFocusWithin){SearchText="";e.Handled=true;}};search.TextChanged+=(s,e)=>{view.Refresh();UpdateCards();};filter.SelectionChanged+=(s,e)=>{view.Refresh();UpdateCards();};group.Checked+=(s,e)=>GroupByAccount=true;group.Unchecked+=(s,e)=>GroupByAccount=false;ShowLive.Checked+=(s,e)=>Send("refresh");ShowLive.Unchecked+=(s,e)=>Send("refresh");AccountGrid.SelectionChanged+=(s,e)=>UpdateCards();RiskGrid.SelectionChanged+=(s,e)=>UpdateCards();Sections.SelectionChanged+=(s,e)=>{if(summary!=null)UpdateCards();};
             if(demo){for(int i=1;i<=30;i++)Rows.Add(new AccountRow{Name="Demo "+i.ToString("00"),Alias="Eval "+i,Group=i<=10?"Tradeify":i<=20?"Lucid":"Topstep",Role=i==1?"Leader":"Follower",Connection="Synthetic",Enabled=i>1,Currency="USD",Status=i%7==0?"Target hit":i%4==0?"Paused":"Demo only",Paused=i%4==0,Pnl=i%4==0?-120:i*24.5,Settings=new RiskSettings{Alias="Eval "+i,Group=i<=10?"Tradeify":i<=20?"Lucid":"Topstep",Target=1000,Loss=500,Ratio=1,MaxContracts=4,Preset=Lang.T("Demo / not broker data")}});LeaderBox.ItemsSource=new[]{"Demo 01"};LeaderBox.SelectedIndex=0;ShowLive.IsEnabled=false;}UpdateCards();
         }
@@ -3034,6 +3122,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         void WireDashboard()
         {
             dashboard.LanguageChanging=ChangeLanguage;dashboard.Command=Command;dashboard.BulkNotice=Log;dashboard.PauseRow=Pause;dashboard.RowSettings=r=>Edit(new[]{r});dashboard.FollowRow=Follow;dashboard.FlatRow=FlatOne;ShowAsk();dashboard.AskChanged=SetAsk;
+            dashboard.ApplyColumns(LoadColumns(ColumnsPath));dashboard.ColumnsChanged=SaveColumns;
             dashboard.LeaderBox.SelectionChanged+=(s,e)=>{if(engine.Attached)return;leaderName=dashboard.LeaderBox.SelectedItem as string ?? "";foreach(var row in dashboard.Rows){row.Role=row.Name==leaderName?"Leader":"Follower";if(row.Role=="Leader")row.Enabled=false;row.Changed();}};
             dashboard.AccountGrid.RowEditEnding+=(s,e)=>Dispatch(()=>{foreach(var row in dashboard.Rows){row.Changed();}dashboard.UpdateCards();});
             dashboard.InstrumentBox.LostKeyboardFocus+=(s,e)=>NormalizeInstrumentBox();
@@ -3154,6 +3243,10 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             try{Directory.CreateDirectory(DirectoryPath);SettingsStore.AtomicWriteLines(AskPath,ConfirmPrefs.Serialize(askSkipped));Log(ask?"Confirmation turned back on: "+ConfirmPrefs.Label(kind):"Confirmation turned off: "+ConfirmPrefs.Label(kind)+" (risk warnings and Unlock are still always asked)");}
             catch(Exception ex){if(ask)askSkipped.Add(kind);else askSkipped.Remove(kind);Log("Settings NOT saved: "+ex.Message);ShowAsk();}
         }
+        string ColumnsPath {get{return Path.Combine(DirectoryPath,"columns.txt");}}
+        static HashSet<string> LoadColumns(string path){try{if(File.Exists(path))return ColumnPrefs.Parse(File.ReadAllLines(path));}catch{}return new HashSet<string>(StringComparer.Ordinal);}
+        // Display only: never touches settings, engine or orders. A failed save keeps the on-screen choice for this window and says so.
+        void SaveColumns(HashSet<string> hidden){try{Directory.CreateDirectory(DirectoryPath);SettingsStore.AtomicWriteLines(ColumnsPath,ColumnPrefs.Serialize(hidden));}catch(Exception ex){Log("Settings NOT saved: "+ex.Message);}}
         void ShowAsk(){foreach(var k in ConfirmPrefs.Kinds){var cb=dashboard.AskBox(k);if(cb!=null)cb.IsChecked=!askSkipped.Contains(k);}}
         void Command(string c)
         {

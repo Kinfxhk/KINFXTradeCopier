@@ -462,10 +462,52 @@ public static class BulkUiTests {
   Select(v,2);Check(v.BulkApply("LimitFlat","off")==null&&!v.Rows[2].FlatOnLimit&&v.Rows[1].FlatOnLimit,"bulk off on one row");
   Check(v.BulkApply("LimitFlat","maybe")!=null,"bad value refused");
  }
+ // Column visibility (user request 2026-10-14: the Risk tab felt crowded). Display only.
+ static DataGridColumn Col(DataGrid g,string key){return g.Columns.First(c=>DashboardView.ColumnKey(c)==key);}
+ static void ColumnsCanBeHiddenButSafetyColumnsNever(){
+  var v=Fresh();
+  System.Collections.Generic.HashSet<string> saved=null;v.ColumnsChanged=h=>saved=h;
+  foreach(var c in v.AccountGrid.Columns.Concat(v.RiskGrid.Columns))Check(c.Visibility==Visibility.Visible,"all visible by default: "+DashboardView.ColumnKey(c));
+  v.SetColumnVisible("risk","Preset",false);v.SetColumnVisible("risk","Cons",false);v.SetColumnVisible("copy","Bal",false);Layout(v);
+  Check(Col(v.RiskGrid,"Preset").Visibility==Visibility.Collapsed&&Col(v.RiskGrid,"Cons").Visibility==Visibility.Collapsed,"Risk Preset / Cons hidden");
+  Check(Col(v.AccountGrid,"Bal").Visibility==Visibility.Collapsed,"Copy Bal hidden");
+  Check(Col(v.AccountGrid,"P/L").Visibility==Visibility.Visible,"Copy P/L untouched");
+  Check(saved!=null&&saved.Contains("risk:Preset")&&saved.Contains("copy:Bal")&&saved.Count==3,"change reported for saving: "+(saved==null?"null":string.Join(",",saved)));
+  // safety columns ignore any request, from the menu or a hand-edited file
+  foreach(var k in new[]{"Acct","State","Off","Flat","Qty","Conn","On","Ratio"})v.SetColumnVisible("copy",k,false);
+  foreach(var k in new[]{"Acct","Tgt","DLL","Qty","St","Conn"})v.SetColumnVisible("risk",k,false);
+  var withBad=new System.Collections.Generic.HashSet<string>(saved){"copy:Acct","copy:Flat","copy:State","risk:St","risk:Tgt","risk:DLL"};v.ApplyColumns(withBad);Layout(v);
+  Check(v.HiddenColumns.SetEquals(saved),"invalid entries are dropped, valid ones kept: "+string.Join(",",v.HiddenColumns));
+  foreach(var k in new[]{"Acct","State","Off","Flat","Qty","Conn","On","Ratio"})Check(Col(v.AccountGrid,k).Visibility==Visibility.Visible,"copy safety column always shown: "+k);
+  foreach(var k in new[]{"Acct","Tgt","DLL","Qty","St","Conn"})Check(Col(v.RiskGrid,k).Visibility==Visibility.Visible,"risk safety column always shown: "+k);
+  // every hideable key exists in its grid (a renamed column must not leave a dead entry)
+  foreach(var k in ColumnPrefs.Hideable("copy"))Check(v.AccountGrid.Columns.Any(c=>DashboardView.ColumnKey(c)==k),"copy hideable key exists: "+k);
+  foreach(var k in ColumnPrefs.Hideable("risk"))Check(v.RiskGrid.Columns.Any(c=>DashboardView.ColumnKey(c)==k),"risk hideable key exists: "+k);
+  // the header right-click menu exists on both grids and lists only hideable columns
+  foreach(var grid in new[]{"copy","risk"}){var m=v.ColumnMenuFor(grid);Check(m!=null,grid+": header context menu");
+   m.RaiseEvent(new RoutedEventArgs(ContextMenu.OpenedEvent,m));
+   var ticks=m.Items.OfType<MenuItem>().Where(x=>x.IsCheckable).Select(x=>((string)x.Tag).Substring(grid.Length+5)).ToArray();
+   Check(ticks.Length==ColumnPrefs.Hideable(grid).Length&&ticks.All(k=>ColumnPrefs.CanHide(grid,k)),grid+": menu lists exactly the hideable columns: "+string.Join(",",ticks));}
+  // hidden columns survive a language change (new view, same saved set)
+  var keep=Lang.Current;try{Lang.Set("zh");var z=Fresh();z.ApplyColumns(saved);Layout(z);Check(Col(z.RiskGrid,"Preset").Visibility==Visibility.Collapsed,"zh view applies the saved set by key");}finally{Lang.Set(keep);}
+  // Show all
+  var risk=v.ColumnMenuFor("risk");risk.RaiseEvent(new RoutedEventArgs(ContextMenu.OpenedEvent,risk));
+  var all=risk.Items.OfType<MenuItem>().First(x=>(string)x.Tag=="col:risk:*");all.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+  Check(Col(v.RiskGrid,"Preset").Visibility==Visibility.Visible&&Col(v.AccountGrid,"Bal").Visibility==Visibility.Collapsed,"Show all restores only that grid");
+ }
+ // The two read-only delta columns are named for what they show, in every language.
+ static void DeltaColumnsHaveReadableNames(){
+  var keep=Lang.Current;
+  try{foreach(var code in Lang.Codes){Lang.Set(code);var v=Fresh();
+   var a=Col(v.RiskGrid,"To Tgt");var b=Col(v.RiskGrid,"Loss left");
+   Check(a.IsReadOnly&&b.IsReadOnly,code+": delta columns read-only");
+   Check(!((string)a.Header).Contains("Δ")&&!((string)b.Header).Contains("Δ"),code+": no bare Δ header: "+a.Header+" / "+b.Header);}}
+  finally{Lang.Set(keep);}
+ }
  [STAThread] public static int Main(string[] args){
   try{
    AppDomain.CurrentDomain.AssemblyResolve+=(s,e)=>{string n=e.Name.Split(',')[0];if(n.EndsWith(".resources"))return null;var loaded=AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a=>a.GetName().Name==n);if(loaded!=null)return loaded;string p=System.IO.Path.Combine("C:/Program Files/NinjaTrader 8/bin",n+".dll");return System.IO.File.Exists(p)?System.Reflection.Assembly.LoadFrom(p):null;};
-   var all=new Action[]{FlatAtLimitIsPerRowDefaultOffAndBulkScoped,RiskColumnsWidthAndBindingsInEveryLanguage,AskBeforeSwitchesDefaultOnAndReportKind,CopyColumnsFitWorstCaseContentAndWasteNothing,EveryVisibleHeaderAndTabIsTranslatedExceptKeptAbbreviations,StateFilterWorksInEveryLanguage,LanguagesRenderTranslatedHeadersAndKeepEnglishKeys,LanguagesNeverTruncateOrShowMojibake,LanguageSwitchKeepsRowsAndRefusesOnlyBadInput,PlainCheckBoxesStayDark,ComboAndInputStayDarkWhenDisabledOrHovered,TargetAndLossApplyToSelectedOnly,ZeroTurnsLimitOff,RatioStaysIndependent,InvalidInputChangesNothing,NoSelectionIsRefused,LeaderIsNotEdited,AtmToggleBulk,LockedWhenNotEditable,NeverTouchesFollowOrTrading,BarIsOnCopyTabAndKeepsHolds,FromLeaderCopiesToHighlighted,FromLeaderWithoutHighlightHitsAllVisibleFollowers,FromLeaderRespectsSearchFilter,FromLeaderKeepsRatioTickAndOtherFields,ManualEditAfterwardsSticksAndNoLiveLink,FromLeaderRefusedWhenLockedOrNoLeader,FromLeaderNeverTouchesFollowOrTrading,AdviceShownPerRowAndCounted,AdviceUpdatesAfterBulkApply,AdviceNeverBlocksOrChangesSettings,RatioCellFitsCommonValuesAt1160,LogsReadableAndTopAligned,LogClearWorksAndIsEditableIndependent,BadTargetDraftSurvivesRefreshAndBlocksCommit,BadLossDraftSurvivesRefreshAndBlocksCommit,BadTargetDraftSurvivesRecyclingAndStillBlocksCommit,TargetAndLossSetterRejectInvalidNumbers,LockedAccountIsRedWithReasonAndCountedInFooter,LockedCountIgnoresLeaderAndNeverBlocksUi,BadRatioDraftSurvivesRefreshAndBlocksCommit,UnprotectedReasonReachesRowAndDetail,MaxContractsRejectsInvalidAndKeepsDraft,DivergenceChoiceIsPerAccountDefaultsToNotify,DivergenceBulkAndFromLeaderAndNeverTrades,FlattenOnceShowsAWarningNote,FlatColumnExistsAndEveryFollowerRowHasItsOwnButton,FlatButtonOnLeaderRowIsDisabled,FlatButtonRequestsExactlyThatRowAndNothingElse,FlatAndOffAreDifferentControlsWithDifferentGlyphsAndTips,FlatButtonFitsItsCellAtNarrowWidth,FlatCanFlatFollowsSimAndLeaderRules,FlatOnARealViewForwardsExactlyTheClickedRowOnce};
+   var all=new Action[]{ColumnsCanBeHiddenButSafetyColumnsNever,DeltaColumnsHaveReadableNames,FlatAtLimitIsPerRowDefaultOffAndBulkScoped,RiskColumnsWidthAndBindingsInEveryLanguage,AskBeforeSwitchesDefaultOnAndReportKind,CopyColumnsFitWorstCaseContentAndWasteNothing,EveryVisibleHeaderAndTabIsTranslatedExceptKeptAbbreviations,StateFilterWorksInEveryLanguage,LanguagesRenderTranslatedHeadersAndKeepEnglishKeys,LanguagesNeverTruncateOrShowMojibake,LanguageSwitchKeepsRowsAndRefusesOnlyBadInput,PlainCheckBoxesStayDark,ComboAndInputStayDarkWhenDisabledOrHovered,TargetAndLossApplyToSelectedOnly,ZeroTurnsLimitOff,RatioStaysIndependent,InvalidInputChangesNothing,NoSelectionIsRefused,LeaderIsNotEdited,AtmToggleBulk,LockedWhenNotEditable,NeverTouchesFollowOrTrading,BarIsOnCopyTabAndKeepsHolds,FromLeaderCopiesToHighlighted,FromLeaderWithoutHighlightHitsAllVisibleFollowers,FromLeaderRespectsSearchFilter,FromLeaderKeepsRatioTickAndOtherFields,ManualEditAfterwardsSticksAndNoLiveLink,FromLeaderRefusedWhenLockedOrNoLeader,FromLeaderNeverTouchesFollowOrTrading,AdviceShownPerRowAndCounted,AdviceUpdatesAfterBulkApply,AdviceNeverBlocksOrChangesSettings,RatioCellFitsCommonValuesAt1160,LogsReadableAndTopAligned,LogClearWorksAndIsEditableIndependent,BadTargetDraftSurvivesRefreshAndBlocksCommit,BadLossDraftSurvivesRefreshAndBlocksCommit,BadTargetDraftSurvivesRecyclingAndStillBlocksCommit,TargetAndLossSetterRejectInvalidNumbers,LockedAccountIsRedWithReasonAndCountedInFooter,LockedCountIgnoresLeaderAndNeverBlocksUi,BadRatioDraftSurvivesRefreshAndBlocksCommit,UnprotectedReasonReachesRowAndDetail,MaxContractsRejectsInvalidAndKeepsDraft,DivergenceChoiceIsPerAccountDefaultsToNotify,DivergenceBulkAndFromLeaderAndNeverTrades,FlattenOnceShowsAWarningNote,FlatColumnExistsAndEveryFollowerRowHasItsOwnButton,FlatButtonOnLeaderRowIsDisabled,FlatButtonRequestsExactlyThatRowAndNothingElse,FlatAndOffAreDifferentControlsWithDifferentGlyphsAndTips,FlatButtonFitsItsCellAtNarrowWidth,FlatCanFlatFollowsSimAndLeaderRules,FlatOnARealViewForwardsExactlyTheClickedRowOnce};
    int failed=0;foreach(var a in all){try{a();Console.WriteLine("PASS "+a.Method.Name);}catch(Exception ex){failed++;Console.WriteLine("FAIL "+a.Method.Name+" :: "+ex.Message);}}
    return failed==0?0:1;
   }catch(Exception ex){Console.WriteLine("HARNESS "+ex);return 2;}
@@ -569,7 +611,7 @@ public static class BulkUiTests {
  }
  static void EveryVisibleHeaderAndTabIsTranslatedExceptKeptAbbreviations(){
   // Abbreviations that deliberately stay Latin in every language (trading jargon / platform names).
-  var kept=new System.Collections.Generic.HashSet<string>{"Tgt","DLL","ATM","CCY","P/L","Tgt Δ","DLL Δ","Dashboard","KINFX","⚙","⌕"};
+  var kept=new System.Collections.Generic.HashSet<string>{"Tgt","DLL","ATM","CCY","P/L","Dashboard","KINFX","⚙","⌕"};
   string was=Lang.Current;
   try{
    foreach(var code in new[]{"zh","ja","ko"}){
