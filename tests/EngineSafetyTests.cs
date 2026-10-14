@@ -1785,6 +1785,52 @@ class EngineSafetyTests {
    Check(latest.Locked&&latest.Reason.Contains("Unknown follower order"),"a working order is never history, whatever its id: "+(latest==null?"":latest.Reason));
   }
  }
+ // Real NT 2026-10-14: an account locked for a real reason (here a rejected protective stop, 1 lot unprotected) and then flattened by the user with
+ // provider-confirmed flat evidence must not keep the whole session undetachable. The latch itself stays (no auto-unlock, no re-follow).
+ static void ConfirmedFlatAfterLockAllowsStopButKeepsLatch(){
+  var l=Acc("lockflat lead");var a=Acc("lockflat follow");AccountTelemetry latest=null;
+  using(var e=Arm(l,a,t=>latest=t)){
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Wait(()=>a.Submits==1,"entry copied");Fill(a,2);Drain(e);
+   var stop=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"bracket",2);stop.OrderType=NinjaTrader.Cbi.OrderType.StopMarket;stop.StopPrice=95;l.Emit(stop);
+   Wait(()=>a.Submits==2,"protective stop copied");
+   var rejected=a.Orders[1];rejected.OrderState=NinjaTrader.Cbi.OrderState.Rejected;a.Emit(rejected);Drain(e);
+   Wait(()=>latest!=null&&latest.Locked,"rejected stop locks");
+   e.Flatten(new[]{a},inst);Wait(()=>a.Flattens==1,"user flat");Drain(e);
+   foreach(var o in a.Orders.ToArray())if(!NinjaTrader.Cbi.Order.IsTerminalState(o.OrderState)){o.OrderState=NinjaTrader.Cbi.OrderState.Filled;o.Filled=o.Quantity;a.Emit(o);}Drain(e);
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"",2));Drain(e); lock(l.Positions)l.Positions.Clear();
+   Thread.Sleep(3600);e.Poll();Drain(e);e.Poll();Drain(e);
+   Check(latest.Locked,"the risk latch stays locked after a confirmed flat: "+latest.Reason);
+   e.StopFlat();Drain(e);Wait(()=>!e.Attached,"Stop after a confirmed flat of a locked account");
+   Check(a.Flattens==1,"never retried");
+  }
+ }
+ // Guard: an UNCONFIRMED flat (provider never shows flat) still blocks Stop.
+ static void UnconfirmedFlatAfterLockStillBlocksStop(){
+  var l=Acc("lockflat2 lead");var a=Acc("lockflat2 follow");AccountTelemetry latest=null;
+  using(var e=Arm(l,a,t=>latest=t)){
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Wait(()=>a.Submits==1,"entry copied");Fill(a,2);Drain(e);
+   var stop=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"bracket",2);stop.OrderType=NinjaTrader.Cbi.OrderType.StopMarket;stop.StopPrice=95;l.Emit(stop);
+   Wait(()=>a.Submits==2,"protective stop copied");
+   var rejected=a.Orders[1];rejected.OrderState=NinjaTrader.Cbi.OrderState.Rejected;a.Emit(rejected);Drain(e);
+   a.NoopFlatten=true;e.Flatten(new[]{a},inst);Wait(()=>a.Flattens==1,"user flat");Drain(e);
+   Thread.Sleep(3600);e.Poll();Drain(e);
+   e.StopFlat();Drain(e);Thread.Sleep(300);Drain(e);
+   Check(e.Attached,"position still open: Stop must stay refused");
+  }
+ }
+ // Guard: the user Flat returns but a foreign WORKING order is still on the account: not clean, so the hold stays and Stop stays refused.
+ static void FlatWithForeignWorkingOrderStillBlocksStop(){
+  var l=Acc("lockflat3 lead");var a=Acc("lockflat3 follow");AccountTelemetry latest=null;
+  using(var e=Arm(l,a,t=>latest=t)){
+   var foreign=a.CreateOrder(inst,NinjaTrader.Cbi.OrderAction.Buy,NinjaTrader.Cbi.OrderType.Limit,NinjaTrader.Cbi.OrderEntry.Manual,NinjaTrader.Cbi.TimeInForce.Day,1,90,0,"","",DateTime.MaxValue,null);
+   foreign.OrderId="695407361234";foreign.OrderState=NinjaTrader.Cbi.OrderState.Working;lock(a.Orders)a.Orders.Add(foreign);a.Emit(foreign);Drain(e);
+   Wait(()=>latest!=null&&latest.Locked,"foreign working order locks");
+   a.NoopFlatten=true;e.Flatten(new[]{a},inst);Wait(()=>a.Flattens==1,"user flat");Drain(e);
+   Thread.Sleep(3600);e.Poll();Drain(e);e.Poll();Drain(e);
+   e.StopFlat();Drain(e);Thread.Sleep(300);Drain(e);
+   Check(e.Attached,"a working order is still on the account: Stop must stay refused");
+  }
+ }
  static EngineAccount FollowerOf(CopierEngine e){var fl=(System.Collections.IEnumerable)typeof(CopierEngine).GetField("followerView",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(e);foreach(EngineAccount x in fl)return x;return null;}
  // ---- Cases from the independent review of the exit-wait change and the follower-only Flat (each reproduced RED first).
  static void WaitingExitIsNotSubmittedWhileThatAccountIsFlattening(){var l=Acc("rvA lead");var a=Acc("rvA a");var tele=new Dictionary<string,AccountTelemetry>();
