@@ -31,11 +31,14 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
 #if KINFX_SIM_TEST
         // SIM TEST BUILD ONLY: the dashboard commands are reachable, but the engine still refuses any non-Simulator/Playback account.
         public static bool CanExecute(string command) { return true; }
-        public const string HeaderText="SIM TEST BUILD · Simulator / Playback only";
-        public const string StartTip="SIM TEST BUILD: copies between Simulator / Playback accounts only. Any other provider is refused.";
-        public const string LogNote="SIM TEST BUILD: Start / Flatten are enabled for Simulator / Playback accounts and any account named in sim-allow.txt. ATM means order mirroring, not a follower native ATM. Orders ARE sent to those accounts.";
+        public const string HeaderText="SIM TEST BUILD · demo / prop-firm evaluation accounts";
+        public const string StartTip="SIM TEST BUILD: copies between simulated accounts. An account not yet confirmed as simulated shows a risk warning first.";
+        public const string LogNote="SIM TEST BUILD: every NinjaTrader account is listed. Simulator / Playback accounts and accounts you confirmed as simulated (sim-allow.txt, filled in for you when you answer the risk warning) can Start / Flatten. ATM means order mirroring, not a follower native ATM. Orders ARE sent to those accounts.";
+        // Every account is listed and can be ticked; one not confirmed as simulated asks a non-skippable risk warning before Start / Flatten.
+        public const bool ListAllAccounts=true;
 #else
         public const string HeaderText="REVIEW HOLD · TRADING DISABLED";
+        public const bool ListAllAccounts=false;
         public const string StartTip="REVIEW HOLD: copying unavailable until engine safety issues are fixed";
         public const string LogNote="REVIEW HOLD: Start / Flatten / bulk risk disabled. ATM means order mirroring, not a follower native ATM. No real or simulation orders were submitted by this build verification.";
         public static bool CanExecute(string command)
@@ -1142,10 +1145,11 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             t["Show all columns"] = new[] { "顯示全部欄位", "すべての列を表示", "모든 열 표시" };
             t["Account, follow tick, state, Off / Flat, Qty and connection are always shown"] = new[] { "帳戶、跟單勾選、狀態、OFF／平倉、數量及連線一律顯示", "口座、フォローのチェック、状態、Off／決済、数量、接続は常に表示", "계좌, 팔로우 체크, 상태, Off/청산, 수량, 연결은 항상 표시" };
             t["Show or hide columns (also: right-click a column header). Saved for next time."] = new[] { "顯示或隱藏欄位（亦可在欄位標題按右鍵）。設定會保存。", "列の表示／非表示（列見出しの右クリックでも可）。次回も保持されます。", "열 표시/숨기기 (열 머리글 우클릭으로도 가능). 다음에도 유지됩니다." };
+            t["RISK WARNING: not confirmed as simulated: {0}\nKINFX cannot tell a prop-firm evaluation account from a funded or live account. If any of these is funded or live, REAL MONEY is at risk.\nYes = these are simulated / evaluation accounts; remember them (sim-allow.txt) so this is not asked again. No = cancel."] = new[] { "風險警告：以下帳戶尚未確認為模擬帳戶：{0}\nKINFX 無法分辨自營交易公司的考核帳戶與已注資或真實帳戶。若其中任何一個為已注資或真實帳戶，將涉及真實資金。\n是＝這些是模擬／考核帳戶，記住它們（sim-allow.txt），以後不再詢問。否＝取消。", "リスク警告：シミュレーションと未確認の口座：{0}\nKINFX はプロップファームの評価口座と資金提供済み／ライブ口座を区別できません。いずれかが資金提供済みまたはライブ口座の場合、実際の資金が危険にさらされます。\nはい＝これらはシミュレーション／評価口座です。記憶し（sim-allow.txt）、次回から確認しません。いいえ＝キャンセル。", "위험 경고: 시뮬레이션으로 확인되지 않은 계좌: {0}\nKINFX는 프롭펌 평가 계좌와 자금 지원 / 실거래 계좌를 구분할 수 없습니다. 이 중 하나라도 자금 지원 또는 실거래 계좌라면 실제 자금이 위험합니다.\n예 = 시뮬레이션 / 평가 계좌이며 기억합니다(sim-allow.txt), 다시 묻지 않습니다. 아니요 = 취소." };
+            t["Cancelled at the risk warning: {0}"] = new[] { "已在風險警告取消：{0}", "リスク警告でキャンセル：{0}", "위험 경고에서 취소: {0}" };
+            t["Account confirmation NOT saved, nothing sent: {0}"] = new[] { "帳戶確認未儲存，未傳送任何指令：{0}", "口座の確認は保存されず、何も送信されていません：{0}", "계좌 확인이 저장되지 않아 아무것도 전송되지 않았습니다: {0}" };
+            t["Confirmed as simulated by you (saved in sim-allow.txt): {0}"] = new[] { "您已確認為模擬帳戶（已儲存於 sim-allow.txt）：{0}", "シミュレーションとして確認済み（sim-allow.txt に保存）：{0}", "시뮬레이션으로 확인됨 (sim-allow.txt에 저장): {0}" };
 #if KINFX_SIM_TEST
-            t["SIM TEST BUILD · Simulator / Playback only"] = new[] { "SIM 測試版 · 僅限 Simulator / Playback", "SIMテストビルド · Simulator / Playback のみ", "SIM 테스트 빌드 · Simulator / Playback 전용" };
-            t["SIM TEST BUILD: copies between Simulator / Playback accounts only. Any other provider is refused."] = new[] { "SIM 測試版：僅在 Simulator / Playback 帳戶之間跟單。其他任何供應端一律拒絕。", "SIMテストビルド：Simulator / Playback 口座間のみコピー。それ以外のプロバイダーは拒否される。", "SIM 테스트 빌드: Simulator / Playback 계좌 간에만 복사합니다. 그 외 제공자는 거부됩니다." };
-            t["SIM TEST BUILD: Start / Flatten are enabled for Simulator / Playback accounts and any account named in sim-allow.txt. ATM means order mirroring, not a follower native ATM. Orders ARE sent to those accounts."] = new[] { "SIM 測試版：Simulator / Playback 帳戶及 sim-allow.txt 中列出的任何帳戶可使用 Start / Flatten。ATM 指委託單鏡像，並非跟單帳戶的原生 ATM。委託單「會」發送至這些帳戶。", "SIMテストビルド：Simulator / Playback 口座および sim-allow.txt に記載された口座で Start / Flatten が有効。ATM は注文のミラーリングを意味し、フォロワーのネイティブ ATM ではない。これらの口座には注文が送信される。", "SIM 테스트 빌드: Simulator / Playback 계좌와 sim-allow.txt에 명시된 계좌에서 Start / Flatten이 활성화됩니다. ATM은 주문 미러링을 의미하며 팔로워의 네이티브 ATM이 아닙니다. 해당 계좌로 주문이 전송됩니다." };
             t["Dry run"] = new[] { "試運行", "ドライラン", "드라이런" };
             t["DRY RUN: decide and log every order, cancel and flatten as \"DRY RUN would send ...\" but send NOTHING. Fixed for the whole session: change it only while stopped."] = new[] { "DRY RUN（試運行）：決定並記錄每一筆下單、取消與平倉為「DRY RUN would send ...」，但不會送出任何內容。整個連線期間固定：僅能在停止時變更。", "DRY RUN（ドライラン）：すべての注文・取消・全決済を判断し「DRY RUN would send ...」としてログに記録しますが、何も送信しません。セッション中は固定：変更は停止中のみ可能。", "DRY RUN(드라이런): 모든 주문, 취소, 청산을 판단하여 \"DRY RUN would send ...\"로 기록하지만 아무것도 전송하지 않습니다. 세션 전체 동안 고정: 중지 상태에서만 변경할 수 있습니다." };
             t["SIM TEST: Start refused — missing leader or follower list."] = new[] { "SIM TEST：已拒絕開始 — 缺少主帳戶或跟單帳戶清單。", "SIM TEST: 開始を拒否 — リーダーまたはフォロワーの一覧がありません。", "SIM TEST: 시작 거부 — 리더 또는 팔로워 목록이 없습니다." };
@@ -1157,6 +1161,9 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             t["DRY RUN would send to {0}: {1}"] = new[] { "DRY RUN（試運行）將傳送至 {0}：{1}", "DRY RUN（ドライラン）: {0} に送信予定: {1}", "DRY RUN(드라이런) {0}(으)로 전송 예정: {1}" };
             t["Dry run is ON: nothing will be sent."] = new[] { "試運行已開啟：不會傳送任何指令。", "ドライランはオン：何も送信されません。", "드라이런 켜짐: 아무것도 전송되지 않습니다." };
             t["Dry run is OFF: real simulation orders WILL be sent."] = new[] { "試運行已關閉：將會傳送實際的模擬委託。", "ドライランはオフ：実際のシミュレーション注文が送信されます。", "드라이런 꺼짐: 실제 시뮬레이션 주문이 전송됩니다." };
+            t["SIM TEST BUILD · demo / prop-firm evaluation accounts"] = new[] { "SIM 測試版 · 模擬／自營交易公司考核帳戶", "SIMテストビルド · デモ／プロップファーム評価口座", "SIM 테스트 빌드 · 데모 / 프롭펌 평가 계좌" };
+            t["SIM TEST BUILD: copies between simulated accounts. An account not yet confirmed as simulated shows a risk warning first."] = new[] { "SIM 測試版：在模擬帳戶之間跟單。尚未確認為模擬的帳戶會先顯示風險警告。", "SIMテストビルド：シミュレーション口座間でコピーします。シミュレーションと未確認の口座は先にリスク警告を表示します。", "SIM 테스트 빌드: 시뮬레이션 계좌 간에 복사합니다. 시뮬레이션으로 확인되지 않은 계좌는 먼저 위험 경고를 표시합니다." };
+            t["SIM TEST BUILD: every NinjaTrader account is listed. Simulator / Playback accounts and accounts you confirmed as simulated (sim-allow.txt, filled in for you when you answer the risk warning) can Start / Flatten. ATM means order mirroring, not a follower native ATM. Orders ARE sent to those accounts."] = new[] { "SIM 測試版：列出所有 NinjaTrader 帳戶。Simulator / Playback 帳戶及您已確認為模擬的帳戶（sim-allow.txt，回答風險警告後自動填寫）可使用 Start / Flatten。ATM 指委託單鏡像，並非跟單帳戶的原生 ATM。委託單「會」發送至這些帳戶。", "SIMテストビルド：NinjaTrader の全口座を表示します。Simulator / Playback 口座と、シミュレーションと確認した口座（sim-allow.txt、リスク警告に回答すると自動記入）で Start / Flatten が可能。ATM は注文のミラーリングで、フォロワーのネイティブ ATM ではありません。これらの口座には注文が送信されます。", "SIM 테스트 빌드: 모든 NinjaTrader 계좌를 표시합니다. Simulator / Playback 계좌와 시뮬레이션으로 확인한 계좌(sim-allow.txt, 위험 경고에 답하면 자동 기록)는 Start / Flatten을 사용할 수 있습니다. ATM은 주문 미러링이며 팔로워의 네이티브 ATM이 아닙니다. 해당 계좌로 주문이 전송됩니다." };
 #endif
             return t;
         }
@@ -1430,6 +1437,9 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             return a.Provider==Provider.Simulator || a.Provider==Provider.Playback;
 #endif
         }
+        // Shown in the account list and tickable. SIM TEST build: every account (an unconfirmed one asks the risk warning before Start / Flatten,
+        // and the engine still refuses it until it is confirmed). Default build: Simulator / Playback only, as before.
+        public static bool Listable(Account a){return a!=null&&(DashboardSafety.ListAllAccounts||Sim(a));}
 #if KINFX_SIM_TEST
         // SIM TEST BUILD ONLY. Prop-firm evaluation accounts (Lucid / Tradeify on Tradovate) hang off a connection NinjaTrader labels Mode=Live,
         // so Provider alone cannot tell them apart from a funded account. The operator attests per account by exact name in
@@ -1460,6 +1470,27 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public static string SimAlias(string name){string a;return name!=null&&simAlias.TryGetValue(name,out a)?a:"";}
         public static bool SimAllowed(string name){var h=Volatile.Read(ref simAllow);return name!=null&&h.Contains(name);}
         public static void SetSimAllow(IEnumerable<string> names){Volatile.Write(ref simAllow,new HashSet<string>(names??new string[0],StringComparer.Ordinal));}
+        public static string AllowPath {get{return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),"NinjaTrader 8","templates","KINFXTradeCopier","sim-allow.txt");}}
+        // Called ONLY after the user answered Yes to the risk warning that names these accounts. Appends them to sim-allow.txt (existing lines and aliases
+        // kept, no duplicates), then admits them in memory. The file is written first: if it cannot be written nothing is admitted. Returns null or the reason.
+        public static string RememberSimulated(IEnumerable<string> names,string path=null)
+        {
+            try
+            {
+                path=path??AllowPath;
+                var want=(names??new string[0]).Distinct(StringComparer.Ordinal).ToArray();
+                if(want.Length==0)return "no account";
+                foreach(var n in want)if(string.IsNullOrEmpty(n)||n!=n.Trim()||n.StartsWith("#")||n.IndexOf('=')>=0||n.IndexOf('\n')>=0||n.IndexOf('\r')>=0)return "account name cannot be stored safely: "+n;
+                var have=new HashSet<string>(LoadAllowFile(path).Keys,StringComparer.Ordinal);
+                var lines=File.Exists(path)?File.ReadAllLines(path).ToList():new List<string>{"# KINFX Trade Copier: accounts you confirmed as simulated / prop-firm evaluation. One exact NinjaTrader account name per line, optional \"= alias\". Delete a line to be asked again."};
+                foreach(var n in want)if(!have.Contains(n))lines.Add(n);
+                Directory.CreateDirectory(Path.GetDirectoryName(path));
+                SettingsStore.AtomicWriteLines(path,lines.ToArray());
+                var now=new HashSet<string>(Volatile.Read(ref simAllow),StringComparer.Ordinal);foreach(var n in want)now.Add(n);Volatile.Write(ref simAllow,now);
+                return null;
+            }
+            catch(Exception ex){return ex.Message;}
+        }
         // Scope check for the KINFX_SIM_TEST build. A scope is allowed only when it is non-empty, has no null member and EVERY account is
         // Simulator / Playback. One Live (or any other provider) account refuses the whole scope. Pure: reads Provider only.
         public static bool SimScope(IEnumerable<Account> scope)
@@ -2573,7 +2604,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public bool FlatOnLimit {get{return Settings.FlatOnLimit;}set{Settings.FlatOnLimit=value;Changed();}}
         public string OnDivergence {get{return Settings.OnDivergence;}set{if(!DivergenceChoice.IsValid(value))throw new ArgumentException(Lang.T("On divergence must be Notify or FlattenOnce"));Settings.OnDivergence=value;Changed();}}
         public bool CanFlat {get{return Role!="Leader"&&CanFollow&&Connection!="Disconnected"&&DashboardSafety.CanExecute("flattenSelected");}}
-        public bool CanFollow {get{return Role!="Leader"&&(Account!=null?CopierEngine.Sim(Account):Connection=="Synthetic");}}
+        public bool CanFollow {get{return Role!="Leader"&&(Account!=null?CopierEngine.Listable(Account):Connection=="Synthetic");}}
         public Brush ConnLight {get{return Connection=="Connected"?DashboardView.Good:Connection=="Disconnected"?DashboardView.Bad:Connection=="Synthetic"||Connection=="Connecting"?DashboardView.Warn:DashboardView.Off;}}
         public Brush StateLight {get{return Latch.Locked||Status=="Telemetry error"?DashboardView.Bad:Paused||Status=="Target hit"||(Status??"").IndexOf("pause",StringComparison.OrdinalIgnoreCase)>=0?DashboardView.Warn:Status=="Active"?DashboardView.Good:DashboardView.Off;}}
         public string AccountPrefix {get{string n=Name??"";return n.Length>12?n.Substring(0,n.Length-4):n;}}
@@ -2930,7 +2961,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             AccountGrid=GridTable();TickColumn(AccountGrid);AccountColumn(AccountGrid);Column(AccountGrid,"Alias","Alias",100,false,Lang.T("Optional display alias"));RatioColumn(AccountGrid);Column(AccountGrid,"Tgt","TargetText",78,false,Lang.T("Independent daily local profit target · account CCY / 0 = off"),null,true);Column(AccountGrid,"DLL","LossText",78,false,Lang.T("Independent daily loss limit · positive amount / 0 = off"),null,true);AtmColumn(AccountGrid);Column(AccountGrid,"Qty","Position",55,true,Lang.T("Signed position · + long / − short"),null,true);Column(AccountGrid,"P/L","Pnl",95,true,Lang.T("Observed session P/L in account currency · baseline is not historical daily accounting"),"N2",true);Column(AccountGrid,"Bal","BalanceText",130,true,Lang.T("CashValue in account currency; not NetLiquidation / net equity"),null,true);((DataGridTextColumn)AccountGrid.Columns.Last()).ElementStyle.Setters.Add(new Setter(FrameworkElement.ToolTipProperty,new Binding("BalanceDetail")));((DataGridTextColumn)AccountGrid.Columns.Last()).ElementStyle.Setters.Add(new Setter(System.Windows.Automation.AutomationProperties.NameProperty,new Binding("BalanceDetail")));LightColumn(AccountGrid,"Conn","ConnLight","Connection");StateColumn(AccountGrid);OffColumn(AccountGrid);FlatColumn(AccountGrid);AccountGrid.FrozenColumnCount=2;ProportionalCopyColumns(AccountGrid);AddRow(copy,AccountGrid,1);Sections.Items.Add(new TabItem{Header=Lang.T("Copy"),Content=copy});
             var risk=new Grid();risk.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});risk.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});risk.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});var tools=new WrapPanel{Margin=new Thickness(0,0,0,10)};
             var batch=Icon("\uE713",DashboardSafety.CanExecute("batch")?Lang.T("Batch risk / presets"):Lang.T("Batch risk / presets · review hold"),"batch",()=>Send("batch"));batch.IsEnabled=DashboardSafety.CanExecute("batch");tools.Children.Add(batch);tools.Children.Add(Icon("\uE74E",Lang.T("Save settings"),"save",()=>Send("save")));tools.Children.Add(Icon("\uE787",Lang.T("Trading-day boundary / timezone"),"daySettings",()=>Send("daySettings")));tools.Children.Add(Icon("\uE769",Lang.T("Pause highlighted accounts"),"pauseSelected",()=>SetSelectedPause(true)));tools.Children.Add(Icon("\uE768",Lang.T("Resume highlighted accounts · latch unchanged / no auto-arm"),"resumeSelected",()=>SetSelectedPause(false)));var fs=Icon("\uE74D",DashboardSafety.CanExecute("flattenSelected")?Lang.T("Flatten highlighted accounts (market-closes their positions)"):Lang.T("Flatten highlighted accounts · review hold"),"flattenSelected",()=>Send("flattenSelected"));fs.IsEnabled=DashboardSafety.CanExecute("flattenSelected");tools.Children.Add(fs);var fa=Icon("\uE7BA",DashboardSafety.CanExecute("flattenAll")?Lang.T("Flatten ALL displayed accounts (market-closes every position shown)"):Lang.T("Flatten all displayed accounts · review hold"),"flattenAll",()=>Send("flattenAll"));fa.IsEnabled=DashboardSafety.CanExecute("flattenAll");tools.Children.Add(fa);
-            ShowLive=new CheckBox{Template=PlainCheckTemplate(),Content=Lang.T("Live (RO)"),Foreground=Muted,Margin=new Thickness(12,6,16,0),ToolTip=Lang.T("Display live accounts read-only · live copying blocked")};tools.Children.Add(ShowLive);var group=new CheckBox{Template=PlainCheckTemplate(),Content=Lang.T("Grp"),Foreground=Muted,Margin=new Thickness(0,6,0,0),ToolTip=Lang.T("Group account rows")};tools.Children.Add(group);
+            ShowLive=new CheckBox{Template=PlainCheckTemplate(),Content=Lang.T("Live (RO)"),Foreground=Muted,Margin=new Thickness(12,6,16,0),ToolTip=Lang.T("Display live accounts read-only · live copying blocked")};tools.Children.Add(ShowLive);if(DashboardSafety.ListAllAccounts)ShowLive.Visibility=Visibility.Collapsed;var group=new CheckBox{Template=PlainCheckTemplate(),Content=Lang.T("Grp"),Foreground=Muted,Margin=new Thickness(0,6,0,0),ToolTip=Lang.T("Group account rows")};tools.Children.Add(group);
             tools.Children.Add(new TextBlock{Text=Lang.T("Ask before:"),Foreground=Muted,FontSize=12,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(16,6,6,0),ToolTip=Lang.T("Untick to skip that confirmation window. Unlock and risk warnings are always asked.")});
             Func<string,string,string,CheckBox> askSwitch=(kind,label,tip)=>{var cb=new CheckBox{Template=PlainCheckTemplate(),Content=label,Foreground=Muted,IsChecked=true,Margin=new Thickness(0,6,10,0),ToolTip=tip,Tag="ask:"+kind};System.Windows.Automation.AutomationProperties.SetName(cb,Lang.T("Ask before:")+" "+label);cb.Checked+=(s2,e2)=>{var cbk=AskChanged;if(cbk!=null)cbk(kind,true);};cb.Unchecked+=(s2,e2)=>{var cbk=AskChanged;if(cbk!=null)cbk(kind,false);};tools.Children.Add(cb);return cb;};
             AskStartBox=askSwitch(ConfirmPrefs.Start,Lang.T("Start"),Lang.T("Confirm before Start (follower list and ratios)"));
@@ -3189,14 +3220,14 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             try
             {
                 foreach(var r in dashboard.Rows)saved[r.Name]=Record(r);MergeLatches();
-                Account[] accounts;lock(Account.All)accounts=Account.All.Where(a=>dashboard.ShowLive.IsChecked==true||CopierEngine.Sim(a)).OrderBy(a=>a.Name).ToArray();
+                Account[] accounts;lock(Account.All)accounts=Account.All.Where(a=>dashboard.ShowLive.IsChecked==true||CopierEngine.Listable(a)).OrderBy(a=>a.Name).ToArray();
                 dashboard.Rows.Clear();
                 foreach(var a in accounts)
                 {
                     SavedAccount stored;saved.TryGetValue(a.Name,out stored);
                     dashboard.Rows.Add(new AccountRow {Account=a,Name=a.Name,Role=a.Name==leaderName?"Leader":"Follower",Currency=a.Denomination.ToString(),Connection=a.Connection==null?"Disconnected":a.Connection.Status.ToString(),Status=stored!=null&&stored.Latch.Locked?stored.Latch.Reason:"Disarmed",Settings=stored==null?NewSettingsFor(a):stored.Settings.Clone(),Latch=stored==null?new RiskLatch():new RiskLatch {Locked=stored.Latch.Locked,Reason=stored.Latch.Reason}});
                 }
-                string keep=leaderName;dashboard.LeaderBox.ItemsSource=accounts.Where(CopierEngine.Sim).Select(a=>a.Name).ToArray();if(!string.IsNullOrEmpty(keep)&&accounts.Any(a=>a.Name==keep))dashboard.LeaderBox.SelectedItem=keep;else if(dashboard.LeaderBox.Items.Count>0)dashboard.LeaderBox.SelectedItem=DashboardChoices.DefaultLeader(dashboard.LeaderBox.Items.Cast<string>());
+                string keep=leaderName;dashboard.LeaderBox.ItemsSource=accounts.Where(CopierEngine.Listable).Select(a=>a.Name).ToArray();if(!string.IsNullOrEmpty(keep)&&accounts.Any(a=>a.Name==keep))dashboard.LeaderBox.SelectedItem=keep;else if(dashboard.LeaderBox.Items.Count>0)dashboard.LeaderBox.SelectedItem=DashboardChoices.DefaultLeader(dashboard.LeaderBox.Items.Cast<string>());
                 dashboard.UpdateCards();
             }
             catch(Exception ex){Log("Refresh error: "+ex.Message);}finally{loading=false;}
@@ -3233,6 +3264,22 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
 #endif
             return true;
         }
+        // Start / Flatten confirmation for a scope. All accounts confirmed simulated: the normal (skippable) window.
+        // Any account NOT confirmed (a prop-firm account KINFX cannot tell from a funded / live one): a risk warning naming them, never skippable;
+        // only on Yes are they written to sim-allow.txt (so it is asked once per account), and only then does the engine accept them.
+        bool ConfirmScope(string kind,string text,Account[] scope)
+        {
+            var unconfirmed=scope.Where(a=>a!=null&&!CopierEngine.Sim(a)).Select(a=>a.Name).Distinct().ToArray();
+            if(unconfirmed.Length==0)return Confirm(kind,text,false);
+#if KINFX_SIM_TEST
+            if(!Confirm(kind,Lang.F("RISK WARNING: not confirmed as simulated: {0}\nKINFX cannot tell a prop-firm evaluation account from a funded or live account. If any of these is funded or live, REAL MONEY is at risk.\nYes = these are simulated / evaluation accounts; remember them (sim-allow.txt) so this is not asked again. No = cancel.",string.Join(", ",unconfirmed))+"\n\n"+text,true)){Log("Cancelled at the risk warning: "+string.Join(", ",unconfirmed));return false;}
+            string err=CopierEngine.RememberSimulated(unconfirmed);
+            if(err!=null){Log("Account confirmation NOT saved, nothing sent: "+err);return false;}
+            Log("Confirmed as simulated by you (saved in sim-allow.txt): "+string.Join(", ",unconfirmed));return true;
+#else
+            Log("LIVE BLOCKED in v0.2. Only Simulator / Playback; no live override is provided.");return false;
+#endif
+        }
         HashSet<string> askSkipped=new HashSet<string>(StringComparer.Ordinal);
         string AskPath {get{return Path.Combine(DirectoryPath,"confirm-prefs.txt");}}
         static HashSet<string> LoadAsk(string path){try{if(File.Exists(path))return ConfirmPrefs.Parse(File.ReadAllLines(path));}catch{}return new HashSet<string>(StringComparer.Ordinal);}
@@ -3261,7 +3308,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 if(engine.Attached){Log("Settings / enabled edits blocked during session. Pause per account or stop when flat first.");return;}
                 if(c=="daySettings"){EditTradingDay();return;}
                 if(c=="batch"){Edit(Selected());return;}
-                if(c=="enable"||c=="disable"){foreach(var row in Selected()){row.Enabled=c=="enable"&&row.Role!="Leader"&&CopierEngine.Sim(row.Account);row.Changed();}dashboard.UpdateCards();}
+                if(c=="enable"||c=="disable"){foreach(var row in Selected()){row.Enabled=c=="enable"&&row.Role!="Leader"&&CopierEngine.Listable(row.Account);row.Changed();}dashboard.UpdateCards();}
             }
             catch(Exception ex){Log("UI action failed: "+ex.Message);}
         }
@@ -3284,7 +3331,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             MergeLatches();foreach(var row in dashboard.Rows){SavedAccount stored;if(saved.TryGetValue(row.Name,out stored)&&stored.Latch.Locked)row.Latch=stored.Latch;}
             var selected=dashboard.Rows.Where(r=>r.Enabled&&r!=leader&&!r.Paused).ToArray();if(selected.Length==0){Log("Enable at least one unpaused follower.");return;}
             if(selected.Any(r=>!r.Settings.Valid()||r.Latch.Locked)){Log("Invalid finite settings or risk-latched follower. Review Settings / confirmed reset.");return;}
-            if(!Confirm(ConfirmPrefs.Start,Lang.F("Start simulation copying to exactly {0} follower account(s) on {1}?\n\n{2}\n\nLocal copier guards only. No adoption; all selected accounts must be flat / no working instrument orders.",selected.Length,inst.FullName,DashboardChoices.StartSummary(leader.Name,inst.FullName,2,selected.Select(r=>new StartSummaryRow{Name=string.IsNullOrEmpty(r.Settings.Alias)?r.Name:r.Settings.Alias+" ("+r.Name+")",Ratio=r.Settings.Ratio}).ToArray(),IsDryRun())),selected.Any(r=>!CopierEngine.Sim(r.Account))||!CopierEngine.Sim(leader.Account)))return;
+            if(!ConfirmScope(ConfirmPrefs.Start,Lang.F("Start simulation copying to exactly {0} follower account(s) on {1}?\n\n{2}\n\nLocal copier guards only. No adoption; all selected accounts must be flat / no working instrument orders.",selected.Length,inst.FullName,DashboardChoices.StartSummary(leader.Name,inst.FullName,2,selected.Select(r=>new StartSummaryRow{Name=string.IsNullOrEmpty(r.Settings.Alias)?r.Name:r.Settings.Alias+" ("+r.Name+")",Ratio=r.Settings.Ratio}).ToArray(),IsDryRun())),selected.Select(r=>r.Account).Concat(new[]{leader.Account}).ToArray()))return;
             // Explicit observed baseline initialization, persisted BEFORE subscriptions can arm.
             foreach(var r in selected)if(!r.Settings.BaselineSet){double raw=r.Account.Get(AccountItem.RealizedProfitLoss,r.Account.Denomination)+r.Account.Get(AccountItem.UnrealizedProfitLoss,r.Account.Denomination);if(!RiskPolicy.Finite(raw)){Log("Invalid baseline telemetry: "+r.Name);return;}r.Settings.Baseline=raw;r.Settings.BaselineSet=true;}
             Persist();if(settingsCorrupt)return;
@@ -3335,8 +3382,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         {
             if(rows.Length==0){Log("No accounts in flatten scope.");return;}var inst=Instrument.GetInstrument(InstrumentText(),false);if(inst==null){Log("Flatten: exact instrument unknown.");return;}
             var targets=rows.Where(r=>r.Account!=null).Select(r=>r.Account).Distinct().ToArray();
-            if(targets.Any(a=>!CopierEngine.Sim(a))){Log("Flatten refused: live account in scope; v0.2 simulation only.");return;}
-            if(!Confirm(kind,Lang.F("{0}{1}FLATTEN exactly {2} account(s), only {3}.\n{4}\nNew copies will be blocked BEFORE flatten requests. This cancels working orders and closes positions on that instrument. Retry/error remains visible.",DryRunPrefix(),kind==ConfirmPrefs.FlatOne?Lang.T("FLAT ONE ACCOUNT. "):"",targets.Length,inst.FullName,string.Join("\n",targets.Select(a=>a.Name))),targets.Any(a=>!CopierEngine.Sim(a))))return;
+            if(!ConfirmScope(kind,Lang.F("{0}{1}FLATTEN exactly {2} account(s), only {3}.\n{4}\nNew copies will be blocked BEFORE flatten requests. This cancels working orders and closes positions on that instrument. Retry/error remains visible.",DryRunPrefix(),kind==ConfirmPrefs.FlatOne?Lang.T("FLAT ONE ACCOUNT. "):"",targets.Length,inst.FullName,string.Join("\n",targets.Select(a=>a.Name))),targets))return;
             engine.Flatten(targets,inst);
         }
         void OnTelemetry(AccountTelemetry t)
@@ -3388,7 +3434,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         // Names of the accounts the dashboard WOULD list right now (same filter as Refresh). Read-only: touches no account state.
         string[] CurrentAccountNames()
         {
-            Account[] accounts;lock(Account.All)accounts=Account.All.Where(a=>dashboard.ShowLive.IsChecked==true||CopierEngine.Sim(a)).ToArray();
+            Account[] accounts;lock(Account.All)accounts=Account.All.Where(a=>dashboard.ShowLive.IsChecked==true||CopierEngine.Listable(a)).ToArray();
             return accounts.Select(a=>a.Name).ToArray();
         }
         bool EditingNow()
@@ -3411,7 +3457,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             try{SyncAccounts();}catch(Exception ex){Log("Account sync error: "+ex.Message);}
             if(engine.Attached)engine.Poll();
             PollCashBalances(dashboard.Rows,
-                r=>r.Account!=null&&CopierEngine.Sim(r.Account),
+                r=>r.Account!=null&&CopierEngine.Listable(r.Account),
                 r=>r.Account.Connection!=null&&r.Account.Connection.Status==ConnectionStatus.Connected,
                 r=>{var a=r.Account;r.Currency=a.Denomination.ToString();return a.Get(AccountItem.CashValue,a.Denomination);});
             {

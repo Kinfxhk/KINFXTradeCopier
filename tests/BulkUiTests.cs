@@ -111,7 +111,7 @@ public static class BulkUiTests {
   Action<DependencyObject> walk=null;walk=d=>{int n=System.Windows.Media.VisualTreeHelper.GetChildrenCount(d);for(int i=0;i<n;i++){var c=System.Windows.Media.VisualTreeHelper.GetChild(d,i);var cb=c as CheckBox;if(cb!=null&&cb.ActualWidth>5&&!boxes.Contains(cb)&&cb.Content is string)boxes.Add(cb);walk(c);}};
   walk(v);
   Check(boxes.Count>=3,"found Live (RO), Grp and Dry run among the Risk tab check boxes ("+boxes.Count+")");
-  Check(boxes.Contains(v.ShowLive)&&boxes.Contains(v.DryRunBox),"the walk reaches Live (RO) and Dry run");
+  Check((DashboardSafety.ListAllAccounts?v.ShowLive.Visibility==Visibility.Collapsed:boxes.Contains(v.ShowLive))&&boxes.Contains(v.DryRunBox),"the walk reaches Dry run; Live (RO) is hidden when every account is listed");
   foreach(var b in boxes){
    string name=""+b.Content;
    // Live (RO) is disabled in a fresh view: enable it first, otherwise normal/hover/ticked would only ever measure the disabled look.

@@ -109,7 +109,8 @@ class SourceSyntaxHoldTests(unittest.TestCase):
         # so the default build never contains them (see test_default_view_drops_every_sim_block).
         # +1 (2026-10-14): dry-run Submit completion reconciles close evidence (no provider callback ever arrives for a dry-run wrapper).
         # +1 (2026-10-14): a skipped Start confirmation logs whether Dry run is ON/OFF (log text only, no order path).
-        self.assertEqual(code.count("KINFX_SIM_TEST"), 24, "unexpected KINFX_SIM_TEST usage")
+        # +1 (2026-10-15): ConfirmScope: in the SIM build an unconfirmed account asks the risk warning and is remembered on Yes; the default build keeps LIVE BLOCKED.
+        self.assertEqual(code.count("KINFX_SIM_TEST"), 25, "unexpected KINFX_SIM_TEST usage")
         for signature in SIGNATURES:
             body = method(self.raw, signature)
             self.assertIn("#if !KINFX_SIM_TEST", body)
