@@ -1106,6 +1106,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public readonly HashSet<Order> PreSessionTerminal=new HashSet<Order>();
         // Copier orders left in Initialized before Start (never sent). Exempt from the unknown-order lock ONLY while they stay Initialized and unfilled.
         public readonly HashSet<Order> PreSessionGhost=new HashSet<Order>();
+        public int DryRunRetired; // dry-run Submits retired as never-sent ghosts (SIM TEST build only)
         // When the last follower fill evidence arrived. NinjaTrader raises the order Filled callback ~10 ms BEFORE the PositionUpdate, so for a moment the ledger and Position disagree.
         public DateTime LastFillUtc=DateTime.MinValue;
         // Per-account Flat (user pressed Flat): when the request was queued, when the provider call RETURNED (not threw), and the last follower order event.
@@ -1866,7 +1867,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 // Only retain delayed protection if THIS copier has an entry link; never adopt an unrelated later position.
                 if(link.Exit && (!f.ExitCompleted||link.Group!=null&&!link.Group.Completed) && (HasPendingEntryWork(f)||OwnedPosition(f)!=0) && links.Values.SelectMany(x=>x).Any(x=>x.Follower==f&&!x.Exit&&x.Order!=null&&(!x.Cancelled||x.ObservedFilled>0)))
                 { if(DateTime.UtcNow-link.WaitingSince>TimeSpan.FromSeconds(10)){link.Waiting=false;Lock(f,"Exit could not obtain closable exposure within 10s — review protection");}else link.Waiting=true;return; }
-                link.Waiting=false; if(link.Exit){f.ExitDroppedNothingToClose=true;log(f.Account.Name+": leader exit ignored, nothing to close");} else log(f.Account.Name+": entry skipped, projected cap / floor quantity"); return;
+                link.Waiting=false; if(link.Exit){f.ExitDroppedNothingToClose=true;log(f.Account.Name+": leader exit ignored, nothing to close"+(f.DryRunRetired>0?" (dry run: no position was ever opened)":""));} else log(f.Account.Name+": entry skipped, projected cap / floor quantity"); return;
             }
             var s=link.Latest;
             if(!(s.Type==OrderType.Market||s.Type==OrderType.Limit||s.Type==OrderType.StopMarket||s.Type==OrderType.StopLimit||s.Type==OrderType.MIT)) { Lock(f,"Unsupported order type"); link.Waiting=false; return; }
@@ -1892,17 +1893,25 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                     if(err is GroupSupportChangedException)
                     {
                         // No Submit was sent. Discard only this unsent wrapper, then re-evaluate captured evidence.
+                        // The wrapper stays in Account.Orders as Initialized: record it as a never-sent copier ghost (inert unless it ever fills).
+                        f.PreSessionGhost.Add(order);
                         link.Wrappers.Remove(order);link.Order=null;link.RequestedQuantity=link.ReservedQuantity=0;link.Waiting=!link.Cancelled;
                         log(f.Account.Name+": "+err.Message);
                     }
                     else if(err==null){
 #if KINFX_SIM_TEST
-                        if(!dryRun)
+                        // DRY RUN: nothing reached the provider, so this wrapper can never be acknowledged or fill. Retire it as a never-sent ghost at once;
+                        // otherwise the ledger waits on it forever: the leader exit then locks every follower after 10 s and Stop is refused (real NT 2026-10-14).
+                        if(dryRun){link.Cancelled=true;link.Waiting=false;link.ObservedState=OrderState.Cancelled;f.PreSessionGhost.Add(order);f.DryRunRetired++;}else
 #endif
                         log("COPY "+f.Account.Name+" "+s.Action+" "+qty+" "+s.Type);
                     }else Lock(f,errPrefix+err.Message);
                 }
-                finally { lock(controlGate)link.SubmissionInFlight=false; RecomputeDisablePending(f);if(authorization!=null)MaintainProtection(f); }
+                finally { lock(controlGate)link.SubmissionInFlight=false; RecomputeDisablePending(f);if(authorization!=null)MaintainProtection(f);
+#if KINFX_SIM_TEST
+                    if(dryRun)ReconcileCloseEvidence(); // no provider callback will ever arrive for a dry-run wrapper
+#endif
+                }
             },"Submit "+s.Action+" "+qty+" "+s.Type+(s.Exit?" (exit)":" (entry)")+" on "+instrument.FullName);
         }
         void Change(CopyLink link,string errPrefix="Manage error: ")
@@ -1965,6 +1974,10 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             if(generation!=Volatile.Read(ref sessionGeneration))return;
             Account account=sender as Account;
             if(e.Order==null||account==null||e.Order.Account!=account||e.Order.Instrument==null||e.Order.Instrument.FullName!=subscribedInstrument)return;
+            // Real NinjaTrader raises an Initialized OrderUpdate from CreateOrder, BEFORE Submit, carrying a client id. For a copier wrapper ("KTC>") that is not
+            // provider evidence: nothing was sent, nothing can fill. Counting it moved the protection frontier and refused every TP / SL (real NT, 11 followers).
+            // Only this exact shape is skipped; a fill, any later state, or a foreign Initialized order is still captured.
+            if(e.OrderState==OrderState.Initialized&&e.Filled==0&&e.Order.Name!=null&&e.Order.Name.StartsWith("KTC>",StringComparison.Ordinal))return;
             var capturedAccount=followerView.FirstOrDefault(x=>x.Account==account);
             if(capturedAccount!=null){lock(controlGate)Interlocked.Increment(ref capturedAccount.CapturedCallbacks);}
             var snapshot=new FollowerSnapshot(account,e,generation);

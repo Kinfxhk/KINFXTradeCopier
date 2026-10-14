@@ -107,7 +107,8 @@ class SourceSyntaxHoldTests(unittest.TestCase):
         code = mask_noncode(self.raw)
         # 21 earlier blocks + 1 for the generated language table: the SIM-only sentences (SIM TEST / DRY RUN texts) are compiled only in the SIM build,
         # so the default build never contains them (see test_default_view_drops_every_sim_block).
-        self.assertEqual(code.count("KINFX_SIM_TEST"), 22, "unexpected KINFX_SIM_TEST usage")
+        # +1 (2026-10-14): dry-run Submit completion reconciles close evidence (no provider callback ever arrives for a dry-run wrapper).
+        self.assertEqual(code.count("KINFX_SIM_TEST"), 23, "unexpected KINFX_SIM_TEST usage")
         for signature in SIGNATURES:
             body = method(self.raw, signature)
             self.assertIn("#if !KINFX_SIM_TEST", body)
