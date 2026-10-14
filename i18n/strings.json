@@ -2620,5 +2620,17 @@
   "zh": "{0}：試運行：從未開倉",
   "ja": "{0}: ドライラン: ポジションは一度も建てられていません",
   "ko": "{0}: 드라이런: 포지션이 열린 적이 없습니다"
+ },
+ {
+  "en": "{0}: Flatten already in progress — not sent again; wait for confirmation or check NinjaTrader",
+  "zh": "{0}：平倉已在進行中 — 不會重複傳送；請等待確認或查看 NinjaTrader",
+  "ja": "{0}: 決済は処理中 — 再送信しません。確認を待つか NinjaTrader を確認してください",
+  "ko": "{0}: 청산 진행 중 — 다시 보내지 않음; 확인을 기다리거나 NinjaTrader를 확인하십시오"
+ },
+ {
+  "en": "Exit order still working on a FLAT account — if it fills it opens a NEW position; cancel it in NinjaTrader",
+  "zh": "已平倉帳戶仍有出場單在運作 — 一旦成交將開出新倉；請在 NinjaTrader 取消該委託",
+  "ja": "決済済み口座で決済注文がまだ有効 — 約定すると新規ポジションになります。NinjaTrader で取消してください",
+  "ko": "포지션이 없는 계좌에 청산 주문이 아직 작동 중 — 체결되면 새 포지션이 열립니다; NinjaTrader에서 취소하십시오"
  }
 ]
