@@ -548,7 +548,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         static readonly string[] hiddenByDefault={Copy+":Acct",Risk+":Acct"};
         public static HashSet<string> Defaults(){return new HashSet<string>(hiddenByDefault,StringComparer.Ordinal);}
         // An alias for an account that has none, so the row stays identifiable with the account-name column hidden. Short names stay as they are (Sim101);
-        // long ones keep their leading letters and the last 4 characters (TDFYSL..2676). Display only: the user can change it; it never selects an account.
+        // long ones keep their leading letters and the last 4 characters (FIRMAB..0001). Display only: the user can change it; it never selects an account.
         public static string DefaultAlias(string name)
         {
             if(string.IsNullOrEmpty(name))return "";
