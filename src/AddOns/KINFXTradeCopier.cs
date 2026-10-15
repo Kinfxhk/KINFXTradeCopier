@@ -1299,6 +1299,10 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public int ChangesInFlight;
         public readonly List<int> PendingChangeQuantities=new List<int>();
         public double SentLimit, SentStop; public int SentQty;
+        // Set when a Change is handed to the provider; cleared only by the provider's answer (Accepted / Working / TriggerPending / PartFilled or terminal).
+        // Real NT (Tradovate): Account.Change returns at once and raises ChangePending with the OLD price; the new price arrives ~1 s later.
+        // Comparing against the order's own price in that window re-sent Change on every callback (140-350 Changes per account for 2 leader moves).
+        public bool AwaitingChangeAck;
         public readonly HashSet<Order> Wrappers=new HashSet<Order>();
         public readonly List<FollowerSnapshot> ExecutionEvidence=new List<FollowerSnapshot>();
     }
@@ -1772,7 +1776,9 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 foreach(var entry in entries)
                 {
                     int consumed=Math.Min(legacy,entry.ObservedFilled);legacy-=consumed;
-                    int capacity=Math.Max(entry.ObservedFilled,entry.RequestedQuantity);
+                    // A terminal entry (cancelled / rejected / filled, from captured callbacks) can never fill more: only its observed fills are lots.
+                    // Counting its unfilled request let an OCO exit claim a lot of a CANCELLED entry and leave the real fill unprotected (real NT 2026-10-15).
+                    int capacity=Order.IsTerminalState(entry.ObservedState)?entry.ObservedFilled:Math.Max(entry.ObservedFilled,entry.RequestedQuantity);
                     var used=f.ExitGroups.Values.SelectMany(x=>x.Claims).Where(x=>x.Entry==entry).OrderBy(x=>x.First).ToArray();
                     int cursor=consumed;
                     foreach(var claim in used.Concat(new[]{new EntryLotClaim(entry,capacity,0)}))
@@ -2109,7 +2115,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             }
             int qty=RiskPolicy.ChangeTotal(link.ReservedQuantity,filled,link.Desired,link.Exit,closable,link.Exit?Math.Max(0,ExitReserved(link)-(accountClosable-closable)):PendingEntries(f,order),f.Settings.MaxContracts,entries&&f.Following&&!f.Paused&&!f.Latch.Locked);
             // Effective quantity the provider holds or is about to hold: a Change still in flight counts, not the stale applied value.
-            bool changePending=Volatile.Read(ref link.ChangesInFlight)>0;
+            bool changePending=Volatile.Read(ref link.ChangesInFlight)>0||link.AwaitingChangeAck;
             int effectiveQty=changePending?link.SentQty:order.Quantity;
             if(positionBehindOwned&&link.Exit&&qty<effectiveQty)qty=effectiveQty; // freeze quantity, keep price updates
             if(qty<=filled)
@@ -2125,7 +2131,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             // The requested values are captured NOW, in a command applied on the account's own thread. Writing them to the shared
             // Order object here and sending later would let a newer Change overwrite an older, still-queued one.
             double wantLimit=s.Limit,wantStop=s.Stop; int wantQty=qty;
-            link.SentQty=wantQty; link.SentLimit=wantLimit; link.SentStop=wantStop; Interlocked.Increment(ref link.ChangesInFlight);link.PendingChangeQuantities.Add(wantQty);
+            link.SentQty=wantQty; link.SentLimit=wantLimit; link.SentStop=wantStop; link.AwaitingChangeAck=true; Interlocked.Increment(ref link.ChangesInFlight);link.PendingChangeQuantities.Add(wantQty);
             Dispatch(f,()=>{ try { order.QuantityChanged=wantQty; order.LimitPriceChanged=wantLimit; order.StopPriceChanged=wantStop; f.Account.Change(new[]{order}); } finally { Interlocked.Decrement(ref link.ChangesInFlight); } },err=>{ link.PendingChangeQuantities.Remove(wantQty);if(err!=null)Lock(f,errPrefix+err.Message); },"Change protective order to qty "+wantQty);
         }
         void FollowerUpdate(object sender,OrderEventArgs e,int generation,string subscribedInstrument)
@@ -2175,6 +2181,10 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                     if(!terminalRegression)
                     {
                         link.ObservedState=eventState;
+                        // Cleared only by an answer that carries what was sent (or a terminal state). An answer with other values is either an older
+                        // Change still being answered or a Change the provider refused: never re-send in a loop; the next leader move is compared to what was sent.
+                        if(Order.IsTerminalState(eventState)||(eventState==OrderState.Accepted||eventState==OrderState.Working||eventState==OrderState.TriggerPending||eventState==OrderState.PartFilled)
+                            &&snapshot.Quantity==link.SentQty&&Math.Abs(snapshot.Limit-link.SentLimit)<1e-9&&Math.Abs(snapshot.Stop-link.SentStop)<1e-9)link.AwaitingChangeAck=false;
                         // An old ACK can equal the newest quantity after a 2 -> 4 -> 2 sequence.
                         // Never release a larger reservation when the captured wrapper/dispatch intent
                         // still contradicts that reduction. These hints can refuse release, not certify acceptance.

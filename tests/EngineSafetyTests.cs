@@ -7,7 +7,7 @@ namespace NinjaTrader.Core {public static class Globals {public static DateTime 
 namespace NinjaTrader.Cbi {
  public enum Provider {Simulator,Playback,Live} public enum ConnectionStatus {Connected,Disconnected} public class Connection {public ConnectionStatus Status=ConnectionStatus.Connected;}
  public enum Currency {Usd} public enum MarketPosition {Long,Short,Flat} public enum OrderAction {Buy,Sell,SellShort,BuyToCover} public enum OrderType {Market,Limit,StopMarket,StopLimit,MIT,Unsupported} public enum OrderEntry {Manual} public enum TimeInForce {Day,Gtd}
- public enum OrderState {Submitted,Accepted,Working,TriggerPending,Cancelled,Rejected,Filled,PartFilled,Initialized} public enum AccountItem {RealizedProfitLoss,UnrealizedProfitLoss,NetLiquidation,SodLiquidatingValue}
+ public enum OrderState {Submitted,Accepted,Working,TriggerPending,Cancelled,Rejected,Filled,PartFilled,Initialized,ChangePending,ChangeSubmitted} public enum AccountItem {RealizedProfitLoss,UnrealizedProfitLoss,NetLiquidation,SodLiquidatingValue}
  public class Instrument {public string FullName="MES 12-26";} public class Position {public Instrument Instrument;public int Quantity;public MarketPosition MarketPosition;}
  public class Order {public Account Account;public Instrument Instrument;public string Name,Oco,OrderId;public OrderAction OrderAction;public OrderType OrderType;public OrderEntry OrderEntry;public TimeInForce TimeInForce;public DateTime Gtd;public OrderState OrderState;public int Quantity,Filled,QuantityChanged;public double LimitPrice,StopPrice,LimitPriceChanged,StopPriceChanged;public static bool IsTerminalState(OrderState s){return s==OrderState.Filled||s==OrderState.Rejected||s==OrderState.Cancelled;}}
  public class OrderEventArgs:EventArgs {public Order Order;public OrderState OrderState;public int Quantity,Filled;public string OrderId;public double LimitPrice,StopPrice;}
@@ -1499,6 +1499,139 @@ class EngineSafetyTests {
  // Together they ask for 2 lots of exit capacity on a 1-lot position. The stop is copied; the target must NOT make the engine lock the follower after 10 s
  // and must not send an exit that could over-close. Whatever the engine decides (copy under an engine-owned OCO, or refuse visibly) the follower must stay usable.
  // Parameterless regression: offline.py now discovers this previously expected-RED case.
+ // Real NT 2026-10-15: after a 1-lot Market entry, a lone leader Sell StopMarket carrying an OCO id (no second leg) was copied to NO follower,
+ // then every follower locked "Exit could not obtain closable exposure within 10s". A lone OCO stop must be copied like a stop without an id.
+ static void LoneOcoStopAfterEntryIsCopied(){LoneStopAfterEntry("KT4a");}
+ static void LoneStopWithoutOcoAfterEntryIsCopied(){LoneStopAfterEntry("");}
+ // Same as real NT: an earlier leader Limit entry was copied, its quantity raised 1->2 above Max 1, then cancelled; only then the Market entry and the lone OCO stop.
+ static void LoneOcoStopAfterCancelledLimitIsCopied(){LoneStopAfterCancelledLimit("KT4a",true);}
+ static void LoneStopAfterCancelledLimitIsCopied(){LoneStopAfterCancelledLimit("",true);}
+ static void LoneOcoStopAfterCancelledLimitNoQtyRaiseIsCopied(){LoneStopAfterCancelledLimit("KT4a",false);}
+ static void LoneStopAfterCancelledLimit(string oco,bool raise){var l=Acc("lone2 lead"+oco+raise);var a=Acc("lone2 follow"+oco+raise);AccountTelemetry latest=null;var messages=new List<string>();
+  var e=new CopierEngine(m=>{lock(messages)messages.Add(m);},t=>latest=t,(att,m)=>{},(n,r)=>{});
+  try{e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=1},new RiskLatch())});Wait(()=>e.EntriesArmed,"arm");
+   var lim=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",1);lim.LimitPrice=28000;lim.OrderId="lone2-lim";lim.OrderState=NinjaTrader.Cbi.OrderState.Working;l.Emit(lim);Wait(()=>a.Submits==1,"limit copied");
+   var fl=a.Orders.Last();fl.OrderState=NinjaTrader.Cbi.OrderState.Working;a.Emit(fl);Drain(e);
+   lim.LimitPrice=27990;l.Emit(lim);Drain(e);Wait(()=>a.Changes>=1,"price change copied");fl.LimitPrice=27990;fl.OrderState=NinjaTrader.Cbi.OrderState.Working;a.Emit(fl);Drain(e);
+   if(raise){lim.Quantity=2;l.Emit(lim);Drain(e);}
+   lim.OrderState=NinjaTrader.Cbi.OrderState.Cancelled;l.Emit(lim);Wait(()=>a.Cancels>=1,"cancel copied");fl.OrderState=NinjaTrader.Cbi.OrderState.Cancelled;a.Emit(fl);Drain(e);
+   var en=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",1);en.OrderType=NinjaTrader.Cbi.OrderType.Market;en.LimitPrice=0;en.OrderId="lone2-in";l.Emit(en);Wait(()=>a.Submits==2,"entry copied");
+   var fi=a.Orders.Last();fi.Filled=1;fi.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Emit(fi);Drain(e);
+   a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=1,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});
+   en.Filled=1;en.OrderState=NinjaTrader.Cbi.OrderState.Filled;l.Emit(en);l.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=1,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});Drain(e);
+   var stop=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,oco,1);stop.OrderType=NinjaTrader.Cbi.OrderType.StopMarket;stop.StopPrice=29600;stop.LimitPrice=0;stop.OrderId="lone2-stop";
+   stop.OrderState=NinjaTrader.Cbi.OrderState.Accepted;l.Emit(stop);
+   for(int i=0;i<30&&a.Submits<3;i++){System.Threading.Thread.Sleep(100);e.Poll();Drain(e);}
+   string ms;lock(messages)ms=string.Join(" | ",messages.Skip(Math.Max(0,messages.Count-8)));
+   Check(a.Submits==3,"lone OCO stop copied after a cancelled limit; submits="+a.Submits+" locked="+(latest!=null&&latest.Locked)+" reason="+(latest==null?"":latest.Reason)+" log: "+ms);
+   Check(latest==null||!latest.Locked,"follower not locked: "+(latest==null?"":latest.Reason));
+  }finally{e.Dispose();}
+ }
+ // Real NT 2026-10-15: a follower whose copied entry was REJECTED (account at its loss limit) logged "leader exit ignored, nothing to close" every second
+ // once the leader placed a lone OCO stop: the OCO group kept claiming the rejected entry's planned lot and every Poll re-armed the exit. Log at most once.
+ static void RejectedEntryLoneOcoStopDoesNotFloodLog(){var l=Acc("flood lead");var a=Acc("flood follow");var messages=new List<string>();
+  var e=new CopierEngine(m=>{lock(messages)messages.Add(m);},t=>{},(att,m)=>{},(n,r)=>{});
+  try{e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=1},new RiskLatch())});Wait(()=>e.EntriesArmed,"arm");
+   var en=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",1);en.OrderType=NinjaTrader.Cbi.OrderType.Market;en.LimitPrice=0;en.OrderId="flood-in";l.Emit(en);Wait(()=>a.Submits==1,"entry copied");
+   var fr=a.Orders.Last();fr.OrderState=NinjaTrader.Cbi.OrderState.Rejected;a.Emit(fr);Drain(e);
+   en.Filled=1;en.OrderState=NinjaTrader.Cbi.OrderState.Filled;l.Emit(en);l.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=1,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});Drain(e);
+   var stop=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"FL1",1);stop.OrderType=NinjaTrader.Cbi.OrderType.StopMarket;stop.StopPrice=29600;stop.LimitPrice=0;stop.OrderId="flood-stop";
+   stop.OrderState=NinjaTrader.Cbi.OrderState.Accepted;l.Emit(stop);Drain(e);
+   for(int i=0;i<20;i++){System.Threading.Thread.Sleep(50);e.Poll();Drain(e);}
+   int n;lock(messages)n=messages.Count(m=>m.Contains("nothing to close"));
+   Check(n<=1,"'nothing to close' logged "+n+" times over 20 polls");
+   Check(a.Submits==1,"nothing sent after the rejected entry: submits="+a.Submits);
+  }finally{e.Dispose();}
+ }
+ // Real NT 2026-10-15 (Tradeify / Tradovate): Account.Change raises ChangePending at once with the OLD stop price; the new price arrives only with the
+ // provider's Accepted ~1 s later. The engine treated each ChangePending as "price still old" and re-sent Change: 140-350 Changes per account for 2 leader moves.
+ // One leader move must produce exactly one follower Change while the provider has not answered.
+ // A provider that refuses the Change answers Accepted with the OLD price. That answer must not trigger a re-send (a resend loop at provider speed).
+ // After the refusal, a fresh leader move is still copied. A follower whose order really matches the sent values stops waiting (see the test below).
+ // The wait ends once the provider answers with exactly what was sent. After that the order's own price is the truth again, as before this fix:
+ // a follower stop moved by hand is put back to the leader's price on the next leader update.
+ static void AcknowledgedChangeEndsTheWait(){var l=Acc("ack lead");var a=Acc("ack follow");
+  var e=new CopierEngine(m=>{},t=>{},(att,m)=>{},(n,r)=>{});
+  try{e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=1},new RiskLatch())});Wait(()=>e.EntriesArmed,"arm");
+   var en=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",1);en.OrderType=NinjaTrader.Cbi.OrderType.Market;en.LimitPrice=0;en.OrderId="ack-in";l.Emit(en);Wait(()=>a.Submits==1,"entry copied");
+   var fi=a.Orders.Last();fi.Filled=1;fi.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Emit(fi);Drain(e);
+   a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=1,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});
+   en.Filled=1;en.OrderState=NinjaTrader.Cbi.OrderState.Filled;l.Emit(en);l.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=1,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});Drain(e);
+   var stop=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"",1);stop.OrderType=NinjaTrader.Cbi.OrderType.StopMarket;stop.StopPrice=29600;stop.LimitPrice=0;stop.OrderId="ack-stop";
+   stop.OrderState=NinjaTrader.Cbi.OrderState.Accepted;l.Emit(stop);Wait(()=>a.Submits==2,"stop copied");
+   var fs=a.Orders.Last();fs.OrderState=NinjaTrader.Cbi.OrderState.Accepted;a.Emit(fs);Drain(e);
+   stop.StopPrice=29620;l.Emit(stop);Wait(()=>a.Changes==1,"move copied");Drain(e);
+   Check(fs.StopPrice==29620,"follower acknowledged at 29620: "+fs.StopPrice);
+   // moved by hand on the follower, provider reports it
+   fs.StopPrice=29500;fs.OrderState=NinjaTrader.Cbi.OrderState.Accepted;a.Emit(fs);Drain(e);
+   l.Emit(stop);for(int i=0;i<10&&a.Changes<2;i++){System.Threading.Thread.Sleep(30);e.Poll();Drain(e);}
+   Check(a.Changes==2&&fs.StopPrice==29620,"next leader update puts it back: Changes="+a.Changes+" stop="+fs.StopPrice);
+  }finally{e.Dispose();}
+ }
+ static void RefusedChangeIsNotResentInALoop(){var l=Acc("refuse lead");var a=Acc("refuse follow");
+  var e=new CopierEngine(m=>{},t=>{},(att,m)=>{},(n,r)=>{});
+  try{e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=1},new RiskLatch())});Wait(()=>e.EntriesArmed,"arm");
+   var en=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",1);en.OrderType=NinjaTrader.Cbi.OrderType.Market;en.LimitPrice=0;en.OrderId="refuse-in";l.Emit(en);Wait(()=>a.Submits==1,"entry copied");
+   var fi=a.Orders.Last();fi.Filled=1;fi.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Emit(fi);Drain(e);
+   a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=1,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});
+   en.Filled=1;en.OrderState=NinjaTrader.Cbi.OrderState.Filled;l.Emit(en);l.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=1,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});Drain(e);
+   var stop=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"",1);stop.OrderType=NinjaTrader.Cbi.OrderType.StopMarket;stop.StopPrice=29600;stop.LimitPrice=0;stop.OrderId="refuse-stop";
+   stop.OrderState=NinjaTrader.Cbi.OrderState.Accepted;l.Emit(stop);Wait(()=>a.Submits==2,"stop copied");
+   var fs=a.Orders.Last();fs.OrderState=NinjaTrader.Cbi.OrderState.Accepted;a.Emit(fs);Drain(e);
+   // provider refuses every Change: answers Accepted at the old price
+   a.IgnoreChangeQuantity=1;a.SuppressChangeAck=true;a.ChangeHook=o=>{o.OrderState=NinjaTrader.Cbi.OrderState.Accepted;a.Emit(o);};
+   stop.StopPrice=29620;l.Emit(stop);
+   for(int i=0;i<20;i++){System.Threading.Thread.Sleep(30);e.Poll();Drain(e);}
+   Check(a.Changes==1,"refused Change answered at the old price is not re-sent: Changes="+a.Changes);
+   stop.StopPrice=29640;l.Emit(stop);
+   for(int i=0;i<20;i++){System.Threading.Thread.Sleep(30);e.Poll();Drain(e);}
+   Check(a.Changes==2,"a new leader move is still copied once: Changes="+a.Changes);
+  }finally{e.Dispose();}
+ }
+ static void ChangePendingWithOldPriceDoesNotResendChange(){var l=Acc("storm lead");var a=Acc("storm follow");
+  var e=new CopierEngine(m=>{},t=>{},(att,m)=>{},(n,r)=>{});
+  try{e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=1},new RiskLatch())});Wait(()=>e.EntriesArmed,"arm");
+   var en=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",1);en.OrderType=NinjaTrader.Cbi.OrderType.Market;en.LimitPrice=0;en.OrderId="storm-in";l.Emit(en);Wait(()=>a.Submits==1,"entry copied");
+   var fi=a.Orders.Last();fi.Filled=1;fi.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Emit(fi);Drain(e);
+   a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=1,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});
+   en.Filled=1;en.OrderState=NinjaTrader.Cbi.OrderState.Filled;l.Emit(en);l.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=1,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});Drain(e);
+   var stop=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"",1);stop.OrderType=NinjaTrader.Cbi.OrderType.StopMarket;stop.StopPrice=29600;stop.LimitPrice=0;stop.OrderId="storm-stop";
+   stop.OrderState=NinjaTrader.Cbi.OrderState.Accepted;l.Emit(stop);Wait(()=>a.Submits==2,"stop copied");
+   var fs=a.Orders.Last();fs.OrderState=NinjaTrader.Cbi.OrderState.Accepted;a.Emit(fs);Drain(e);
+   // provider: Change is not applied yet; ChangePending is raised synchronously with the old price.
+   a.IgnoreChangeQuantity=1;a.SuppressChangeAck=true;a.ChangeHook=o=>{o.OrderState=NinjaTrader.Cbi.OrderState.ChangePending;a.Emit(o);};
+   stop.StopPrice=29620;l.Emit(stop);
+   for(int i=0;i<20;i++){System.Threading.Thread.Sleep(30);e.Poll();Drain(e);}
+   int afterOne=a.Changes;
+   Check(afterOne==1,"one leader move, provider not answered yet: follower Changes="+afterOne);
+   // provider accepts the new price
+   a.ChangeHook=null;fs.StopPrice=29620;fs.OrderState=NinjaTrader.Cbi.OrderState.Accepted;a.Emit(fs);Drain(e);
+   for(int i=0;i<10;i++){System.Threading.Thread.Sleep(30);e.Poll();Drain(e);}
+   Check(a.Changes==afterOne,"accepted at the requested price: nothing more sent; Changes="+a.Changes);
+   // a second leader move is still copied once
+   a.ChangeHook=o=>{o.OrderState=NinjaTrader.Cbi.OrderState.ChangePending;a.Emit(o);};
+   stop.StopPrice=29640;l.Emit(stop);
+   for(int i=0;i<20;i++){System.Threading.Thread.Sleep(30);e.Poll();Drain(e);}
+   Check(a.Changes==afterOne+1,"second leader move copied exactly once; Changes="+a.Changes);
+   a.ChangeHook=null;fs.StopPrice=29640;fs.OrderState=NinjaTrader.Cbi.OrderState.Accepted;a.Emit(fs);Drain(e);
+  }finally{e.Dispose();}
+ }
+ static void LoneStopAfterEntry(string oco){var l=Acc("lone lead "+oco);var a=Acc("lone follow "+oco);AccountTelemetry latest=null;var messages=new List<string>();
+  var e=new CopierEngine(m=>{lock(messages)messages.Add(m);},t=>latest=t,(att,m)=>{},(n,r)=>{});
+  try{e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=1},new RiskLatch())});Wait(()=>e.EntriesArmed,"arm");
+   var en=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",1);en.OrderType=NinjaTrader.Cbi.OrderType.Market;en.LimitPrice=0;en.OrderId="lone-in";l.Emit(en);Wait(()=>a.Submits==1,"entry copied");
+   var fi=a.Orders.Last();fi.Filled=1;fi.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Emit(fi);Drain(e);
+   a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=1,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});
+   en.Filled=1;en.OrderState=NinjaTrader.Cbi.OrderState.Filled;l.Emit(en);l.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=1,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});Drain(e);
+   var stop=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,oco,1);stop.OrderType=NinjaTrader.Cbi.OrderType.StopMarket;stop.StopPrice=29600;stop.LimitPrice=0;stop.OrderId="lone-stop";
+   stop.OrderState=NinjaTrader.Cbi.OrderState.Accepted;l.Emit(stop);
+   for(int i=0;i<30&&a.Submits<2;i++){System.Threading.Thread.Sleep(100);e.Poll();Drain(e);}
+   string ms;lock(messages)ms=string.Join(" | ",messages.Skip(Math.Max(0,messages.Count-6)));
+   Check(a.Submits==2,"lone stop (oco='"+oco+"') copied to the follower; submits="+a.Submits+" locked="+(latest!=null&&latest.Locked)+" reason="+(latest==null?"":latest.Reason)+" log: "+ms);
+   Check(a.Orders.Last().OrderType==NinjaTrader.Cbi.OrderType.StopMarket&&a.Orders.Last().OrderAction==NinjaTrader.Cbi.OrderAction.Sell&&a.Orders.Last().Quantity==1,"copied as Sell StopMarket 1");
+   Check(latest==null||!latest.Locked,"follower not locked: "+(latest==null?"":latest.Reason));
+  }finally{e.Dispose();}
+ }
  static void StopAndTargetWithoutOcoDoNotLockFollower(){var l=Acc("stp lead");var a=Acc("stp follow");AccountTelemetry latest=null;var messages=new List<string>();
   var e=new CopierEngine(m=>messages.Add(m),t=>latest=t,(att,m)=>{},(n,r)=>{});
   try{e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=1,Target=100},new RiskLatch())});Wait(()=>e.EntriesArmed,"arm");
