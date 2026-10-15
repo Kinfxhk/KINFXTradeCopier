@@ -19,6 +19,7 @@ Lucid accounts had hit their daily loss, so only Tradeify followers were used. L
 | Closed / disconnected accounts | no longer listed (17 -> 12 rows) |
 | P/L colours, account-name column hidden, automatic alias | verified on the real window |
 | NT8 export / import | `KINFXTradeCopier-SIMTEST.zip` (release asset) exported by NT, re-imported by NT |
+| Leader disconnect attempt (5 followers long 1) | disconnecting the Lucid connection: NT asked "1 open position, disconnect?", Sim101 went ConnectionLost and was Connected again 4 ms later through the Tradeify connection (Simulator accounts belong to every connection). Copier did not lock, the leader exit was then copied to all 5, flat, Stop OK. A real leader disconnect cannot be produced with a Simulator leader on this VM; it stays offline-only |
 
 ## Real NinjaTrader — 2026-10-15, source `bfc8a2531acf` + `#define KINFX_SIM_TEST` / 真 NT 實測
 
