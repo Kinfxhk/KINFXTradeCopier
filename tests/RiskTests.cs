@@ -200,6 +200,26 @@ class RiskTests {
   Eq(0,RiskPolicy.ChangeTotal(3,0,3,true,0,0,5,false));
   Eq(3,RiskPolicy.ChangeTotal(4,0,3,false,1,0,5,false));
  }
+ // Unlock all (user request 2026-10-15): one decision per locked follower. "" = may be unlocked; otherwise the reason it stays locked.
+ // Same conditions as the single-account unlock: connected, the instrument flat with no working orders, and risk no longer reached.
+ static void UnlockAllDecidesPerAccount() {
+  var s=new RiskSettings{Target=1000,Loss=500,MaxContracts=1};
+  Eq("",RiskPolicy.UnlockBlock(s,true,true,-120,50000));
+  Eq("Disconnected",RiskPolicy.UnlockBlock(s,false,true,0,50000));
+  Eq("Position or working order on the instrument",RiskPolicy.UnlockBlock(s,true,false,0,50000));
+  Eq("Daily loss still reached",RiskPolicy.UnlockBlock(s,true,true,-500,50000));
+  Eq("Daily target still reached",RiskPolicy.UnlockBlock(s,true,true,1000,50000));
+  Eq("Telemetry invalid",RiskPolicy.UnlockBlock(s,true,true,double.NaN,50000));
+  var trail=new RiskSettings{LocalTrail=true,HighWater=50000,TrailDistance=2000,MaxContracts=1};
+  Eq("Drawdown floor still reached",RiskPolicy.UnlockBlock(trail,true,true,0,47000));
+  Eq("Settings invalid",RiskPolicy.UnlockBlock(new RiskSettings{Ratio=0},true,true,0,50000));
+  // Order: a disconnected account is reported as disconnected even when it also is not flat.
+  Eq("Disconnected",RiskPolicy.UnlockBlock(s,false,false,-900,50000));
+  // CanUnlock (single-account path) agrees with the bulk decision on the risk part.
+  Eq(true,RiskPolicy.CanUnlock(s,-120,50000,true));Eq(false,RiskPolicy.CanUnlock(s,-500,50000,true));
+  foreach(var why in new[]{"Disconnected","Position or working order on the instrument","Daily loss still reached","Daily target still reached","Drawdown floor still reached","Telemetry invalid","Settings invalid"})
+   Eq(false,Lang.T(why,"zh")==why);
+ }
  static void DurableLock() {
   string p=System.IO.Path.Combine(Environment.GetEnvironmentVariable("TMPDIR"),"kinfx-latch-test.xml");
   SettingsStore.SaveLatch(p,"A","Daily loss"); Eq("Daily loss",SettingsStore.ReadLatches(p)["A"]);
