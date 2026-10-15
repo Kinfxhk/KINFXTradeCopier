@@ -83,7 +83,8 @@ class PublicPackage(unittest.TestCase):
         self.assertEqual(mod.score(fake, 'demo')['percent'], 100.0)
 
     def test_quickstart_commands_and_paths_are_exact(self):
-        for name in ('README.md', 'README.zh-HK.md'):
+        names = ('README.md', 'README.en.md', 'README.zh-HK.md', 'README.ja.md', 'README.ko.md')
+        for name in names:
             text = (ROOT / name).read_text(encoding='utf-8')
             self.assertIn('scripts\\install-simtest.ps1', text, name)
             self.assertNotIn('scripts\\\\install-simtest', text, name)
@@ -94,14 +95,19 @@ class PublicPackage(unittest.TestCase):
 
     def test_license_and_alpha_boundary_are_present(self):
         self.assertIn('MIT License', (ROOT / 'LICENSE').read_text(encoding='utf-8'))
-        readme = (ROOT / 'README.md').read_text(encoding='utf-8')
-        self.assertIn('TRADING DISABLED', readme)
-        self.assertIn('not a C# engine implementation', readme)
+        for name in ('README.md', 'README.en.md'):
+            readme = (ROOT / name).read_text(encoding='utf-8')
+            self.assertIn('TRADING DISABLED', readme, name)
+            self.assertIn('not a C# engine implementation', readme, name)
 
     def test_synthetic_screenshot_provenance(self):
         for name, terms in (
-            ('README.md', ('synthetic DEMO', 'fake accounts and numbers', 'not NinjaTrader/provider transaction evidence')),
+            ('README.md', ('synthetic DEMO', 'fake accounts and numbers', 'not NinjaTrader/provider transaction evidence',
+                           '合成 DEMO', '虛構帳戶與數值', '並非 NinjaTrader／provider 交易證據')),
+            ('README.en.md', ('synthetic DEMO', 'fake accounts and numbers', 'not NinjaTrader/provider transaction evidence')),
             ('README.zh-HK.md', ('合成 DEMO', '虛構帳戶與數值', '並非 NinjaTrader／provider 交易證據')),
+            ('README.ja.md', ('合成 DEMO', '架空の口座と数値', 'NinjaTrader／provider の取引証拠ではありません')),
+            ('README.ko.md', ('합성 DEMO', '가상 계좌와 수치', 'NinjaTrader／provider 거래 증거가 아닙니다')),
         ):
             text = (ROOT / name).read_text(encoding='utf-8')
             for term in terms:
@@ -120,9 +126,21 @@ class PublicPackage(unittest.TestCase):
             ('README.md', '## First run', 'connected', 'zero position and no working orders',
              'cancel working leader orders and close the leader position using native NinjaTrader',
              'Only after the session is detached', 'Add followers only while stopped'),
+            ('README.en.md', '## First run', 'connected', 'zero position and no working orders',
+             'cancel working leader orders and close the leader position using native NinjaTrader',
+             'Only after the session is detached', 'Add followers only while stopped'),
+            ('README.md', '## 第一次使用', '已連線', '持倉為零且沒有掛單',
+             '使用 NinjaTrader 原生工具取消 Leader 掛單並平掉 Leader 持倉',
+             '只有在工作階段已解除連接後', '僅在停止時新增 Follower'),
             ('README.zh-HK.md', '## 第一次使用', '已連線', '持倉為零且沒有掛單',
              '使用 NinjaTrader 原生工具取消 Leader 掛單並平掉 Leader 持倉',
              '只有在工作階段已解除連接後', '僅在停止時新增 Follower'),
+            ('README.ja.md', '## 初回の使い方', '接続済み', 'ポジションはゼロで、未約定の注文はありません',
+             'NinjaTrader の標準機能で Leader の未約定注文を取り消し、Leader のポジションを決済してから',
+             'セッションの接続が解除された後にのみ', '停止中にのみフォロワーを追加'),
+            ('README.ko.md', '## 처음 사용', '연결됨', '포지션은 0이고 미체결 주문은 없습니다',
+             'NinjaTrader 기본 화면에서 Leader의 미체결 주문을 취소하고 Leader 포지션을 청산한 뒤',
+             '세션 연결이 해제된 뒤에만', '중지 상태에서만 팔로워를 추가'),
         ):
             text = (ROOT / name).read_text(encoding='utf-8')
             first_run = text.split(heading, 1)[1].split('![', 1)[0]
@@ -135,9 +153,16 @@ class PublicPackage(unittest.TestCase):
     def test_readme_allowlist_reload_contract(self):
         for name, terms in (
             ('README.md', ('Create the directory first', 'does not create this directory',
-                           'static initialization', 'restart NinjaTrader', 'Pressing F5 alone')),
+                           'static initialization', 'restart NinjaTrader', 'Pressing F5 alone',
+                           '先建立資料夾', '不會建立此資料夾', '靜態初始化', '重新啟動 NinjaTrader', '僅按 F5')),
+            ('README.en.md', ('Create the directory first', 'does not create this directory',
+                              'static initialization', 'restart NinjaTrader', 'Pressing F5 alone')),
             ('README.zh-HK.md', ('先建立資料夾', '不會建立此資料夾',
                                '靜態初始化', '重新啟動 NinjaTrader', '僅按 F5')),
+            ('README.ja.md', ('先にフォルダーを作成', 'このフォルダーは作成しません',
+                              '静的初期化', 'NinjaTrader を再起動', 'F5 だけでは')),
+            ('README.ko.md', ('먼저 폴더를 만드십시오', '이 폴더를 만들지 않습니다',
+                              '정적 초기화', 'NinjaTrader를 다시 시작', 'F5만 누르는 것')),
         ):
             text = (ROOT / name).read_text(encoding='utf-8')
             for term in terms:
@@ -151,12 +176,28 @@ class PublicPackage(unittest.TestCase):
 
     def test_current_candidate_is_not_historical_acceptance(self):
         for name, terms in (
-            ('README.md', ('current source is not accepted', 'historical checklist', 'not a release-readiness percentage')),
+            ('README.md', ('current source is not accepted', 'historical checklist', 'not a release-readiness percentage',
+                           '目前源碼尚未驗收', '歷史檢查清單', '並非發佈就緒百分比')),
+            ('README.en.md', ('current source is not accepted', 'historical checklist', 'not a release-readiness percentage')),
             ('README.zh-HK.md', ('目前源碼尚未驗收', '歷史檢查清單', '並非發佈就緒百分比')),
+            ('README.ja.md', ('現在のソースは受け入れられていません', '過去のチェックリスト', 'リリース準備の割合ではありません')),
+            ('README.ko.md', ('현재 소스는 수용되지 않았습니다', '과거 체크리스트', '릴리스 준비 비율이 아닙니다')),
         ):
             text = (ROOT / name).read_text(encoding='utf-8')
             for term in terms:
                 self.assertIn(term, text, name)
+        self.assertNotIn('成就', (ROOT / 'README.md').read_text(encoding='utf-8'))
+        self.assertNotIn('成就', (ROOT / 'README.zh-HK.md').read_text(encoding='utf-8'))
+        for name in ('README.md', 'README.zh-HK.md'):
+            text = (ROOT / name).read_text(encoding='utf-8')
+            for token in ('唔', '嘅', '咗', '冇', '喺', '哋', '嚟', '咩', '嗰'):
+                self.assertNotIn(token, text, '%s contains colloquial %s' % (name, token))
+        landing = (ROOT / 'README.md').read_text(encoding='utf-8')
+        self.assertLess(landing.index('## 可以用嗎？'), landing.index('## Can I use it?'))
+        self.assertLess(landing.index('### 進度：'), landing.index('### Progress:'))
+        self.assertLess(landing.index('## 第一次使用'), landing.index('## First run'))
+        for link in ('README.zh-HK.md', 'README.en.md', 'README.ja.md', 'README.ko.md'):
+            self.assertIn('](%s)' % link, landing)
         for name in ('DEVELOPERS.md', 'DEVELOPERS.zh-HK.md'):
             text = (ROOT / 'docs' / name).read_text(encoding='utf-8')
             for term in ('d70b8a49ceeb87e2207fe5c9811203723ea7f0edae90d18ebeab334a10e210a5',
