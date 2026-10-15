@@ -103,7 +103,7 @@ Historical checklist evidence, not acceptance of the current candidate. The curr
 - ⬜ Installer + reviewed release
 - ⬜ Prop-firm rule check (never certified)
 
-Real tests so far: 1 simulator leader, up to 11 **simulated** prop-firm evaluation accounts (5 Lucid, 6 Tradeify), MNQ, Market + Limit + Stop, TP/SL OCO. No funded or live account was ever used. Each tick and its limits: [`docs/PROGRESS.json`](docs/PROGRESS.json). Score = weighted: ✅ 100%, 🟡 50%, design only 10%. Snapshot 2026-10-15, source `bfc8a2531acf`.
+Real tests so far: 1 simulator leader, up to 11 **simulated** prop-firm evaluation accounts (5 Lucid, 6 Tradeify), MNQ, Market + Limit + Stop, TP/SL OCO. No funded or live account was ever used. Each tick and its limits: [`docs/PROGRESS.json`](docs/PROGRESS.json). Score = weighted: ✅ 100%, 🟡 50%, design only 10%. Snapshot 2026-10-15, source `8a8deb196fa8`.
 <!-- PROGRESS:END -->
 
 勾號及分數是**加權歷史檢查清單**，**並非發佈就緒百分比**。最近一次真實 NinjaTrader 測試（2026-10-15）使用源碼 `bfc8a2531acf`（SIM TEST 版），屬測試證據，不是目前確切源碼的驗收。[各項證據與限制](docs/PROGRESS.json) · [歷史 NT 測試記錄](docs/VM-PROGRESS.md) · [目前離線結果與安全阻礙](docs/DEVELOPERS.zh-HK.md)。
@@ -138,6 +138,10 @@ The ticks and percentages are a **weighted historical checklist**, **not a relea
 
 
 **Reference instructions, not a general-release invitation.** Do not install or trade the current unaccepted candidate merely because it compiles. Review the exact source and safety gates first.
+
+**Easiest: import into NinjaTrader.** Download `KINFXTradeCopier-SIMTEST.zip` from the [v0.2.0-simtest-alpha](https://github.com/Kinfxhk/KINFXTradeCopier/releases/tag/v0.2.0-simtest-alpha) release (exported by NinjaTrader 8 itself; do not unzip it; the release notes give its SHA-256). In NinjaTrader: *Control Center > Tools > Import > NinjaScript Add-On...*, pick the zip, answer **Yes** to NinjaTrader's "trusted source" question (and **Yes** if it says the file already exists: that replaces an older copy of this add-on only), restart NinjaTrader when asked, then *New > KINFX Trade Copier* and continue at step 4 below.
+
+**Or install from the source:**
 
 1. **Download.** *Code > Download ZIP* on this page, then unzip. (Or `git clone https://github.com/Kinfxhk/KINFXTradeCopier`.)
 2. **Install.** In the unzipped folder run in PowerShell:
