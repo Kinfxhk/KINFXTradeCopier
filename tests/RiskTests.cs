@@ -200,6 +200,26 @@ class RiskTests {
   Eq(0,RiskPolicy.ChangeTotal(3,0,3,true,0,0,5,false));
   Eq(3,RiskPolicy.ChangeTotal(4,0,3,false,1,0,5,false));
  }
+ // Unlock all (user request 2026-10-15): one decision per locked follower. "" = may be unlocked; otherwise the reason it stays locked.
+ // Same conditions as the single-account unlock: connected, the instrument flat with no working orders, and risk no longer reached.
+ static void UnlockAllDecidesPerAccount() {
+  var s=new RiskSettings{Target=1000,Loss=500,MaxContracts=1};
+  Eq("",RiskPolicy.UnlockBlock(s,true,true,-120,50000));
+  Eq("Disconnected",RiskPolicy.UnlockBlock(s,false,true,0,50000));
+  Eq("Position or working order on the instrument",RiskPolicy.UnlockBlock(s,true,false,0,50000));
+  Eq("Daily loss still reached",RiskPolicy.UnlockBlock(s,true,true,-500,50000));
+  Eq("Daily target still reached",RiskPolicy.UnlockBlock(s,true,true,1000,50000));
+  Eq("Telemetry invalid",RiskPolicy.UnlockBlock(s,true,true,double.NaN,50000));
+  var trail=new RiskSettings{LocalTrail=true,HighWater=50000,TrailDistance=2000,MaxContracts=1};
+  Eq("Drawdown floor still reached",RiskPolicy.UnlockBlock(trail,true,true,0,47000));
+  Eq("Settings invalid",RiskPolicy.UnlockBlock(new RiskSettings{Ratio=0},true,true,0,50000));
+  // Order: a disconnected account is reported as disconnected even when it also is not flat.
+  Eq("Disconnected",RiskPolicy.UnlockBlock(s,false,false,-900,50000));
+  // CanUnlock (single-account path) agrees with the bulk decision on the risk part.
+  Eq(true,RiskPolicy.CanUnlock(s,-120,50000,true));Eq(false,RiskPolicy.CanUnlock(s,-500,50000,true));
+  foreach(var why in new[]{"Disconnected","Position or working order on the instrument","Daily loss still reached","Daily target still reached","Drawdown floor still reached","Telemetry invalid","Settings invalid"})
+   Eq(false,Lang.T(why,"zh")==why);
+ }
  static void DurableLock() {
   string p=System.IO.Path.Combine(Environment.GetEnvironmentVariable("TMPDIR"),"kinfx-latch-test.xml");
   SettingsStore.SaveLatch(p,"A","Daily loss"); Eq("Daily loss",SettingsStore.ReadLatches(p)["A"]);
@@ -471,14 +491,18 @@ class RiskTests {
  }
  // Column prefs: hidden set round-trips; a hand-edited file can never hide a safety column; garbage lines are ignored.
  static void ColumnPrefsRoundTripAndSafetyColumnsNeverHidden() {
-  var s=ColumnPrefs.Parse(new[]{"# c","hide=risk:Preset"," hide = copy:Bal ","hide=copy:Flat","hide=risk:St","hide=copy:Acct","hide=risk:Tgt","hide=nogrid:Bal","show=risk:Cons","junk",""});
-  Eq(2,s.Count);Eq(true,s.Contains("risk:Preset")&&s.Contains("copy:Bal"));
+  var s=ColumnPrefs.Parse(new[]{"# c","hide=risk:Preset"," hide = copy:Bal ","hide=copy:Flat","hide=risk:St","show=copy:Acct","hide=risk:Tgt","hide=nogrid:Bal","show=risk:Cons","junk",""});
+  Eq(3,s.Count);Eq(true,s.Contains("risk:Preset")&&s.Contains("copy:Bal")&&s.Contains("risk:Acct")&&!s.Contains("copy:Acct"));
   Eq(false,ColumnPrefs.Visible("risk","Preset",s));Eq(true,ColumnPrefs.Visible("risk","Cons",s));
-  foreach(var k in new[]{"Acct","On","Ratio","Qty","State","Conn","Off","Flat"})Eq(false,ColumnPrefs.CanHide("copy",k));
-  foreach(var k in new[]{"Acct","Tgt","DLL","Qty","St","Conn"})Eq(false,ColumnPrefs.CanHide("risk",k));
+  foreach(var k in new[]{"On","Ratio","Qty","State","Conn","Off","Flat"})Eq(false,ColumnPrefs.CanHide("copy",k));
+  foreach(var k in new[]{"Tgt","DLL","Qty","St","Conn"})Eq(false,ColumnPrefs.CanHide("risk",k));
+  // account name: hidden by default (no file / file without a show line), shown again by show=, and the choice round-trips
+  Eq(true,ColumnPrefs.Parse(null).SetEquals(new[]{"copy:Acct","risk:Acct"}));Eq(true,ColumnPrefs.Parse(new[]{"hide=copy:Bal"}).Contains("copy:Acct"));
+  Eq(true,ColumnPrefs.Parse(ColumnPrefs.Serialize(new System.Collections.Generic.HashSet<string>())).Count==0);
+  Eq("Sim101",ColumnPrefs.DefaultAlias("Sim101"));Eq("Playback101",ColumnPrefs.DefaultAlias("Playback101"));Eq("FIRMAB..0001",ColumnPrefs.DefaultAlias("FIRMAB12345670001"));
+  Eq("XYZ..0042",ColumnPrefs.DefaultAlias("XYZ09876543210042"));Eq("..6789",ColumnPrefs.DefaultAlias("1234567890123456789"));Eq("",ColumnPrefs.DefaultAlias(null));
   Eq(true,ColumnPrefs.Visible("copy","Flat",new System.Collections.Generic.HashSet<string>{"copy:Flat"}));
-  var again=ColumnPrefs.Parse(ColumnPrefs.Serialize(s));Eq(2,again.Count);Eq(true,again.SetEquals(s));
-  Eq(0,ColumnPrefs.Parse(null).Count);
+  var again=ColumnPrefs.Parse(ColumnPrefs.Serialize(s));Eq(3,again.Count);Eq(true,again.SetEquals(s));
  }
  static void ConfirmPrefsRiskWarningIsNeverSkipped() {
   var all=ConfirmPrefs.Parse(new[]{"skip=start","skip=flatOne","skip=flatten","skip=unlock"});

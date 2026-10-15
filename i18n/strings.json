@@ -2628,12 +2628,6 @@
   "ko": "모든 열 표시"
  },
  {
-  "en": "Account, follow tick, state, Off / Flat, Qty and connection are always shown",
-  "zh": "帳戶、跟單勾選、狀態、OFF／平倉、數量及連線一律顯示",
-  "ja": "口座、フォローのチェック、状態、Off／決済、数量、接続は常に表示",
-  "ko": "계좌, 팔로우 체크, 상태, Off/청산, 수량, 연결은 항상 표시"
- },
- {
   "en": "Show or hide columns (also: right-click a column header). Saved for next time.",
   "zh": "顯示或隱藏欄位（亦可在欄位標題按右鍵）。設定會保存。",
   "ja": "列の表示／非表示（列見出しの右クリックでも可）。次回も保持されます。",
@@ -2680,5 +2674,83 @@
   "zh": "您已確認為模擬帳戶（已儲存於 sim-allow.txt）：{0}",
   "ja": "シミュレーションとして確認済み（sim-allow.txt に保存）：{0}",
   "ko": "시뮬레이션으로 확인됨 (sim-allow.txt에 저장): {0}"
+ },
+ {
+  "en": "Follow tick, state, Off / Flat, Qty and connection are always shown",
+  "zh": "跟單勾選、狀態、OFF／平倉、數量及連線一律顯示",
+  "ja": "フォローのチェック、状態、Off／決済、数量、接続は常に表示",
+  "ko": "팔로우 체크, 상태, Off/청산, 수량, 연결은 항상 표시"
+ },
+ {
+  "en": "Unlock all",
+  "zh": "全部解鎖",
+  "ja": "すべてロック解除",
+  "ko": "모두 잠금 해제"
+ },
+ {
+  "en": "Unlock every locked follower that is flat, connected and no longer at a risk limit (one confirmation). The others stay locked with their reason in Logs. Does NOT start copying.",
+  "zh": "解鎖所有已平倉、已連線且未再觸及風控限額的已鎖定跟單帳戶（只需確認一次）。其餘帳戶保持鎖定，原因列於日誌。不會開始跟單。",
+  "ja": "フラットで接続済み、かつリスク上限に達していない、ロック中のすべてのフォロワーを解除します（確認は 1 回）。その他はロックのままで、理由はログに表示されます。コピーは開始しません。",
+  "ko": "청산 상태이고 연결되어 있으며 더 이상 리스크 한도에 도달하지 않은 잠긴 팔로워를 모두 해제합니다(확인 1회). 나머지는 잠긴 상태로 남고 이유는 로그에 표시됩니다. 복사를 시작하지 않습니다."
+ },
+ {
+  "en": "Unlock all: no locked account.",
+  "zh": "全部解鎖：沒有已鎖定的帳戶。",
+  "ja": "すべてロック解除：ロック中の口座はありません。",
+  "ko": "모두 잠금 해제: 잠긴 계좌가 없습니다."
+ },
+ {
+  "en": "Unlock all: nothing can be unlocked yet. Still locked: {0}",
+  "zh": "全部解鎖：目前沒有可解鎖的帳戶。仍鎖定：{0}",
+  "ja": "すべてロック解除：まだ解除できる口座はありません。ロック継続：{0}",
+  "ko": "모두 잠금 해제: 아직 해제할 수 있는 계좌가 없습니다. 계속 잠김: {0}"
+ },
+ {
+  "en": "Unlock {0} account(s)? Each one is flat, connected and no longer at a risk limit:\n{1}\nThis does NOT start copying; tick them again and press Start.",
+  "zh": "解鎖 {0} 個帳戶？每個帳戶均已平倉、已連線，且未再觸及風控限額：\n{1}\n此操作不會開始跟單；請重新勾選並按「開始」。",
+  "ja": "{0} 口座のロックを解除しますか？いずれもフラット、接続済みで、リスク上限に達していません：\n{1}\nコピーは開始しません。再度チェックして Start を押してください。",
+  "ko": "{0}개 계좌의 잠금을 해제할까요? 모두 청산 상태이고 연결되어 있으며 리스크 한도에 도달하지 않았습니다:\n{1}\n복사를 시작하지 않습니다. 다시 체크하고 Start를 누르십시오."
+ },
+ {
+  "en": "Stay locked ({0}):\n{1}",
+  "zh": "保持鎖定（{0}）：\n{1}",
+  "ja": "ロック継続（{0}）：\n{1}",
+  "ko": "잠금 유지 ({0}):\n{1}"
+ },
+ {
+  "en": "Unlock all cancelled; nothing changed.",
+  "zh": "已取消全部解鎖；沒有任何變更。",
+  "ja": "すべてロック解除を取り消しました。変更はありません。",
+  "ko": "모두 잠금 해제를 취소했습니다. 변경 사항 없음."
+ },
+ {
+  "en": "Still locked: {0}",
+  "zh": "仍鎖定：{0}",
+  "ja": "ロック継続：{0}",
+  "ko": "계속 잠김: {0}"
+ },
+ {
+  "en": "Position or working order on the instrument",
+  "zh": "該商品仍有持倉或掛單",
+  "ja": "銘柄にポジションまたは未約定注文あり",
+  "ko": "종목에 포지션 또는 미체결 주문 있음"
+ },
+ {
+  "en": "Daily target still reached",
+  "zh": "仍達每日目標",
+  "ja": "日次目標にまだ到達中",
+  "ko": "일일 목표에 아직 도달 상태"
+ },
+ {
+  "en": "Daily loss still reached",
+  "zh": "仍達每日虧損上限",
+  "ja": "日次損失上限にまだ到達中",
+  "ko": "일일 손실 한도에 아직 도달 상태"
+ },
+ {
+  "en": "Drawdown floor still reached",
+  "zh": "仍達回撤下限",
+  "ja": "ドローダウン下限にまだ到達中",
+  "ko": "드로다운 하한에 아직 도달 상태"
  }
 ]

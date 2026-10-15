@@ -95,15 +95,17 @@ class PublicPackage(unittest.TestCase):
 
     def test_license_and_alpha_boundary_are_present(self):
         self.assertIn('MIT License', (ROOT / 'LICENSE').read_text(encoding='utf-8'))
-        for name in ('README.md', 'README.en.md'):
-            readme = (ROOT / name).read_text(encoding='utf-8')
-            self.assertIn('TRADING DISABLED', readme, name)
-            self.assertIn('not a C# engine implementation', readme, name)
+        # The landing page is Chinese only (2026-10-15); its English twin is README.en.md.
+        readme = (ROOT / 'README.en.md').read_text(encoding='utf-8')
+        self.assertIn('TRADING DISABLED', readme)
+        self.assertIn('not a C# engine implementation', readme)
+        landing = (ROOT / 'README.md').read_text(encoding='utf-8')
+        self.assertIn('預設版已停用交易', landing)
+        self.assertIn('SPEC 不是 C# 引擎實作', landing)
 
     def test_synthetic_screenshot_provenance(self):
         for name, terms in (
-            ('README.md', ('synthetic DEMO', 'fake accounts and numbers', 'not NinjaTrader/provider transaction evidence',
-                           '合成 DEMO', '虛構帳戶與數值', '並非 NinjaTrader／provider 交易證據')),
+            ('README.md', ('合成 DEMO', '虛構帳戶與數值', '並非 NinjaTrader／provider 交易證據')),
             ('README.en.md', ('synthetic DEMO', 'fake accounts and numbers', 'not NinjaTrader/provider transaction evidence')),
             ('README.zh-HK.md', ('合成 DEMO', '虛構帳戶與數值', '並非 NinjaTrader／provider 交易證據')),
             ('README.ja.md', ('合成 DEMO', '架空の口座と数値', 'NinjaTrader／provider の取引証拠ではありません')),
@@ -123,9 +125,6 @@ class PublicPackage(unittest.TestCase):
 
     def test_readme_rehearsal_cleanup_precedes_stop(self):
         for name, heading, connected, clean, cleanup, detached, scope in (
-            ('README.md', '## First run', 'connected', 'zero position and no working orders',
-             'cancel working leader orders and close the leader position using native NinjaTrader',
-             'Only after the session is detached', 'Add followers only while stopped'),
             ('README.en.md', '## First run', 'connected', 'zero position and no working orders',
              'cancel working leader orders and close the leader position using native NinjaTrader',
              'Only after the session is detached', 'Add followers only while stopped'),
@@ -152,9 +151,7 @@ class PublicPackage(unittest.TestCase):
 
     def test_readme_allowlist_reload_contract(self):
         for name, terms in (
-            ('README.md', ('Create the directory first', 'does not create this directory',
-                           'static initialization', 'restart NinjaTrader', 'Pressing F5 alone',
-                           '先建立資料夾', '不會建立此資料夾', '靜態初始化', '重新啟動 NinjaTrader', '僅按 F5')),
+            ('README.md', ('先建立資料夾', '不會建立此資料夾', '靜態初始化', '重新啟動 NinjaTrader', '僅按 F5')),
             ('README.en.md', ('Create the directory first', 'does not create this directory',
                               'static initialization', 'restart NinjaTrader', 'Pressing F5 alone')),
             ('README.zh-HK.md', ('先建立資料夾', '不會建立此資料夾',
@@ -176,8 +173,7 @@ class PublicPackage(unittest.TestCase):
 
     def test_current_candidate_is_not_historical_acceptance(self):
         for name, terms in (
-            ('README.md', ('current source is not accepted', 'historical checklist', 'not a release-readiness percentage',
-                           '目前源碼尚未驗收', '歷史檢查清單', '並非發佈就緒百分比')),
+            ('README.md', ('目前源碼尚未驗收', '歷史檢查清單', '並非發佈就緒百分比')),
             ('README.en.md', ('current source is not accepted', 'historical checklist', 'not a release-readiness percentage')),
             ('README.zh-HK.md', ('目前源碼尚未驗收', '歷史檢查清單', '並非發佈就緒百分比')),
             ('README.ja.md', ('現在のソースは受け入れられていません', '過去のチェックリスト', 'リリース準備の割合ではありません')),
@@ -193,11 +189,31 @@ class PublicPackage(unittest.TestCase):
             for token in ('唔', '嘅', '咗', '冇', '喺', '哋', '嚟', '咩', '嗰'):
                 self.assertNotIn(token, text, '%s contains colloquial %s' % (name, token))
         landing = (ROOT / 'README.md').read_text(encoding='utf-8')
-        self.assertLess(landing.index('## 可以用嗎？'), landing.index('## Can I use it?'))
-        self.assertLess(landing.index('### 進度：'), landing.index('### Progress:'))
-        self.assertLess(landing.index('## 第一次使用'), landing.index('## First run'))
-        for link in ('README.zh-HK.md', 'README.en.md', 'README.ja.md', 'README.ko.md'):
+        # Chinese first (user request 2026-10-15): the landing page is written Chinese only, the interface tour comes
+        # right after the status table, and every other language is one click away.
+        for heading in ('## Can I use it?', '### Progress:', '## First run'):
+            self.assertNotIn(heading, landing)
+        self.assertLess(landing.index('## 可以用嗎？'), landing.index('## 介面導覽'))
+        self.assertLess(landing.index('## 介面導覽'), landing.index('## 安裝'))
+        for link in ('README.en.md', 'README.ja.md', 'README.ko.md'):
             self.assertIn('](%s)' % link, landing)
+        # README.zh-HK.md keeps old links working and must not drift from the landing page.
+        self.assertEqual((ROOT / 'README.zh-HK.md').read_bytes(), (ROOT / 'README.md').read_bytes())
+
+    def test_interface_tour_images_exist_and_are_explained(self):
+        for name, lang, numbered in (('README.md', 'zh', True), ('README.en.md', 'en', True),
+                                     ('README.ja.md', 'ja', False), ('README.ko.md', 'ko', False)):
+            text = (ROOT / name).read_text(encoding='utf-8')
+            for tab in ('copy', 'risk'):
+                link = 'docs/screenshots/tour-%s-%s.png' % (tab, lang)
+                self.assertIn('](%s)' % link, text, name)
+                self.assertTrue((ROOT / link).read_bytes().startswith(bytes([0x89]) + b'PNG'), link)
+            if numbered:
+                # One table row per numbered marker drawn by docs/screenshots/Tour.cs (12 on Copy, 7 on Risk).
+                rows = [l for l in text.splitlines() if l.startswith('| ') and l.split('|')[1].strip().isdigit()]
+                self.assertEqual([int(l.split('|')[1]) for l in rows], list(range(1, 13)) + list(range(1, 8)), name)
+                self.assertIn('docs/screenshots/Tour.cs', text, name)
+        self.assertTrue((ROOT / 'docs' / 'screenshots' / 'Tour.cs').is_file())
         for name in ('DEVELOPERS.md', 'DEVELOPERS.zh-HK.md'):
             text = (ROOT / 'docs' / name).read_text(encoding='utf-8')
             for term in ('d70b8a49ceeb87e2207fe5c9811203723ea7f0edae90d18ebeab334a10e210a5',

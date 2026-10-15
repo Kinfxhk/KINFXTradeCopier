@@ -3,6 +3,24 @@
 Status: **Current integrated candidate NOT accepted for trading.** Historical real-NinjaTrader SIM transactions below belong to their stated older source hashes; the latest baseline is compilation/offline evidence only. Default trading hold remains; funded/live accounts are excluded.
 狀態：**目前整合候選版本尚未通過交易驗收。** 下方真 NinjaTrader 模擬交易記錄只適用於各自標示的舊源碼；最新 baseline 為編譯／離線證據。預設交易封鎖保留，不包括 funded／實盤帳戶。
 
+## Real NinjaTrader — 2026-10-15 evening, 5-6 Tradeify sim followers / 晚上補測
+
+Lucid accounts had hit their daily loss, so only Tradeify followers were used. Leader `Sim101`, MNQ 12-26, 1 lot.
+
+| Test | Result |
+|---|---|
+| Leader Limit copied, price changed 1x then 3x quickly, then cancelled (rival T03) | every follower got each Change and ended at the leader price; cancel mirrored to all |
+| Leader quantity 1 -> 2 above Max 1 | followers stayed at 1 (cap), no lock |
+| A follower at its loss limit (provider rejects) | 1 Submit, rejected, locked, others filled |
+| **Bug fixed:** lone leader stop with an OCO id after an earlier cancelled entry | was copied to nobody and every follower locked after 10 s; the rejected follower logged a line every second. Now copied to all 5, no flood |
+| **Bug fixed:** leader stop moved twice (Tradovate) | each follower got 140-350 Changes (Tradovate answers ChangePending with the old price). Now exactly 2 per follower |
+| Stop + Limit under one OCO id | 6 Stops + 6 Limits working (leader + 5) |
+| Leader closed by Market while its own OCO legs stayed working (rival T04) | followers closed; their mirrored legs stayed working like the leader's, and each follower locked with "Exit order still working on a FLAT account". Cancelling the leader leg cancelled all; Flatten selected + unlock cleaned up. Never auto-cancelled (by design) |
+| Closed / disconnected accounts | no longer listed (17 -> 12 rows) |
+| P/L colours, account-name column hidden, automatic alias | verified on the real window |
+| NT8 export / import | `KINFXTradeCopier-SIMTEST.zip` (release asset) exported by NT, re-imported by NT |
+| Leader disconnect attempt (5 followers long 1) | disconnecting the Lucid connection: NT asked "1 open position, disconnect?", Sim101 went ConnectionLost and was Connected again 4 ms later through the Tradeify connection (Simulator accounts belong to every connection). Copier did not lock, the leader exit was then copied to all 5, flat, Stop OK. A real leader disconnect cannot be produced with a Simulator leader on this VM; it stays offline-only |
+
 ## Real NinjaTrader — 2026-10-15, source `bfc8a2531acf` + `#define KINFX_SIM_TEST` / 真 NT 實測
 
 Leader `Sim101` (Simulator); followers are prop-firm **simulated evaluation** accounts (Lucid, Tradeify). MNQ 12-26, 1 lot, Ratio 1.

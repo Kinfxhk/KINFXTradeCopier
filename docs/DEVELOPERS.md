@@ -1,6 +1,6 @@
 # Developer and status details
 
-Back to the [README](../README.md) · [繁體中文](DEVELOPERS.zh-HK.md).
+Back to the [README](../README.en.md) · [繁體中文](DEVELOPERS.zh-HK.md).
 
 ## Acceptance boundary
 
@@ -85,7 +85,7 @@ These portable checks cover packaging/holds and a separate Python SPEC, **not a 
 
 [Build](BUILD.md) · [Testing / redacted reports](COMMUNITY-TESTING.md) · [Contribution workflow](../CONTRIBUTING.md) · [Do NOT do these](DO-NOT-DO.md) · [Safety hold](SAFETY-HOLD.md) · [Simulator plan (historical plan, not authorization)](SIM-TEST-PLAN.md) · [Roadmap](ROADMAP.md).
 
-Any future authorized SIM TEST rehearsal must follow the [README cleanup sequence](../README.md#first-run): connected, native-clean leader/followers; cancel leader orders and close leader via native NT **before Stop**; verify detached before changing Dry run; add followers only while stopped with a new Start confirmation. OFF is not Flatten and does not close positions. Never remove the default hold to get a green test.
+Any future authorized SIM TEST rehearsal must follow the [README cleanup sequence](../README.en.md#first-run): connected, native-clean leader/followers; cancel leader orders and close leader via native NT **before Stop**; verify detached before changing Dry run; add followers only while stopped with a new Start confirmation. OFF is not Flatten and does not close positions. Never remove the default hold to get a green test.
 
 ## Still unproved
 

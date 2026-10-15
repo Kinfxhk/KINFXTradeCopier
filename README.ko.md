@@ -2,7 +2,7 @@
 
 NinjaTrader 8에서 한 계좌의 거래를 여러 계좌(Prop Firm **시뮬레이션** 계좌와 Demo 계좌)로 복사합니다. 무료, 오픈 소스(MIT), 초기 **소스 alpha**입니다.
 
-[中英對照](README.md) · [中文（繁體）](README.zh-HK.md) · [English](README.en.md) · [日本語](README.ja.md) · **한국어**
+[中文](README.md) · [English](README.en.md) · [日本語](README.ja.md) · **한국어**
 
 화면 언어는 앱과 같습니다: English, 中文（繁體）, 日本語, 한국어.
 
@@ -19,6 +19,14 @@ NinjaTrader 8에서 한 계좌의 거래를 여러 계좌(Prop Firm **시뮬레�
 | **Prop Firm 계좌** | **준비되지 않음: 현재 후보는 미수용.** 같은 과거 체크리스트의 완료도는 약 **75%**입니다. 소스 `c9fbf2cb3005`(SIM TEST 빌드)는 2026-10-14에 실제 NinjaTrader에서, 운영자가 확인한 *시뮬레이션／평가* 계좌 11개로 실행되었습니다. 이것은 릴리스 수용도, 업체의 규정 준수 인증도 아닙니다. |
 | **Funded／실계좌** | **금지.** |
 <!-- QUICKSTART:END -->
+
+## 화면 안내
+
+![화면 안내: 복사 탭 — 합성 DEMO](docs/screenshots/tour-copy-ko.png)
+
+![화면 안내: 리스크 탭 — 합성 DEMO](docs/screenshots/tour-risk-ko.png)
+
+번호별 설명은 [中文](README.md#介面導覽) 또는 [English](README.en.md#interface-tour) 페이지에 있습니다. 이미지는 합성 DEMO(가상 계좌와 수치)이며 거래 증거가 아닙니다.
 
 ## 진행도
 
@@ -55,7 +63,7 @@ Prop firm    ██████████████████████�
 - ⬜ 설치 프로그램＋검토 후 릴리스
 - ⬜ Prop Firm 규칙 확인（본 소프트웨어는 인증하지 않음）
 
-지금까지의 실제 테스트: 시뮬레이터 리더 1개, 최대 11개의 **시뮬레이션** Prop Firm 평가 계좌(Lucid 5개, Tradeify 6개), MNQ, 시장가＋지정가＋역지정가, TP/SL OCO. funded 또는 실계좌는 사용한 적이 없습니다. 각 항목과 제한: [`docs/PROGRESS.json`](docs/PROGRESS.json). 배점은 가중치: ✅ 100%, 🟡 50%, 설계만 10%. 스냅샷 2026-10-15, 소스 `bfc8a2531acf`.
+지금까지의 실제 테스트: 시뮬레이터 리더 1개, 최대 11개의 **시뮬레이션** Prop Firm 평가 계좌(Lucid 5개, Tradeify 6개), MNQ, 시장가＋지정가＋역지정가, TP/SL OCO. funded 또는 실계좌는 사용한 적이 없습니다. 각 항목과 제한: [`docs/PROGRESS.json`](docs/PROGRESS.json). 배점은 가중치: ✅ 100%, 🟡 50%, 설계만 10%. 스냅샷 2026-10-15, 소스 `8a8deb196fa8`.
 <!-- PROGRESS:END -->
 
 체크와 백분율은 **가중된 과거 체크리스트**이며, **릴리스 준비 비율이 아닙니다**. 최근 실제 NinjaTrader 실행(2026-10-15)은 소스 `bfc8a2531acf`(SIM TEST 빌드)입니다. 테스트 증거이며, 현재의 정확한 소스에 대한 수용이 아닙니다. [항목별 증거와 제한](docs/PROGRESS.json) · [과거 NT 테스트 기록](docs/VM-PROGRESS.md) · [현재 오프라인 결과와 안전 차단](docs/DEVELOPERS.md).

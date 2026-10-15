@@ -220,6 +220,35 @@ public static class BulkUiTests {
   Check(v.Rows[0].Advice=="","leader row never gets follower advice");
  }
  static System.Collections.Generic.IEnumerable<T> Visual<T>(DependencyObject d) where T:DependencyObject{for(int i=0;i<System.Windows.Media.VisualTreeHelper.GetChildrenCount(d);i++){var c=System.Windows.Media.VisualTreeHelper.GetChild(d,i);if(c is T)yield return (T)c;foreach(var n in Visual<T>(c))yield return n;}}
+ // Account name hidden by default (applied by the tab from columns.txt defaults), Alias identifies the row: tooltip = full account name.
+ static void AccountNameHiddenByDefaultAliasCarriesTheName(){
+  var v=Fresh();v.ApplyColumns(ColumnPrefs.Parse(null));Layout(v);
+  Check(Col(v.AccountGrid,"Acct").Visibility==Visibility.Collapsed&&Col(v.RiskGrid,"Acct").Visibility==Visibility.Collapsed,"account name hidden by default on Copy and Risk");
+  Check(Col(v.AccountGrid,"Alias").Visibility==Visibility.Visible,"alias shown");
+  v.SetColumnVisible("copy","Acct",true);Layout(v);Check(Col(v.AccountGrid,"Acct").Visibility==Visibility.Visible,"can be shown again");
+  Check(ColumnPrefs.Parse(ColumnPrefs.Serialize(v.HiddenColumns)).SetEquals(v.HiddenColumns)&&!v.HiddenColumns.Contains("copy:Acct"),"the choice to show it is saved");
+  var st=((DataGridTextColumn)Col(v.AccountGrid,"Alias")).ElementStyle;
+  var tip=st.Setters.OfType<Setter>().FirstOrDefault(x=>x.Property==FrameworkElement.ToolTipProperty);
+  Check(tip!=null&&tip.Value is System.Windows.Data.Binding&&((System.Windows.Data.Binding)tip.Value).Path.Path=="Name","alias tooltip shows the full account name");
+ }
+ static void PnlIsGreenForProfitRedForLossMutedForZero(){
+  var v=Fresh();
+  var host=new System.Windows.Controls.Border{Child=v};host.Measure(new Size(1400,720));host.Arrange(new Rect(0,0,1400,720));host.UpdateLayout();System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(System.Windows.Threading.DispatcherPriority.ContextIdle,new Action(()=>{}));
+  v.Rows[1].Pnl=125.5;v.Rows[2].Pnl=-40;v.Rows[3].Pnl=0;v.Rows[4].Pnl=double.NaN;v.Rows[5].Pnl=0.001;
+  foreach(var r in v.Rows)r.Changed();
+  foreach(var grid in new[]{v.AccountGrid,v.RiskGrid}){
+   v.Sections.SelectedIndex=grid==v.AccountGrid?0:1;host.UpdateLayout();System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(System.Windows.Threading.DispatcherPriority.ContextIdle,new Action(()=>{}));
+   var col=Col(grid,"P/L");
+   foreach(var pair in new[]{Tuple.Create(1,DashboardView.Good),Tuple.Create(2,DashboardView.Bad),Tuple.Create(3,DashboardView.Muted),Tuple.Create(4,DashboardView.Muted),Tuple.Create(5,DashboardView.Muted)}){
+    var row=v.Rows[pair.Item1];var cell=col.GetCellContent(row);if(cell==null){grid.ScrollIntoView(row);host.UpdateLayout();cell=col.GetCellContent(row);}
+    var tb=cell as TextBlock??(cell==null?null:Visual<TextBlock>(cell).FirstOrDefault());Check(tb!=null,"P/L cell realized, row "+pair.Item1);
+    Check(tb.Foreground==pair.Item2,(grid==v.AccountGrid?"Copy":"Risk")+" P/L "+row.Pnl+" colour "+tb.Foreground+" expected "+pair.Item2);
+   }
+   v.Rows[2].Pnl=12;v.Rows[2].Changed();host.UpdateLayout();
+   var c2=col.GetCellContent(v.Rows[2]);var t2=c2 as TextBlock??Visual<TextBlock>(c2).FirstOrDefault();Check(t2.Foreground==DashboardView.Good,"turns green when the loss becomes a profit");
+   v.Rows[2].Pnl=-40;v.Rows[2].Changed();host.UpdateLayout();
+  }
+ }
  static void RatioCellFitsCommonValuesAt1160(){
   var v=Fresh();
   var host=new System.Windows.Controls.Border{Child=v};host.Measure(new Size(1160,720));host.Arrange(new Rect(0,0,1160,720));host.UpdateLayout();System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(System.Windows.Threading.DispatcherPriority.ContextIdle,new Action(()=>{}));host.UpdateLayout();
@@ -355,6 +384,20 @@ public static class BulkUiTests {
   row.Latch.Locked=false;row.Latch.Reason="";row.Changed();v.UpdateCards();
   Check(v.LockedCount==0&&v.LockedText=="","footer clears when the latch is gone");
  }
+ // Unlock all: one button on the Copy tab, only while stopped (edit button), sends exactly one "unlockAll" command; the demo view never sends.
+ static Button UnlockAllButton(DashboardView v){return Visual<Button>(v).FirstOrDefault(b=>(b.Tag as string)=="unlockAll");}
+ static void UnlockAllButtonIsOnCopyTabAndOnlyWhileStopped(){
+  var v=new DashboardView(false);v.Editable(true);v.Sections.SelectedIndex=0;Layout(v);
+  var b=UnlockAllButton(v);Check(b!=null,"Unlock all button exists");Check(b.ActualWidth>20&&b.IsEnabled,"laid out and enabled while stopped");
+  Check((b.Content as string)==Lang.T("Unlock all"),"label is the translated Unlock all");
+  var sent=new System.Collections.Generic.List<string>();v.Command=c=>sent.Add(c);
+  b.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+  Check(sent.Count==1&&sent[0]=="unlockAll","one click = exactly one unlockAll command; got ["+string.Join(",",sent)+"]");
+  v.Editable(false);Check(!b.IsEnabled,"disabled while a session is attached");
+  var d=Fresh();var db=UnlockAllButton(d);Check(db!=null,"demo view has the button too");var ds=new System.Collections.Generic.List<string>();d.Command=c=>ds.Add(c);
+  db.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));Check(ds.Count==0,"demo view never sends a command");
+  Check(!v.StartButton.IsEnabled||DashboardSafety.CanExecute("start"),"Start unchanged by the button");
+ }
  static void LockedCountIgnoresLeaderAndNeverBlocksUi(){
   var v=Fresh();v.Rows[0].Latch.Locked=true;v.Rows[0].Latch.Reason="leader row";v.Rows[0].Changed();v.UpdateCards();
   Check(v.LockedCount==0,"leader row is not counted as a locked follower");
@@ -474,12 +517,12 @@ public static class BulkUiTests {
   Check(Col(v.AccountGrid,"P/L").Visibility==Visibility.Visible,"Copy P/L untouched");
   Check(saved!=null&&saved.Contains("risk:Preset")&&saved.Contains("copy:Bal")&&saved.Count==3,"change reported for saving: "+(saved==null?"null":string.Join(",",saved)));
   // safety columns ignore any request, from the menu or a hand-edited file
-  foreach(var k in new[]{"Acct","State","Off","Flat","Qty","Conn","On","Ratio"})v.SetColumnVisible("copy",k,false);
-  foreach(var k in new[]{"Acct","Tgt","DLL","Qty","St","Conn"})v.SetColumnVisible("risk",k,false);
-  var withBad=new System.Collections.Generic.HashSet<string>(saved){"copy:Acct","copy:Flat","copy:State","risk:St","risk:Tgt","risk:DLL"};v.ApplyColumns(withBad);Layout(v);
+  foreach(var k in new[]{"State","Off","Flat","Qty","Conn","On","Ratio"})v.SetColumnVisible("copy",k,false);
+  foreach(var k in new[]{"Tgt","DLL","Qty","St","Conn"})v.SetColumnVisible("risk",k,false);
+  var withBad=new System.Collections.Generic.HashSet<string>(saved){"copy:Flat","copy:State","risk:St","risk:Tgt","risk:DLL"};v.ApplyColumns(withBad);Layout(v);
   Check(v.HiddenColumns.SetEquals(saved),"invalid entries are dropped, valid ones kept: "+string.Join(",",v.HiddenColumns));
-  foreach(var k in new[]{"Acct","State","Off","Flat","Qty","Conn","On","Ratio"})Check(Col(v.AccountGrid,k).Visibility==Visibility.Visible,"copy safety column always shown: "+k);
-  foreach(var k in new[]{"Acct","Tgt","DLL","Qty","St","Conn"})Check(Col(v.RiskGrid,k).Visibility==Visibility.Visible,"risk safety column always shown: "+k);
+  foreach(var k in new[]{"State","Off","Flat","Qty","Conn","On","Ratio"})Check(Col(v.AccountGrid,k).Visibility==Visibility.Visible,"copy safety column always shown: "+k);
+  foreach(var k in new[]{"Tgt","DLL","Qty","St","Conn"})Check(Col(v.RiskGrid,k).Visibility==Visibility.Visible,"risk safety column always shown: "+k);
   // every hideable key exists in its grid (a renamed column must not leave a dead entry)
   foreach(var k in ColumnPrefs.Hideable("copy"))Check(v.AccountGrid.Columns.Any(c=>DashboardView.ColumnKey(c)==k),"copy hideable key exists: "+k);
   foreach(var k in ColumnPrefs.Hideable("risk"))Check(v.RiskGrid.Columns.Any(c=>DashboardView.ColumnKey(c)==k),"risk hideable key exists: "+k);
@@ -512,7 +555,7 @@ public static class BulkUiTests {
  [STAThread] public static int Main(string[] args){
   try{
    AppDomain.CurrentDomain.AssemblyResolve+=(s,e)=>{string n=e.Name.Split(',')[0];if(n.EndsWith(".resources"))return null;var loaded=AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a=>a.GetName().Name==n);if(loaded!=null)return loaded;string p=System.IO.Path.Combine("C:/Program Files/NinjaTrader 8/bin",n+".dll");return System.IO.File.Exists(p)?System.Reflection.Assembly.LoadFrom(p):null;};
-   var all=new Action[]{ColumnsCanBeHiddenButSafetyColumnsNever,DeltaColumnsHaveReadableNames,FlatAtLimitIsPerRowDefaultOffAndBulkScoped,RiskColumnsWidthAndBindingsInEveryLanguage,AskBeforeSwitchesDefaultOnAndReportKind,CopyColumnsFitWorstCaseContentAndWasteNothing,EveryVisibleHeaderAndTabIsTranslatedExceptKeptAbbreviations,StateFilterWorksInEveryLanguage,LanguagesRenderTranslatedHeadersAndKeepEnglishKeys,LanguagesNeverTruncateOrShowMojibake,LanguageSwitchKeepsRowsAndRefusesOnlyBadInput,PlainCheckBoxesStayDark,ComboAndInputStayDarkWhenDisabledOrHovered,TargetAndLossApplyToSelectedOnly,ZeroTurnsLimitOff,RatioStaysIndependent,InvalidInputChangesNothing,NoSelectionIsRefused,LeaderIsNotEdited,AtmToggleBulk,LockedWhenNotEditable,NeverTouchesFollowOrTrading,BarIsOnCopyTabAndKeepsHolds,FromLeaderCopiesToHighlighted,FromLeaderWithoutHighlightHitsAllVisibleFollowers,FromLeaderRespectsSearchFilter,FromLeaderKeepsRatioTickAndOtherFields,ManualEditAfterwardsSticksAndNoLiveLink,FromLeaderRefusedWhenLockedOrNoLeader,FromLeaderNeverTouchesFollowOrTrading,AdviceShownPerRowAndCounted,AdviceUpdatesAfterBulkApply,AdviceNeverBlocksOrChangesSettings,RatioCellFitsCommonValuesAt1160,LogsReadableAndTopAligned,LogClearWorksAndIsEditableIndependent,BadTargetDraftSurvivesRefreshAndBlocksCommit,BadLossDraftSurvivesRefreshAndBlocksCommit,BadTargetDraftSurvivesRecyclingAndStillBlocksCommit,TargetAndLossSetterRejectInvalidNumbers,LockedAccountIsRedWithReasonAndCountedInFooter,LockedCountIgnoresLeaderAndNeverBlocksUi,BadRatioDraftSurvivesRefreshAndBlocksCommit,UnprotectedReasonReachesRowAndDetail,MaxContractsRejectsInvalidAndKeepsDraft,DivergenceChoiceIsPerAccountDefaultsToNotify,DivergenceBulkAndFromLeaderAndNeverTrades,FlattenOnceShowsAWarningNote,FlatColumnExistsAndEveryFollowerRowHasItsOwnButton,FlatButtonOnLeaderRowIsDisabled,FlatButtonRequestsExactlyThatRowAndNothingElse,FlatAndOffAreDifferentControlsWithDifferentGlyphsAndTips,FlatButtonFitsItsCellAtNarrowWidth,FlatCanFlatFollowsSimAndLeaderRules,FlatOnARealViewForwardsExactlyTheClickedRowOnce};
+   var all=new Action[]{UnlockAllButtonIsOnCopyTabAndOnlyWhileStopped,PnlIsGreenForProfitRedForLossMutedForZero,AccountNameHiddenByDefaultAliasCarriesTheName,ColumnsCanBeHiddenButSafetyColumnsNever,DeltaColumnsHaveReadableNames,FlatAtLimitIsPerRowDefaultOffAndBulkScoped,RiskColumnsWidthAndBindingsInEveryLanguage,AskBeforeSwitchesDefaultOnAndReportKind,CopyColumnsFitWorstCaseContentAndWasteNothing,EveryVisibleHeaderAndTabIsTranslatedExceptKeptAbbreviations,StateFilterWorksInEveryLanguage,LanguagesRenderTranslatedHeadersAndKeepEnglishKeys,LanguagesNeverTruncateOrShowMojibake,LanguageSwitchKeepsRowsAndRefusesOnlyBadInput,PlainCheckBoxesStayDark,ComboAndInputStayDarkWhenDisabledOrHovered,TargetAndLossApplyToSelectedOnly,ZeroTurnsLimitOff,RatioStaysIndependent,InvalidInputChangesNothing,NoSelectionIsRefused,LeaderIsNotEdited,AtmToggleBulk,LockedWhenNotEditable,NeverTouchesFollowOrTrading,BarIsOnCopyTabAndKeepsHolds,FromLeaderCopiesToHighlighted,FromLeaderWithoutHighlightHitsAllVisibleFollowers,FromLeaderRespectsSearchFilter,FromLeaderKeepsRatioTickAndOtherFields,ManualEditAfterwardsSticksAndNoLiveLink,FromLeaderRefusedWhenLockedOrNoLeader,FromLeaderNeverTouchesFollowOrTrading,AdviceShownPerRowAndCounted,AdviceUpdatesAfterBulkApply,AdviceNeverBlocksOrChangesSettings,RatioCellFitsCommonValuesAt1160,LogsReadableAndTopAligned,LogClearWorksAndIsEditableIndependent,BadTargetDraftSurvivesRefreshAndBlocksCommit,BadLossDraftSurvivesRefreshAndBlocksCommit,BadTargetDraftSurvivesRecyclingAndStillBlocksCommit,TargetAndLossSetterRejectInvalidNumbers,LockedAccountIsRedWithReasonAndCountedInFooter,LockedCountIgnoresLeaderAndNeverBlocksUi,BadRatioDraftSurvivesRefreshAndBlocksCommit,UnprotectedReasonReachesRowAndDetail,MaxContractsRejectsInvalidAndKeepsDraft,DivergenceChoiceIsPerAccountDefaultsToNotify,DivergenceBulkAndFromLeaderAndNeverTrades,FlattenOnceShowsAWarningNote,FlatColumnExistsAndEveryFollowerRowHasItsOwnButton,FlatButtonOnLeaderRowIsDisabled,FlatButtonRequestsExactlyThatRowAndNothingElse,FlatAndOffAreDifferentControlsWithDifferentGlyphsAndTips,FlatButtonFitsItsCellAtNarrowWidth,FlatCanFlatFollowsSimAndLeaderRules,FlatOnARealViewForwardsExactlyTheClickedRowOnce};
    int failed=0;foreach(var a in all){try{a();Console.WriteLine("PASS "+a.Method.Name);}catch(Exception ex){failed++;Console.WriteLine("FAIL "+a.Method.Name+" :: "+ex.Message);}}
    return failed==0?0:1;
   }catch(Exception ex){Console.WriteLine("HARNESS "+ex);return 2;}
