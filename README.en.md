@@ -57,7 +57,7 @@ Copy trades from one NinjaTrader 8 leader account to many follower accounts (dem
 
 **For reviewed testing, not a general release.** Do not trade the current unaccepted build merely because it compiles.
 
-1. Download `KINFXTradeCopier-SIMTEST.zip` from the [v0.2.0-simtest-alpha](https://github.com/Kinfxhk/KINFXTradeCopier/releases/tag/v0.2.0-simtest-alpha) release (exported by NinjaTrader 8 itself; **do not unzip it**; the release notes give its SHA-256).
+1. Download `KINFXTradeCopier-SIMTEST.zip` from the [v0.2.1-simtest-alpha](https://github.com/Kinfxhk/KINFXTradeCopier/releases/tag/v0.2.1-simtest-alpha) release (exported by NinjaTrader 8 itself; **do not unzip it**; the release notes give its SHA-256).
 2. NinjaTrader: *Control Center > Tools > Import > NinjaScript Add-On...*, pick the zip.
 3. Answer **Yes** to the "trusted source" question; if it says the file already exists, **Yes** replaces an older copy of this add-on only.
 4. Restart NinjaTrader when asked, then open *New > KINFX Trade Copier*.

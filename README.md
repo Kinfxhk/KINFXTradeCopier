@@ -57,7 +57,7 @@
 
 **以下供已覆核的測試使用，不是一般發佈。** 不要僅因編譯成功便以目前未驗收的版本交易。
 
-1. 從 [v0.2.0-simtest-alpha](https://github.com/Kinfxhk/KINFXTradeCopier/releases/tag/v0.2.0-simtest-alpha) 發佈頁下載 `KINFXTradeCopier-SIMTEST.zip`（由 NinjaTrader 8 本身匯出，**毋須解壓**；發佈說明列出 SHA-256）。
+1. 從 [v0.2.1-simtest-alpha](https://github.com/Kinfxhk/KINFXTradeCopier/releases/tag/v0.2.1-simtest-alpha) 發佈頁下載 `KINFXTradeCopier-SIMTEST.zip`（由 NinjaTrader 8 本身匯出，**毋須解壓**；發佈說明列出 SHA-256）。
 2. NinjaTrader：*Control Center > Tools > Import > NinjaScript Add-On...*，選取該 zip。
 3. 詢問是否信任來源時按 **Yes**；若提示檔案已存在，按 **Yes** 只會取代本外掛的舊版本。
 4. 按提示重新啟動 NinjaTrader，然後開啟 *New > KINFX Trade Copier*。
