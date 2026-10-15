@@ -9,11 +9,12 @@ We welcome minimal reproductions, tests, documentation, accessibility/UI work an
 5. Include actual commands, source/fixture hashes, PASS/FAIL/ERROR counts and limitations. Disclose harness changes separately; known FAIL is not silently xfail/PASS.
 6. Submit a focused PR. Independent review is required for engine, hold and persistence changes.
 
-Never include tokens, account identifiers, balances, private logs, broker credentials, proprietary DLLs, `.artifacts`, raw vendor HTML or machine-specific personal paths. Report security concerns privately through GitHub private vulnerability reporting when available; otherwise contact the maintainer without posting the exploit or secret publicly. No trading/investment advice or compliance claims.
+Never include tokens, account identifiers, balances, private logs, broker credentials, proprietary DLLs, `.artifacts`, raw vendor HTML or machine-specific personal paths. Report security concerns privately through GitHub private vulnerability reporting when available; otherwise contact the maintainer without posting the exploit or secret publicly. Authors and contributors take no responsibility for any consequence or loss. Recommend Demo / Sim only; do not recommend live or real-money accounts. This experimental community alpha is not investment advice or a compliance claim.
 
 ## Safety rules
 
-- Default disarmed; do not remove real-account Start/Flatten holds in unrelated PRs.
+- Default disarmed; do not remove real-account Start/Flatten holds in unrelated PRs. Do not change the execution model or lift a trading hold to soften the risk disclaimer.
+- Keep the disclaimer aligned: no responsibility for any consequence or loss; Demo / Sim only, not live or real-money accounts; experimental community alpha, not investment advice.
 - Only local synthetic Account types in Framework-only runtime tests; no NT8/broker account API execution.
 - OFF is an entry-authorization boundary, not confirmed broker recall or Flatten.
 - Preserve captured fills, unresolved command evidence, risk latches and existing protection.
