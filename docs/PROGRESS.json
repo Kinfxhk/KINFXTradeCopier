@@ -2,7 +2,7 @@
  "_comment": "Single source of truth for the progress bar in README.md (Chinese then English), README.en.md, README.zh-HK.md, README.ja.md and README.ko.md. Run `python scripts/progress.py` to recompute and rewrite the marked blocks; `python scripts/progress.py --check` fails if the READMEs are stale. A task earns its weight only at its evidence level: offline = 50%, real NinjaTrader Sim/Demo = 100%. Nothing here is prop-firm or live acceptance. Weights are the maintainer's judgement of how much each item matters for 'safe to copy to Demo / prop-firm Sim accounts', not a measured quantity.",
  "snapshot": {
   "date": "2026-10-15",
-  "source_sha256_prefix": "bfc8a2531acf",
+  "source_sha256_prefix": "8a8deb196fa8",
   "ninjatrader": "8.1.8.3",
   "branch": "fix/real-nt-create-callback",
   "note": "Levels were assigned by the maintainer's agent from the evidence listed per item and then deliberately lowered where a step was not re-run on the current build. Read the evidence column, not just the bar."
@@ -88,7 +88,7 @@
     "demo",
     "prop"
    ],
-   "evidence": "Real NT on the current build (2026-10-13): Buy/Sell market round trips, a passive Limit copied and its cancel mirrored, exit copied to the follower that was not flattened. Only two follower accounts, only Limit and Market orders, MNQ only. StopMarket entries and a real multi-lot partial fill were not seen.",
+   "evidence": "Real NT on the current build (2026-10-13): Buy/Sell market round trips, a passive Limit copied and its cancel mirrored, exit copied to the follower that was not flattened. Only two follower accounts, only Limit and Market orders, MNQ only. StopMarket entries and a real multi-lot partial fill were not seen. Real NT 2026-10-15 (6 Tradeify sim followers): a leader Limit copied to all, price changed once and then 3 times quickly (every follower followed each Change, final price equal), cancelled -> all cancelled.",
    "ach_en": "Core copy: entry / exit / cancel / modify",
    "ach_zh": "核心跟單：入場／平倉／取消／改單",
    "ach_ja": "コアコピー：エントリー／決済／取消／変更",
@@ -178,7 +178,7 @@
     "demo",
     "prop"
    ],
-   "evidence": "Real NT: leader Stop + Limit under one OCO id copied to both followers (Working), per-account Flat cancels them, and a leader MARKET exit closes the follower and cancels both once (after the market-exit fix). NOT covered on real NT: modify of price/quantity this session, a rejected stop, fractional multi-group OCO (#3), and a stop + target WITHOUT an OCO id (locks the account, open).",
+   "evidence": "Real NT: leader Stop + Limit under one OCO id copied to both followers (Working), per-account Flat cancels them, and a leader MARKET exit closes the follower and cancels both once (after the market-exit fix). NOT covered on real NT: modify of price/quantity this session, a rejected stop, fractional multi-group OCO (#3), and a stop + target WITHOUT an OCO id (locks the account, open). Real NT 2026-10-15 (5 Tradeify sim followers): a lone leader stop with an OCO id is copied (was refused after a cancelled entry, fixed); leader stop moved twice -> each follower exactly 2 Changes (a Change storm of 140-350 Changes per follower was found and fixed); Stop + Limit under one OCO id: 6 Stops + 6 Limits working (leader + 5).",
    "ach_en": "TP / SL mirroring + OCO",
    "ach_zh": "TP／SL 跟隨 ＋ OCO",
    "ach_ja": "TP／SL ミラー＋OCO",
@@ -304,7 +304,7 @@
     "demo",
     "prop"
    ],
-   "evidence": "45 offline UI cases; used on real NT. Real DPI / IME / paste untested (#8).",
+   "evidence": "45 offline UI cases; used on real NT. Real DPI / IME / paste untested (#8). 2026-10-15 real NT: closed / disconnected accounts no longer listed; P/L green / red verified by pixel colour on both tabs; account-name column hidden by default with an automatic alias.",
    "ach_en": "Dashboard (table, bulk edit, lock reasons)",
    "ach_zh": "介面（表格、批量改、鎖定原因）",
    "ach_ja": "ダッシュボード（表、一括編集、ロック理由）",
@@ -409,7 +409,7 @@
     "demo",
     "prop"
    ],
-   "evidence": "Only a SIM TEST build with an operator allow-list exists; default build is still held; no installer.",
+   "evidence": "Only a SIM TEST build with an operator allow-list exists; default build is still held; no installer. 2026-10-15: KINFXTradeCopier-SIMTEST.zip (release v0.2.0-simtest-alpha asset) exported by NinjaTrader 8.1.8.3 itself and re-imported through Tools > Import on the same NT (trusted-source, replace and restart prompts); the .cs inside is byte-identical to the tagged source plus the SIM TEST define line. Still no installer for the default build.",
    "ach_en": "Installer + reviewed release",
    "ach_zh": "安裝包 ＋ 覆核後發佈",
    "ach_ja": "インストーラー＋レビュー後のリリース",
