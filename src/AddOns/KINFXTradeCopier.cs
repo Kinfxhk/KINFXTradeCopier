@@ -533,35 +533,54 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
     // Which confirmation windows the user chose not to see again. Stored one "skip=<kind>" per line in confirm-prefs.txt; unknown kinds and lines are ignored.
     // A window whose text carries a risk warning (an account in scope is not confirmed simulated) is ALWAYS shown, whatever was saved. Pure: no file access.
     // Which grid columns the user hid. One "hide=<grid>:<column key>" per line in columns.txt; unknown grids / keys / lines are ignored.
-    // Safety columns (identity, follow tick, state, Off, Flat, Qty, connection, Tgt, DLL ...) can never be hidden, whatever the file says. Pure: no file or UI access.
+    // Safety columns (follow tick, state, Off, Flat, Qty, connection, Tgt, DLL ...) can never be hidden, whatever the file says. The account name can be
+    // hidden (the Alias column identifies the row and its tooltip shows the full name; every confirmation window names the full account). Pure: no file or UI access.
     public static class ColumnPrefs
     {
         public const string Copy="copy", Risk="risk";
         static readonly Dictionary<string,string[]> hideable=new Dictionary<string,string[]>(StringComparer.Ordinal)
         {
-            {Copy,new[]{"Alias","Tgt","DLL","P/L","Bal"}},
-            {Risk,new[]{"Alias","Grp","FlatLim","Max","P/L","CCY","To Tgt","Loss left","Preset","Cons"}},
+            {Copy,new[]{"Acct","Alias","Tgt","DLL","P/L","Bal"}},
+            {Risk,new[]{"Acct","Alias","Grp","FlatLim","Max","P/L","CCY","To Tgt","Loss left","Preset","Cons"}},
         };
+        // Hidden until the user shows them (user request 2026-10-15: the account name takes too much room; the Alias identifies the account,
+        // every account gets an alias automatically and the Alias cell's tooltip shows the full name). "show=" in columns.txt reveals one.
+        static readonly string[] hiddenByDefault={Copy+":Acct",Risk+":Acct"};
+        public static HashSet<string> Defaults(){return new HashSet<string>(hiddenByDefault,StringComparer.Ordinal);}
+        // An alias for an account that has none, so the row stays identifiable with the account-name column hidden. Short names stay as they are (Sim101);
+        // long ones keep their leading letters and the last 4 characters (TDFYSL..2676). Display only: the user can change it; it never selects an account.
+        public static string DefaultAlias(string name)
+        {
+            if(string.IsNullOrEmpty(name))return "";
+            if(name.Length<=12)return name;
+            int n=0;while(n<name.Length&&n<6&&char.IsLetter(name[n]))n++;
+            return name.Substring(0,n)+".."+name.Substring(name.Length-4);
+        }
         public static string[] Hideable(string grid){string[] k;return grid!=null&&hideable.TryGetValue(grid,out k)?(string[])k.Clone():new string[0];}
         public static bool CanHide(string grid,string key){string[] k;return grid!=null&&key!=null&&hideable.TryGetValue(grid,out k)&&Array.IndexOf(k,key)>=0;}
         public static HashSet<string> Parse(IEnumerable<string> lines)
         {
-            var h=new HashSet<string>(StringComparer.Ordinal);
+            var h=Defaults();
             if(lines==null)return h;
             foreach(var raw in lines)
             {
                 if(raw==null)continue; string t=raw.Trim(); if(t.Length==0||t.StartsWith("#"))continue;
-                int eq=t.IndexOf('='); if(eq<0||t.Substring(0,eq).Trim()!="hide")continue;
+                int eq=t.IndexOf('='); if(eq<0)continue; string verb=t.Substring(0,eq).Trim(); if(verb!="hide"&&verb!="show")continue;
                 string v=t.Substring(eq+1).Trim(); int c=v.IndexOf(':'); if(c<0)continue;
                 string grid=v.Substring(0,c).Trim(), key=v.Substring(c+1).Trim();
-                if(CanHide(grid,key))h.Add(grid+":"+key);
+                if(!CanHide(grid,key))continue;
+                if(verb=="hide")h.Add(grid+":"+key);else h.Remove(grid+":"+key);
             }
             return h;
         }
         public static string[] Serialize(HashSet<string> hidden)
         {
             var list=new List<string>{"# KINFX Trade Copier: columns hidden by the user (right-click a column header, or the Columns button). Delete a line (or this file) to show it again."};
-            foreach(var grid in new[]{Copy,Risk})foreach(var k in hideable[grid])if(hidden!=null&&hidden.Contains(grid+":"+k))list.Add("hide="+grid+":"+k);
+            foreach(var grid in new[]{Copy,Risk})foreach(var k in hideable[grid])
+            {
+                string id=grid+":"+k;bool hide=hidden!=null&&hidden.Contains(id);
+                if(hide)list.Add("hide="+id);else if(Array.IndexOf(hiddenByDefault,id)>=0)list.Add("show="+id);
+            }
             return list.ToArray();
         }
         public static bool Visible(string grid,string key,HashSet<string> hidden){return !CanHide(grid,key)||hidden==null||!hidden.Contains(grid+":"+key);}
@@ -1143,12 +1162,12 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             t["How much more can be lost before the daily loss limit (read-only, computed from P/L)"] = new[] { "觸及每日虧損上限前尚可虧損的金額（唯讀，由損益計算）", "日次損失上限に達するまでに失える残り金額（読み取り専用、損益から計算）", "일일 손실 한도까지 더 잃을 수 있는 금액 (읽기 전용, 손익으로 계산)" };
             t["Columns"] = new[] { "欄位", "列", "열" };
             t["Show all columns"] = new[] { "顯示全部欄位", "すべての列を表示", "모든 열 표시" };
-            t["Account, follow tick, state, Off / Flat, Qty and connection are always shown"] = new[] { "帳戶、跟單勾選、狀態、OFF／平倉、數量及連線一律顯示", "口座、フォローのチェック、状態、Off／決済、数量、接続は常に表示", "계좌, 팔로우 체크, 상태, Off/청산, 수량, 연결은 항상 표시" };
             t["Show or hide columns (also: right-click a column header). Saved for next time."] = new[] { "顯示或隱藏欄位（亦可在欄位標題按右鍵）。設定會保存。", "列の表示／非表示（列見出しの右クリックでも可）。次回も保持されます。", "열 표시/숨기기 (열 머리글 우클릭으로도 가능). 다음에도 유지됩니다." };
             t["RISK WARNING: not confirmed as simulated: {0}\nKINFX cannot tell a prop-firm evaluation account from a funded or live account. If any of these is funded or live, REAL MONEY is at risk.\nYes = these are simulated / evaluation accounts; remember them (sim-allow.txt) so this is not asked again. No = cancel."] = new[] { "風險警告：以下帳戶尚未確認為模擬帳戶：{0}\nKINFX 無法分辨自營交易公司的考核帳戶與已注資或真實帳戶。若其中任何一個為已注資或真實帳戶，將涉及真實資金。\n是＝這些是模擬／考核帳戶，記住它們（sim-allow.txt），以後不再詢問。否＝取消。", "リスク警告：シミュレーションと未確認の口座：{0}\nKINFX はプロップファームの評価口座と資金提供済み／ライブ口座を区別できません。いずれかが資金提供済みまたはライブ口座の場合、実際の資金が危険にさらされます。\nはい＝これらはシミュレーション／評価口座です。記憶し（sim-allow.txt）、次回から確認しません。いいえ＝キャンセル。", "위험 경고: 시뮬레이션으로 확인되지 않은 계좌: {0}\nKINFX는 프롭펌 평가 계좌와 자금 지원 / 실거래 계좌를 구분할 수 없습니다. 이 중 하나라도 자금 지원 또는 실거래 계좌라면 실제 자금이 위험합니다.\n예 = 시뮬레이션 / 평가 계좌이며 기억합니다(sim-allow.txt), 다시 묻지 않습니다. 아니요 = 취소." };
             t["Cancelled at the risk warning: {0}"] = new[] { "已在風險警告取消：{0}", "リスク警告でキャンセル：{0}", "위험 경고에서 취소: {0}" };
             t["Account confirmation NOT saved, nothing sent: {0}"] = new[] { "帳戶確認未儲存，未傳送任何指令：{0}", "口座の確認は保存されず、何も送信されていません：{0}", "계좌 확인이 저장되지 않아 아무것도 전송되지 않았습니다: {0}" };
             t["Confirmed as simulated by you (saved in sim-allow.txt): {0}"] = new[] { "您已確認為模擬帳戶（已儲存於 sim-allow.txt）：{0}", "シミュレーションとして確認済み（sim-allow.txt に保存）：{0}", "시뮬레이션으로 확인됨 (sim-allow.txt에 저장): {0}" };
+            t["Follow tick, state, Off / Flat, Qty and connection are always shown"] = new[] { "跟單勾選、狀態、OFF／平倉、數量及連線一律顯示", "フォローのチェック、状態、Off／決済、数量、接続は常に表示", "팔로우 체크, 상태, Off/청산, 수량, 연결은 항상 표시" };
 #if KINFX_SIM_TEST
             t["Dry run"] = new[] { "試運行", "ドライラン", "드라이런" };
             t["DRY RUN: decide and log every order, cancel and flatten as \"DRY RUN would send ...\" but send NOTHING. Fixed for the whole session: change it only while stopped."] = new[] { "DRY RUN（試運行）：決定並記錄每一筆下單、取消與平倉為「DRY RUN would send ...」，但不會送出任何內容。整個連線期間固定：僅能在停止時變更。", "DRY RUN（ドライラン）：すべての注文・取消・全決済を判断し「DRY RUN would send ...」としてログに記録しますが、何も送信しません。セッション中は固定：変更は停止中のみ可能。", "DRY RUN(드라이런): 모든 주문, 취소, 청산을 판단하여 \"DRY RUN would send ...\"로 기록하지만 아무것도 전송하지 않습니다. 세션 전체 동안 고정: 중지 상태에서만 변경할 수 있습니다." };
@@ -1443,7 +1462,10 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         }
         // Shown in the account list and tickable. SIM TEST build: every account (an unconfirmed one asks the risk warning before Start / Flatten,
         // and the engine still refuses it until it is confirmed). Default build: Simulator / Playback only, as before.
-        public static bool Listable(Account a){return a!=null&&(DashboardSafety.ListAllAccounts||Sim(a));}
+        // Only CONNECTED accounts, like NinjaTrader's own Accounts tab: NT keeps Account objects of a removed / closed / max-loss account after its
+        // connection is gone (seen on real NT: 5 closed Tradeify accounts, Playback101 and Backtest listed as Disconnected with no balance).
+        // A follower that disconnects DURING a session stays in the table (the table is never rebuilt while attached) and is locked as before.
+        public static bool Listable(Account a){return a!=null&&Connected(a)&&(DashboardSafety.ListAllAccounts||Sim(a));}
 #if KINFX_SIM_TEST
         // SIM TEST BUILD ONLY. Prop-firm evaluation accounts (Lucid / Tradeify on Tradovate) hang off a connection NinjaTrader labels Mode=Live,
         // so Provider alone cannot tell them apart from a funded account. The operator attests per account by exact name in
@@ -2569,6 +2591,8 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public string Connection { get; set; }
         public string Status { get; set; }
         public double Pnl { get; set; }
+        // 1 profit, -1 loss, 0 flat or unknown (NaN). Cents below half a cent count as zero so rounding noise is not coloured.
+        public int PnlSign {get{return double.IsNaN(Pnl)||double.IsInfinity(Pnl)||Math.Abs(Pnl)<0.005?0:Pnl>0?1:-1;}}
         public double Equity { get; set; }
         public double CashBalance {get;set;}=double.NaN;
         public string CurrencyCode
@@ -2728,7 +2752,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 var all=new MenuItem{Header=Lang.T("Show all columns"),Tag="col:"+grid+":*"};
                 all.Click+=(s2,e2)=>{var next=HiddenColumns;next.RemoveWhere(x=>x.StartsWith(grid+":",StringComparison.Ordinal));ApplyColumns(next);var cb=ColumnsChanged;if(cb!=null)cb(HiddenColumns);};
                 menu.Items.Add(all);
-                var note=new MenuItem{Header=Lang.T("Account, follow tick, state, Off / Flat, Qty and connection are always shown"),IsEnabled=false};menu.Items.Add(note);
+                var note=new MenuItem{Header=Lang.T("Follow tick, state, Off / Flat, Qty and connection are always shown"),IsEnabled=false};menu.Items.Add(note);
             };
             return menu;
         }
@@ -2824,7 +2848,14 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         static void Column(DataGrid g,string title,string path,double width,bool ro,string tip,string format=null,bool number=false)
         {
             var c=new DataGridTextColumn{Header=Lang.T(title),SortMemberPath=path.EndsWith("Text")?path.Substring(0,path.Length-4):path,Binding=new Binding(path){Mode=ro?BindingMode.OneWay:BindingMode.TwoWay,StringFormat=format,UpdateSourceTrigger=UpdateSourceTrigger.LostFocus,ValidatesOnExceptions=!ro,ConverterCulture=CultureInfo.InvariantCulture},Width=width,IsReadOnly=ro};
-            var s=new Style(typeof(TextBlock));s.Setters.Add(new Setter(FrameworkElement.VerticalAlignmentProperty,VerticalAlignment.Center));s.Setters.Add(new Setter(FrameworkElement.MarginProperty,new Thickness(9,0,9,0)));if(number){var hs=new Style(typeof(DataGridColumnHeader),g.ColumnHeaderStyle);hs.Setters.Add(new Setter(Control.HorizontalContentAlignmentProperty,HorizontalAlignment.Right));g.Resources["NumericHeader"]=hs;s.Setters.Add(new Setter(TextBlock.TextAlignmentProperty,TextAlignment.Right));s.Setters.Add(new Setter(TextBlock.FontFamilyProperty,new FontFamily("Consolas")));}c.ElementStyle=s;Key(c,title);Header(g,c,tip);if(number){var hs=new Style(typeof(DataGridColumnHeader),c.HeaderStyle);hs.Setters.Add(new Setter(Control.HorizontalContentAlignmentProperty,HorizontalAlignment.Right));c.HeaderStyle=hs;}g.Columns.Add(c);
+            var s=new Style(typeof(TextBlock));s.Setters.Add(new Setter(FrameworkElement.VerticalAlignmentProperty,VerticalAlignment.Center));s.Setters.Add(new Setter(FrameworkElement.MarginProperty,new Thickness(9,0,9,0)));if(number){var hs=new Style(typeof(DataGridColumnHeader),g.ColumnHeaderStyle);hs.Setters.Add(new Setter(Control.HorizontalContentAlignmentProperty,HorizontalAlignment.Right));g.Resources["NumericHeader"]=hs;s.Setters.Add(new Setter(TextBlock.TextAlignmentProperty,TextAlignment.Right));s.Setters.Add(new Setter(TextBlock.FontFamilyProperty,new FontFamily("Consolas")));}if(path=="Pnl")PnlColors(s);if(path=="Alias")s.Setters.Add(new Setter(FrameworkElement.ToolTipProperty,new Binding("Name")));c.ElementStyle=s;Key(c,title);Header(g,c,tip);if(number){var hs=new Style(typeof(DataGridColumnHeader),c.HeaderStyle);hs.Setters.Add(new Setter(Control.HorizontalContentAlignmentProperty,HorizontalAlignment.Right));c.HeaderStyle=hs;}g.Columns.Add(c);
+        }
+        // P/L text colour (user request): profit green, loss red, zero / no data muted. Same theme colours as the state lamps.
+        internal static void PnlColors(Style s)
+        {
+            s.Setters.Add(new Setter(TextBlock.ForegroundProperty,Muted));
+            var up=new DataTrigger{Binding=new Binding("PnlSign"),Value=1};up.Setters.Add(new Setter(TextBlock.ForegroundProperty,Good));s.Triggers.Add(up);
+            var down=new DataTrigger{Binding=new Binding("PnlSign"),Value=-1};down.Setters.Add(new Setter(TextBlock.ForegroundProperty,Bad));s.Triggers.Add(down);
         }
         static void RatioColumn(DataGrid g)
         {
@@ -3235,7 +3266,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 foreach(var a in accounts)
                 {
                     SavedAccount stored;saved.TryGetValue(a.Name,out stored);
-                    dashboard.Rows.Add(new AccountRow {Account=a,Name=a.Name,Role=a.Name==leaderName?"Leader":"Follower",Currency=a.Denomination.ToString(),Connection=a.Connection==null?"Disconnected":a.Connection.Status.ToString(),Status=stored!=null&&stored.Latch.Locked?stored.Latch.Reason:"Disarmed",Settings=stored==null?NewSettingsFor(a):stored.Settings.Clone(),Latch=stored==null?new RiskLatch():new RiskLatch {Locked=stored.Latch.Locked,Reason=stored.Latch.Reason}});
+                    dashboard.Rows.Add(new AccountRow {Account=a,Name=a.Name,Role=a.Name==leaderName?"Leader":"Follower",Currency=a.Denomination.ToString(),Connection=a.Connection==null?"Disconnected":a.Connection.Status.ToString(),Status=stored!=null&&stored.Latch.Locked?stored.Latch.Reason:"Disarmed",Settings=WithAlias(stored==null?NewSettingsFor(a):stored.Settings.Clone(),a.Name),Latch=stored==null?new RiskLatch():new RiskLatch {Locked=stored.Latch.Locked,Reason=stored.Latch.Reason}});
                 }
                 string keep=leaderName;dashboard.LeaderBox.ItemsSource=accounts.Where(CopierEngine.Listable).Select(a=>a.Name).ToArray();if(!string.IsNullOrEmpty(keep)&&accounts.Any(a=>a.Name==keep))dashboard.LeaderBox.SelectedItem=keep;else if(dashboard.LeaderBox.Items.Count>0)dashboard.LeaderBox.SelectedItem=DashboardChoices.DefaultLeader(dashboard.LeaderBox.Items.Cast<string>());
                 dashboard.UpdateCards();
@@ -3243,6 +3274,8 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             catch(Exception ex){Log("Refresh error: "+ex.Message);}finally{loading=false;}
         }
         static RiskSettings NewSettingsFor(Account a){var r=new RiskSettings();r.Alias=CopierEngine.AliasFor(a.Name);return r;}
+        // Every listed account shows an alias: a saved / sim-allow alias wins, otherwise the generated short one.
+        static RiskSettings WithAlias(RiskSettings r,string name){if(string.IsNullOrWhiteSpace(r.Alias))r.Alias=ColumnPrefs.DefaultAlias(name);return r;}
         static SavedAccount Record(AccountRow r) {return new SavedAccount {Name=r.Name,Settings=r.Settings.Clone(),Latch=new RiskLatch {Locked=r.Latch.Locked,Reason=r.Latch.Reason}};}
         XElement Export()
         {
