@@ -51,7 +51,7 @@ Prop firm    ██████████████████████�
 - ⬜ 安裝包 ＋ 覆核後發佈
 - ⬜ Prop Firm 規則檢查（本軟件不作認證）
 
-歷史真實測試：1 個模擬 Leader、最多 11 個**模擬** Prop Firm 評估帳戶（Lucid 5 個、Tradeify 6 個）、MNQ、市價＋限價＋停損單、TP/SL OCO。從未使用 funded 或實盤帳戶。各項詳情與限制：[`docs/PROGRESS.json`](docs/PROGRESS.json)。計分按權重：✅ 100%、🟡 50%、只有設計 10%。快照 2026-10-15，源碼 `bfc8a2531acf`。
+歷史真實測試：1 個模擬 Leader、最多 11 個**模擬** Prop Firm 評估帳戶（Lucid 5 個、Tradeify 6 個）、MNQ、市價＋限價＋停損單、TP/SL OCO。從未使用 funded 或實盤帳戶。各項詳情與限制：[`docs/PROGRESS.json`](docs/PROGRESS.json)。計分按權重：✅ 100%、🟡 50%、只有設計 10%。快照 2026-10-15，源碼 `8a8deb196fa8`。
 <!-- PROGRESS:END -->
 
 勾號及分數是**加權歷史檢查清單**，**並非發佈就緒百分比**。最近一次真 NinjaTrader 測試（2026-10-15）使用源碼 `bfc8a2531acf`（SIM TEST 版），屬測試證據，不是目前確切源碼的驗收。[各項證據與限制](docs/PROGRESS.json) · [歷史 NT 測試記錄](docs/VM-PROGRESS.md) · [目前離線結果與安全阻礙](docs/DEVELOPERS.zh-HK.md)。
@@ -59,6 +59,10 @@ Prop firm    ██████████████████████�
 ## 安裝（Windows ＋ NinjaTrader 8；僅限已覆核測試候選版本）
 
 **以下供參考，不是一般發佈的使用邀請。** 不要僅因編譯成功便安裝或使用目前未驗收候選版本交易；應先覆核確切源碼與安全關卡。
+
+**最簡單：直接匯入 NinjaTrader。** 從 [v0.2.0-simtest-alpha](https://github.com/Kinfxhk/KINFXTradeCopier/releases/tag/v0.2.0-simtest-alpha) 發佈頁下載 `KINFXTradeCopier-SIMTEST.zip`（由 NinjaTrader 8 本身匯出，毋須解壓；發佈說明列出其 SHA-256）。在 NinjaTrader 選擇 *Control Center > Tools > Import > NinjaScript Add-On...*，選取該 zip，NinjaTrader 詢問是否信任來源時按 **Yes**（若提示檔案已存在，按 **Yes** 只會取代本外掛的舊版本），按提示重新啟動 NinjaTrader，再開啟 *New > KINFX Trade Copier*，然後由下方第 4 步繼續。
+
+**或從源碼安裝：**
 
 1. **下載。** 在本頁選擇 *Code > Download ZIP* 並解壓。（或執行 `git clone https://github.com/Kinfxhk/KINFXTradeCopier`。）
 2. **安裝。** 在解壓後的資料夾，以 PowerShell 執行：

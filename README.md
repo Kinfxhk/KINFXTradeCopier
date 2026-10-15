@@ -51,7 +51,7 @@ Historical checklist evidence, not acceptance of the current candidate. The curr
 - ⬜ Installer + reviewed release
 - ⬜ Prop-firm rule check (never certified)
 
-Real tests so far: 1 simulator leader, up to 11 **simulated** prop-firm evaluation accounts (5 Lucid, 6 Tradeify), MNQ, Market + Limit + Stop, TP/SL OCO. No funded or live account was ever used. Each tick and its limits: [`docs/PROGRESS.json`](docs/PROGRESS.json). Score = weighted: ✅ 100%, 🟡 50%, design only 10%. Snapshot 2026-10-15, source `bfc8a2531acf`.
+Real tests so far: 1 simulator leader, up to 11 **simulated** prop-firm evaluation accounts (5 Lucid, 6 Tradeify), MNQ, Market + Limit + Stop, TP/SL OCO. No funded or live account was ever used. Each tick and its limits: [`docs/PROGRESS.json`](docs/PROGRESS.json). Score = weighted: ✅ 100%, 🟡 50%, design only 10%. Snapshot 2026-10-15, source `8a8deb196fa8`.
 <!-- PROGRESS:END -->
 
 The ticks and percentages are a **weighted historical checklist**, **not a release-readiness percentage**. The latest real-NinjaTrader run (2026-10-15) used source `bfc8a2531acf` (SIM TEST build); it is test evidence, not acceptance of the current exact source. [Tick evidence and limits](docs/PROGRESS.json) · [Historical NT test log](docs/VM-PROGRESS.md) · [Current offline results and safety blockers](docs/DEVELOPERS.md).
@@ -59,6 +59,10 @@ The ticks and percentages are a **weighted historical checklist**, **not a relea
 ## Install (Windows + NinjaTrader 8; reviewed test candidates only)
 
 **Reference instructions, not a general-release invitation.** Do not install or trade the current unaccepted candidate merely because it compiles. Review the exact source and safety gates first.
+
+**Easiest: import into NinjaTrader.** Download `KINFXTradeCopier-SIMTEST.zip` from the [v0.2.0-simtest-alpha](https://github.com/Kinfxhk/KINFXTradeCopier/releases/tag/v0.2.0-simtest-alpha) release (exported by NinjaTrader 8 itself; do not unzip it; the release notes give its SHA-256). In NinjaTrader: *Control Center > Tools > Import > NinjaScript Add-On...*, pick the zip, answer **Yes** to NinjaTrader's "trusted source" question (and **Yes** if it says the file already exists: that replaces an older copy of this add-on only), restart NinjaTrader when asked, then *New > KINFX Trade Copier* and continue at step 4 below.
+
+**Or install from the source:**
 
 1. **Download.** *Code > Download ZIP* on this page, then unzip. (Or `git clone https://github.com/Kinfxhk/KINFXTradeCopier`.)
 2. **Install.** In the unzipped folder run in PowerShell:
