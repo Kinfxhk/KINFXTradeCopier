@@ -546,7 +546,8 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
     // A window whose text carries a risk warning (an account in scope is not confirmed simulated) is ALWAYS shown, whatever was saved. Pure: no file access.
     // Which grid columns the user hid. One "hide=<grid>:<column key>" per line in columns.txt; unknown grids / keys / lines are ignored.
     // Safety columns (follow tick, state, Off, Flat, Qty, connection, Tgt, DLL ...) can never be hidden, whatever the file says. The account name can be
-    // hidden (the Alias column identifies the row and its tooltip shows the full name; every confirmation window names the full account). Pure: no file or UI access.
+    // hidden (the Alias column identifies the row and its tooltip shows the full name; every confirmation window names the full account).
+    // Defaults, Parse, Serialize and Visible do not touch a file or the UI. Load reads columns.txt: a missing or unreadable path is Defaults().
     public static class ColumnPrefs
     {
         public const string Copy="copy", Risk="risk";
@@ -559,6 +560,8 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         // every account gets an alias automatically and the Alias cell's tooltip shows the full name). "show=" in columns.txt reveals one.
         static readonly string[] hiddenByDefault={Copy+":Acct",Risk+":Acct"};
         public static HashSet<string> Defaults(){return new HashSet<string>(hiddenByDefault,StringComparer.Ordinal);}
+        // Missing, blank or unreadable columns.txt keeps the default hidden columns. A readable file is parsed, so show= can reveal one.
+        public static HashSet<string> Load(string path){try{if(!string.IsNullOrEmpty(path)&&File.Exists(path))return Parse(File.ReadAllLines(path));}catch{}return Defaults();}
         // An alias for an account that has none, so the row stays identifiable with the account-name column hidden. Short names stay as they are (Sim101);
         // long ones keep their leading letters and the last 4 characters (FIRMAB..0001). Display only: the user can change it; it never selects an account.
         public static string DefaultAlias(string name)
@@ -3364,7 +3367,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             catch(Exception ex){if(ask)askSkipped.Add(kind);else askSkipped.Remove(kind);Log("Settings NOT saved: "+ex.Message);ShowAsk();}
         }
         string ColumnsPath {get{return Path.Combine(DirectoryPath,"columns.txt");}}
-        static HashSet<string> LoadColumns(string path){try{if(File.Exists(path))return ColumnPrefs.Parse(File.ReadAllLines(path));}catch{}return new HashSet<string>(StringComparer.Ordinal);}
+        static HashSet<string> LoadColumns(string path){return ColumnPrefs.Load(path);}
         // Display only: never touches settings, engine or orders. A failed save keeps the on-screen choice for this window and says so.
         void SaveColumns(HashSet<string> hidden){try{Directory.CreateDirectory(DirectoryPath);SettingsStore.AtomicWriteLines(ColumnsPath,ColumnPrefs.Serialize(hidden));}catch(Exception ex){Log("Settings NOT saved: "+ex.Message);}}
         void ShowAsk(){foreach(var k in ConfirmPrefs.Kinds){var cb=dashboard.AskBox(k);if(cb!=null)cb.IsChecked=!askSkipped.Contains(k);}}
