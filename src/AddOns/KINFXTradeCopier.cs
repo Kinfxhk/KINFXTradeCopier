@@ -1431,6 +1431,9 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         readonly Dictionary<Order,string> identities=new Dictionary<Order,string>();
         readonly Dictionary<Account,Dictionary<string,string>> providerIdentities=new Dictionary<Account,Dictionary<string,string>>();
         readonly Dictionary<Order,string> wrapperProviderIds=new Dictionary<Order,string>();
+        // Wrappers whose recorded provider id is still the pre-submit client id (first seen in state Initialized). Real NT (Tradovate, 2026-10-15):
+        // that id is replaced by the exchange id exactly once when the order is submitted; the first replacement is the same order, any later change is not.
+        readonly HashSet<Order> preSubmitProviderIds=new HashSet<Order>();
         readonly object identityGate=new object();
         readonly List<EngineAccount> followers=new List<EngineAccount>();
         volatile EngineAccount[] followerView=new EngineAccount[0];
@@ -1611,7 +1614,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                     if(accounts.Any(a=>!Clean(a,inst))) throw new InvalidOperationException("Selected instrument already has a position / working order. No adoption or catch-up. "+DirtyReport(accounts,inst));
                     Interlocked.Increment(ref sessionGeneration);
                     leader=selected; instrument=inst;mirrorAtm=copyAtm;sessionAccounts=accounts; DisposeDispatchers(); followers.Clear(); links.Clear(); tombstones.Clear();
-                    lock(identityGate) { identities.Clear(); providerIdentities.Clear(); wrapperProviderIds.Clear(); }
+                    lock(identityGate) { identities.Clear(); providerIdentities.Clear(); wrapperProviderIds.Clear(); preSubmitProviderIds.Clear(); }
                     foreach(var item in list) followers.Add(new EngineAccount { Dispatcher=NewDispatcher(),Account=item.Item1,Settings=item.Item2.Clone(),Latch=new RiskLatch {Locked=item.Item3.Locked,Reason=item.Item3.Reason},HighWater=item.Item2.HighWater });
                     foreach(var f in followers){ Order[] existing; lock(f.Account.Orders)existing=f.Account.Orders.ToArray(); foreach(var o in existing){ if(o==null||o.Instrument==null||o.Instrument.FullName!=inst.FullName)continue; if(Order.IsTerminalState(o.OrderState))f.AddHistory(o); else if(o.OrderState==OrderState.Initialized&&o.Name!=null&&o.Name.StartsWith("KTC>",StringComparison.Ordinal))f.PreSessionGhost.Add(o); } }
                     foreach(var f in followers.Where(x=>!x.Settings.CopyAtm||!copyAtm))log(f.Account.Name+": ATM exit mirroring OFF — nonmarket exits skipped; market closes only. No native ATM clone / autonomous protection.");
@@ -1641,11 +1644,13 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 if(!providerIdentities.TryGetValue(order.Account,out accountIds))providerIdentities[order.Account]=accountIds=new Dictionary<string,string>(StringComparer.Ordinal);
                 if(identities.TryGetValue(order,out id))
                 {
-                    if(wrapperProviderIds.TryGetValue(order,out prior)&&!string.IsNullOrEmpty(prior)&&provider!=prior)return null;
+                    bool preSubmitReplacement=preSubmitProviderIds.Contains(order)&&state!=OrderState.Initialized&&!string.IsNullOrEmpty(provider);
+                    if(wrapperProviderIds.TryGetValue(order,out prior)&&!string.IsNullOrEmpty(prior)&&provider!=prior&&!preSubmitReplacement)return null;
                     if(!string.IsNullOrEmpty(provider))
                     {
                         string mapped; if(accountIds.TryGetValue(provider,out mapped)&&mapped!=id)return null;
                         accountIds[provider]=id; wrapperProviderIds[order]=provider;
+                        if(state!=OrderState.Initialized)preSubmitProviderIds.Remove(order);
                     }
                     return id;
                 }
@@ -1653,7 +1658,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 // Blank IDs can only start at the initial state; a later unknown wrapper is ambiguous.
                 if(string.IsNullOrEmpty(provider)&&state!=OrderState.Submitted)return null;
                 id=Guid.NewGuid().ToString("N"); identities[order]=id;
-                if(!string.IsNullOrEmpty(provider)){accountIds[provider]=id;wrapperProviderIds[order]=provider;}
+                if(!string.IsNullOrEmpty(provider)){accountIds[provider]=id;wrapperProviderIds[order]=provider;if(state==OrderState.Initialized)preSubmitProviderIds.Add(order);}
                 return id;
             }
         }
