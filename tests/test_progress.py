@@ -138,6 +138,14 @@ class ReadinessGateTests(unittest.TestCase):
                                  'targets': ['demo'], 'evidence': 'Threading unaccepted'}]
         self.assertFalse(progress.score(data, 'prop')['ready'])
 
+    def test_quickstart_percentages_follow_language_count(self):
+        data = progress.load()
+        want = [int(round(progress.score(data, 'demo')['percent'])),
+                int(round(progress.score(data, 'prop')['percent']))]
+        for name, langs in progress.READMES:
+            text = (ROOT / name).read_text(encoding='utf-8')
+            self.assertEqual(progress.quick_percentages(text), want * len(langs), name)
+
     def test_no_open_gate_does_not_bypass_missing_must_have(self):
         data = self.candidate()
         next(item for item in data['items'] if item['must'])['level'] = 2
@@ -145,18 +153,36 @@ class ReadinessGateTests(unittest.TestCase):
 
     def test_generated_chinese_uses_written_language(self):
         text = progress.render(progress.load(), 'zh')
-        for colloquial in ('冇', '唔', '同限制', '真 NT 跑', '未做'):
+        for colloquial in ('冇', '唔', '同限制', '真 NT 跑', '未做', '成就'):
             with self.subTest(colloquial=colloquial):
                 self.assertNotIn(colloquial, text)
         self.assertIn('歷史', text)
+        self.assertIn('進度', text)
 
     def test_render_distinguishes_historical_evidence_from_acceptance(self):
-        for lang in ('en', 'zh'):
+        phrases = {
+            'en': 'not accepted',
+            'zh': '尚未通過驗收',
+            'ja': '受け入れられていません',
+            'ko': '수용되지 않았습니다',
+        }
+        prefix = progress.load()['snapshot']['source_sha256_prefix']
+        self.assertRegex(prefix, r'^[0-9a-f]{12}$')
+        for lang, phrase in phrases.items():
             text = progress.render(progress.load(), lang)
-            self.assertIn('P0', text)
-            self.assertIn(progress.load()['snapshot']['source_sha256_prefix'], text)
-            self.assertRegex(progress.load()['snapshot']['source_sha256_prefix'], r'^[0-9a-f]{12}$')
-            self.assertIn('not accepted' if lang == 'en' else '尚未通過驗收', text)
+            self.assertIn('P0', text, lang)
+            self.assertIn(prefix, text, lang)
+            self.assertIn(phrase, text, lang)
+
+    def test_unknown_readme_language_is_rejected(self):
+        with self.assertRaises(ValueError):
+            progress.render(progress.load(), 'fr')
+
+    def test_missing_locale_label_fails_closed(self):
+        data = copy.deepcopy(progress.load())
+        del data['items'][0]['ach_ja']
+        with self.assertRaises(ValueError):
+            progress.render(data, 'ja')
 
 
 if __name__ == '__main__':
