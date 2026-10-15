@@ -471,14 +471,18 @@ class RiskTests {
  }
  // Column prefs: hidden set round-trips; a hand-edited file can never hide a safety column; garbage lines are ignored.
  static void ColumnPrefsRoundTripAndSafetyColumnsNeverHidden() {
-  var s=ColumnPrefs.Parse(new[]{"# c","hide=risk:Preset"," hide = copy:Bal ","hide=copy:Flat","hide=risk:St","hide=copy:Acct","hide=risk:Tgt","hide=nogrid:Bal","show=risk:Cons","junk",""});
-  Eq(2,s.Count);Eq(true,s.Contains("risk:Preset")&&s.Contains("copy:Bal"));
+  var s=ColumnPrefs.Parse(new[]{"# c","hide=risk:Preset"," hide = copy:Bal ","hide=copy:Flat","hide=risk:St","show=copy:Acct","hide=risk:Tgt","hide=nogrid:Bal","show=risk:Cons","junk",""});
+  Eq(3,s.Count);Eq(true,s.Contains("risk:Preset")&&s.Contains("copy:Bal")&&s.Contains("risk:Acct")&&!s.Contains("copy:Acct"));
   Eq(false,ColumnPrefs.Visible("risk","Preset",s));Eq(true,ColumnPrefs.Visible("risk","Cons",s));
-  foreach(var k in new[]{"Acct","On","Ratio","Qty","State","Conn","Off","Flat"})Eq(false,ColumnPrefs.CanHide("copy",k));
-  foreach(var k in new[]{"Acct","Tgt","DLL","Qty","St","Conn"})Eq(false,ColumnPrefs.CanHide("risk",k));
+  foreach(var k in new[]{"On","Ratio","Qty","State","Conn","Off","Flat"})Eq(false,ColumnPrefs.CanHide("copy",k));
+  foreach(var k in new[]{"Tgt","DLL","Qty","St","Conn"})Eq(false,ColumnPrefs.CanHide("risk",k));
+  // account name: hidden by default (no file / file without a show line), shown again by show=, and the choice round-trips
+  Eq(true,ColumnPrefs.Parse(null).SetEquals(new[]{"copy:Acct","risk:Acct"}));Eq(true,ColumnPrefs.Parse(new[]{"hide=copy:Bal"}).Contains("copy:Acct"));
+  Eq(true,ColumnPrefs.Parse(ColumnPrefs.Serialize(new System.Collections.Generic.HashSet<string>())).Count==0);
+  Eq("Sim101",ColumnPrefs.DefaultAlias("Sim101"));Eq("Playback101",ColumnPrefs.DefaultAlias("Playback101"));Eq("TDFYSL..2676",ColumnPrefs.DefaultAlias("TDFYSL50818622676"));
+  Eq("LFE..0062",ColumnPrefs.DefaultAlias("LFE05055973200062"));Eq("..6789",ColumnPrefs.DefaultAlias("1234567890123456789"));Eq("",ColumnPrefs.DefaultAlias(null));
   Eq(true,ColumnPrefs.Visible("copy","Flat",new System.Collections.Generic.HashSet<string>{"copy:Flat"}));
-  var again=ColumnPrefs.Parse(ColumnPrefs.Serialize(s));Eq(2,again.Count);Eq(true,again.SetEquals(s));
-  Eq(0,ColumnPrefs.Parse(null).Count);
+  var again=ColumnPrefs.Parse(ColumnPrefs.Serialize(s));Eq(3,again.Count);Eq(true,again.SetEquals(s));
  }
  static void ConfirmPrefsRiskWarningIsNeverSkipped() {
   var all=ConfirmPrefs.Parse(new[]{"skip=start","skip=flatOne","skip=flatten","skip=unlock"});

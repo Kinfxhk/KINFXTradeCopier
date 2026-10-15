@@ -1632,6 +1632,15 @@ class EngineSafetyTests {
    Check(latest==null||!latest.Locked,"follower not locked: "+(latest==null?"":latest.Reason));
   }finally{e.Dispose();}
  }
+ static NinjaTrader.Cbi.Account Acc2(string name,NinjaTrader.Cbi.Provider p){var x=Acc(name);x.Provider=p;return x;}
+ static void DisconnectedAccountIsNotListed(){
+  var gone=Acc2("GONE 1",NinjaTrader.Cbi.Provider.Live);var sim=Acc2("Playback gone",NinjaTrader.Cbi.Provider.Playback);var live=Acc2("HERE 1",NinjaTrader.Cbi.Provider.Simulator);
+  gone.Connection.Status=NinjaTrader.Cbi.ConnectionStatus.Disconnected;sim.Connection.Status=NinjaTrader.Cbi.ConnectionStatus.Disconnected;
+  Check(!CopierEngine.Listable(gone)&&!CopierEngine.Listable(sim),"disconnected accounts are not listed");
+  Check(CopierEngine.Listable(live),"a connected account is listed");
+  var noconn=Acc2("NO CONN",NinjaTrader.Cbi.Provider.Simulator);noconn.Connection=null;Check(!CopierEngine.Listable(noconn),"an account without a connection is not listed");
+  sim.Connection.Status=NinjaTrader.Cbi.ConnectionStatus.Connected;Check(CopierEngine.Listable(sim),"listed again once it reconnects");
+ }
  static void StopAndTargetWithoutOcoDoNotLockFollower(){var l=Acc("stp lead");var a=Acc("stp follow");AccountTelemetry latest=null;var messages=new List<string>();
   var e=new CopierEngine(m=>messages.Add(m),t=>latest=t,(att,m)=>{},(n,r)=>{});
   try{e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=1,Target=100},new RiskLatch())});Wait(()=>e.EntriesArmed,"arm");
