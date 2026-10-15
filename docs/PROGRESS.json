@@ -1,5 +1,5 @@
 {
- "_comment": "Single source of truth for the progress bar in README.md / README.zh-HK.md. Run `python scripts/progress.py` to recompute and rewrite the marked blocks; `python scripts/progress.py --check` fails if the READMEs are stale. A task earns its weight only at its evidence level: offline = 50%, real NinjaTrader Sim/Demo = 100%. Nothing here is prop-firm or live acceptance. Weights are the maintainer's judgement of how much each item matters for 'safe to copy to Demo / prop-firm Sim accounts', not a measured quantity.",
+ "_comment": "Single source of truth for the progress bar in README.md (Chinese then English), README.en.md, README.zh-HK.md, README.ja.md and README.ko.md. Run `python scripts/progress.py` to recompute and rewrite the marked blocks; `python scripts/progress.py --check` fails if the READMEs are stale. A task earns its weight only at its evidence level: offline = 50%, real NinjaTrader Sim/Demo = 100%. Nothing here is prop-firm or live acceptance. Weights are the maintainer's judgement of how much each item matters for 'safe to copy to Demo / prop-firm Sim accounts', not a measured quantity.",
  "snapshot": {
   "date": "2026-10-15",
   "source_sha256_prefix": "bfc8a2531acf",
@@ -90,7 +90,9 @@
    ],
    "evidence": "Real NT on the current build (2026-10-13): Buy/Sell market round trips, a passive Limit copied and its cancel mirrored, exit copied to the follower that was not flattened. Only two follower accounts, only Limit and Market orders, MNQ only. StopMarket entries and a real multi-lot partial fill were not seen.",
    "ach_en": "Core copy: entry / exit / cancel / modify",
-   "ach_zh": "核心跟單：入場／平倉／取消／改單"
+   "ach_zh": "核心跟單：入場／平倉／取消／改單",
+   "ach_ja": "コアコピー：エントリー／決済／取消／変更",
+   "ach_ko": "핵심 복사: 진입／청산／취소／정정"
   },
   {
    "id": "ratio_cap",
@@ -106,7 +108,9 @@
    ],
    "evidence": "Real NT: Buy 2 above a 1-lot cap sent nothing to either follower. Ratio 1 only on real NT; fractional ratios are offline.",
    "ach_en": "Per-account Ratio + max-lot cap",
-   "ach_zh": "每戶 Ratio ＋ 最大手數"
+   "ach_zh": "每戶 Ratio ＋ 最大手數",
+   "ach_ja": "口座ごとの比率＋最大枚数",
+   "ach_ko": "계좌별 비율＋최대 수량"
   },
   {
    "id": "exit_nolock",
@@ -122,7 +126,9 @@
    ],
    "evidence": "Reproduced offline (needs 2 prior round trips), fixed, replayed on real NT.",
    "ach_en": "No lock-up on a flat follower",
-   "ach_zh": "Follower 無持倉時不會鎖定"
+   "ach_zh": "Follower 無持倉時不會鎖定",
+   "ach_ja": "無ポジションのフォロワーはロックしない",
+   "ach_ko": "무포지션 팔로워는 잠그지 않음"
   },
   {
    "id": "flat_one",
@@ -138,7 +144,9 @@
    ],
    "evidence": "Real NT (2 sessions): Flat on one follower; the other kept copying; that account's working orders cancelled. Also with a stop and target (same OCO id) still working: both cancelled, account closed, other follower unaffected. A Flat the provider rejects and a disconnect during Flat are not tested on real NT.",
    "ach_en": "Flat button on every account",
-   "ach_zh": "每個帳戶獨立 Flat 按鈕"
+   "ach_zh": "每個帳戶獨立 Flat 按鈕",
+   "ach_ja": "各口座の決済ボタン",
+   "ach_ko": "계좌별 청산 버튼"
   },
   {
    "id": "flat_all",
@@ -154,7 +162,9 @@
    ],
    "evidence": "Real NT 2026-10-14, source c9fbf2cb3005, 11 prop-firm sim followers: leader SL rejected by NT so its OCO TP was cancelled; followers mirrored, each locked '1 lot UNPROTECTED'. Flatten all asked once, named every account (19 incl. Sim101/Playback/Backtest/max-loss accounts), all 11 confirmed flat in 4 s, Stop then went DISARMED without an NT restart (it used to need one). Playback101/Backtest returned 'FLATTEN FAILED: Connection' (not connected) and were logged, not retried. Per-account Flat with a TP+SL working: both cancelled, flat confirmed in 3 s. Real NT 2026-10-15, source bfc8a2531acf (rival bug check, Replikanto 1.7.1.0): with a 1-lot follower position, the Flatten confirmation answered No, closed with the window X (WM_CLOSE) and dismissed with Esc left the position and orders unchanged; only Yes sent the Close (filled, flat in 3-4 s). A second Flat on an already-flat account sent nothing new to the provider.",
    "ach_en": "Flatten selected / all",
-   "ach_zh": "批量／全部 Flatten"
+   "ach_zh": "批量／全部 Flatten",
+   "ach_ja": "選択／全口座の Flatten",
+   "ach_ko": "선택／전체 Flatten"
   },
   {
    "id": "protect_tpsl",
@@ -170,7 +180,9 @@
    ],
    "evidence": "Real NT: leader Stop + Limit under one OCO id copied to both followers (Working), per-account Flat cancels them, and a leader MARKET exit closes the follower and cancels both once (after the market-exit fix). NOT covered on real NT: modify of price/quantity this session, a rejected stop, fractional multi-group OCO (#3), and a stop + target WITHOUT an OCO id (locks the account, open).",
    "ach_en": "TP / SL mirroring + OCO",
-   "ach_zh": "TP／SL 跟隨 ＋ OCO"
+   "ach_zh": "TP／SL 跟隨 ＋ OCO",
+   "ach_ja": "TP／SL ミラー＋OCO",
+   "ach_ko": "TP／SL 미러링＋OCO"
   },
   {
    "id": "locks",
@@ -186,7 +198,9 @@
    ],
    "evidence": "Real NT 2026-10-14 (11 followers): a max-loss Tradeify follower's copy was Rejected by the provider -> account locked 'Follower order rejected', exactly 1 Submit, no retry, no market fallback, the other follower filled. Rejected leader SL -> every follower locked with the unprotected-lot count. Lucid disconnect -> 5 Lucid accounts locked in under 1 s. Unlock refused while a daily-loss breach persisted. Offline: many cases + mutants.",
    "ach_en": "Auto-lock on danger, no auto-retry",
-   "ach_zh": "異常自動鎖定帳戶，不會自動重試"
+   "ach_zh": "異常自動鎖定帳戶，不會自動重試",
+   "ach_ja": "危険時は自動ロック、自動再試行なし",
+   "ach_ko": "위험 시 자동 잠금, 자동 재시도 없음"
   },
   {
    "id": "disconnect",
@@ -202,7 +216,9 @@
    ],
    "evidence": "Real NT 2026-10-14, 11 followers: Lucid connection dropped -> 5 Lucid followers locked in under 1 s; 6 Tradeify kept copying a Buy/Sell round trip; after reconnect no catch-up order was sent to Lucid and Stop went DISARMED (fixed: NT rebuilds today's filled history as new Order objects after a reconnect; they used to block Stop). Earlier: 1 lot + copied stop kept through a disconnect.",
    "ach_en": "Disconnect / reconnect safe",
-   "ach_zh": "斷線重連安全"
+   "ach_zh": "斷線重連安全",
+   "ach_ja": "切断／再接続は安全",
+   "ach_ko": "연결 끊김／재연결 안전"
   },
   {
    "id": "partial_fill",
@@ -218,7 +234,9 @@
    ],
    "evidence": "Offline cases + mutant. Real partial fills not observed (sim fills whole).",
    "ach_en": "Partial fills handled",
-   "ach_zh": "部分成交處理"
+   "ach_zh": "部分成交處理",
+   "ach_ja": "部分約定に対応",
+   "ach_ko": "부분 체결 처리"
   },
   {
    "id": "frontier",
@@ -234,7 +252,9 @@
    ],
    "evidence": "Quantity freeze + 150-combination sweep offline; full design open.",
    "ach_en": "Fill frontier before resize (#2)",
-   "ach_zh": "改量前成交一致 (#2)"
+   "ach_zh": "改量前成交一致 (#2)",
+   "ach_ja": "数量変更前の約定一致 (#2)",
+   "ach_ko": "수량 변경 전 체결 일치 (#2)"
   },
   {
    "id": "isolation",
@@ -250,7 +270,9 @@
    ],
    "evidence": "Per-account dispatcher offline (10/20/30 fake). Real NT with 11 followers: one rejected follower and 5 disconnected followers never delayed the others' submits (same 6 ms window). A truly stalled provider call was not reproduced on real NT.",
    "ach_en": "One stuck account never freezes others (#4)",
-   "ach_zh": "單一帳戶停滯不影響其他帳戶 (#4)"
+   "ach_zh": "單一帳戶停滯不影響其他帳戶 (#4)",
+   "ach_ja": "1口座の停滞が他口座を止めない (#4)",
+   "ach_ko": "한 계좌의 정체가 다른 계좌를 멈추지 않음 (#4)"
   },
   {
    "id": "scale_real",
@@ -266,7 +288,9 @@
    ],
    "evidence": "Real NT 2026-10-14: 1 Simulator leader + 11 prop-firm sim followers (5 Lucid, 6 Tradeify) on MNQ, Market + Limit + Stop, TP/SL OCO. Leader fill to follower Submit: all 11 within 6 ms of each other; follower fills 0.9-1.2 s after the leader fill (sim provider). Not measured: 20-30 accounts, multi-monitor DPI. Real NT 2026-10-15, source bfc8a2531acf: 10 prop-firm sim followers (4 Lucid, 6 Tradeify) MNQ Buy 1 / Sell 1 round trip, every follower exactly 2 orders (entry + exit), all filled, 0 open positions / orders afterwards.",
    "ach_en": "10-30 accounts on real NT",
-   "ach_zh": "真實 NT 的 10–30 個帳戶測試"
+   "ach_zh": "真實 NT 的 10–30 個帳戶測試",
+   "ach_ja": "実機 NT で 10–30 口座",
+   "ach_ko": "실제 NT에서 10–30 계좌"
   },
   {
    "id": "ui",
@@ -282,7 +306,9 @@
    ],
    "evidence": "45 offline UI cases; used on real NT. Real DPI / IME / paste untested (#8).",
    "ach_en": "Dashboard (table, bulk edit, lock reasons)",
-   "ach_zh": "介面（表格、批量改、鎖定原因）"
+   "ach_zh": "介面（表格、批量改、鎖定原因）",
+   "ach_ja": "ダッシュボード（表、一括編集、ロック理由）",
+   "ach_ko": "대시보드（표, 일괄 편집, 잠금 사유）"
   },
   {
    "id": "risk_limits",
@@ -298,7 +324,9 @@
    ],
    "evidence": "Real NT 2026-10-14: DLL 5 on one Tradeify follower latched 'Daily loss' (Start refused for it, others unaffected); unlock refused while the loss persisted; after DLL was set back to 0 the unlock went through. Daily TARGET latch is offline-only (P/L never reached +5 during the test). Real NT 2026-10-15, source bfc8a2531acf: the daily TARGET latch fired on a Lucid sim follower ('Target hit'); with the new opt-in 'Flat at limit' (Tgt 5 / DLL 5) a 1-lot MNQ copy hit 'Daily loss' 4 s after entry, exactly one Flatten request was sent, flat confirmed 4 s later, the leader's later exit was ignored (nothing to close), never retried. Unlock refused while the limit still applied, accepted after Tgt/DLL were set to 0.",
    "ach_en": "Daily target / loss limit per account",
-   "ach_zh": "每戶每日目標／虧損上限"
+   "ach_zh": "每戶每日目標／虧損上限",
+   "ach_ja": "口座ごとの日次目標／損失上限",
+   "ach_ko": "계좌별 일일 목표／손실 한도"
   },
   {
    "id": "restart",
@@ -314,7 +342,9 @@
    ],
    "evidence": "Latches persist across restart (seen on real NT). Position/ledger recovery not built.",
    "ach_en": "Restart recovery (#6, shelved)",
-   "ach_zh": "重啟恢復 (#6，擱置)"
+   "ach_zh": "重啟恢復 (#6，擱置)",
+   "ach_ja": "再起動からの復旧（#6、保留）",
+   "ach_ko": "재시작 복구 (#6, 보류)"
   },
   {
    "id": "divergence",
@@ -329,7 +359,9 @@
    ],
    "evidence": "Setting stored only; engine never flattens by itself.",
    "ach_en": "Flatten once on divergence (#12)",
-   "ach_zh": "反向時平倉一次 (#12)"
+   "ach_zh": "反向時平倉一次 (#12)",
+   "ach_ja": "乖離時に一度だけ Flatten (#12)",
+   "ach_ko": "괴리 시 한 번 Flatten (#12)"
   },
   {
    "id": "adopt",
@@ -344,7 +376,9 @@
    ],
    "evidence": "Not built.",
    "ach_en": "Adopt existing position (#11)",
-   "ach_zh": "承接現有倉位 (#11)"
+   "ach_zh": "承接現有倉位 (#11)",
+   "ach_ja": "既存ポジションの引き継ぎ (#11)",
+   "ach_ko": "기존 포지션 인수 (#11)"
   },
   {
    "id": "selfmanaged",
@@ -359,7 +393,9 @@
    ],
    "evidence": "Not started.",
    "ach_en": "Self-managed TP/SL (#10)",
-   "ach_zh": "每戶自管 TP/SL (#10)"
+   "ach_zh": "每戶自管 TP/SL (#10)",
+   "ach_ja": "口座ごとの自己管理 TP/SL (#10)",
+   "ach_ko": "계좌별 자체 TP/SL (#10)"
   },
   {
    "id": "package",
@@ -375,7 +411,9 @@
    ],
    "evidence": "Only a SIM TEST build with an operator allow-list exists; default build is still held; no installer.",
    "ach_en": "Installer + reviewed release",
-   "ach_zh": "安裝包 ＋ 覆核後發佈"
+   "ach_zh": "安裝包 ＋ 覆核後發佈",
+   "ach_ja": "インストーラー＋レビュー後のリリース",
+   "ach_ko": "설치 프로그램＋검토 후 릴리스"
   },
   {
    "id": "firm_rules",
@@ -390,7 +428,9 @@
    ],
    "evidence": "Deliberately out of scope: the software never certifies compliance; the user must read each firm's rules.",
    "ach_en": "Prop-firm rule check (never certified)",
-   "ach_zh": "Prop Firm 規則檢查（本軟件不作認證）"
+   "ach_zh": "Prop Firm 規則檢查（本軟件不作認證）",
+   "ach_ja": "Prop Firm ルール確認（本ソフトは認証しない）",
+   "ach_ko": "Prop Firm 규칙 확인（본 소프트웨어는 인증하지 않음）"
   }
  ]
 }

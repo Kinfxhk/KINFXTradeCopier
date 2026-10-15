@@ -2,7 +2,11 @@
 
 在 NinjaTrader 8 中，將一個帳戶的交易複製至多個帳戶（Prop Firm **模擬**帳戶及 Demo 帳戶）。免費、開源（MIT），屬早期**源碼 alpha**。
 
-[English](README.md) · **繁體中文**
+[中英對照](README.md) · **中文（繁體）** · [English](README.en.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
+
+介面語言與程式一致：English、中文（繁體）、日本語、한국어。本文為香港書面語。
+
+介面中 Leader 顯示為「主帳戶」，Follower 顯示為「跟單帳戶」，Dry run 顯示為「試運行」，Flat 顯示為「平倉」。以下步驟沿用確認框中的原文。
 
 > **預設版已停用交易。Funded／實盤帳戶：禁止使用。** 本項目是源碼 alpha，**目前源碼尚未驗收**，不能視為已供一般模擬／provider 使用的版本。主動選用的 SIM TEST 版可以向 Simulator／Playback 及操作員 allow-list 帳戶發送訂單，但此能力不是安全驗收。
 
@@ -12,21 +16,21 @@
 | | |
 |---|---|
 | **Demo／模擬帳戶** | **尚未就緒：目前候選版本未驗收。** 完成度約 **83%**，僅指加權歷史檢查清單，並非發佈就緒百分比。 |
-| **Prop Firm 帳戶** | **尚未就緒：目前候選版本未驗收。** 完成度約 **75%**，僅指同一歷史檢查清單。源碼 `c9fbf2cb3005`（SIM TEST 版）已於 2026-10-14 在真 NinjaTrader 上以 11 個操作員確認的模擬／評估帳戶執行；此非發佈驗收，亦非公司合規認證。 |
+| **Prop Firm 帳戶** | **尚未就緒：目前候選版本未驗收。** 完成度約 **75%**，僅指同一歷史檢查清單。源碼 `c9fbf2cb3005`（SIM TEST 版）已於 2026-10-14 在真實 NinjaTrader 上，以 11 個操作員確認的模擬／評估帳戶執行；此非發佈驗收，亦非公司合規認證。 |
 | **Funded／實盤帳戶** | **禁止使用。** |
 <!-- QUICKSTART:END -->
 
 ## 進度
 
 <!-- PROGRESS:START -->
-### 成就：Demo／Prop Firm 跟單完成度
+### 進度：Demo／Prop Firm 跟單完成度
 
 ```text
 Demo         █████████████████████████░░░░░  83.0%
 Prop firm    ██████████████████████░░░░░░░░  74.7%
 ```
 
-✅ 真 NinjaTrader 已測 · 🟡 只有離線測試 · ⬜ 尚未完成。必要項目 ✅：Demo 10/14 · Prop 10/15。
+✅ 已在真實 NinjaTrader 測試 · 🟡 只有離線測試 · ⬜ 尚未完成。必要項目 ✅：Demo 10/14 · Prop 10/15。
 
 以下為歷史清單證據，不代表目前候選版本已通過驗收。目前候選版本尚未通過驗收，不可宣稱可用。安全 P0／驗收關卡：issue-3, issue-4, issue-7, issue-9。Demo ready=False；Prop ready=False。不包括 funded／實盤驗收。
 
@@ -54,7 +58,7 @@ Prop firm    ██████████████████████�
 歷史真實測試：1 個模擬 Leader、最多 11 個**模擬** Prop Firm 評估帳戶（Lucid 5 個、Tradeify 6 個）、MNQ、市價＋限價＋停損單、TP/SL OCO。從未使用 funded 或實盤帳戶。各項詳情與限制：[`docs/PROGRESS.json`](docs/PROGRESS.json)。計分按權重：✅ 100%、🟡 50%、只有設計 10%。快照 2026-10-15，源碼 `bfc8a2531acf`。
 <!-- PROGRESS:END -->
 
-勾號及分數是**加權歷史檢查清單**，**並非發佈就緒百分比**。最近一次真 NinjaTrader 測試（2026-10-15）使用源碼 `bfc8a2531acf`（SIM TEST 版），屬測試證據，不是目前確切源碼的驗收。[各項證據與限制](docs/PROGRESS.json) · [歷史 NT 測試記錄](docs/VM-PROGRESS.md) · [目前離線結果與安全阻礙](docs/DEVELOPERS.zh-HK.md)。
+勾號及分數是**加權歷史檢查清單**，**並非發佈就緒百分比**。最近一次真實 NinjaTrader 測試（2026-10-15）使用源碼 `bfc8a2531acf`（SIM TEST 版），屬測試證據，不是目前確切源碼的驗收。[各項證據與限制](docs/PROGRESS.json) · [歷史 NT 測試記錄](docs/VM-PROGRESS.md) · [目前離線結果與安全阻礙](docs/DEVELOPERS.zh-HK.md)。
 
 ## 安裝（Windows ＋ NinjaTrader 8；僅限已覆核測試候選版本）
 
@@ -103,6 +107,8 @@ Prop firm    ██████████████████████�
 ## 更多
 
 [開發者與狀態詳情](docs/DEVELOPERS.zh-HK.md) · [請勿執行的操作](docs/DO-NOT-DO.md) · [已知問題](docs/KNOWN-ISSUES.md) · [測試矩陣](docs/TEST-MATRIX.md) · [路線圖](docs/ROADMAP.md) · [參與貢獻](CONTRIBUTING.md) · [安全](SECURITY.md)
+
+開發者：可攜檢查（`python -B -m unittest discover -s tests -p 'test_*.py' -v`）涵蓋打包，以及另一套 Python SPEC 研究。SPEC 不是 C# 引擎實作；這些檢查不會運行跟單程式、券商或真實訂單。
 
 ## 維護者連結與披露
 
