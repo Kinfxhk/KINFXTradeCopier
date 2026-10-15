@@ -5,8 +5,8 @@
   python scripts/progress.py --check   exit 1 if a README block is stale (used by the portable tests)
   python scripts/progress.py --print   print the computed numbers only
 
-README.md is Traditional Chinese (Hong Kong written Chinese) then English.
-README.en.md, README.zh-HK.md, README.ja.md and README.ko.md are one language each.
+README.md (landing page) is Traditional Chinese (Hong Kong written Chinese) only; README.zh-HK.md is the same text
+kept for old links. README.en.md, README.ja.md and README.ko.md are one language each.
 Those files match the in-app codes en / zh / ja / ko (zh stays README.zh-HK.md).
 
 Scoring is deliberately conservative and mechanical: an item earns its weight only at the evidence level it has
@@ -146,10 +146,10 @@ def by_group(items):
 
 ICON = {0: '⬜', 1: '⬜', 2: '🟡', 3: '✅'}
 
-# Landing page is Chinese then English. Other files are one UI language each.
+# Landing page is Chinese only (Chinese first, user request 2026-10-15). Other files are one UI language each.
 # In-app Chinese is code "zh"; the public file remains README.zh-HK.md.
 READMES = (
-    ('README.md', ('zh', 'en')),
+    ('README.md', ('zh',)),
     ('README.en.md', ('en',)),
     ('README.zh-HK.md', ('zh',)),
     ('README.ja.md', ('ja',)),

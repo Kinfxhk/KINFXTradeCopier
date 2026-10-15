@@ -479,8 +479,8 @@ class RiskTests {
   // account name: hidden by default (no file / file without a show line), shown again by show=, and the choice round-trips
   Eq(true,ColumnPrefs.Parse(null).SetEquals(new[]{"copy:Acct","risk:Acct"}));Eq(true,ColumnPrefs.Parse(new[]{"hide=copy:Bal"}).Contains("copy:Acct"));
   Eq(true,ColumnPrefs.Parse(ColumnPrefs.Serialize(new System.Collections.Generic.HashSet<string>())).Count==0);
-  Eq("Sim101",ColumnPrefs.DefaultAlias("Sim101"));Eq("Playback101",ColumnPrefs.DefaultAlias("Playback101"));Eq("TDFYSL..2676",ColumnPrefs.DefaultAlias("TDFYSL50818622676"));
-  Eq("LFE..0062",ColumnPrefs.DefaultAlias("LFE05055973200062"));Eq("..6789",ColumnPrefs.DefaultAlias("1234567890123456789"));Eq("",ColumnPrefs.DefaultAlias(null));
+  Eq("Sim101",ColumnPrefs.DefaultAlias("Sim101"));Eq("Playback101",ColumnPrefs.DefaultAlias("Playback101"));Eq("FIRMAB..0001",ColumnPrefs.DefaultAlias("FIRMAB12345670001"));
+  Eq("XYZ..0042",ColumnPrefs.DefaultAlias("XYZ09876543210042"));Eq("..6789",ColumnPrefs.DefaultAlias("1234567890123456789"));Eq("",ColumnPrefs.DefaultAlias(null));
   Eq(true,ColumnPrefs.Visible("copy","Flat",new System.Collections.Generic.HashSet<string>{"copy:Flat"}));
   var again=ColumnPrefs.Parse(ColumnPrefs.Serialize(s));Eq(3,again.Count);Eq(true,again.SetEquals(s));
  }

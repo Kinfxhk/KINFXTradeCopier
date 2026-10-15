@@ -2,7 +2,7 @@
 
 NinjaTrader 8 で、1 つの口座の取引を複数の口座（Prop Firm の**シミュレーション**口座と Demo 口座）へコピーします。無料、オープンソース（MIT）、初期の**ソース alpha**です。
 
-[中英對照](README.md) · [中文（繁體）](README.zh-HK.md) · [English](README.en.md) · **日本語** · [한국어](README.ko.md)
+[中文](README.md) · [English](README.en.md) · **日本語** · [한국어](README.ko.md)
 
 画面の言語はアプリと同じです：English、中文（繁體）、日本語、한국어。
 
@@ -19,6 +19,14 @@ NinjaTrader 8 で、1 つの口座の取引を複数の口座（Prop Firm の**�
 | **Prop Firm 口座** | **未準備：現在の候補は未受入。** 同じ過去のチェックリストの完了度は約 **75%**。ソース `c9fbf2cb3005`（SIM TEST ビルド）は 2026-10-14、実機 NinjaTrader 上で、操作者が確認した*シミュレーション／評価*口座 11 件に対して実行されました。これはリリース受入でも、ファームのコンプライアンス認証でもありません。 |
 | **Funded／ライブ口座** | **禁止。** |
 <!-- QUICKSTART:END -->
+
+## 画面ガイド
+
+![画面ガイド：コピータブ — 合成 DEMO](docs/screenshots/tour-copy-ja.png)
+
+![画面ガイド：リスクタブ — 合成 DEMO](docs/screenshots/tour-risk-ja.png)
+
+番号ごとの説明は[中文](README.md#介面導覽)または[English](README.en.md#interface-tour)のページにあります。画像は合成 DEMO（架空の口座と数値）で、取引の証拠ではありません。
 
 ## 進捗
 
@@ -55,7 +63,7 @@ Prop firm    ██████████████████████�
 - ⬜ インストーラー＋レビュー後のリリース
 - ⬜ Prop Firm ルール確認（本ソフトは認証しない）
 
-これまでの実機テスト：シミュレーターのリーダー 1、最大 11 の**シミュレーション** Prop Firm 評価口座（Lucid 5、Tradeify 6）、MNQ、成行＋指値＋逆指値、TP/SL OCO。funded またはライブ口座は一度も使用していません。各項目と制限：[`docs/PROGRESS.json`](docs/PROGRESS.json)。配点は加重：✅ 100%、🟡 50%、設計のみ 10%。スナップショット 2026-10-15、ソース `bfc8a2531acf`。
+これまでの実機テスト：シミュレーターのリーダー 1、最大 11 の**シミュレーション** Prop Firm 評価口座（Lucid 5、Tradeify 6）、MNQ、成行＋指値＋逆指値、TP/SL OCO。funded またはライブ口座は一度も使用していません。各項目と制限：[`docs/PROGRESS.json`](docs/PROGRESS.json)。配点は加重：✅ 100%、🟡 50%、設計のみ 10%。スナップショット 2026-10-15、ソース `8a8deb196fa8`。
 <!-- PROGRESS:END -->
 
 チェックと百分率は**加重した過去のチェックリスト**であり、**リリース準備の割合ではありません**。直近の実機 NinjaTrader 実行（2026-10-15）はソース `bfc8a2531acf`（SIM TEST ビルド）です。テスト証拠であり、現在の正確なソースの受入ではありません。[各項目の証拠と制限](docs/PROGRESS.json) · [過去の NT テスト記録](docs/VM-PROGRESS.md) · [現在のオフライン結果と安全上の障害](docs/DEVELOPERS.md)。

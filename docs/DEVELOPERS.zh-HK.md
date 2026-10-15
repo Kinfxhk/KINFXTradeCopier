@@ -1,6 +1,6 @@
 # 開發者與狀態詳情
 
-返回 [README](../README.zh-HK.md) · [English](DEVELOPERS.md)。
+返回 [README](../README.md) · [English](DEVELOPERS.md)。
 
 ## 驗收邊界
 
@@ -86,7 +86,7 @@ python -B -m unittest discover -s tests -p 'test_*.py' -v
 
 [建置](BUILD.md) · [測試／遮蓋敏感資料的報告](COMMUNITY-TESTING.md) · [貢獻流程](../CONTRIBUTING.md) · [請勿執行的操作](DO-NOT-DO.md) · [安全封鎖](SAFETY-HOLD.md) · [模擬計劃（歷史計劃，不代表授權）](SIM-TEST-PLAN.md) · [路線圖](ROADMAP.md)。
 
-日後獲授權的 SIM TEST 演練必須遵循 [README 清理次序](../README.zh-HK.md#第一次使用)：Leader／Follower 已連線且原生狀態乾淨；**Stop 之前**使用原生 NT 取消 Leader 掛單及平掉 Leader 持倉；確認解除連接後才修改 Dry run；只在停止時新增 Follower，並重新閱讀 Start 確認。OFF 不等於 Flatten，不會平倉。不得為了測試通過而移除預設封鎖。
+日後獲授權的 SIM TEST 演練必須遵循 [README 清理次序](../README.md#第一次使用)：Leader／Follower 已連線且原生狀態乾淨；**Stop 之前**使用原生 NT 取消 Leader 掛單及平掉 Leader 持倉；確認解除連接後才修改 Dry run；只在停止時新增 Follower，並重新閱讀 Start 確認。OFF 不等於 Flatten，不會平倉。不得為了測試通過而移除預設封鎖。
 
 ## 尚未證明
 
