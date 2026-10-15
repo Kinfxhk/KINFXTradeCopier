@@ -91,6 +91,18 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             var effective=s.Clone();if(s.LocalTrail&&s.TrailDistance>0)effective.Floor=Math.Max(s.Floor,s.HighWater-s.TrailDistance);
             return Evaluate(effective,new RiskLatch(),pnl,equity,connected)=="";
         }
+        // Unlock all (one click for every locked follower): "" = this account may be unlocked; otherwise why it stays locked.
+        // The same conditions as the single-account unlock: connected, the session instrument flat with no working orders,
+        // and no risk limit (daily target / daily loss / drawdown floor) still reached. Never arms copying and never sends anything.
+        public static string UnlockBlock(RiskSettings s,bool connected,bool clean,double pnl,double equity)
+        {
+            if(s==null||!s.Valid())return "Settings invalid";
+            if(!connected)return "Disconnected";
+            if(!clean)return "Position or working order on the instrument";
+            var effective=s.Clone();if(s.LocalTrail&&s.TrailDistance>0)effective.Floor=Math.Max(s.Floor,s.HighWater-s.TrailDistance);
+            string why=Evaluate(effective,new RiskLatch(),pnl,equity,true);
+            return why==""?"":why=="Target hit"?"Daily target still reached":why=="Daily loss"?"Daily loss still reached":why=="Drawdown floor"?"Drawdown floor still reached":why;
+        }
         public static string ConsistencyAdvice(RiskSettings s)
         {
             if(s.Consistency<=0)return Lang.T("Off");if(s.TotalProfit<=0||s.BestDay<=0)return Lang.T("History required");
@@ -533,35 +545,54 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
     // Which confirmation windows the user chose not to see again. Stored one "skip=<kind>" per line in confirm-prefs.txt; unknown kinds and lines are ignored.
     // A window whose text carries a risk warning (an account in scope is not confirmed simulated) is ALWAYS shown, whatever was saved. Pure: no file access.
     // Which grid columns the user hid. One "hide=<grid>:<column key>" per line in columns.txt; unknown grids / keys / lines are ignored.
-    // Safety columns (identity, follow tick, state, Off, Flat, Qty, connection, Tgt, DLL ...) can never be hidden, whatever the file says. Pure: no file or UI access.
+    // Safety columns (follow tick, state, Off, Flat, Qty, connection, Tgt, DLL ...) can never be hidden, whatever the file says. The account name can be
+    // hidden (the Alias column identifies the row and its tooltip shows the full name; every confirmation window names the full account). Pure: no file or UI access.
     public static class ColumnPrefs
     {
         public const string Copy="copy", Risk="risk";
         static readonly Dictionary<string,string[]> hideable=new Dictionary<string,string[]>(StringComparer.Ordinal)
         {
-            {Copy,new[]{"Alias","Tgt","DLL","P/L","Bal"}},
-            {Risk,new[]{"Alias","Grp","FlatLim","Max","P/L","CCY","To Tgt","Loss left","Preset","Cons"}},
+            {Copy,new[]{"Acct","Alias","Tgt","DLL","P/L","Bal"}},
+            {Risk,new[]{"Acct","Alias","Grp","FlatLim","Max","P/L","CCY","To Tgt","Loss left","Preset","Cons"}},
         };
+        // Hidden until the user shows them (user request 2026-10-15: the account name takes too much room; the Alias identifies the account,
+        // every account gets an alias automatically and the Alias cell's tooltip shows the full name). "show=" in columns.txt reveals one.
+        static readonly string[] hiddenByDefault={Copy+":Acct",Risk+":Acct"};
+        public static HashSet<string> Defaults(){return new HashSet<string>(hiddenByDefault,StringComparer.Ordinal);}
+        // An alias for an account that has none, so the row stays identifiable with the account-name column hidden. Short names stay as they are (Sim101);
+        // long ones keep their leading letters and the last 4 characters (FIRMAB..0001). Display only: the user can change it; it never selects an account.
+        public static string DefaultAlias(string name)
+        {
+            if(string.IsNullOrEmpty(name))return "";
+            if(name.Length<=12)return name;
+            int n=0;while(n<name.Length&&n<6&&char.IsLetter(name[n]))n++;
+            return name.Substring(0,n)+".."+name.Substring(name.Length-4);
+        }
         public static string[] Hideable(string grid){string[] k;return grid!=null&&hideable.TryGetValue(grid,out k)?(string[])k.Clone():new string[0];}
         public static bool CanHide(string grid,string key){string[] k;return grid!=null&&key!=null&&hideable.TryGetValue(grid,out k)&&Array.IndexOf(k,key)>=0;}
         public static HashSet<string> Parse(IEnumerable<string> lines)
         {
-            var h=new HashSet<string>(StringComparer.Ordinal);
+            var h=Defaults();
             if(lines==null)return h;
             foreach(var raw in lines)
             {
                 if(raw==null)continue; string t=raw.Trim(); if(t.Length==0||t.StartsWith("#"))continue;
-                int eq=t.IndexOf('='); if(eq<0||t.Substring(0,eq).Trim()!="hide")continue;
+                int eq=t.IndexOf('='); if(eq<0)continue; string verb=t.Substring(0,eq).Trim(); if(verb!="hide"&&verb!="show")continue;
                 string v=t.Substring(eq+1).Trim(); int c=v.IndexOf(':'); if(c<0)continue;
                 string grid=v.Substring(0,c).Trim(), key=v.Substring(c+1).Trim();
-                if(CanHide(grid,key))h.Add(grid+":"+key);
+                if(!CanHide(grid,key))continue;
+                if(verb=="hide")h.Add(grid+":"+key);else h.Remove(grid+":"+key);
             }
             return h;
         }
         public static string[] Serialize(HashSet<string> hidden)
         {
             var list=new List<string>{"# KINFX Trade Copier: columns hidden by the user (right-click a column header, or the Columns button). Delete a line (or this file) to show it again."};
-            foreach(var grid in new[]{Copy,Risk})foreach(var k in hideable[grid])if(hidden!=null&&hidden.Contains(grid+":"+k))list.Add("hide="+grid+":"+k);
+            foreach(var grid in new[]{Copy,Risk})foreach(var k in hideable[grid])
+            {
+                string id=grid+":"+k;bool hide=hidden!=null&&hidden.Contains(id);
+                if(hide)list.Add("hide="+id);else if(Array.IndexOf(hiddenByDefault,id)>=0)list.Add("show="+id);
+            }
             return list.ToArray();
         }
         public static bool Visible(string grid,string key,HashSet<string> hidden){return !CanHide(grid,key)||hidden==null||!hidden.Contains(grid+":"+key);}
@@ -1143,12 +1174,24 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             t["How much more can be lost before the daily loss limit (read-only, computed from P/L)"] = new[] { "觸及每日虧損上限前尚可虧損的金額（唯讀，由損益計算）", "日次損失上限に達するまでに失える残り金額（読み取り専用、損益から計算）", "일일 손실 한도까지 더 잃을 수 있는 금액 (읽기 전용, 손익으로 계산)" };
             t["Columns"] = new[] { "欄位", "列", "열" };
             t["Show all columns"] = new[] { "顯示全部欄位", "すべての列を表示", "모든 열 표시" };
-            t["Account, follow tick, state, Off / Flat, Qty and connection are always shown"] = new[] { "帳戶、跟單勾選、狀態、OFF／平倉、數量及連線一律顯示", "口座、フォローのチェック、状態、Off／決済、数量、接続は常に表示", "계좌, 팔로우 체크, 상태, Off/청산, 수량, 연결은 항상 표시" };
             t["Show or hide columns (also: right-click a column header). Saved for next time."] = new[] { "顯示或隱藏欄位（亦可在欄位標題按右鍵）。設定會保存。", "列の表示／非表示（列見出しの右クリックでも可）。次回も保持されます。", "열 표시/숨기기 (열 머리글 우클릭으로도 가능). 다음에도 유지됩니다." };
             t["RISK WARNING: not confirmed as simulated: {0}\nKINFX cannot tell a prop-firm evaluation account from a funded or live account. If any of these is funded or live, REAL MONEY is at risk.\nYes = these are simulated / evaluation accounts; remember them (sim-allow.txt) so this is not asked again. No = cancel."] = new[] { "風險警告：以下帳戶尚未確認為模擬帳戶：{0}\nKINFX 無法分辨自營交易公司的考核帳戶與已注資或真實帳戶。若其中任何一個為已注資或真實帳戶，將涉及真實資金。\n是＝這些是模擬／考核帳戶，記住它們（sim-allow.txt），以後不再詢問。否＝取消。", "リスク警告：シミュレーションと未確認の口座：{0}\nKINFX はプロップファームの評価口座と資金提供済み／ライブ口座を区別できません。いずれかが資金提供済みまたはライブ口座の場合、実際の資金が危険にさらされます。\nはい＝これらはシミュレーション／評価口座です。記憶し（sim-allow.txt）、次回から確認しません。いいえ＝キャンセル。", "위험 경고: 시뮬레이션으로 확인되지 않은 계좌: {0}\nKINFX는 프롭펌 평가 계좌와 자금 지원 / 실거래 계좌를 구분할 수 없습니다. 이 중 하나라도 자금 지원 또는 실거래 계좌라면 실제 자금이 위험합니다.\n예 = 시뮬레이션 / 평가 계좌이며 기억합니다(sim-allow.txt), 다시 묻지 않습니다. 아니요 = 취소." };
             t["Cancelled at the risk warning: {0}"] = new[] { "已在風險警告取消：{0}", "リスク警告でキャンセル：{0}", "위험 경고에서 취소: {0}" };
             t["Account confirmation NOT saved, nothing sent: {0}"] = new[] { "帳戶確認未儲存，未傳送任何指令：{0}", "口座の確認は保存されず、何も送信されていません：{0}", "계좌 확인이 저장되지 않아 아무것도 전송되지 않았습니다: {0}" };
             t["Confirmed as simulated by you (saved in sim-allow.txt): {0}"] = new[] { "您已確認為模擬帳戶（已儲存於 sim-allow.txt）：{0}", "シミュレーションとして確認済み（sim-allow.txt に保存）：{0}", "시뮬레이션으로 확인됨 (sim-allow.txt에 저장): {0}" };
+            t["Follow tick, state, Off / Flat, Qty and connection are always shown"] = new[] { "跟單勾選、狀態、OFF／平倉、數量及連線一律顯示", "フォローのチェック、状態、Off／決済、数量、接続は常に表示", "팔로우 체크, 상태, Off/청산, 수량, 연결은 항상 표시" };
+            t["Unlock all"] = new[] { "全部解鎖", "すべてロック解除", "모두 잠금 해제" };
+            t["Unlock every locked follower that is flat, connected and no longer at a risk limit (one confirmation). The others stay locked with their reason in Logs. Does NOT start copying."] = new[] { "解鎖所有已平倉、已連線且未再觸及風控限額的已鎖定跟單帳戶（只需確認一次）。其餘帳戶保持鎖定，原因列於日誌。不會開始跟單。", "フラットで接続済み、かつリスク上限に達していない、ロック中のすべてのフォロワーを解除します（確認は 1 回）。その他はロックのままで、理由はログに表示されます。コピーは開始しません。", "청산 상태이고 연결되어 있으며 더 이상 리스크 한도에 도달하지 않은 잠긴 팔로워를 모두 해제합니다(확인 1회). 나머지는 잠긴 상태로 남고 이유는 로그에 표시됩니다. 복사를 시작하지 않습니다." };
+            t["Unlock all: no locked account."] = new[] { "全部解鎖：沒有已鎖定的帳戶。", "すべてロック解除：ロック中の口座はありません。", "모두 잠금 해제: 잠긴 계좌가 없습니다." };
+            t["Unlock all: nothing can be unlocked yet. Still locked: {0}"] = new[] { "全部解鎖：目前沒有可解鎖的帳戶。仍鎖定：{0}", "すべてロック解除：まだ解除できる口座はありません。ロック継続：{0}", "모두 잠금 해제: 아직 해제할 수 있는 계좌가 없습니다. 계속 잠김: {0}" };
+            t["Unlock {0} account(s)? Each one is flat, connected and no longer at a risk limit:\n{1}\nThis does NOT start copying; tick them again and press Start."] = new[] { "解鎖 {0} 個帳戶？每個帳戶均已平倉、已連線，且未再觸及風控限額：\n{1}\n此操作不會開始跟單；請重新勾選並按「開始」。", "{0} 口座のロックを解除しますか？いずれもフラット、接続済みで、リスク上限に達していません：\n{1}\nコピーは開始しません。再度チェックして Start を押してください。", "{0}개 계좌의 잠금을 해제할까요? 모두 청산 상태이고 연결되어 있으며 리스크 한도에 도달하지 않았습니다:\n{1}\n복사를 시작하지 않습니다. 다시 체크하고 Start를 누르십시오." };
+            t["Stay locked ({0}):\n{1}"] = new[] { "保持鎖定（{0}）：\n{1}", "ロック継続（{0}）：\n{1}", "잠금 유지 ({0}):\n{1}" };
+            t["Unlock all cancelled; nothing changed."] = new[] { "已取消全部解鎖；沒有任何變更。", "すべてロック解除を取り消しました。変更はありません。", "모두 잠금 해제를 취소했습니다. 변경 사항 없음." };
+            t["Still locked: {0}"] = new[] { "仍鎖定：{0}", "ロック継続：{0}", "계속 잠김: {0}" };
+            t["Position or working order on the instrument"] = new[] { "該商品仍有持倉或掛單", "銘柄にポジションまたは未約定注文あり", "종목에 포지션 또는 미체결 주문 있음" };
+            t["Daily target still reached"] = new[] { "仍達每日目標", "日次目標にまだ到達中", "일일 목표에 아직 도달 상태" };
+            t["Daily loss still reached"] = new[] { "仍達每日虧損上限", "日次損失上限にまだ到達中", "일일 손실 한도에 아직 도달 상태" };
+            t["Drawdown floor still reached"] = new[] { "仍達回撤下限", "ドローダウン下限にまだ到達中", "드로다운 하한에 아직 도달 상태" };
 #if KINFX_SIM_TEST
             t["Dry run"] = new[] { "試運行", "ドライラン", "드라이런" };
             t["DRY RUN: decide and log every order, cancel and flatten as \"DRY RUN would send ...\" but send NOTHING. Fixed for the whole session: change it only while stopped."] = new[] { "DRY RUN（試運行）：決定並記錄每一筆下單、取消與平倉為「DRY RUN would send ...」，但不會送出任何內容。整個連線期間固定：僅能在停止時變更。", "DRY RUN（ドライラン）：すべての注文・取消・全決済を判断し「DRY RUN would send ...」としてログに記録しますが、何も送信しません。セッション中は固定：変更は停止中のみ可能。", "DRY RUN(드라이런): 모든 주문, 취소, 청산을 판단하여 \"DRY RUN would send ...\"로 기록하지만 아무것도 전송하지 않습니다. 세션 전체 동안 고정: 중지 상태에서만 변경할 수 있습니다." };
@@ -1299,6 +1342,10 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public int ChangesInFlight;
         public readonly List<int> PendingChangeQuantities=new List<int>();
         public double SentLimit, SentStop; public int SentQty;
+        // Set when a Change is handed to the provider; cleared only by the provider's answer (Accepted / Working / TriggerPending / PartFilled or terminal).
+        // Real NT (Tradovate): Account.Change returns at once and raises ChangePending with the OLD price; the new price arrives ~1 s later.
+        // Comparing against the order's own price in that window re-sent Change on every callback (140-350 Changes per account for 2 leader moves).
+        public bool AwaitingChangeAck;
         public readonly HashSet<Order> Wrappers=new HashSet<Order>();
         public readonly List<FollowerSnapshot> ExecutionEvidence=new List<FollowerSnapshot>();
     }
@@ -1384,6 +1431,9 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         readonly Dictionary<Order,string> identities=new Dictionary<Order,string>();
         readonly Dictionary<Account,Dictionary<string,string>> providerIdentities=new Dictionary<Account,Dictionary<string,string>>();
         readonly Dictionary<Order,string> wrapperProviderIds=new Dictionary<Order,string>();
+        // Wrappers whose recorded provider id is still the pre-submit client id (first seen in state Initialized). Real NT (Tradovate, 2026-10-15):
+        // that id is replaced by the exchange id exactly once when the order is submitted; the first replacement is the same order, any later change is not.
+        readonly HashSet<Order> preSubmitProviderIds=new HashSet<Order>();
         readonly object identityGate=new object();
         readonly List<EngineAccount> followers=new List<EngineAccount>();
         volatile EngineAccount[] followerView=new EngineAccount[0];
@@ -1439,7 +1489,10 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         }
         // Shown in the account list and tickable. SIM TEST build: every account (an unconfirmed one asks the risk warning before Start / Flatten,
         // and the engine still refuses it until it is confirmed). Default build: Simulator / Playback only, as before.
-        public static bool Listable(Account a){return a!=null&&(DashboardSafety.ListAllAccounts||Sim(a));}
+        // Only CONNECTED accounts, like NinjaTrader's own Accounts tab: NT keeps Account objects of a removed / closed / max-loss account after its
+        // connection is gone (seen on real NT: 5 closed Tradeify accounts, Playback101 and Backtest listed as Disconnected with no balance).
+        // A follower that disconnects DURING a session stays in the table (the table is never rebuilt while attached) and is locked as before.
+        public static bool Listable(Account a){return a!=null&&Connected(a)&&(DashboardSafety.ListAllAccounts||Sim(a));}
 #if KINFX_SIM_TEST
         // SIM TEST BUILD ONLY. Prop-firm evaluation accounts (Lucid / Tradeify on Tradovate) hang off a connection NinjaTrader labels Mode=Live,
         // so Provider alone cannot tell them apart from a funded account. The operator attests per account by exact name in
@@ -1561,7 +1614,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                     if(accounts.Any(a=>!Clean(a,inst))) throw new InvalidOperationException("Selected instrument already has a position / working order. No adoption or catch-up. "+DirtyReport(accounts,inst));
                     Interlocked.Increment(ref sessionGeneration);
                     leader=selected; instrument=inst;mirrorAtm=copyAtm;sessionAccounts=accounts; DisposeDispatchers(); followers.Clear(); links.Clear(); tombstones.Clear();
-                    lock(identityGate) { identities.Clear(); providerIdentities.Clear(); wrapperProviderIds.Clear(); }
+                    lock(identityGate) { identities.Clear(); providerIdentities.Clear(); wrapperProviderIds.Clear(); preSubmitProviderIds.Clear(); }
                     foreach(var item in list) followers.Add(new EngineAccount { Dispatcher=NewDispatcher(),Account=item.Item1,Settings=item.Item2.Clone(),Latch=new RiskLatch {Locked=item.Item3.Locked,Reason=item.Item3.Reason},HighWater=item.Item2.HighWater });
                     foreach(var f in followers){ Order[] existing; lock(f.Account.Orders)existing=f.Account.Orders.ToArray(); foreach(var o in existing){ if(o==null||o.Instrument==null||o.Instrument.FullName!=inst.FullName)continue; if(Order.IsTerminalState(o.OrderState))f.AddHistory(o); else if(o.OrderState==OrderState.Initialized&&o.Name!=null&&o.Name.StartsWith("KTC>",StringComparison.Ordinal))f.PreSessionGhost.Add(o); } }
                     foreach(var f in followers.Where(x=>!x.Settings.CopyAtm||!copyAtm))log(f.Account.Name+": ATM exit mirroring OFF — nonmarket exits skipped; market closes only. No native ATM clone / autonomous protection.");
@@ -1591,11 +1644,13 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 if(!providerIdentities.TryGetValue(order.Account,out accountIds))providerIdentities[order.Account]=accountIds=new Dictionary<string,string>(StringComparer.Ordinal);
                 if(identities.TryGetValue(order,out id))
                 {
-                    if(wrapperProviderIds.TryGetValue(order,out prior)&&!string.IsNullOrEmpty(prior)&&provider!=prior)return null;
+                    bool preSubmitReplacement=preSubmitProviderIds.Contains(order)&&state!=OrderState.Initialized&&!string.IsNullOrEmpty(provider);
+                    if(wrapperProviderIds.TryGetValue(order,out prior)&&!string.IsNullOrEmpty(prior)&&provider!=prior&&!preSubmitReplacement)return null;
                     if(!string.IsNullOrEmpty(provider))
                     {
                         string mapped; if(accountIds.TryGetValue(provider,out mapped)&&mapped!=id)return null;
                         accountIds[provider]=id; wrapperProviderIds[order]=provider;
+                        if(state!=OrderState.Initialized)preSubmitProviderIds.Remove(order);
                     }
                     return id;
                 }
@@ -1603,7 +1658,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 // Blank IDs can only start at the initial state; a later unknown wrapper is ambiguous.
                 if(string.IsNullOrEmpty(provider)&&state!=OrderState.Submitted)return null;
                 id=Guid.NewGuid().ToString("N"); identities[order]=id;
-                if(!string.IsNullOrEmpty(provider)){accountIds[provider]=id;wrapperProviderIds[order]=provider;}
+                if(!string.IsNullOrEmpty(provider)){accountIds[provider]=id;wrapperProviderIds[order]=provider;if(state==OrderState.Initialized)preSubmitProviderIds.Add(order);}
                 return id;
             }
         }
@@ -1772,7 +1827,9 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 foreach(var entry in entries)
                 {
                     int consumed=Math.Min(legacy,entry.ObservedFilled);legacy-=consumed;
-                    int capacity=Math.Max(entry.ObservedFilled,entry.RequestedQuantity);
+                    // A terminal entry (cancelled / rejected / filled, from captured callbacks) can never fill more: only its observed fills are lots.
+                    // Counting its unfilled request let an OCO exit claim a lot of a CANCELLED entry and leave the real fill unprotected (real NT 2026-10-15).
+                    int capacity=Order.IsTerminalState(entry.ObservedState)?entry.ObservedFilled:Math.Max(entry.ObservedFilled,entry.RequestedQuantity);
                     var used=f.ExitGroups.Values.SelectMany(x=>x.Claims).Where(x=>x.Entry==entry).OrderBy(x=>x.First).ToArray();
                     int cursor=consumed;
                     foreach(var claim in used.Concat(new[]{new EntryLotClaim(entry,capacity,0)}))
@@ -2109,7 +2166,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             }
             int qty=RiskPolicy.ChangeTotal(link.ReservedQuantity,filled,link.Desired,link.Exit,closable,link.Exit?Math.Max(0,ExitReserved(link)-(accountClosable-closable)):PendingEntries(f,order),f.Settings.MaxContracts,entries&&f.Following&&!f.Paused&&!f.Latch.Locked);
             // Effective quantity the provider holds or is about to hold: a Change still in flight counts, not the stale applied value.
-            bool changePending=Volatile.Read(ref link.ChangesInFlight)>0;
+            bool changePending=Volatile.Read(ref link.ChangesInFlight)>0||link.AwaitingChangeAck;
             int effectiveQty=changePending?link.SentQty:order.Quantity;
             if(positionBehindOwned&&link.Exit&&qty<effectiveQty)qty=effectiveQty; // freeze quantity, keep price updates
             if(qty<=filled)
@@ -2125,7 +2182,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             // The requested values are captured NOW, in a command applied on the account's own thread. Writing them to the shared
             // Order object here and sending later would let a newer Change overwrite an older, still-queued one.
             double wantLimit=s.Limit,wantStop=s.Stop; int wantQty=qty;
-            link.SentQty=wantQty; link.SentLimit=wantLimit; link.SentStop=wantStop; Interlocked.Increment(ref link.ChangesInFlight);link.PendingChangeQuantities.Add(wantQty);
+            link.SentQty=wantQty; link.SentLimit=wantLimit; link.SentStop=wantStop; link.AwaitingChangeAck=true; Interlocked.Increment(ref link.ChangesInFlight);link.PendingChangeQuantities.Add(wantQty);
             Dispatch(f,()=>{ try { order.QuantityChanged=wantQty; order.LimitPriceChanged=wantLimit; order.StopPriceChanged=wantStop; f.Account.Change(new[]{order}); } finally { Interlocked.Decrement(ref link.ChangesInFlight); } },err=>{ link.PendingChangeQuantities.Remove(wantQty);if(err!=null)Lock(f,errPrefix+err.Message); },"Change protective order to qty "+wantQty);
         }
         void FollowerUpdate(object sender,OrderEventArgs e,int generation,string subscribedInstrument)
@@ -2175,6 +2232,10 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                     if(!terminalRegression)
                     {
                         link.ObservedState=eventState;
+                        // Cleared only by an answer that carries what was sent (or a terminal state). An answer with other values is either an older
+                        // Change still being answered or a Change the provider refused: never re-send in a loop; the next leader move is compared to what was sent.
+                        if(Order.IsTerminalState(eventState)||(eventState==OrderState.Accepted||eventState==OrderState.Working||eventState==OrderState.TriggerPending||eventState==OrderState.PartFilled)
+                            &&snapshot.Quantity==link.SentQty&&Math.Abs(snapshot.Limit-link.SentLimit)<1e-9&&Math.Abs(snapshot.Stop-link.SentStop)<1e-9)link.AwaitingChangeAck=false;
                         // An old ACK can equal the newest quantity after a 2 -> 4 -> 2 sequence.
                         // Never release a larger reservation when the captured wrapper/dispatch intent
                         // still contradicts that reduction. These hints can refuse release, not certify acceptance.
@@ -2559,6 +2620,8 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public string Connection { get; set; }
         public string Status { get; set; }
         public double Pnl { get; set; }
+        // 1 profit, -1 loss, 0 flat or unknown (NaN). Cents below half a cent count as zero so rounding noise is not coloured.
+        public int PnlSign {get{return double.IsNaN(Pnl)||double.IsInfinity(Pnl)||Math.Abs(Pnl)<0.005?0:Pnl>0?1:-1;}}
         public double Equity { get; set; }
         public double CashBalance {get;set;}=double.NaN;
         public string CurrencyCode
@@ -2718,7 +2781,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 var all=new MenuItem{Header=Lang.T("Show all columns"),Tag="col:"+grid+":*"};
                 all.Click+=(s2,e2)=>{var next=HiddenColumns;next.RemoveWhere(x=>x.StartsWith(grid+":",StringComparison.Ordinal));ApplyColumns(next);var cb=ColumnsChanged;if(cb!=null)cb(HiddenColumns);};
                 menu.Items.Add(all);
-                var note=new MenuItem{Header=Lang.T("Account, follow tick, state, Off / Flat, Qty and connection are always shown"),IsEnabled=false};menu.Items.Add(note);
+                var note=new MenuItem{Header=Lang.T("Follow tick, state, Off / Flat, Qty and connection are always shown"),IsEnabled=false};menu.Items.Add(note);
             };
             return menu;
         }
@@ -2814,7 +2877,14 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         static void Column(DataGrid g,string title,string path,double width,bool ro,string tip,string format=null,bool number=false)
         {
             var c=new DataGridTextColumn{Header=Lang.T(title),SortMemberPath=path.EndsWith("Text")?path.Substring(0,path.Length-4):path,Binding=new Binding(path){Mode=ro?BindingMode.OneWay:BindingMode.TwoWay,StringFormat=format,UpdateSourceTrigger=UpdateSourceTrigger.LostFocus,ValidatesOnExceptions=!ro,ConverterCulture=CultureInfo.InvariantCulture},Width=width,IsReadOnly=ro};
-            var s=new Style(typeof(TextBlock));s.Setters.Add(new Setter(FrameworkElement.VerticalAlignmentProperty,VerticalAlignment.Center));s.Setters.Add(new Setter(FrameworkElement.MarginProperty,new Thickness(9,0,9,0)));if(number){var hs=new Style(typeof(DataGridColumnHeader),g.ColumnHeaderStyle);hs.Setters.Add(new Setter(Control.HorizontalContentAlignmentProperty,HorizontalAlignment.Right));g.Resources["NumericHeader"]=hs;s.Setters.Add(new Setter(TextBlock.TextAlignmentProperty,TextAlignment.Right));s.Setters.Add(new Setter(TextBlock.FontFamilyProperty,new FontFamily("Consolas")));}c.ElementStyle=s;Key(c,title);Header(g,c,tip);if(number){var hs=new Style(typeof(DataGridColumnHeader),c.HeaderStyle);hs.Setters.Add(new Setter(Control.HorizontalContentAlignmentProperty,HorizontalAlignment.Right));c.HeaderStyle=hs;}g.Columns.Add(c);
+            var s=new Style(typeof(TextBlock));s.Setters.Add(new Setter(FrameworkElement.VerticalAlignmentProperty,VerticalAlignment.Center));s.Setters.Add(new Setter(FrameworkElement.MarginProperty,new Thickness(9,0,9,0)));if(number){var hs=new Style(typeof(DataGridColumnHeader),g.ColumnHeaderStyle);hs.Setters.Add(new Setter(Control.HorizontalContentAlignmentProperty,HorizontalAlignment.Right));g.Resources["NumericHeader"]=hs;s.Setters.Add(new Setter(TextBlock.TextAlignmentProperty,TextAlignment.Right));s.Setters.Add(new Setter(TextBlock.FontFamilyProperty,new FontFamily("Consolas")));}if(path=="Pnl")PnlColors(s);if(path=="Alias")s.Setters.Add(new Setter(FrameworkElement.ToolTipProperty,new Binding("Name")));c.ElementStyle=s;Key(c,title);Header(g,c,tip);if(number){var hs=new Style(typeof(DataGridColumnHeader),c.HeaderStyle);hs.Setters.Add(new Setter(Control.HorizontalContentAlignmentProperty,HorizontalAlignment.Right));c.HeaderStyle=hs;}g.Columns.Add(c);
+        }
+        // P/L text colour (user request): profit green, loss red, zero / no data muted. Same theme colours as the state lamps.
+        internal static void PnlColors(Style s)
+        {
+            s.Setters.Add(new Setter(TextBlock.ForegroundProperty,Muted));
+            var up=new DataTrigger{Binding=new Binding("PnlSign"),Value=1};up.Setters.Add(new Setter(TextBlock.ForegroundProperty,Good));s.Triggers.Add(up);
+            var down=new DataTrigger{Binding=new Binding("PnlSign"),Value=-1};down.Setters.Add(new Setter(TextBlock.ForegroundProperty,Bad));s.Triggers.Add(down);
         }
         static void RatioColumn(DataGrid g)
         {
@@ -2957,7 +3027,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             Sections=new TabControl{Background=Canvas,Foreground=Ink,BorderBrush=Line,Padding=new Thickness(0,10,0,0),ItemContainerStyle=TabStyle()};AddRow(this,Sections,2);
             var copy=new Grid();copy.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});copy.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});
             var toolbar=new WrapPanel{Margin=new Thickness(0,0,0,9)};
-            search=Input("",185);search.ToolTip=Lang.T("Search account / alias / group / preset · Ctrl+F · Escape clears");toolbar.Children.Add(Labeled("⌕",search,17));filter=Combo(120);filter.ToolTip=Lang.T("Filter displayed account states");filter.ItemsSource=new[]{Lang.T("All"),Lang.T("On"),Lang.T("Paused"),Lang.T("Target")};filter.SelectedIndex=0;toolbar.Children.Add(filter);var ticks=new StackPanel{Orientation=Orientation.Horizontal,Margin=new Thickness(0,0,0,6)};ticks.Children.Add(Icon("\uE73A",Lang.T("Tick all visible followers"),"tickAll",()=>TickVisible(true),true));ticks.Children.Add(Icon("\uE711",Lang.T("Untick all visible followers"),"tickNone",()=>TickVisible(false),true));toolbar.Children.Add(ticks);toolbar.Children.Add(new TextBlock{Text=Lang.T("Ratio: edit each account row"),Foreground=Muted,FontSize=12,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(8,0,8,6)});var bulk=new StackPanel{Orientation=Orientation.Horizontal,Margin=new Thickness(0,0,0,6)};bulk.Tag="bulkbar";bulk.Children.Add(Text(Lang.T("Bulk  "),11,Muted));var bulkValue=Input("",78);bulkValue.ToolTip=Lang.T("Amount for the highlighted accounts · account currency · 0 = off");System.Windows.Automation.AutomationProperties.SetName(bulkValue,Lang.T("Bulk amount"));bulk.Children.Add(bulkValue);bulk.Children.Add(TextTool(Lang.T("Tgt"),Lang.T("Set Target on highlighted accounts"),"bulkTgt",()=>BulkClick("Tgt",bulkValue.Text)));bulk.Children.Add(TextTool(Lang.T("DLL"),Lang.T("Set Daily loss on highlighted accounts"),"bulkDll",()=>BulkClick("DLL",bulkValue.Text)));bulk.Children.Add(TextTool(Lang.T("ATM on"),Lang.T("ATM exit-mirroring ON for highlighted accounts"),"bulkAtmOn",()=>BulkClick("ATM","on")));bulk.Children.Add(TextTool(Lang.T("Limit flat on"),Lang.T("When Tgt or DLL is hit: flatten that account once (never retried) for highlighted accounts"),"bulkLimitFlatOn",()=>BulkClick("LimitFlat","on")));bulk.Children.Add(TextTool(Lang.T("Limit flat off"),Lang.T("When Tgt or DLL is hit: only lock and stop copying (default) for highlighted accounts"),"bulkLimitFlatOff",()=>BulkClick("LimitFlat","off")));bulk.Children.Add(TextTool(Lang.T("ATM off"),Lang.T("ATM exit-mirroring OFF for highlighted accounts"),"bulkAtmOff",()=>BulkClick("ATM","off")));bulk.Children.Add(TextTool(Lang.T("Div: notify"),Lang.T("On divergence: only lock, show red and notify (default) for highlighted accounts"),"bulkDivNotify",()=>BulkClick("Diverge","Notify")));bulk.Children.Add(TextTool(Lang.T("Div: flatten 1x"),Lang.T("On divergence: request ONE flatten, never retried (saved only; NOT active in this alpha) for highlighted accounts"),"bulkDivFlat",()=>BulkClick("Diverge","FlattenOnce")));bulk.Children.Insert(1,TextTool(Lang.T("From Leader"),Lang.T("Copy the leader row's Tgt / DLL / ATM to highlighted followers (all visible if none highlighted). One-time copy; edit any row afterwards. Ratio and ticks are not copied."),"bulkLeader",()=>BulkLeaderClick()));bulkBar=bulk;toolbar.Children.Add(bulk);AddRow(copy,toolbar,0);columnsBarCopy=toolbar;
+            search=Input("",185);search.ToolTip=Lang.T("Search account / alias / group / preset · Ctrl+F · Escape clears");toolbar.Children.Add(Labeled("⌕",search,17));filter=Combo(120);filter.ToolTip=Lang.T("Filter displayed account states");filter.ItemsSource=new[]{Lang.T("All"),Lang.T("On"),Lang.T("Paused"),Lang.T("Target")};filter.SelectedIndex=0;toolbar.Children.Add(filter);var ticks=new StackPanel{Orientation=Orientation.Horizontal,Margin=new Thickness(0,0,0,6)};ticks.Children.Add(Icon("\uE73A",Lang.T("Tick all visible followers"),"tickAll",()=>TickVisible(true),true));ticks.Children.Add(Icon("\uE711",Lang.T("Untick all visible followers"),"tickNone",()=>TickVisible(false),true));var unlockAll=TextTool(Lang.T("Unlock all"),Lang.T("Unlock every locked follower that is flat, connected and no longer at a risk limit (one confirmation). The others stay locked with their reason in Logs. Does NOT start copying."),"unlockAll",()=>Send("unlockAll"));unlockAll.Margin=new Thickness(8,0,4,6);ticks.Children.Add(unlockAll);toolbar.Children.Add(ticks);toolbar.Children.Add(new TextBlock{Text=Lang.T("Ratio: edit each account row"),Foreground=Muted,FontSize=12,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(8,0,8,6)});var bulk=new StackPanel{Orientation=Orientation.Horizontal,Margin=new Thickness(0,0,0,6)};bulk.Tag="bulkbar";bulk.Children.Add(Text(Lang.T("Bulk  "),11,Muted));var bulkValue=Input("",78);bulkValue.ToolTip=Lang.T("Amount for the highlighted accounts · account currency · 0 = off");System.Windows.Automation.AutomationProperties.SetName(bulkValue,Lang.T("Bulk amount"));bulk.Children.Add(bulkValue);bulk.Children.Add(TextTool(Lang.T("Tgt"),Lang.T("Set Target on highlighted accounts"),"bulkTgt",()=>BulkClick("Tgt",bulkValue.Text)));bulk.Children.Add(TextTool(Lang.T("DLL"),Lang.T("Set Daily loss on highlighted accounts"),"bulkDll",()=>BulkClick("DLL",bulkValue.Text)));bulk.Children.Add(TextTool(Lang.T("ATM on"),Lang.T("ATM exit-mirroring ON for highlighted accounts"),"bulkAtmOn",()=>BulkClick("ATM","on")));bulk.Children.Add(TextTool(Lang.T("Limit flat on"),Lang.T("When Tgt or DLL is hit: flatten that account once (never retried) for highlighted accounts"),"bulkLimitFlatOn",()=>BulkClick("LimitFlat","on")));bulk.Children.Add(TextTool(Lang.T("Limit flat off"),Lang.T("When Tgt or DLL is hit: only lock and stop copying (default) for highlighted accounts"),"bulkLimitFlatOff",()=>BulkClick("LimitFlat","off")));bulk.Children.Add(TextTool(Lang.T("ATM off"),Lang.T("ATM exit-mirroring OFF for highlighted accounts"),"bulkAtmOff",()=>BulkClick("ATM","off")));bulk.Children.Add(TextTool(Lang.T("Div: notify"),Lang.T("On divergence: only lock, show red and notify (default) for highlighted accounts"),"bulkDivNotify",()=>BulkClick("Diverge","Notify")));bulk.Children.Add(TextTool(Lang.T("Div: flatten 1x"),Lang.T("On divergence: request ONE flatten, never retried (saved only; NOT active in this alpha) for highlighted accounts"),"bulkDivFlat",()=>BulkClick("Diverge","FlattenOnce")));bulk.Children.Insert(1,TextTool(Lang.T("From Leader"),Lang.T("Copy the leader row's Tgt / DLL / ATM to highlighted followers (all visible if none highlighted). One-time copy; edit any row afterwards. Ratio and ticks are not copied."),"bulkLeader",()=>BulkLeaderClick()));bulkBar=bulk;toolbar.Children.Add(bulk);AddRow(copy,toolbar,0);columnsBarCopy=toolbar;
             AccountGrid=GridTable();TickColumn(AccountGrid);AccountColumn(AccountGrid);Column(AccountGrid,"Alias","Alias",100,false,Lang.T("Optional display alias"));RatioColumn(AccountGrid);Column(AccountGrid,"Tgt","TargetText",78,false,Lang.T("Independent daily local profit target · account CCY / 0 = off"),null,true);Column(AccountGrid,"DLL","LossText",78,false,Lang.T("Independent daily loss limit · positive amount / 0 = off"),null,true);AtmColumn(AccountGrid);Column(AccountGrid,"Qty","Position",55,true,Lang.T("Signed position · + long / − short"),null,true);Column(AccountGrid,"P/L","Pnl",95,true,Lang.T("Observed session P/L in account currency · baseline is not historical daily accounting"),"N2",true);Column(AccountGrid,"Bal","BalanceText",130,true,Lang.T("CashValue in account currency; not NetLiquidation / net equity"),null,true);((DataGridTextColumn)AccountGrid.Columns.Last()).ElementStyle.Setters.Add(new Setter(FrameworkElement.ToolTipProperty,new Binding("BalanceDetail")));((DataGridTextColumn)AccountGrid.Columns.Last()).ElementStyle.Setters.Add(new Setter(System.Windows.Automation.AutomationProperties.NameProperty,new Binding("BalanceDetail")));LightColumn(AccountGrid,"Conn","ConnLight","Connection");StateColumn(AccountGrid);OffColumn(AccountGrid);FlatColumn(AccountGrid);AccountGrid.FrozenColumnCount=2;ProportionalCopyColumns(AccountGrid);AddRow(copy,AccountGrid,1);Sections.Items.Add(new TabItem{Header=Lang.T("Copy"),Content=copy});
             var risk=new Grid();risk.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});risk.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});risk.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});var tools=new WrapPanel{Margin=new Thickness(0,0,0,10)};
             var batch=Icon("\uE713",DashboardSafety.CanExecute("batch")?Lang.T("Batch risk / presets"):Lang.T("Batch risk / presets · review hold"),"batch",()=>Send("batch"));batch.IsEnabled=DashboardSafety.CanExecute("batch");tools.Children.Add(batch);tools.Children.Add(Icon("\uE74E",Lang.T("Save settings"),"save",()=>Send("save")));tools.Children.Add(Icon("\uE787",Lang.T("Trading-day boundary / timezone"),"daySettings",()=>Send("daySettings")));tools.Children.Add(Icon("\uE769",Lang.T("Pause highlighted accounts"),"pauseSelected",()=>SetSelectedPause(true)));tools.Children.Add(Icon("\uE768",Lang.T("Resume highlighted accounts · latch unchanged / no auto-arm"),"resumeSelected",()=>SetSelectedPause(false)));var fs=Icon("\uE74D",DashboardSafety.CanExecute("flattenSelected")?Lang.T("Flatten highlighted accounts (market-closes their positions)"):Lang.T("Flatten highlighted accounts · review hold"),"flattenSelected",()=>Send("flattenSelected"));fs.IsEnabled=DashboardSafety.CanExecute("flattenSelected");tools.Children.Add(fs);var fa=Icon("\uE7BA",DashboardSafety.CanExecute("flattenAll")?Lang.T("Flatten ALL displayed accounts (market-closes every position shown)"):Lang.T("Flatten all displayed accounts · review hold"),"flattenAll",()=>Send("flattenAll"));fa.IsEnabled=DashboardSafety.CanExecute("flattenAll");tools.Children.Add(fa);
@@ -3225,7 +3295,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 foreach(var a in accounts)
                 {
                     SavedAccount stored;saved.TryGetValue(a.Name,out stored);
-                    dashboard.Rows.Add(new AccountRow {Account=a,Name=a.Name,Role=a.Name==leaderName?"Leader":"Follower",Currency=a.Denomination.ToString(),Connection=a.Connection==null?"Disconnected":a.Connection.Status.ToString(),Status=stored!=null&&stored.Latch.Locked?stored.Latch.Reason:"Disarmed",Settings=stored==null?NewSettingsFor(a):stored.Settings.Clone(),Latch=stored==null?new RiskLatch():new RiskLatch {Locked=stored.Latch.Locked,Reason=stored.Latch.Reason}});
+                    dashboard.Rows.Add(new AccountRow {Account=a,Name=a.Name,Role=a.Name==leaderName?"Leader":"Follower",Currency=a.Denomination.ToString(),Connection=a.Connection==null?"Disconnected":a.Connection.Status.ToString(),Status=stored!=null&&stored.Latch.Locked?stored.Latch.Reason:"Disarmed",Settings=WithAlias(stored==null?NewSettingsFor(a):stored.Settings.Clone(),a.Name),Latch=stored==null?new RiskLatch():new RiskLatch {Locked=stored.Latch.Locked,Reason=stored.Latch.Reason}});
                 }
                 string keep=leaderName;dashboard.LeaderBox.ItemsSource=accounts.Where(CopierEngine.Listable).Select(a=>a.Name).ToArray();if(!string.IsNullOrEmpty(keep)&&accounts.Any(a=>a.Name==keep))dashboard.LeaderBox.SelectedItem=keep;else if(dashboard.LeaderBox.Items.Count>0)dashboard.LeaderBox.SelectedItem=DashboardChoices.DefaultLeader(dashboard.LeaderBox.Items.Cast<string>());
                 dashboard.UpdateCards();
@@ -3233,6 +3303,8 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             catch(Exception ex){Log("Refresh error: "+ex.Message);}finally{loading=false;}
         }
         static RiskSettings NewSettingsFor(Account a){var r=new RiskSettings();r.Alias=CopierEngine.AliasFor(a.Name);return r;}
+        // Every listed account shows an alias: a saved / sim-allow alias wins, otherwise the generated short one.
+        static RiskSettings WithAlias(RiskSettings r,string name){if(string.IsNullOrWhiteSpace(r.Alias))r.Alias=ColumnPrefs.DefaultAlias(name);return r;}
         static SavedAccount Record(AccountRow r) {return new SavedAccount {Name=r.Name,Settings=r.Settings.Clone(),Latch=new RiskLatch {Locked=r.Latch.Locked,Reason=r.Latch.Reason}};}
         XElement Export()
         {
@@ -3307,6 +3379,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 if(c=="pauseSelected"||c=="resumeSelected"){dashboard.SetSelectedPause(c=="pauseSelected");return;}
                 if(engine.Attached){Log("Settings / enabled edits blocked during session. Pause per account or stop when flat first.");return;}
                 if(c=="daySettings"){EditTradingDay();return;}
+                if(c=="unlockAll"){UnlockAll();return;}
                 if(c=="batch"){Edit(Selected());return;}
                 if(c=="enable"||c=="disable"){foreach(var row in Selected()){row.Enabled=c=="enable"&&row.Role!="Leader"&&CopierEngine.Listable(row.Account);row.Changed();}dashboard.UpdateCards();}
             }
@@ -3358,6 +3431,44 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             // Latch is not silently cleared by risk edits; explicit confirmation follows for a locked row.
             if(dialog.ShowDialog()==true){foreach(var row in rows){double individualRatio=row.Ratio;row.Settings=dialog.Result.Clone();if(rows.Length>1)row.Settings.Ratio=individualRatio;row.Changed();}Persist();Log("Applied editable risk snapshot to "+rows.Length+" account(s); per-account ratios / latch unchanged for bulk edits.");}
             if(rows.Length==1&&rows[0].Latch.Locked&&Confirm(Lang.F("Account {0} remains LOCKED: {1}.\nRequest unlock? This does NOT arm copying; current risk conditions will be rechecked, baseline unchanged.",rows[0].Name,Lang.Show(rows[0].Latch.Reason))))Unlock(rows[0]);
+        }
+        // Unlock all: one confirmation for every locked follower. Each account is checked with the same rules as the single unlock (RiskPolicy.UnlockBlock);
+        // only the ones that pass are unlocked, the rest stay locked and the Logs tab names why. Still disarmed afterwards; nothing is sent.
+        void UnlockAll()
+        {
+            var locked=dashboard.Rows.Where(r=>r.Role!="Leader"&&r.Latch.Locked).ToArray();
+            if(locked.Length==0){Log("Unlock all: no locked account.");return;}
+            var inst=Instrument.GetInstrument(InstrumentText(),false);
+            if(inst==null){Log("Unknown exact instrument.");return;}
+            var ok=new List<AccountRow>();var keep=new List<string>();
+            foreach(var row in locked)
+            {
+                string why;
+                try
+                {
+                    var a=row.Account;
+                    if(a==null)why="Disconnected";
+                    else
+                    {
+                        bool connected=a.Connection!=null&&a.Connection.Status==ConnectionStatus.Connected;
+                        double raw=a.Get(AccountItem.RealizedProfitLoss,a.Denomination)+a.Get(AccountItem.UnrealizedProfitLoss,a.Denomination),equity=a.Get(AccountItem.NetLiquidation,a.Denomination);
+                        why=RiskPolicy.UnlockBlock(row.Settings,connected,connected&&CopierEngine.Clean(a,inst),raw-row.Settings.Baseline,equity);
+                    }
+                }
+                catch(Exception ex){why=ex.Message;}
+                if(why=="")ok.Add(row);else keep.Add(Lang.F("{0}: {1}",row.Alias.Length>0?row.Alias:row.Name,Lang.Show(why)));
+            }
+            if(ok.Count==0){Log(Lang.F("Unlock all: nothing can be unlocked yet. Still locked: {0}",string.Join("; ",keep)));return;}
+            string text=Lang.F("Unlock {0} account(s)? Each one is flat, connected and no longer at a risk limit:\n{1}\nThis does NOT start copying; tick them again and press Start.",ok.Count,string.Join("\n",ok.Select(r=>r.Name+" — "+Lang.Show(r.Latch.Reason))));
+            if(keep.Count>0)text+="\n\n"+Lang.F("Stay locked ({0}):\n{1}",keep.Count,string.Join("\n",keep));
+            if(!Confirm(text)){Log("Unlock all cancelled; nothing changed.");return;}
+            foreach(var row in ok)
+            {
+                try{SettingsStore.RemoveLatch(LatchPath,row.Name);row.Latch=new RiskLatch();row.Status="Disarmed";row.Changed();Log("Confirmed unlock: "+row.Name+"; still disarmed.");}
+                catch(Exception ex){Log("Unlock refused: "+row.Name+": "+ex.Message);}
+            }
+            Persist();dashboard.UpdateCards();
+            if(keep.Count>0)Log(Lang.F("Still locked: {0}",string.Join("; ",keep)));
         }
         void Unlock(AccountRow row)
         {
