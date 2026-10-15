@@ -2,6 +2,8 @@
 
 Only the current development branch is maintained; there is no supported live-trading release. All versions in this initial alpha are **not accepted for trading**.
 
+Authors and contributors take no responsibility for any consequence or loss. Use is recommended for Demo / Sim only and is not recommended for live or real-money accounts. This experimental community alpha is not investment advice. This notice does not accept a build for trading, lift the default hold, or change how orders are sent.
+
 Do not post credentials, account numbers or unredacted brokerage/platform logs. [GitHub private vulnerability reporting is enabled](https://github.com/Kinfxhk/KINFXTradeCopier/security/advisories/new). Report sensitive concerns there rather than in public Issues. If reporting publicly, describe impact without secrets or exploit payloads.
 
 Unexpected activation, hold bypass, unauthorized order dispatch, cross-account identity mixing, protection cancellation or unsafe duplicate closes are P0 safety concerns. Stop using the test build and use native platform/broker controls for actual positions. No repository setting is a broker-side kill switch.

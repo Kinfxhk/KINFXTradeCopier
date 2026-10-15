@@ -6,6 +6,10 @@ Copy trades from one NinjaTrader 8 leader account to many follower accounts (dem
 
 > ⚠️ **TRADING DISABLED in the default build. Funded and live accounts: do not use.** This is a source alpha; the **current source is not accepted**. The opt-in SIM TEST build sends orders to Simulator / Playback accounts and to accounts you confirmed as simulated; that capability is not safety acceptance.
 
+## Risk and disclaimer
+
+Authors and contributors take **no responsibility** for any consequence or loss from using this software. It is **recommended for Demo / Sim only**, and **not recommended** for live or real-money accounts. This is an experimental community alpha and is **not investment advice**.
+
 <!-- QUICKSTART:START -->
 ## Can I use it?
 
