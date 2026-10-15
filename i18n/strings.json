@@ -2628,12 +2628,6 @@
   "ko": "모든 열 표시"
  },
  {
-  "en": "Account, follow tick, state, Off / Flat, Qty and connection are always shown",
-  "zh": "帳戶、跟單勾選、狀態、OFF／平倉、數量及連線一律顯示",
-  "ja": "口座、フォローのチェック、状態、Off／決済、数量、接続は常に表示",
-  "ko": "계좌, 팔로우 체크, 상태, Off/청산, 수량, 연결은 항상 표시"
- },
- {
   "en": "Show or hide columns (also: right-click a column header). Saved for next time.",
   "zh": "顯示或隱藏欄位（亦可在欄位標題按右鍵）。設定會保存。",
   "ja": "列の表示／非表示（列見出しの右クリックでも可）。次回も保持されます。",
@@ -2680,5 +2674,11 @@
   "zh": "您已確認為模擬帳戶（已儲存於 sim-allow.txt）：{0}",
   "ja": "シミュレーションとして確認済み（sim-allow.txt に保存）：{0}",
   "ko": "시뮬레이션으로 확인됨 (sim-allow.txt에 저장): {0}"
+ },
+ {
+  "en": "Follow tick, state, Off / Flat, Qty and connection are always shown",
+  "zh": "跟單勾選、狀態、OFF／平倉、數量及連線一律顯示",
+  "ja": "フォローのチェック、状態、Off／決済、数量、接続は常に表示",
+  "ko": "팔로우 체크, 상태, Off/청산, 수량, 연결은 항상 표시"
  }
 ]
