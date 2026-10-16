@@ -48,10 +48,10 @@
   "ko": "이번 세션"
  },
  {
-  "en": "Bulk edit (highlighted accounts; Ratio never changes)",
-  "zh": "批次編輯（已選取帳戶；比例永不變更）",
-  "ja": "一括編集（選択中の口座；比率は変更されない）",
-  "ko": "일괄 편집(선택 계좌; 비율은 변경되지 않음)"
+  "en": "Bulk edit (highlighted follower accounts · only while stopped)",
+  "zh": "批次編輯（已選取的跟單帳戶 · 僅限停止時）",
+  "ja": "一括編集（選択中のフォロワー口座 · 停止中のみ）",
+  "ko": "일괄 편집 (선택한 팔로워 계좌 · 정지 중에만)"
  },
  {
   "en": "ATM exit mirroring",
@@ -108,9 +108,27 @@
   "ko": "선택한 계좌의 값"
  },
  {
-  "en": "Apply the chosen setting to the highlighted follower accounts (Ratio never changes)",
-  "zh": "將所選設定套用至已選取的跟單帳戶（比例永不變更）",
-  "ja": "選択した設定を選択中のフォロワー口座に適用（比率は変更されない）",
-  "ko": "선택한 설정을 선택된 팔로워 계좌에 적용(비율은 변경되지 않음)"
+  "en": "Apply the chosen setting to the highlighted follower accounts",
+  "zh": "將所選設定套用至已選取的跟單帳戶",
+  "ja": "選択した設定を選択中のフォロワー口座に適用",
+  "ko": "선택한 설정을 선택한 팔로워 계좌에 적용"
+ },
+ {
+  "en": "Max contracts",
+  "zh": "手數上限",
+  "ja": "最大枚数",
+  "ko": "최대 계약 수"
+ },
+ {
+  "en": "Ratio for the highlighted accounts · plain positive number like 1 or 0.5",
+  "zh": "已選取帳戶的比例 · 正數，例如 1 或 0.5",
+  "ja": "選択中の口座の比率 · 1 や 0.5 などの正の数",
+  "ko": "선택한 계좌의 비율 · 1 또는 0.5 같은 양수"
+ },
+ {
+  "en": "Max contracts for the highlighted accounts · whole number >= 1",
+  "zh": "已選取帳戶的手數上限 · 整數，至少 1",
+  "ja": "選択中の口座の最大枚数 · 1 以上の整数",
+  "ko": "선택한 계좌의 최대 계약 수 · 1 이상의 정수"
  }
 ]

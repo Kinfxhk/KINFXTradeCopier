@@ -8,7 +8,7 @@ public static class UiTestsWp2 {
   public static Action[] Cases(){ return new Action[]{
     SummaryCardsShowCorrectValues, BannerCollapsesAndLinksSwitchTabs, UnlockAllAndFlattenLiveOnMonitor,
     BulkSectionAppliesOnSettingsTab, GroupHeaderShowsFirmAndCount, MaxIsDefaultWarnBorder, NoClippedTextNoWhiteBlocksAllLanguages,
-    GroupToggleMirrorsGroupByAccount, IssuesHaveTheirOwnTab, LeaderRowIsAlwaysFirst };}
+    GroupToggleMirrorsGroupByAccount, IssuesHaveTheirOwnTab, LeaderRowIsAlwaysFirst, BulkEditsRatioAndMax, ColumnsFollowImportanceOrder };}
   static T Find<T>(DashboardView v,string tag) where T:FrameworkElement{return BulkUiTests.Visual<T>(v).FirstOrDefault(x=>(x.Tag as string)==tag);}
   static FrameworkElement Tag(DashboardView v,string tag){return BulkUiTests.Visual<FrameworkElement>(v).FirstOrDefault(x=>(x.Tag as string)==tag);}
   static string CardValue(DashboardView v,string tag){var c=Tag(v,tag);BulkUiTests.Check(c!=null,"card exists: "+tag);return BulkUiTests.Visual<TextBlock>(c).Last().Text;}
@@ -64,15 +64,15 @@ public static class UiTestsWp2 {
     v.RiskGrid.UnselectAll();v.RiskGrid.SelectedItems.Add(v.Rows[1]);v.RiskGrid.SelectedItems.Add(v.Rows[2]);
     var field=Find<ComboBox>(v,"bulkField");var value=Find<TextBox>(v,"bulkValue");var apply=Find<Button>(v,"bulkApply");
     BulkUiTests.Check(field!=null&&value!=null&&apply!=null,"bulk controls exist on settings tab");
-    field.SelectedIndex=0;BulkUiTests.Layout(v);
+    field.SelectedIndex=DashboardView.BulkFieldIndex("Tgt");BulkUiTests.Layout(v);
     value.Text="750";BulkUiTests.Layout(v);
     apply.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
     BulkUiTests.Check(v.Rows[1].Target==750&&v.Rows[2].Target==750&&v.Rows[3].Target==1000,"Daily target applied to highlighted rows only");
     double ratioBefore=v.Rows[1].Ratio;
-    field.SelectedIndex=2;BulkUiTests.Layout(v);var combo=Find<ComboBox>(v,"bulkValueCombo");combo.SelectedIndex=1;BulkUiTests.Layout(v);
+    field.SelectedIndex=DashboardView.BulkFieldIndex("ATM");BulkUiTests.Layout(v);var combo=Find<ComboBox>(v,"bulkValueCombo");combo.SelectedIndex=1;BulkUiTests.Layout(v);
     apply.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
     BulkUiTests.Check(!v.Rows[1].CopyAtm&&!v.Rows[2].CopyAtm,"ATM exit mirroring off applied");
-    field.SelectedIndex=4;BulkUiTests.Layout(v);combo=Find<ComboBox>(v,"bulkValueCombo");combo.SelectedIndex=1;BulkUiTests.Layout(v);
+    field.SelectedIndex=DashboardView.BulkFieldIndex("Diverge");BulkUiTests.Layout(v);combo=Find<ComboBox>(v,"bulkValueCombo");combo.SelectedIndex=1;BulkUiTests.Layout(v);
     apply.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
     BulkUiTests.Check(v.Rows[1].OnDivergence=="FlattenOnce"&&v.Rows[2].OnDivergence=="FlattenOnce","On divergence = Flatten once applied");
     BulkUiTests.Check(v.Rows[1].Ratio==ratioBefore&&v.Rows[2].Ratio==1,"Ratio untouched by bulk");
@@ -125,7 +125,7 @@ public static class UiTestsWp2 {
         v2.Sections.SelectedIndex=1;BulkUiTests.Layout(v2);
         var bf=Find<ComboBox>(v2,"bulkField");
         BulkUiTests.Check(bf!=null&&BulkUiTests.WhitePx(bf)<40,code+": bulk field combo stays dark");
-        bf.SelectedIndex=2;BulkUiTests.Layout(v2);
+        bf.SelectedIndex=DashboardView.BulkFieldIndex("ATM");BulkUiTests.Layout(v2);
         var bvc=Find<ComboBox>(v2,"bulkValueCombo");
         BulkUiTests.Check(bvc!=null&&BulkUiTests.WhitePx(bvc)<40,code+": bulk value combo stays dark");
       }
@@ -193,5 +193,40 @@ public static class UiTestsWp2 {
     leader.Role="Follower";var next=v.Rows[5];next.Role="Leader";v.ResortLeaderFirst();BulkUiTests.Layout(v);
     BulkUiTests.Check(v.AccountGrid.Items[0]==next,"new leader moves to the top after the leader changes");
     BulkUiTests.Check(v.Rows.Count==30&&v.AccountGrid.Items.Count==30,"no rows lost");
+  }
+
+  // User request: bulk edit can change Ratio and Max contracts too; still only highlighted followers, only while stopped, never the follow tick.
+  static void BulkEditsRatioAndMax(){
+    var v=BulkUiTests.Fresh();v.Sections.SelectedIndex=1;BulkUiTests.Layout(v);
+    var field=Find<ComboBox>(v,"bulkField");var value=Find<TextBox>(v,"bulkValue");var apply=Find<Button>(v,"bulkApply");
+    BulkUiTests.Check(field.SelectedIndex==0&&(field.SelectedItem as string)==Lang.T("Ratio"),"Ratio is the first bulk field: "+field.SelectedItem);
+    BulkUiTests.Check((field.Items[1] as string)==Lang.T("Max contracts"),"Max contracts is second");
+    v.RiskGrid.UnselectAll();v.RiskGrid.SelectedItems.Add(v.Rows[0]);v.RiskGrid.SelectedItems.Add(v.Rows[1]);v.RiskGrid.SelectedItems.Add(v.Rows[2]);
+    bool[] ticks=v.Rows.Select(r=>r.Enabled).ToArray();double leaderRatio=v.Rows[0].Ratio;int leaderMax=v.Rows[0].MaxContracts;
+    value.Text="0.5";apply.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+    BulkUiTests.Check(v.Rows[1].Ratio==0.5&&v.Rows[2].Ratio==0.5&&v.Rows[3].Ratio!=0.5,"Ratio 0.5 on highlighted followers only");
+    BulkUiTests.Check(v.Rows[0].Ratio==leaderRatio,"leader Ratio untouched");
+    field.SelectedIndex=DashboardView.BulkFieldIndex("Max");BulkUiTests.Layout(v);
+    value.Text="7";apply.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+    BulkUiTests.Check(v.Rows[1].MaxContracts==7&&v.Rows[2].MaxContracts==7&&v.Rows[3].MaxContracts!=7,"Max 7 on highlighted followers only");
+    BulkUiTests.Check(v.Rows[0].MaxContracts==leaderMax,"leader Max untouched");
+    foreach(var bad in new[]{"0","-1","1,5","abc","",double.NaN.ToString(),"1e400"}){string r=v.BulkApply("Ratio",bad);BulkUiTests.Check(r!=null,"Ratio '"+bad+"' refused");}
+    foreach(var bad in new[]{"0","-2","1.5","x",""}){string r=v.BulkApply("Max",bad);BulkUiTests.Check(r!=null,"Max '"+bad+"' refused");}
+    BulkUiTests.Check(v.Rows[1].Ratio==0.5&&v.Rows[1].MaxContracts==7,"refused values change nothing");
+    BulkUiTests.Check(v.Rows.Select(r=>r.Enabled).SequenceEqual(ticks),"follow ticks unchanged");
+    v.Editable(false);
+    BulkUiTests.Check(v.BulkApply("Ratio","2")!=null&&v.BulkApply("Max","9")!=null,"refused while attached");
+    BulkUiTests.Check(v.Rows[1].Ratio==0.5&&v.Rows[1].MaxContracts==7,"unchanged while attached");
+  }
+  // User request: columns ordered by importance instead of the order they were added in.
+  static void ColumnsFollowImportanceOrder(){
+    var v=BulkUiTests.Fresh();
+    var copy=v.AccountGrid.Columns.Select(DashboardView.ColumnKey).ToArray();
+    var risk=v.RiskGrid.Columns.Select(DashboardView.ColumnKey).ToArray();
+    BulkUiTests.Check(copy.SequenceEqual(DashboardView.CopyColumnOrder),"monitor order: "+string.Join(",",copy));
+    BulkUiTests.Check(risk.Take(DashboardView.RiskColumnOrder.Length).SequenceEqual(DashboardView.RiskColumnOrder),"settings order: "+string.Join(",",risk));
+    BulkUiTests.Check(risk.Length==DashboardView.RiskColumnOrder.Length+1,"only the row-settings button follows, at the far right: "+risk.Length);
+    BulkUiTests.Check(v.AccountGrid.FrozenColumnCount==2&&copy[0]=="On"&&copy[1]=="Acct","tick and account stay frozen on the left");
+    BulkUiTests.Check(copy[copy.Length-1]=="Flat"&&copy[copy.Length-2]=="Off","row actions stay at the far right");
   }
 }

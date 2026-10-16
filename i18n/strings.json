@@ -2106,10 +2106,10 @@
   "ko": "복원 실패 — 시작이 차단되었습니다: {0}"
  },
  {
-  "en": "Bulk {0} applied to highlighted followers; Ratio and ticks unchanged.",
-  "zh": "已將批次{0}套用至選取的跟單帳戶；比例與跳動點數不變。",
-  "ja": "一括{0}を選択中のフォロワーに適用；比率とティックは変更なし。",
-  "ko": "일괄 {0}을(를) 선택한 팔로워에 적용함; 비율과 틱은 변경되지 않음."
+  "en": "Bulk {0} applied to highlighted followers; follow ticks unchanged.",
+  "zh": "已將批次{0}套用至選取的跟單帳戶；跟單勾選不變。",
+  "ja": "一括{0}を選択中のフォロワーに適用；フォローのチェックは変更なし。",
+  "ko": "일괄 {0}을(를) 선택한 팔로워에 적용함; 팔로우 체크는 변경되지 않음."
  },
  {
   "en": "Bulk {0} refused: {1}",
