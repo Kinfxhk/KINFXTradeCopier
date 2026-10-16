@@ -7,7 +7,8 @@ using NinjaTrader.NinjaScript.AddOns.Kinfx;
 public static class UiTestsWp2 {
   public static Action[] Cases(){ return new Action[]{
     SummaryCardsShowCorrectValues, BannerCollapsesAndLinksSwitchTabs, UnlockAllAndFlattenLiveOnMonitor,
-    BulkSectionAppliesOnSettingsTab, GroupHeaderShowsFirmAndCount, MaxIsDefaultWarnBorder, NoClippedTextNoWhiteBlocksAllLanguages
+    BulkSectionAppliesOnSettingsTab, GroupHeaderShowsFirmAndCount, MaxIsDefaultWarnBorder, NoClippedTextNoWhiteBlocksAllLanguages,
+    GroupToggleMirrorsGroupByAccount
   };}
   static T Find<T>(DashboardView v,string tag) where T:FrameworkElement{return BulkUiTests.Visual<T>(v).FirstOrDefault(x=>(x.Tag as string)==tag);}
   static FrameworkElement Tag(DashboardView v,string tag){return BulkUiTests.Visual<FrameworkElement>(v).FirstOrDefault(x=>(x.Tag as string)==tag);}
@@ -125,4 +126,15 @@ public static class UiTestsWp2 {
       }
     } finally { Lang.Set(was); }
   }
+
+ // Review fix (parent): grouping set in code left the "Group by firm" box unticked, so the screen showed groups with the box off.
+ static void GroupToggleMirrorsGroupByAccount(){
+  var v=BulkUiTests.Fresh();v.Sections.SelectedIndex=0;BulkUiTests.Layout(v);
+  var box=BulkUiTests.Visual<CheckBox>(v).FirstOrDefault(c=>(c.Content as string)==Lang.T("Group by firm"));
+  BulkUiTests.Check(box!=null,"Group by firm check box exists on the Monitor page");
+  v.GroupByAccount=true;BulkUiTests.Check(box.IsChecked==true,"box ticks when grouping is turned on in code");
+  v.GroupByAccount=false;BulkUiTests.Check(box.IsChecked==false,"box clears when grouping is turned off in code");
+  box.IsChecked=true;BulkUiTests.Check(v.GroupByAccount,"ticking the box still groups");
+  box.IsChecked=false;BulkUiTests.Check(!v.GroupByAccount,"unticking the box still ungroups");
+ }
 }

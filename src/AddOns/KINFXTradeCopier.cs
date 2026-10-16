@@ -3670,8 +3670,9 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         void BuildLogColumns()
         {
             LogGrid.Columns.Add(new DataGridTextColumn{Header=Lang.T("Time"),Binding=new Binding("Time"){Mode=BindingMode.OneWay,StringFormat="HH:mm:ss",ConverterCulture=CultureInfo.InvariantCulture},Width=78,IsReadOnly=true});
-            var lvl=new FrameworkElementFactory(typeof(TextBlock));lvl.SetBinding(TextBlock.TextProperty,new Binding("LevelText"){Mode=BindingMode.OneWay});lvl.SetValue(FrameworkElement.MarginProperty,new Thickness(9,0,9,0));lvl.SetValue(FrameworkElement.VerticalAlignmentProperty,VerticalAlignment.Center);lvl.SetValue(TextBlock.ForegroundProperty,Muted);
-            var lvStyle=new Style(typeof(TextBlock));LogLevelTrigger(lvStyle,"Info",Muted);LogLevelTrigger(lvStyle,"Order",Good);LogLevelTrigger(lvStyle,"Warn",Warn);LogLevelTrigger(lvStyle,"Lock",Bad);LogLevelTrigger(lvStyle,"Error",Bad,true);lvl.SetValue(FrameworkElement.StyleProperty,lvStyle);
+            var lvl=new FrameworkElementFactory(typeof(TextBlock));lvl.SetBinding(TextBlock.TextProperty,new Binding("LevelText"){Mode=BindingMode.OneWay});lvl.SetValue(FrameworkElement.MarginProperty,new Thickness(9,0,9,0));lvl.SetValue(FrameworkElement.VerticalAlignmentProperty,VerticalAlignment.Center);
+            // No local Foreground on the cell: a local value outranks these style triggers and every level would stay Muted.
+            var lvStyle=new Style(typeof(TextBlock));lvStyle.Setters.Add(new Setter(TextBlock.ForegroundProperty,Muted));LogLevelTrigger(lvStyle,"Info",Muted);LogLevelTrigger(lvStyle,"Order",Good);LogLevelTrigger(lvStyle,"Warn",Warn);LogLevelTrigger(lvStyle,"Lock",Bad);LogLevelTrigger(lvStyle,"Error",Bad,true);lvl.SetValue(FrameworkElement.StyleProperty,lvStyle);
             LogGrid.Columns.Add(new DataGridTemplateColumn{Header=Lang.T("Level"),Width=62,IsReadOnly=true,CellTemplate=new DataTemplate{VisualTree=lvl}});
             var acct=new DataGridTextColumn{Header=Lang.T("Account"),Binding=new Binding("Account"){Mode=BindingMode.OneWay},Width=150,IsReadOnly=true};acct.ElementStyle=LogTextStyle("Account");LogGrid.Columns.Add(acct);
             LogGrid.Columns.Add(new DataGridTextColumn{Header=Lang.T("Category"),Binding=new Binding("CategoryText"){Mode=BindingMode.OneWay},Width=92,IsReadOnly=true});
@@ -3741,7 +3742,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         void OnFollowRequested(AccountRow row,bool enabled){if(!demo&&FollowRow!=null)FollowRow(row,enabled);UpdateCards();}
         bool Matches(object value){var r=value as AccountRow;if(r==null)return false;string q=search.Text.Trim();if(q.Length>0&&!(r.Name+" "+r.Alias+" "+r.Group+" "+r.Preset).ToLowerInvariant().Contains(q.ToLowerInvariant()))return false;int f=filter.SelectedIndex;return f==1?r.Enabled:f==2?r.Paused||r.Latch.Locked:f==3?r.Status=="Target hit":true;}
         void Send(string c){if(demo||!DashboardSafety.CanExecute(c))return;var cmd=Command;if(cmd!=null)cmd(c);}
-        public bool GroupByAccount{get{return view.GroupDescriptions.Count>0;}set{view.GroupDescriptions.Clear();if(value)view.GroupDescriptions.Add(new PropertyGroupDescription("Group"));}}
+        public bool GroupByAccount{get{return view.GroupDescriptions.Count>0;}set{view.GroupDescriptions.Clear();if(value)view.GroupDescriptions.Add(new PropertyGroupDescription("Group"));if(groupBox!=null&&groupBox.IsChecked!=value)groupBox.IsChecked=value;}}
         public bool FocusSearch(){if(!search.IsEnabled)return false;Sections.SelectedIndex=0;search.Focus();search.SelectAll();return true;}
         public void SelectAllAccounts(){search.Clear();filter.SelectedIndex=0;view.Refresh();AccountGrid.SelectAll();}
         public void SelectVisible(){AccountGrid.UnselectAll();foreach(var r in view.Cast<AccountRow>())AccountGrid.SelectedItems.Add(r);}

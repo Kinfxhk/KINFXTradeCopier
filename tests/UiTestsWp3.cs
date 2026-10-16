@@ -14,6 +14,7 @@ public static class UiTestsWp3 {
     UnseenBadgeIncrementsAndResets,
     TwoThousandLineCap,
     ZhRendersTranslatedLevelNames,
+    LevelCellsAreColouredByLevel,
     NoClippedToolbarInFourLanguages,
     ComboAndCheckBoxesStayDark,
     Timing500InZh
@@ -146,4 +147,19 @@ public static class UiTestsWp3 {
       BulkUiTests.Check(sw.ElapsedMilliseconds<1500,"500 AddLog in zh took "+sw.ElapsedMilliseconds+"ms (must be < 1500)");
     } finally { Lang.Set(was); }
   }
+
+ // Review fix (parent): the level cell had a local Foreground, which outranks the style triggers, so every level rendered Muted.
+ static void LevelCellsAreColouredByLevel(){
+  var v=BulkUiTests.Fresh();
+  foreach(var lv in new[]{"Info","Order","Warn","Lock","Error"})v.AddLog(new LogLine{Time=DateTime.Now,Level=lv,Account="",Category="General",Text="x "+lv});
+  v.Sections.SelectedIndex=2;BulkUiTests.Layout(v);
+  var col=v.LogGrid.Columns[1];
+  var want=new System.Collections.Generic.Dictionary<string,System.Windows.Media.Brush>{{"Info",DashboardView.Muted},{"Order",DashboardView.Good},{"Warn",DashboardView.Warn},{"Lock",DashboardView.Bad},{"Error",DashboardView.Bad}};
+  foreach(var item in v.LogGrid.Items.Cast<LogLine>()){
+   v.LogGrid.ScrollIntoView(item);BulkUiTests.Layout(v);
+   var cell=col.GetCellContent(item);var tb=cell as TextBlock??BulkUiTests.Visual<TextBlock>(cell).FirstOrDefault();
+   BulkUiTests.Check(tb!=null,"level cell realized for "+item.Level);
+   BulkUiTests.Check(ReferenceEquals(tb.Foreground,want[item.Level]),item.Level+" level text colour is "+tb.Foreground+", expected "+want[item.Level]);
+  }
+ }
 }
