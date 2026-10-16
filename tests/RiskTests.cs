@@ -611,7 +611,9 @@ static void MonitorSummarySingleCurrency() {
  Eq("$0.00",MonitorSummary.Money(-0.001,"UsDollar")); // no "-$0.00"
  Eq("\u20AC5.00",MonitorSummary.Money(5,"Euro"));
  Eq("HK$5.00",MonitorSummary.Money(5,"HongKongDollar"));
- Eq("ChinaYuan -5.00",MonitorSummary.Money(-5,"ChinaYuan")); // unknown: keep the code, never pretend it is $
+ Eq("CNY -5.00",MonitorSummary.Money(-5,"ChinaYuan")); // no symbol: ISO code, never the enum name and never pretend it is $
+ Eq("CHF 5.00",MonitorSummary.Money(5,"SwissFranc"));
+ Eq("XYZ 5.00",MonitorSummary.Money(5,"XYZ")); // unknown name shown as it is
  Eq("5.00",MonitorSummary.Money(5,""));
  Eq("\u2014",MonitorSummary.Money(double.NaN,"UsDollar"));
 }
@@ -627,6 +629,15 @@ static void LogClassifierRules() {
  Eq("Lock",l.Level); Eq("Lock",l.Category); Eq("Sim101",l.Account);
  Eq("Lock",LogClassifier.Classify("Coverage not established; LOCK pending manual recovery.",names).Level);
  Eq("Error",LogClassifier.Classify("ENGINE ERROR: boom",names).Level);
+ // Review 2: a line logged at 23:59:59 and flushed after midnight must stay in its own day's file.
+ { var a1=LogClassifier.Classify("late line",names);a1.Time=new DateTime(2026,10,16,23,59,59);
+   var b1=LogClassifier.Classify("early line",names);b1.Time=new DateTime(2026,10,17,0,0,1);
+   var c1=LogClassifier.Classify("late two",names);c1.Time=new DateTime(2026,10,16,23,59,59,900);
+   var files=LogClassifier.DailyFiles(new[]{a1,b1,c1});
+   Eq(2,files.Count);Eq("kinfx-20261016.log",files[0].Key);Eq("kinfx-20261017.log",files[1].Key);
+   Eq(true,files[0].Value.Contains("late line")&&files[0].Value.Contains("late two")&&!files[0].Value.Contains("early line"));
+   Eq(true,files[1].Value.StartsWith("2026-10-17 00:00:01  ")&&files[1].Value.Contains("early line"));
+   Eq(0,LogClassifier.DailyFiles(null).Count); }
  Eq("Error",LogClassifier.Classify("PROVIDER DISPATCH ERROR: boom",names).Level);
  Eq("Error",LogClassifier.Classify("PROVIDER COMPLETION ERROR: boom",names).Level);
  Eq("Error",LogClassifier.Classify("PERSISTENCE ERROR — boom",names).Level);

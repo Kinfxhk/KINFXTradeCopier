@@ -877,6 +877,10 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 default:return null;
             }
         }
+        // NinjaTrader Currency enum name -> ISO code for currencies without a symbol above (unknown names are shown as they are).
+        static readonly string[] currencyNames={"AustralianDollar","BritishPound","CanadianDollar","Euro","HongKongDollar","JapaneseYen","SwissFranc","UsDollar","KoreanWon","IndianRupee","SwedishKrona","MexicanPeso","BrazilianReal","SingaporeDollar","ChinaYuan","MalaysiaRinggit","ThailandBaht","TaiwanNewDollar","NewZealandDollar","SouthAfricanRand","CzechRepublicKoruna","NorwayKrone","DenmarkKrone","HungaryForint","PolandZloty","TurkeyLira","IsraeliShekel","RussiaRuble","SaudiRiyal"};
+        static readonly string[] currencyCodes={"AUD","GBP","CAD","EUR","HKD","JPY","CHF","USD","KRW","INR","SEK","MXN","BRL","SGD","CNY","MYR","THB","TWD","NZD","ZAR","CZK","NOK","DKK","HUF","PLN","TRY","ILS","RUB","SAR"};
+        public static string IsoCode(string currency){string c=(currency??"").Trim();int i=Array.IndexOf(currencyNames,c);return i>=0?currencyCodes[i]:c;}
         public static string Money(double value,string currency)
         {
             if(double.IsNaN(value)||double.IsInfinity(value))return "\u2014";
@@ -885,7 +889,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             string sign=value<0?"-":"";
             string sym=CurrencySymbol(currency);
             if(sym!=null)return sign+sym+amount;
-            string code=(currency??"").Trim();
+            string code=IsoCode(currency);
             return code.Length==0?sign+amount:code+" "+sign+amount;
         }
         // The one currency when every non-empty one agrees; null when mixed (the card then shows "Mixed CCY").
@@ -917,6 +921,19 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
     // Accounts, General.
     public static class LogClassifier
     {
+        // Daily log text grouped by each line's own date: file name "kinfx-yyyyMMdd.log" -> text, in time order of first appearance. Pure.
+        public static List<KeyValuePair<string,string>> DailyFiles(IEnumerable<LogLine> lines)
+        {
+            var order=new List<string>();var text=new Dictionary<string,System.Text.StringBuilder>();
+            if(lines!=null)foreach(var l in lines)
+            {
+                if(l==null)continue;
+                string name="kinfx-"+l.Time.ToString("yyyyMMdd",CultureInfo.InvariantCulture)+".log";
+                System.Text.StringBuilder sb;if(!text.TryGetValue(name,out sb)){sb=new System.Text.StringBuilder();text[name]=sb;order.Add(name);}
+                sb.Append(l.Time.ToString("yyyy-MM-dd HH:mm:ss",CultureInfo.InvariantCulture)).Append("  ").Append(l.Level).Append("  ").Append(l.Text).Append(Environment.NewLine);
+            }
+            return order.Select(n=>new KeyValuePair<string,string>(n,text[n].ToString())).ToList();
+        }
         public static readonly string[] Levels = { "Info", "Order", "Warn", "Lock", "Error" };
         public static LogLine Classify(string message, IEnumerable<string> accountNames)
         {
@@ -3617,6 +3634,10 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             double pnl=MonitorSummary.SumFinite(followers.Select(r=>r.Pnl));
             cardPnl.Text=ccy==null?Lang.T("Mixed CCY"):MonitorSummary.Money(pnl,ccy);
             if(issuesLines==null)return;
+            // Rebuilt only when the issue set changes (UpdateCards runs every second and on every telemetry message).
+            var sigB=new System.Text.StringBuilder(Lang.Current).Append('|').Append(HeaderNotice);
+            foreach(var r in Rows.Where(x=>x.Role!="Leader")){if(r.Latch.Locked)sigB.Append("\nL").Append(r.Name).Append('\t').Append(r.Alias).Append('\t').Append(r.Latch.Reason);if(r.Advice.Length>0)sigB.Append("\nA").Append(r.Name).Append('\t').Append(r.Alias).Append('\t').Append(r.Advice);}
+            string sig=sigB.ToString();if(sig==issuesSignature)return;issuesSignature=sig;
             issuesLines.Children.Clear();
             var lines=new List<UIElement>();
             foreach(var r in Rows.Where(x=>x.Role!="Leader"&&x.Latch.Locked))
@@ -3684,7 +3705,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             var cards=new WrapPanel{Margin=new Thickness(0,0,0,10)};cardCopying=Text("0",18,Ink);cardLocked=Text("0",18,Ink);cardUnprotected=Text("0",18,Ink);cardPnl=Text("0",18,Ink);cards.Children.Add(CardBox("card:copying",Lang.T("Copying"),cardCopying));var lockedCard=CardBox("card:locked",Lang.T("Locked accounts"),cardLocked);lockedCard.Cursor=System.Windows.Input.Cursors.Hand;lockedCard.ToolTip=Lang.T("Open the Issues tab");lockedCard.MouseLeftButtonUp+=(s,e)=>{if(issuesTab!=null)Sections.SelectedItem=issuesTab;};cards.Children.Add(lockedCard);cards.Children.Add(CardBox("card:unprotected",Lang.T("Unprotected lots"),cardUnprotected));cards.Children.Add(CardBox("card:pnl",Lang.T("Today P/L"),cardPnl));AddRow(copy,cards,0);
             var toolbar=new WrapPanel{Margin=new Thickness(0,0,0,9)};
             search=Input("",185);search.ToolTip=Lang.T("Search account / alias / group / preset · Ctrl+F · Escape clears");toolbar.Children.Add(Labeled("⌕",search,17));filter=Combo(120);filter.ToolTip=Lang.T("Filter displayed account states");filter.ItemsSource=new[]{Lang.T("All"),Lang.T("On"),Lang.T("Paused"),Lang.T("Target")};filter.SelectedIndex=0;toolbar.Children.Add(filter);var ticks=new StackPanel{Orientation=Orientation.Horizontal,Margin=new Thickness(0,0,0,6)};ticks.Children.Add(Icon("\uE73A",Lang.T("Tick all visible followers"),"tickAll",()=>TickVisible(true),true));ticks.Children.Add(Icon("\uE711",Lang.T("Untick all visible followers"),"tickNone",()=>TickVisible(false),true));toolbar.Children.Add(ticks);groupBox=new CheckBox{Template=PlainCheckTemplate(),Content=Lang.T("Group by firm"),Foreground=Muted,Margin=new Thickness(8,6,0,0),ToolTip=Lang.T("Group account rows")};System.Windows.Automation.AutomationProperties.SetName(groupBox,Lang.T("Group by firm"));toolbar.Children.Add(groupBox);AddRow(copy,toolbar,1);columnsBarCopy=toolbar;
-            AccountGrid=GridTable();TickColumn(AccountGrid);AccountColumn(AccountGrid);Column(AccountGrid,"Alias","Alias",100,false,Lang.T("Optional display alias"));RatioColumn(AccountGrid);Column(AccountGrid,"Tgt","TargetText",78,false,Lang.T("Independent daily local profit target · account CCY / 0 = off"),null,true);Column(AccountGrid,"DLL","LossText",78,false,Lang.T("Independent daily loss limit · positive amount / 0 = off"),null,true);AtmColumn(AccountGrid);Column(AccountGrid,"Qty","Position",55,true,Lang.T("Signed position · + long / − short"),null,true);Column(AccountGrid,"P/L","Pnl",95,true,Lang.T("Observed session P/L in account currency · baseline is not historical daily accounting"),"N2",true);Column(AccountGrid,"Bal","BalanceText",130,true,Lang.T("CashValue in account currency; not NetLiquidation / net equity"),null,true);((DataGridTextColumn)AccountGrid.Columns.Last()).ElementStyle.Setters.Add(new Setter(FrameworkElement.ToolTipProperty,new Binding("BalanceDetail")));((DataGridTextColumn)AccountGrid.Columns.Last()).ElementStyle.Setters.Add(new Setter(System.Windows.Automation.AutomationProperties.NameProperty,new Binding("BalanceDetail")));LightColumn(AccountGrid,"Conn","ConnLight","Connection");StateColumn(AccountGrid);OffColumn(AccountGrid);FlatColumn(AccountGrid);OrderColumns(AccountGrid,CopyColumnOrder);AccountGrid.FrozenColumnCount=2;ProportionalCopyColumns(AccountGrid);AccountGrid.GroupStyle.Add(GroupHeaderStyle());AddRow(copy,AccountGrid,2);
+            AccountGrid=GridTable();TickColumn(AccountGrid);AccountColumn(AccountGrid);Column(AccountGrid,"Alias","Alias",100,false,Lang.T("Optional display alias"));RatioColumn(AccountGrid);Column(AccountGrid,"Tgt","TargetText",78,false,Lang.T("Independent daily local profit target · account CCY / 0 = off"),null,true);Column(AccountGrid,"DLL","LossText",78,false,Lang.T("Independent daily loss limit · positive amount / 0 = off"),null,true);AtmColumn(AccountGrid);Column(AccountGrid,"Qty","Position",55,true,Lang.T("Signed position · + long / − short"),null,true);Column(AccountGrid,"P/L","Pnl",95,true,Lang.T("Observed session P/L in account currency · baseline is not historical daily accounting"),"N2",true);Column(AccountGrid,"Bal","BalanceText",130,true,Lang.T("CashValue in account currency; not NetLiquidation / net equity"),null,true);AccountGrid.Columns.Last().SortMemberPath="CashBalance";((DataGridTextColumn)AccountGrid.Columns.Last()).ElementStyle.Setters.Add(new Setter(FrameworkElement.ToolTipProperty,new Binding("BalanceDetail")));((DataGridTextColumn)AccountGrid.Columns.Last()).ElementStyle.Setters.Add(new Setter(System.Windows.Automation.AutomationProperties.NameProperty,new Binding("BalanceDetail")));LightColumn(AccountGrid,"Conn","ConnLight","Connection");StateColumn(AccountGrid);OffColumn(AccountGrid);FlatColumn(AccountGrid);OrderColumns(AccountGrid,CopyColumnOrder);AccountGrid.FrozenColumnCount=2;ProportionalCopyColumns(AccountGrid);AccountGrid.GroupStyle.Add(GroupHeaderStyle());AddRow(copy,AccountGrid,2);
             // Flatten is an emergency action: NOT an edit button, so it stays usable while a session is attached (as in 121c44e).
             var actions=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,8,0,0)};var fs=TextToolFree(Lang.T("Flatten selected"),DashboardSafety.CanExecute("flattenSelected")?Lang.T("Flatten highlighted accounts (market-closes their positions)"):Lang.T("Flatten highlighted accounts · review hold"),"flattenSelected",()=>Send("flattenSelected"));fs.Foreground=Bad;fs.IsEnabled=DashboardSafety.CanExecute("flattenSelected");var fa=TextToolFree(Lang.T("Flatten all"),DashboardSafety.CanExecute("flattenAll")?Lang.T("Flatten ALL displayed accounts (market-closes every position shown)"):Lang.T("Flatten all displayed accounts · review hold"),"flattenAll",()=>Send("flattenAll"));fa.Foreground=Bad;fa.IsEnabled=DashboardSafety.CanExecute("flattenAll");actions.Children.Add(fs);actions.Children.Add(fa);AddRow(copy,actions,3);
             Sections.Items.Add(new TabItem{Header=Lang.T("Monitor"),Content=copy});
@@ -3713,7 +3734,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             bulkRow.Children.Add(TextTool(Lang.T("Apply"),Lang.T("Apply the chosen setting to the highlighted follower accounts"),"bulkApply",()=>BulkClick(BulkFieldCode(),BulkFieldValue())));
             bulkRow.Children.Add(TextTool(Lang.T("From Leader"),Lang.T("Copy the leader row's Tgt / DLL / ATM to highlighted followers (all visible if none highlighted). One-time copy; edit any row afterwards. Ratio and ticks are not copied."),"bulkLeader",()=>BulkLeaderClick()));
             bulkBar=bulkRow;bulkBar.Tag="bulkbar";bulkField.SelectionChanged+=(s,e)=>UpdateBulkValueControl();UpdateBulkValueControl();bulkBody.Children.Add(bulkRow);bulkSection.Child=bulkBody;AddRow(risk,bulkSection,1);
-            RiskGrid=GridTable();Column(RiskGrid,"Acct","Name",155,true,Lang.T("Broker account"));Column(RiskGrid,"Alias","Alias",115,false,Lang.T("Display alias"));Column(RiskGrid,"Grp","Group",90,false,Lang.T("Account group"));Column(RiskGrid,"Tgt","TargetText",105,false,Lang.T("Daily local profit target · 0 = off"),null,true);Column(RiskGrid,"DLL","LossText",105,false,Lang.T("Daily loss limit · positive value / 0 = off"),null,true);FlatOnLimitColumn(RiskGrid);Column(RiskGrid,"Max","MaxText",60,false,Lang.T("Maximum exact-instrument contracts"),null,true);var maxCol=(DataGridTextColumn)RiskGrid.Columns.Last();var maxCellStyle=new Style(typeof(DataGridCell),RiskGrid.CellStyle);var maxDefault=new DataTrigger{Binding=new Binding("MaxIsDefault"),Value=true};maxDefault.Setters.Add(new Setter(Control.BorderBrushProperty,Warn));maxDefault.Setters.Add(new Setter(Control.BorderThicknessProperty,new Thickness(1)));maxDefault.Setters.Add(new Setter(FrameworkElement.ToolTipProperty,Lang.T("Max is still 1: a leader order larger than this is skipped entirely")));maxCellStyle.Triggers.Add(maxDefault);maxCol.CellStyle=maxCellStyle;RatioColumn(RiskGrid);Column(RiskGrid,"P/L","Pnl",95,true,Lang.T("Observed session P/L"),"N2",true);Column(RiskGrid,"CCY","Currency",55,true,Lang.T("Account currency"));Column(RiskGrid,"To Tgt","TargetRemaining",80,true,Lang.T("Amount remaining to daily target (read-only, computed from P/L)"),null,true);Column(RiskGrid,"Loss left","LossRemaining",80,true,Lang.T("How much more can be lost before the daily loss limit (read-only, computed from P/L)"),null,true);Column(RiskGrid,"Qty","Position",50,true,Lang.T("Signed position"),null,true);Column(RiskGrid,"Conn","ConnectionShown",100,true,Lang.T("Connection status"));((DataGridTextColumn)RiskGrid.Columns.Last()).SortMemberPath="Connection";Column(RiskGrid,"St","StatusShown",120,true,Lang.T("Copier / risk state"));((DataGridTextColumn)RiskGrid.Columns.Last()).SortMemberPath="Status";FullTextTip(RiskGrid,"StatusShown");Column(RiskGrid,"Preset","Preset",110,true,Lang.T("Editable firm template"));FullTextTip(RiskGrid,"Preset");Column(RiskGrid,"Cons","ConsistencyAdvice",110,true,Lang.T("Consistency advisory · not a broker guarantee"));FullTextTip(RiskGrid,"ConsistencyAdvice");OrderColumns(RiskGrid,RiskColumnOrder);
+            RiskGrid=GridTable();Column(RiskGrid,"Acct","Name",155,true,Lang.T("Broker account"));Column(RiskGrid,"Alias","Alias",115,false,Lang.T("Display alias"));Column(RiskGrid,"Grp","Group",90,false,Lang.T("Account group"));Column(RiskGrid,"Tgt","TargetText",105,false,Lang.T("Daily local profit target · 0 = off"),null,true);Column(RiskGrid,"DLL","LossText",105,false,Lang.T("Daily loss limit · positive value / 0 = off"),null,true);FlatOnLimitColumn(RiskGrid);Column(RiskGrid,"Max","MaxText",60,false,Lang.T("Maximum exact-instrument contracts"),null,true);RiskGrid.Columns.Last().SortMemberPath="MaxContracts";var maxCol=(DataGridTextColumn)RiskGrid.Columns.Last();var maxCellStyle=new Style(typeof(DataGridCell),RiskGrid.CellStyle);var maxDefault=new DataTrigger{Binding=new Binding("MaxIsDefault"),Value=true};maxDefault.Setters.Add(new Setter(Control.BorderBrushProperty,Warn));maxDefault.Setters.Add(new Setter(Control.BorderThicknessProperty,new Thickness(1)));maxDefault.Setters.Add(new Setter(FrameworkElement.ToolTipProperty,Lang.T("Max is still 1: a leader order larger than this is skipped entirely")));maxCellStyle.Triggers.Add(maxDefault);maxCol.CellStyle=maxCellStyle;RatioColumn(RiskGrid);Column(RiskGrid,"P/L","Pnl",95,true,Lang.T("Observed session P/L"),"N2",true);Column(RiskGrid,"CCY","Currency",55,true,Lang.T("Account currency"));Column(RiskGrid,"To Tgt","TargetRemaining",80,true,Lang.T("Amount remaining to daily target (read-only, computed from P/L)"),null,true);Column(RiskGrid,"Loss left","LossRemaining",80,true,Lang.T("How much more can be lost before the daily loss limit (read-only, computed from P/L)"),null,true);Column(RiskGrid,"Qty","Position",50,true,Lang.T("Signed position"),null,true);Column(RiskGrid,"Conn","ConnectionShown",100,true,Lang.T("Connection status"));((DataGridTextColumn)RiskGrid.Columns.Last()).SortMemberPath="Connection";Column(RiskGrid,"St","StatusShown",120,true,Lang.T("Copier / risk state"));((DataGridTextColumn)RiskGrid.Columns.Last()).SortMemberPath="Status";FullTextTip(RiskGrid,"StatusShown");Column(RiskGrid,"Preset","Preset",110,true,Lang.T("Editable firm template"));FullTextTip(RiskGrid,"Preset");Column(RiskGrid,"Cons","ConsistencyAdvice",110,true,Lang.T("Consistency advisory · not a broker guarantee"));FullTextTip(RiskGrid,"ConsistencyAdvice");OrderColumns(RiskGrid,RiskColumnOrder);
             var action=new FrameworkElementFactory(typeof(Button));CompactCellButton(action,28);action.SetValue(Control.TemplateProperty,OffTemplate());action.SetValue(ContentControl.ContentProperty,"\uE713");action.SetValue(Control.FontFamilyProperty,new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"));action.SetValue(Control.BackgroundProperty,Panel);action.SetValue(Control.ForegroundProperty,Ink);action.SetValue(Control.BorderBrushProperty,Line);action.SetValue(Control.PaddingProperty,new Thickness(4,1,4,1));action.SetValue(FrameworkElement.ToolTipProperty,Lang.T("Account risk / template / history"));var gearStyle=new Style(typeof(Button));var gearLocked=new DataTrigger{Binding=new Binding("IsReadOnly"){RelativeSource=new RelativeSource(RelativeSourceMode.FindAncestor,typeof(DataGrid),1)},Value=true};gearLocked.Setters.Add(new Setter(UIElement.IsEnabledProperty,false));gearStyle.Triggers.Add(gearLocked);action.SetValue(FrameworkElement.StyleProperty,gearStyle);action.AddHandler(ButtonBase.ClickEvent,new RoutedEventHandler((s,e)=>{if(!editable){e.Handled=true;return;}var r=(s as FrameworkElement).DataContext as AccountRow;if(r!=null&&RowSettings!=null)RowSettings(r);}));RiskGrid.Columns.Add(new DataGridTemplateColumn{Header="⚙",Width=40,CellTemplate=new DataTemplate{VisualTree=action}});AddRow(risk,RiskGrid,2);
             AddRow(risk,new TextBlock{Text=Lang.T("OFF cancels owned entries, retains exits · Re-follow explicit / only when clean · ATM OFF may be unprotected · Local guards only"),Foreground=Muted,FontSize=11,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,10,0,0)},3);Sections.Items.Add(new TabItem{Header=Lang.T("Settings"),Content=risk});
         }
@@ -3858,7 +3879,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         }
         // Page 3 (Issues): locks, settings notes and the header notice, with Unlock all. Its own tab so the Monitor table keeps
         // the full height when many accounts are listed (user request). Appended last so the Monitor/Settings/Logs indexes do not move.
-        TabItem issuesTab;int IssueCount;
+        TabItem issuesTab;int IssueCount;string issuesSignature;
         void BuildIssuesPage()
         {
             var page=new Grid{Tag="banner"};page.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});page.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});
@@ -4042,22 +4063,24 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         string LogText(){var sb=new System.Text.StringBuilder();foreach(var l in logs)sb.Append(l.Time.ToString("HH:mm:ss",CultureInfo.InvariantCulture)).Append("  ").Append(Lang.Show(l.Text)).AppendLine();return sb.ToString();}
         internal void RedrawLog(){dashboard.RebuildLog(logs,LogText());}
         // Daily log lines are buffered and written once per timer tick (and on close), not one open/write/close per line on the UI thread.
-        readonly System.Text.StringBuilder dailyPending=new System.Text.StringBuilder();int dailyPendingLines;
+        // Each line goes to the file of its own date, so a line logged at 23:59:59 and flushed after midnight stays in that day's file.
+        readonly List<LogLine> dailyPending=new List<LogLine>();
         void AppendDailyFile(LogLine line)
         {
-            if(logFileErrorLogged)return;
-            dailyPending.Append(line.Time.ToString("yyyy-MM-dd HH:mm:ss")).Append("  ").Append(line.Level).Append("  ").Append(line.Text).Append(Environment.NewLine);
-            if(++dailyPendingLines>=500)FlushDailyFile();
+            if(logFileErrorLogged||line==null)return;
+            dailyPending.Add(line);
+            if(dailyPending.Count>=500)FlushDailyFile();
         }
         void FlushDailyFile()
         {
-            if(dailyPending.Length==0)return;
-            string text=dailyPending.ToString();dailyPending.Clear();dailyPendingLines=0;
+            if(dailyPending.Count==0)return;
+            var batch=dailyPending.ToArray();dailyPending.Clear();
             if(logFileErrorLogged)return;
             try
             {
                 string dir=Path.Combine(DirectoryPath,"logs");Directory.CreateDirectory(dir);
-                File.AppendAllText(Path.Combine(dir,"kinfx-"+DateTime.Now.ToString("yyyyMMdd")+".log"),text,new System.Text.UTF8Encoding(false));
+                foreach(var file in LogClassifier.DailyFiles(batch))
+                    File.AppendAllText(Path.Combine(dir,file.Key),file.Value,new System.Text.UTF8Encoding(false));
             }
             catch(Exception ex)
             {
@@ -4084,6 +4107,8 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         string instanceId=Guid.NewGuid().ToString("N"),zone="Central Standard Time",lastDay="";
         int resetHour=17,persistTicks;
         bool cleaned,loading,settingsCorrupt;
+        // Set while Cleanup runs: Log() then records synchronously (the dispatcher queue is not drained after close), so close-time lines reach the daily file.
+        bool closing;
         string leaderName="";
         readonly HashSet<string> estimatedLogged=new HashSet<string>(StringComparer.Ordinal);
         static bool ntVersionLogged;
@@ -4216,12 +4241,14 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         }
         void Log(string message)
         {
-            Dispatch(()=>
+            Action record=()=>
             {
                 var line=LogClassifier.Classify(message,dashboard.Rows.Select(r=>r.Name));line.Time=DateTime.Now;
                 logs.Enqueue(line);while(logs.Count>LogCap)logs.Dequeue();
                 dashboard.AddLog(line);AppendDailyFile(line);
-            });
+            };
+            if(closing&&Dispatcher.CheckAccess()){record();return;}
+            Dispatch(record);
         }
         AccountRow[] Selected() {return dashboard.SelectedRows();}
         // Title stays English: automation finds this dialog by it and must not depend on the picked language. Body text is translated.
@@ -4530,7 +4557,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 dashboard.Rows.Clear();Refresh();}
             catch(Exception ex){settingsCorrupt=true;Log("Restore failed — Start blocked: "+ex.Message);}
         }
-        public override void Cleanup() {if(cleaned)return;timer.Stop();FlushDailyFile();Persist();engine.Dispose();cleaned=true;base.Cleanup();}
+        public override void Cleanup() {if(cleaned)return;timer.Stop();closing=true;Persist();engine.Dispose();FlushDailyFile();cleaned=true;base.Cleanup();}
     }
     public class KINFXTradeCopierWindowFactory : INTTabFactory
     {

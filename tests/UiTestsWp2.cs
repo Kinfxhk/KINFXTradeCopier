@@ -8,7 +8,7 @@ public static class UiTestsWp2 {
   public static Action[] Cases(){ return new Action[]{
     SummaryCardsShowCorrectValues, BannerCollapsesAndLinksSwitchTabs, UnlockAllAndFlattenLiveOnMonitor,
     BulkSectionAppliesOnSettingsTab, GroupHeaderShowsFirmAndCount, MaxIsDefaultWarnBorder, NoClippedTextNoWhiteBlocksAllLanguages,
-    GroupToggleMirrorsGroupByAccount, IssuesHaveTheirOwnTab, LeaderRowIsAlwaysFirst, BulkEditsRatioAndMax, ColumnsFollowImportanceOrder, MonitorTableFitsDefaultWindowInEveryLanguage, SettingsStatusAndConnectionAreTranslated };}
+    GroupToggleMirrorsGroupByAccount, IssuesHaveTheirOwnTab, LeaderRowIsAlwaysFirst, BulkEditsRatioAndMax, ColumnsFollowImportanceOrder, MonitorTableFitsDefaultWindowInEveryLanguage, SettingsStatusAndConnectionAreTranslated, MaxAndBalanceHeadersSort, IssuesListNotRebuiltWhenUnchanged };}
   static T Find<T>(DashboardView v,string tag) where T:FrameworkElement{return BulkUiTests.Visual<T>(v).FirstOrDefault(x=>(x.Tag as string)==tag);}
   static FrameworkElement Tag(DashboardView v,string tag){return BulkUiTests.Visual<FrameworkElement>(v).FirstOrDefault(x=>(x.Tag as string)==tag);}
   static string CardValue(DashboardView v,string tag){var c=Tag(v,tag);BulkUiTests.Check(c!=null,"card exists: "+tag);return BulkUiTests.Visual<TextBlock>(c).Last().Text;}
@@ -263,5 +263,38 @@ public static class UiTestsWp2 {
         BulkUiTests.Check(v.Rows[1].Status=="Disarmed"&&v.Rows[1].Connection=="Connected","underlying codes stay English for logic");
       }
     } finally { Lang.Set(was); }
+  }
+
+  // Review 2: Max (Settings) and Bal (Monitor) headers toggled their arrow but never reordered (sort path pointed at no property).
+  static void MaxAndBalanceHeadersSort(){
+    var v=BulkUiTests.Fresh();
+    for(int i=1;i<v.Rows.Count;i++){v.Rows[i].MaxContracts=(i*7)%13+1;v.Rows[i].CashBalance=(i*37)%101*100.0;}
+    var m=typeof(DataGrid).GetMethod("OnSorting",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic);
+    var maxCol=v.RiskGrid.Columns.First(c=>DashboardView.ColumnKey(c)=="Max");
+    m.Invoke(v.RiskGrid,new object[]{new DataGridSortingEventArgs(maxCol)});BulkUiTests.Layout(v);
+    var maxes=v.RiskGrid.Items.Cast<AccountRow>().Skip(1).Select(r=>r.MaxContracts).ToList();
+    BulkUiTests.Check(maxes.SequenceEqual(maxes.OrderBy(x=>x)),"Max header sorts followers ascending: "+string.Join(",",maxes));
+    BulkUiTests.Check(v.RiskGrid.Items[0]==v.Rows.First(r=>r.Role=="Leader"),"leader stays first");
+    var balCol=v.AccountGrid.Columns.First(c=>DashboardView.ColumnKey(c)=="Bal");
+    m.Invoke(v.AccountGrid,new object[]{new DataGridSortingEventArgs(balCol)});BulkUiTests.Layout(v);
+    var bals=v.AccountGrid.Items.Cast<AccountRow>().Skip(1).Select(r=>r.CashBalance).ToList();
+    BulkUiTests.Check(bals.SequenceEqual(bals.OrderBy(x=>x)),"Bal header sorts followers ascending");
+  }
+  // Review 2: the issue list was rebuilt (new buttons and templates) on every UpdateCards call, i.e. every second, even when nothing changed.
+  static void IssuesListNotRebuiltWhenUnchanged(){
+    var v=BulkUiTests.Fresh();
+    v.Rows[1].Latch.Locked=true;v.Rows[1].Latch.Reason="lock A";v.Rows[1].Changed();
+    v.UpdateCards();
+    var panel=BulkUiTests.Visual<StackPanel>((FrameworkElement)((TabItem)v.Sections.Items[3]).Content).FirstOrDefault(x=>(x.Tag as string)=="issues");
+    v.Sections.SelectedIndex=3;BulkUiTests.Layout(v);
+    panel=BulkUiTests.Visual<StackPanel>(v).First(x=>(x.Tag as string)=="issues");
+    var first=panel.Children.Cast<UIElement>().ToArray();
+    for(int i=0;i<5;i++)v.UpdateCards();
+    BulkUiTests.Check(panel.Children.Cast<UIElement>().SequenceEqual(first),"unchanged issues keep the same elements (no rebuild)");
+    v.Rows[2].Latch.Locked=true;v.Rows[2].Latch.Reason="lock B";v.Rows[2].Changed();v.UpdateCards();
+    BulkUiTests.Check(panel.Children.Count>first.Length,"a new lock rebuilds the list");
+    v.Rows[2].Latch.Reason="lock B changed";v.UpdateCards();BulkUiTests.Layout(v);
+    var texts=BulkUiTests.Visual<TextBlock>(panel).Select(x=>x.Text).ToList();
+    BulkUiTests.Check(texts.Any(x=>x.Contains("lock B changed")),"a changed reason is shown");
   }
 }
