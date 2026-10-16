@@ -974,6 +974,96 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
     }
     // Export-time masking: replace each account name by ACCOUNT-<n> (1-based, numbered by first appearance).
     // Longest names first so a name that is a prefix of another can never leave a half-replaced fragment.
+    // Email alerts (pure). Settings live in notify.txt: "to=<address>" and one "on=<kind>" per alert kind; unknown lines are ignored.
+    // Mail is sent through NinjaTrader's own default email share service (Tools > Options > General > Share services), so KINFX never stores
+    // a password or SMTP server. Decide() picks which log lines alert and rate-limits them; it never touches the engine or orders.
+    public static class NotifyPrefs
+    {
+        public const string Lock="lock", Error="error", Limit="limit", Disconnect="disconnect", Boundary="boundary";
+        public static readonly string[] Kinds={Lock,Error,Limit,Disconnect,Boundary};
+        public static string Label(string kind){return kind==Lock?"Account locked":kind==Error?"Errors":kind==Limit?"Target / daily loss hit":kind==Disconnect?"Leader disconnected":kind==Boundary?"Trading-day boundary":kind;}
+        public sealed class Settings
+        {
+            public string To="";
+            public readonly HashSet<string> On=new HashSet<string>(StringComparer.Ordinal);
+            public bool Enabled{get{return IsAddress(To)&&On.Count>0;}}
+        }
+        // Default: nothing is sent until the user enters an address. Once an address is set, lock / error / limit / disconnect are on.
+        public static Settings Defaults(){var s=new Settings();foreach(var k in new[]{Lock,Error,Limit,Disconnect})s.On.Add(k);return s;}
+        public static bool IsAddress(string a)
+        {
+            if(string.IsNullOrWhiteSpace(a))return false;a=a.Trim();
+            if(a.Length>254||a.IndexOfAny(new[]{' ',',',';','\r','\n','\t','<','>','"'})>=0)return false;
+            int at=a.IndexOf('@');return at>0&&at==a.LastIndexOf('@')&&a.IndexOf('.',at)>at+1&&!a.EndsWith(".");
+        }
+        public static Settings Parse(IEnumerable<string> lines)
+        {
+            var s=Defaults();if(lines==null)return s;bool anyOn=false;var on=new HashSet<string>(StringComparer.Ordinal);
+            foreach(var raw in lines)
+            {
+                if(raw==null)continue;string t=raw.Trim();if(t.Length==0||t.StartsWith("#"))continue;
+                int eq=t.IndexOf('=');if(eq<0)continue;string key=t.Substring(0,eq).Trim(),val=t.Substring(eq+1).Trim();
+                if(key=="to"){s.To=IsAddress(val)?val:"";}
+                else if(key=="on"){anyOn=true;if(Array.IndexOf(Kinds,val)>=0)on.Add(val);}
+                else if(key=="none"){anyOn=true;}
+            }
+            if(anyOn){s.On.Clear();foreach(var k in on)s.On.Add(k);}
+            return s;
+        }
+        public static string[] Serialize(Settings s)
+        {
+            var list=new List<string>{"# KINFX Trade Copier: email alerts. Mail goes through NinjaTrader's default email share service; no password is stored here."};
+            list.Add("to="+(s==null?"":s.To));
+            if(s==null||s.On.Count==0)list.Add("none=");
+            else foreach(var k in Kinds)if(s.On.Contains(k))list.Add("on="+k);
+            return list.ToArray();
+        }
+        // Which alert kind a classified log line raises, or null. Order lines, plain info and warnings never mail.
+        public static string KindOf(LogLine line)
+        {
+            if(line==null||line.Text==null)return null;string m=line.Text;
+            if(line.Level=="Lock")
+            {
+                if(m.IndexOf("Leader disconnected",StringComparison.Ordinal)>=0)return Disconnect;
+                if(m.IndexOf(" LOCK: Target hit",StringComparison.Ordinal)>=0||m.IndexOf(" LOCK: Daily loss",StringComparison.Ordinal)>=0||m.IndexOf(" LOCK: Drawdown floor",StringComparison.Ordinal)>=0)return Limit;
+                return Lock;
+            }
+            if(line.Level=="Error")return Error;
+            if(m.StartsWith("Trading-day boundary",StringComparison.Ordinal))return Boundary;
+            return null;
+        }
+        // Rate limit: at most one mail per kind+account every 10 minutes and at most 20 mails per hour overall; the rest are counted
+        // and summarised in the next mail. State is the caller's (one per Dashboard tab).
+        public sealed class Limiter
+        {
+            readonly Dictionary<string,DateTime> last=new Dictionary<string,DateTime>(StringComparer.Ordinal);
+            readonly Queue<DateTime> sent=new Queue<DateTime>();
+            public int Suppressed;
+            public static readonly TimeSpan PerKey=TimeSpan.FromMinutes(10);public const int PerHour=20;
+            public bool Allow(string kind,string account,DateTime now)
+            {
+                while(sent.Count>0&&now-sent.Peek()>=TimeSpan.FromHours(1))sent.Dequeue();
+                string key=kind+"|"+(account??"");DateTime prev;
+                if((last.TryGetValue(key,out prev)&&now-prev<PerKey)||sent.Count>=PerHour){Suppressed++;return false;}
+                last[key]=now;sent.Enqueue(now);return true;
+            }
+        }
+        public sealed class Mail{public string Subject="",Body="";}
+        // The mail for one line, or null when it must not be sent. Account names are masked like a log export.
+        public static Mail Decide(Settings s,Limiter limiter,LogLine line,IEnumerable<string> accountNames,DateTime now)
+        {
+            if(s==null||!s.Enabled||limiter==null)return null;
+            string kind=KindOf(line);if(kind==null||!s.On.Contains(kind))return null;
+            if(!limiter.Allow(kind,line.Account,now))return null;
+            int skipped=limiter.Suppressed;limiter.Suppressed=0;
+            string text=LogExport.Mask(line.Text,accountNames);
+            string subject="KINFX Trade Copier: "+Label(kind);
+            string body=now.ToString("yyyy-MM-dd HH:mm:ss",CultureInfo.InvariantCulture)+"  "+line.Level+"\n"+text+"\n\n"
+                +(skipped>0?skipped+" more alert(s) were rate-limited since the last mail; see the Logs tab.\n":"")
+                +"Sent by KINFX Trade Copier through NinjaTrader. Account names are masked. This mail never means an order was sent or cancelled.";
+            return new Mail{Subject=subject,Body=body};
+        }
+    }
     public static class LogExport
     {
         public static string Mask(string text, IEnumerable<string> names)
@@ -1564,6 +1654,30 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             t["Max contracts"] = new[] { "手數上限", "最大枚数", "최대 계약 수" };
             t["Ratio for the highlighted accounts · plain positive number like 1 or 0.5"] = new[] { "已選取帳戶的比例 · 正數，例如 1 或 0.5", "選択中の口座の比率 · 1 や 0.5 などの正の数", "선택한 계좌의 비율 · 1 또는 0.5 같은 양수" };
             t["Max contracts for the highlighted accounts · whole number >= 1"] = new[] { "已選取帳戶的手數上限 · 整數，至少 1", "選択中の口座の最大枚数 · 1 以上の整数", "선택한 계좌의 최대 계약 수 · 1 이상의 정수" };
+            t["Email alerts (through NinjaTrader's email share service)"] = new[] { "電郵提醒（經 NinjaTrader 電郵分享服務）", "メール通知（NinjaTrader のメール共有サービス経由）", "이메일 알림 (NinjaTrader 이메일 공유 서비스 사용)" };
+            t["Send alerts to this address · empty = off"] = new[] { "提醒寄往此地址 · 留空 = 關閉", "この宛先に通知 · 空欄 = オフ", "이 주소로 알림 · 비워 두면 끔" };
+            t["Alert email address"] = new[] { "提醒電郵地址", "通知メールアドレス", "알림 이메일 주소" };
+            t["To"] = new[] { "收件人", "宛先", "받는 사람" };
+            t["Account locked"] = new[] { "帳戶已鎖定", "口座ロック", "계좌 잠김" };
+            t["Errors"] = new[] { "錯誤", "エラー", "오류" };
+            t["Target / daily loss hit"] = new[] { "達到目標／每日虧損", "目標／日次損失に到達", "목표/일일 손실 도달" };
+            t["Leader disconnected"] = new[] { "主帳戶斷線", "リーダー切断", "리더 연결 끊김" };
+            t["Email alert"] = new[] { "電郵提醒", "メール通知", "이메일 알림" };
+            t["Save"] = new[] { "儲存", "保存", "저장" };
+            t["Save the email alert settings"] = new[] { "儲存電郵提醒設定", "メール通知の設定を保存", "이메일 알림 설정 저장" };
+            t["Send test"] = new[] { "寄出測試", "テスト送信", "테스트 보내기" };
+            t["Send one test mail now through NinjaTrader's default email share service"] = new[] { "立即經 NinjaTrader 預設電郵分享服務寄出一封測試郵件", "NinjaTrader の既定メール共有サービスで今すぐテストメールを 1 通送信", "NinjaTrader 기본 이메일 공유 서비스로 지금 테스트 메일 1통 보내기" };
+            t["Set up an email share service in NinjaTrader: Tools > Options > General > Share services. KINFX stores no password. Alerts never place, change or cancel orders."] = new[] { "請先在 NinjaTrader 設定電郵分享服務：Tools > Options > General > Share services。KINFX 不儲存任何密碼。提醒絕不會下單、改單或取消委託。", "NinjaTrader でメール共有サービスを設定してください：Tools > Options > General > Share services。KINFX はパスワードを保存しません。通知が注文の発注・変更・取消を行うことはありません。", "NinjaTrader에서 이메일 공유 서비스를 설정하세요: Tools > Options > General > Share services. KINFX는 비밀번호를 저장하지 않습니다. 알림은 주문을 내거나 변경하거나 취소하지 않습니다." };
+            t["Not saved: enter one plain email address like name@example.com"] = new[] { "未儲存：請輸入一個電郵地址，例如 name@example.com", "保存されていません：name@example.com のようなメールアドレスを 1 つ入力してください", "저장 안 됨: name@example.com 같은 이메일 주소를 하나 입력하세요" };
+            t["Saved. Alerts are on."] = new[] { "已儲存。提醒已開啟。", "保存しました。通知はオンです。", "저장됨. 알림이 켜져 있습니다." };
+            t["Saved. Alerts are off."] = new[] { "已儲存。提醒已關閉。", "保存しました。通知はオフです。", "저장됨. 알림이 꺼져 있습니다." };
+            t["Enter one plain email address like name@example.com first."] = new[] { "請先輸入一個電郵地址，例如 name@example.com。", "先に name@example.com のようなメールアドレスを 1 つ入力してください。", "먼저 name@example.com 같은 이메일 주소를 하나 입력하세요." };
+            t["Test handed to NinjaTrader. Check your inbox; if nothing arrives, check Tools > Options > General > Share services."] = new[] { "測試已交給 NinjaTrader。請查看收件匣；如未收到，請檢查 Tools > Options > General > Share services。", "テストを NinjaTrader に渡しました。受信箱を確認してください。届かない場合は Tools > Options > General > Share services を確認してください。", "테스트를 NinjaTrader에 넘겼습니다. 받은편지함을 확인하세요. 오지 않으면 Tools > Options > General > Share services를 확인하세요." };
+            t["Email not sent: "] = new[] { "電郵未寄出：", "メール未送信：", "이메일 미발송: " };
+            t["Email alerts on: {0}"] = new[] { "電郵提醒已開啟：{0}", "メール通知オン：{0}", "이메일 알림 켜짐: {0}" };
+            t["Email alerts off."] = new[] { "電郵提醒已關閉。", "メール通知オフ。", "이메일 알림 꺼짐." };
+            t["Email test handed to NinjaTrader for {0}; check the inbox and NinjaTrader's log."] = new[] { "測試電郵已交給 NinjaTrader（{0}）；請查看收件匣及 NinjaTrader 日誌。", "テストメールを NinjaTrader に渡しました（{0}）。受信箱と NinjaTrader のログを確認してください。", "테스트 메일을 NinjaTrader에 넘겼습니다 ({0}). 받은편지함과 NinjaTrader 로그를 확인하세요." };
+            t["Email alert not sent (blocked by NinjaTrader share service): {0}"] = new[] { "電郵提醒未寄出（NinjaTrader 分享服務拒絕）：{0}", "メール通知未送信（NinjaTrader 共有サービスが拒否）：{0}", "이메일 알림 미발송 (NinjaTrader 공유 서비스 거부): {0}" };
             t["Info"] = new[] { "資訊", "情報", "정보" };
             t["Order"] = new[] { "委託", "注文", "주문" };
             t["Warn"] = new[] { "警告", "警告", "경고" };
@@ -3141,6 +3255,41 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         internal Action<AccountRow> FlatRow;
         // "Ask before" switches (Risk tab). Ticked = the confirmation window is shown. Unlock and every risk warning are always asked and have no switch.
         internal CheckBox AskStartBox, AskFlatOneBox, AskFlattenBox;
+        // Email alerts (Settings page). The tab loads / saves notify.txt and sends; the view only edits a draft.
+        internal TextBox NotifyToBox;internal readonly Dictionary<string,CheckBox> NotifyKindBoxes=new Dictionary<string,CheckBox>(StringComparer.Ordinal);
+        internal Action<NotifyPrefs.Settings> NotifySave;internal Action<NotifyPrefs.Settings> NotifyTest;internal TextBlock NotifyStatus;
+        internal NotifyPrefs.Settings NotifyDraft()
+        {
+            var s=new NotifyPrefs.Settings{To=NotifyToBox==null?"":NotifyToBox.Text.Trim()};
+            foreach(var kv in NotifyKindBoxes)if(kv.Value.IsChecked==true)s.On.Add(kv.Key);
+            return s;
+        }
+        internal void ShowNotify(NotifyPrefs.Settings s)
+        {
+            if(s==null||NotifyToBox==null)return;NotifyToBox.Text=s.To;
+            foreach(var kv in NotifyKindBoxes)kv.Value.IsChecked=s.On.Contains(kv.Key);
+        }
+        void BuildNotifySection(Panel host)
+        {
+            var box=new Border{Background=Panel,BorderBrush=Line,BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(7),Padding=new Thickness(12,8,12,8),Margin=new Thickness(0,0,0,10),Tag="notifySection"};
+            var body=new StackPanel();body.Children.Add(Text(Lang.T("Email alerts (through NinjaTrader's email share service)"),12,Muted));
+            var row=new WrapPanel{Margin=new Thickness(0,6,0,0)};
+            NotifyToBox=Input("",220);NotifyToBox.Tag="notifyTo";NotifyToBox.ToolTip=Lang.T("Send alerts to this address · empty = off");System.Windows.Automation.AutomationProperties.SetName(NotifyToBox,Lang.T("Alert email address"));
+            row.Children.Add(Labeled(Lang.T("To"),NotifyToBox));
+            foreach(var kind in NotifyPrefs.Kinds)
+            {
+                var cb=new CheckBox{Template=PlainCheckTemplate(),Content=Lang.T(NotifyPrefs.Label(kind)),Foreground=Muted,Margin=new Thickness(0,6,10,0),Tag="notify:"+kind};
+                System.Windows.Automation.AutomationProperties.SetName(cb,Lang.T("Email alert")+": "+Lang.T(NotifyPrefs.Label(kind)));
+                NotifyKindBoxes[kind]=cb;row.Children.Add(cb);
+            }
+            row.Children.Add(TextToolFree(Lang.T("Save"),Lang.T("Save the email alert settings"),"notifySave",()=>{var cb=NotifySave;if(cb!=null)cb(NotifyDraft());}));
+            row.Children.Add(TextToolFree(Lang.T("Send test"),Lang.T("Send one test mail now through NinjaTrader's default email share service"),"notifyTest",()=>{var cb=NotifyTest;if(cb!=null)cb(NotifyDraft());}));
+            body.Children.Add(row);
+            NotifyStatus=Text(Lang.T("Set up an email share service in NinjaTrader: Tools > Options > General > Share services. KINFX stores no password. Alerts never place, change or cancel orders."),11,Muted);NotifyStatus.TextWrapping=TextWrapping.Wrap;NotifyStatus.Margin=new Thickness(0,6,0,0);NotifyStatus.Tag="notifyStatus";
+            body.Children.Add(NotifyStatus);
+            box.Child=body;host.Children.Add(box);
+            ShowNotify(NotifyPrefs.Defaults());
+        }
         internal Action<string,bool> AskChanged;
         // ==== WP3 log page ====
         internal DataGrid LogGrid;
@@ -3718,7 +3867,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
 #if KINFX_SIM_TEST
             DryRunBox=new CheckBox{Template=PlainCheckTemplate(),Content=Lang.T("Dry run"),Foreground=Warn,Margin=new Thickness(16,6,0,0),ToolTip=Lang.T("DRY RUN: decide and log every order, cancel and flatten as \"DRY RUN would send ...\" but send NOTHING. Fixed for the whole session: change it only while stopped.")};tools.Children.Add(DryRunBox);
 #endif
-            sessionBody.Children.Add(tools);columnsBarRisk=tools;session.Child=sessionBody;AddRow(risk,session,0);
+            sessionBody.Children.Add(tools);columnsBarRisk=tools;session.Child=sessionBody;var top=new StackPanel();top.Children.Add(session);BuildNotifySection(top);AddRow(risk,top,0);
             var bulkSection=new Border{Background=Panel,BorderBrush=Line,BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(7),Padding=new Thickness(12,8,12,8),Margin=new Thickness(0,0,0,10)};var bulkBody=new StackPanel();bulkBody.Children.Add(Text(Lang.T("Bulk edit (highlighted follower accounts · only while stopped)"),12,Muted));var bulkRow=new WrapPanel{Margin=new Thickness(0,6,0,0)};
             bulkField=Combo(150);bulkField.Tag="bulkField";bulkField.ToolTip=Lang.T("Which setting to change on highlighted accounts");bulkField.ItemsSource=BulkFields.Select(BulkFieldLabel).ToArray();bulkField.SelectedIndex=0;bulkRow.Children.Add(bulkField);
             bulkValue=Input("",78);bulkValue.Tag="bulkValue";bulkValue.ToolTip=Lang.T("Amount for the highlighted accounts · account currency · 0 = off");System.Windows.Automation.AutomationProperties.SetName(bulkValue,Lang.T("Bulk amount"));bulkRow.Children.Add(bulkValue);
@@ -3967,7 +4116,10 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
     public class KINFXTradeCopier : AddOnBase
     {
         readonly Dictionary<Window,Tuple<NTMenuItem,NTMenuItem>> menus=new Dictionary<Window,Tuple<NTMenuItem,NTMenuItem>>();
-        protected override void OnStateChange() {if(State==State.SetDefaults){Name="KINFXTradeCopier";Description="KINFX multi-account simulation copier with local risk Dashboard";}}
+        protected override void OnStateChange() {if(State==State.SetDefaults){Name="KINFXTradeCopier";Description="KINFX multi-account simulation copier with local risk Dashboard";}else if(State==State.Active)Live=this;else if(State==State.Terminated&&ReferenceEquals(Live,this))Live=null;}
+        // The active AddOn instance: email alerts go through its NinjaScript.SendMail (NinjaTrader's default email share service).
+        internal static volatile KINFXTradeCopier Live;
+        internal void Mail(string to,string subject,string body){SendMail(to,subject,body);}
         protected override void OnWindowCreated(Window window)
         {
             if(!(window is ControlCenter))return;var parent=window.FindFirst("ControlCenterMenuItemNew") as NTMenuItem;if(parent==null)return;
@@ -4111,6 +4263,45 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             }
             catch(Exception ex){Log("Log export failed: "+ex.Message);}
         }
+        // ---- Email alerts: notify.txt + NinjaTrader's default email share service (no password or SMTP server in KINFX). ----
+        string NotifyPath {get{return Path.Combine(DirectoryPath,"notify.txt");}}
+        NotifyPrefs.Settings notify=NotifyPrefs.Defaults();readonly NotifyPrefs.Limiter notifyLimiter=new NotifyPrefs.Limiter();
+        static NotifyPrefs.Settings LoadNotify(string path){try{if(File.Exists(path))return NotifyPrefs.Parse(File.ReadAllLines(path));}catch{}return NotifyPrefs.Defaults();}
+        void SaveNotify(NotifyPrefs.Settings s)
+        {
+            if(s==null)return;
+            if(s.To.Length>0&&!NotifyPrefs.IsAddress(s.To)){SetNotifyStatus(Lang.T("Not saved: enter one plain email address like name@example.com"),true);return;}
+            try{Directory.CreateDirectory(DirectoryPath);SettingsStore.AtomicWriteLines(NotifyPath,NotifyPrefs.Serialize(s));notify=s;Log(s.Enabled?"Email alerts on: "+string.Join(", ",NotifyPrefs.Kinds.Where(k=>s.On.Contains(k))):"Email alerts off.");SetNotifyStatus(Lang.T(s.Enabled?"Saved. Alerts are on.":"Saved. Alerts are off."),false);}
+            catch(Exception ex){Log("Settings NOT saved: "+ex.Message);SetNotifyStatus(Lang.F("Settings NOT saved: {0}",ex.Message),true);}
+        }
+        void SetNotifyStatus(string text,bool bad){if(dashboard!=null&&dashboard.NotifyStatus!=null){dashboard.NotifyStatus.Text=text;dashboard.NotifyStatus.Foreground=bad?DashboardView.Bad:DashboardView.Muted;}}
+        void TestNotify(NotifyPrefs.Settings s)
+        {
+            if(s==null||!NotifyPrefs.IsAddress(s.To)){SetNotifyStatus(Lang.T("Enter one plain email address like name@example.com first."),true);return;}
+            SendNotifyMail(s.To,"KINFX Trade Copier: test","Test mail from KINFX Trade Copier through NinjaTrader's email share service. No order was sent.",true);
+        }
+        // Called for every recorded log line on the UI thread. Mail is handed to NinjaTrader off the UI thread; a failure is logged once
+        // (as Warn, so it never mails itself) and never affects copying.
+        void NotifyFor(LogLine line)
+        {
+            var mail=NotifyPrefs.Decide(notify,notifyLimiter,line,dashboard.Rows.Select(r=>r.Name),DateTime.Now);
+            if(mail!=null)SendNotifyMail(notify.To,mail.Subject,mail.Body,false);
+        }
+        bool notifyFailLogged;
+        void SendNotifyMail(string to,string subject,string body,bool test)
+        {
+            System.Threading.Tasks.Task.Run(()=>
+            {
+                string err=null;
+                try{var live=KINFXTradeCopier.Live;if(live==null)throw new InvalidOperationException("KINFX AddOn is not active in NinjaTrader");live.Mail(to,subject,body);}
+                catch(Exception ex){err=ex.GetBaseException().Message;}
+                Dispatch(()=>
+                {
+                    if(err==null){if(test){Log("Email test handed to NinjaTrader for "+LogExport.Mask(to,new string[0])+"; check the inbox and NinjaTrader's log.");SetNotifyStatus(Lang.T("Test handed to NinjaTrader. Check your inbox; if nothing arrives, check Tools > Options > General > Share services."),false);}}
+                    else{if(test||!notifyFailLogged){notifyFailLogged=!test||notifyFailLogged;Log("Email alert not sent (blocked by NinjaTrader share service): "+err);}if(test)SetNotifyStatus(Lang.T("Email not sent: ")+err,true);}
+                });
+            });
+        }
         readonly Dictionary<string,SavedAccount> saved=new Dictionary<string,SavedAccount>();
         string instanceId=Guid.NewGuid().ToString("N"),zone="Central Standard Time",lastDay="";
         int resetHour=17,persistTicks;
@@ -4132,6 +4323,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         void WireDashboard()
         {
             dashboard.LanguageChanging=ChangeLanguage;dashboard.Command=Command;dashboard.BulkNotice=Log;dashboard.PauseRow=Pause;dashboard.RowSettings=r=>Edit(new[]{r});dashboard.FollowRow=Follow;dashboard.FlatRow=FlatOne;ShowAsk();dashboard.AskChanged=SetAsk;
+            notify=LoadNotify(NotifyPath);dashboard.ShowNotify(notify);dashboard.NotifySave=SaveNotify;dashboard.NotifyTest=TestNotify;
             dashboard.ApplyColumns(LoadColumns(ColumnsPath));dashboard.ColumnsChanged=SaveColumns;
             dashboard.LeaderBox.SelectionChanged+=(s,e)=>{if(engine.Attached)return;leaderName=dashboard.LeaderBox.SelectedItem as string ?? "";foreach(var row in dashboard.Rows){row.Role=row.Name==leaderName?"Leader":"Follower";if(row.Role=="Leader")row.Enabled=false;row.Changed();}dashboard.ResortLeaderFirst();};
             dashboard.AccountGrid.RowEditEnding+=(s,e)=>Dispatch(()=>{foreach(var row in dashboard.Rows){row.Changed();}dashboard.UpdateCards();});
@@ -4253,7 +4445,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             {
                 var line=LogClassifier.Classify(message,dashboard.Rows.Select(r=>r.Name));line.Time=DateTime.Now;
                 logs.Enqueue(line);while(logs.Count>LogCap)logs.Dequeue();
-                dashboard.AddLog(line);AppendDailyFile(line);
+                dashboard.AddLog(line);AppendDailyFile(line);NotifyFor(line);
             };
             if(closing&&Dispatcher.CheckAccess()){record();return;}
             // Engine worker during close (engine.Dispose runs close() on its own thread): the dispatcher queue is not drained any more,

@@ -623,6 +623,50 @@ static void MonitorSummarySingleCurrency() {
 //
 //
 // ---- WP3 pure tests (log classifier / export) go here ----
+static void NotifyPrefsAndDecide() {
+ // Off until an address is entered; defaults lock/error/limit/disconnect once it is.
+ var d=NotifyPrefs.Defaults();Eq(false,d.Enabled);d.To="me@example.com";Eq(true,d.Enabled);Eq(false,d.On.Contains(NotifyPrefs.Boundary));
+ foreach(var bad in new[]{"","  ","me","me@","@x.com","a@b","a@b.","a b@c.com","a@b.com,c@d.com","a@@b.com","a@b.com\nBcc: x@y.com"})Eq(false,NotifyPrefs.IsAddress(bad));
+ Eq(true,NotifyPrefs.IsAddress("trader.one+kinfx@mail.example.co"));
+ var p=NotifyPrefs.Parse(new[]{"# c","to=me@example.com","on=lock","on=boundary","on=bogus","junk"});
+ Eq("me@example.com",p.To);Eq(2,p.On.Count);Eq(true,p.On.Contains("lock")&&p.On.Contains("boundary"));
+ var r=NotifyPrefs.Parse(NotifyPrefs.Serialize(p));Eq(p.To,r.To);Eq(true,r.On.SetEquals(p.On));
+ var none=NotifyPrefs.Parse(new[]{"to=me@example.com","none="});Eq(0,none.On.Count);Eq(false,none.Enabled);
+ Eq(true,NotifyPrefs.Parse(NotifyPrefs.Serialize(none)).On.Count==0);
+ Eq("",NotifyPrefs.Parse(new[]{"to=bad address"}).To);
+ Eq(4,NotifyPrefs.Parse(null).On.Count);
+ // Which lines mail
+ var names=new[]{"Sim101","PropSimFollower1"};
+ Func<string,LogLine> L=m=>{var x=LogClassifier.Classify(m,names);x.Time=new DateTime(2026,10,16,10,0,0);return x;};
+ Eq("lock",NotifyPrefs.KindOf(L("PropSimFollower1 LOCK: Follower order rejected. Coverage not established; manual reconciliation may be required.")));
+ Eq("limit",NotifyPrefs.KindOf(L("PropSimFollower1 LOCK: Daily loss. Local guard only; coverage not established.")));
+ Eq("limit",NotifyPrefs.KindOf(L("PropSimFollower1 LOCK: Target hit. Local guard only; coverage not established.")));
+ Eq("disconnect",NotifyPrefs.KindOf(L("PropSimFollower1 LOCK: Leader disconnected — no catch-up. Coverage not established; manual reconciliation may be required.")));
+ Eq("error",NotifyPrefs.KindOf(L("ENGINE ERROR: boom")));
+ Eq("boundary",NotifyPrefs.KindOf(L("Trading-day boundary Central Standard Time 17:00 (DST aware). New entries paused. Baseline / latch NOT auto-reset. Confirm new baseline and unlock while flat.")));
+ Eq(null,NotifyPrefs.KindOf(L("COPY PropSimFollower1 Buy 1 Market")));
+ Eq(null,NotifyPrefs.KindOf(L("Start refused: no follower")));
+ Eq(null,NotifyPrefs.KindOf(L("Settings saved; startup stays disarmed.")));
+ Eq(null,NotifyPrefs.KindOf(null));
+ // Decide: masked, rate-limited per kind+account, summary of suppressed
+ var s1=NotifyPrefs.Parse(new[]{"to=me@example.com"});var lim=new NotifyPrefs.Limiter();var t0=new DateTime(2026,10,16,10,0,0);
+ var lk=L("PropSimFollower1 LOCK: Follower order rejected. Coverage not established; manual reconciliation may be required.");
+ var m1=NotifyPrefs.Decide(s1,lim,lk,names,t0);
+ Eq(true,m1!=null&&m1.Subject=="KINFX Trade Copier: Account locked");
+ Eq(true,m1.Body.IndexOf("PropSimFollower1",StringComparison.Ordinal)<0&&m1.Body.Contains("ACCOUNT-2"));
+ Eq(true,m1.Body.Contains("never means an order was sent"));
+ Eq(null,NotifyPrefs.Decide(s1,lim,lk,names,t0.AddMinutes(5)));
+ Eq(null,NotifyPrefs.Decide(s1,lim,lk,names,t0.AddMinutes(9)));
+ var m2=NotifyPrefs.Decide(s1,lim,lk,names,t0.AddMinutes(10));Eq(true,m2!=null&&m2.Body.Contains("2 more alert(s) were rate-limited"));
+ var other=L("Sim101 LOCK: Follower order rejected. Coverage not established; manual reconciliation may be required.");
+ Eq(true,NotifyPrefs.Decide(s1,lim,other,names,t0.AddMinutes(10))!=null);
+ Eq(null,NotifyPrefs.Decide(s1,lim,L("Trading-day boundary Central Standard Time 17:00 (DST aware). New entries paused. Baseline / latch NOT auto-reset. Confirm new baseline and unlock while flat."),names,t0));
+ Eq(null,NotifyPrefs.Decide(NotifyPrefs.Defaults(),new NotifyPrefs.Limiter(),lk,names,t0));
+ var cap=new NotifyPrefs.Limiter();int sentN=0;var e1=L("ENGINE ERROR: x");
+ for(int i=0;i<60;i++){var ln=L("ENGINE ERROR: e"+i);ln.Account="A"+i;if(NotifyPrefs.Decide(s1,cap,ln,names,t0.AddSeconds(i))!=null)sentN++;}
+ Eq(20,sentN);
+ Eq(true,NotifyPrefs.Decide(s1,cap,e1,names,t0.AddHours(1).AddSeconds(30))!=null);
+}
 static void LogClassifierRules() {
  var names=new[]{"Sim101","Sim102","LFE1","LFE10"};
  LogLine l;

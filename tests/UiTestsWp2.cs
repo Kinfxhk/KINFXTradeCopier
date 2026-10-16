@@ -8,7 +8,7 @@ public static class UiTestsWp2 {
   public static Action[] Cases(){ return new Action[]{
     SummaryCardsShowCorrectValues, BannerCollapsesAndLinksSwitchTabs, UnlockAllAndFlattenLiveOnMonitor,
     BulkSectionAppliesOnSettingsTab, GroupHeaderShowsFirmAndCount, MaxIsDefaultWarnBorder, NoClippedTextNoWhiteBlocksAllLanguages,
-    GroupToggleMirrorsGroupByAccount, IssuesHaveTheirOwnTab, LeaderRowIsAlwaysFirst, BulkEditsRatioAndMax, ColumnsFollowImportanceOrder, MonitorTableFitsDefaultWindowInEveryLanguage, SettingsStatusAndConnectionAreTranslated, MaxAndBalanceHeadersSort, IssuesListNotRebuiltWhenUnchanged, CurrencyCodeUsesSharedTableAndIssueOrderIgnored };}
+    GroupToggleMirrorsGroupByAccount, IssuesHaveTheirOwnTab, LeaderRowIsAlwaysFirst, BulkEditsRatioAndMax, ColumnsFollowImportanceOrder, MonitorTableFitsDefaultWindowInEveryLanguage, SettingsStatusAndConnectionAreTranslated, MaxAndBalanceHeadersSort, IssuesListNotRebuiltWhenUnchanged, CurrencyCodeUsesSharedTableAndIssueOrderIgnored, NotifySectionEditsDraftOnly };}
   static T Find<T>(DashboardView v,string tag) where T:FrameworkElement{return BulkUiTests.Visual<T>(v).FirstOrDefault(x=>(x.Tag as string)==tag);}
   static FrameworkElement Tag(DashboardView v,string tag){return BulkUiTests.Visual<FrameworkElement>(v).FirstOrDefault(x=>(x.Tag as string)==tag);}
   static string CardValue(DashboardView v,string tag){var c=Tag(v,tag);BulkUiTests.Check(c!=null,"card exists: "+tag);return BulkUiTests.Visual<TextBlock>(c).Last().Text;}
@@ -314,5 +314,27 @@ public static class UiTestsWp2 {
     var first=panel.Children.Cast<UIElement>().ToArray();
     v.Rows.Move(2,1);v.UpdateCards();
     BulkUiTests.Check(panel.Children.Cast<UIElement>().SequenceEqual(first),"reordering rows with the same issues does not rebuild the list");
+  }
+
+  // Email alerts section (Settings): edits a draft only; Save / Send test hand the draft to the tab callbacks; never touches rows, ticks or commands.
+  static void NotifySectionEditsDraftOnly(){
+    var v=BulkUiTests.Fresh();v.Sections.SelectedIndex=1;BulkUiTests.Layout(v);
+    BulkUiTests.Check(v.NotifyToBox!=null&&v.NotifyKindBoxes.Count==NotifyPrefs.Kinds.Length,"address box and one tick per alert kind");
+    BulkUiTests.Check(v.NotifyToBox.Text==""&&v.NotifyKindBoxes["lock"].IsChecked==true&&v.NotifyKindBoxes["boundary"].IsChecked!=true,"defaults shown: no address, lock on, boundary off");
+    NotifyPrefs.Settings saved=null,tested=null;var cmds=new System.Collections.Generic.List<string>();
+    v.NotifySave=x=>saved=x;v.NotifyTest=x=>tested=x;v.Command=c=>cmds.Add(c);
+    bool[] ticks=v.Rows.Select(r=>r.Enabled).ToArray();
+    v.NotifyToBox.Text=" me@example.com ";v.NotifyKindBoxes["error"].IsChecked=false;v.NotifyKindBoxes["boundary"].IsChecked=true;
+    var save=BulkUiTests.Visual<Button>(v).First(b=>(b.Tag as string)=="notifySave");var test=BulkUiTests.Visual<Button>(v).First(b=>(b.Tag as string)=="notifyTest");
+    save.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+    BulkUiTests.Check(saved!=null&&saved.To=="me@example.com"&&saved.On.Contains("boundary")&&!saved.On.Contains("error")&&saved.On.Contains("lock"),"Save hands the trimmed draft to the tab");
+    test.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+    BulkUiTests.Check(tested!=null&&tested.To=="me@example.com","Send test hands the draft to the tab");
+    BulkUiTests.Check(cmds.Count==0,"no dashboard command sent");
+    BulkUiTests.Check(v.Rows.Select(r=>r.Enabled).SequenceEqual(ticks),"follow ticks unchanged");
+    v.Editable(false);BulkUiTests.Layout(v);
+    BulkUiTests.Check(save.IsEnabled&&test.IsEnabled&&v.NotifyToBox.IsEnabled,"alert settings stay editable while attached (they never touch orders)");
+    var p=NotifyPrefs.Parse(new[]{"to=x@y.com","on=boundary"});v.ShowNotify(p);
+    BulkUiTests.Check(v.NotifyToBox.Text=="x@y.com"&&v.NotifyKindBoxes["boundary"].IsChecked==true&&v.NotifyKindBoxes["lock"].IsChecked==false,"ShowNotify reflects loaded settings");
   }
 }

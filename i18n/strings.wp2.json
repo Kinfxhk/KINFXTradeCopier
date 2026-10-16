@@ -130,5 +130,149 @@
   "zh": "已選取帳戶的手數上限 · 整數，至少 1",
   "ja": "選択中の口座の最大枚数 · 1 以上の整数",
   "ko": "선택한 계좌의 최대 계약 수 · 1 이상의 정수"
+ },
+ {
+  "en": "Email alerts (through NinjaTrader's email share service)",
+  "zh": "電郵提醒（經 NinjaTrader 電郵分享服務）",
+  "ja": "メール通知（NinjaTrader のメール共有サービス経由）",
+  "ko": "이메일 알림 (NinjaTrader 이메일 공유 서비스 사용)"
+ },
+ {
+  "en": "Send alerts to this address · empty = off",
+  "zh": "提醒寄往此地址 · 留空 = 關閉",
+  "ja": "この宛先に通知 · 空欄 = オフ",
+  "ko": "이 주소로 알림 · 비워 두면 끔"
+ },
+ {
+  "en": "Alert email address",
+  "zh": "提醒電郵地址",
+  "ja": "通知メールアドレス",
+  "ko": "알림 이메일 주소"
+ },
+ {
+  "en": "To",
+  "zh": "收件人",
+  "ja": "宛先",
+  "ko": "받는 사람"
+ },
+ {
+  "en": "Account locked",
+  "zh": "帳戶已鎖定",
+  "ja": "口座ロック",
+  "ko": "계좌 잠김"
+ },
+ {
+  "en": "Errors",
+  "zh": "錯誤",
+  "ja": "エラー",
+  "ko": "오류"
+ },
+ {
+  "en": "Target / daily loss hit",
+  "zh": "達到目標／每日虧損",
+  "ja": "目標／日次損失に到達",
+  "ko": "목표/일일 손실 도달"
+ },
+ {
+  "en": "Leader disconnected",
+  "zh": "主帳戶斷線",
+  "ja": "リーダー切断",
+  "ko": "리더 연결 끊김"
+ },
+ {
+  "en": "Email alert",
+  "zh": "電郵提醒",
+  "ja": "メール通知",
+  "ko": "이메일 알림"
+ },
+ {
+  "en": "Save",
+  "zh": "儲存",
+  "ja": "保存",
+  "ko": "저장"
+ },
+ {
+  "en": "Save the email alert settings",
+  "zh": "儲存電郵提醒設定",
+  "ja": "メール通知の設定を保存",
+  "ko": "이메일 알림 설정 저장"
+ },
+ {
+  "en": "Send test",
+  "zh": "寄出測試",
+  "ja": "テスト送信",
+  "ko": "테스트 보내기"
+ },
+ {
+  "en": "Send one test mail now through NinjaTrader's default email share service",
+  "zh": "立即經 NinjaTrader 預設電郵分享服務寄出一封測試郵件",
+  "ja": "NinjaTrader の既定メール共有サービスで今すぐテストメールを 1 通送信",
+  "ko": "NinjaTrader 기본 이메일 공유 서비스로 지금 테스트 메일 1통 보내기"
+ },
+ {
+  "en": "Set up an email share service in NinjaTrader: Tools > Options > General > Share services. KINFX stores no password. Alerts never place, change or cancel orders.",
+  "zh": "請先在 NinjaTrader 設定電郵分享服務：Tools > Options > General > Share services。KINFX 不儲存任何密碼。提醒絕不會下單、改單或取消委託。",
+  "ja": "NinjaTrader でメール共有サービスを設定してください：Tools > Options > General > Share services。KINFX はパスワードを保存しません。通知が注文の発注・変更・取消を行うことはありません。",
+  "ko": "NinjaTrader에서 이메일 공유 서비스를 설정하세요: Tools > Options > General > Share services. KINFX는 비밀번호를 저장하지 않습니다. 알림은 주문을 내거나 변경하거나 취소하지 않습니다."
+ },
+ {
+  "en": "Not saved: enter one plain email address like name@example.com",
+  "zh": "未儲存：請輸入一個電郵地址，例如 name@example.com",
+  "ja": "保存されていません：name@example.com のようなメールアドレスを 1 つ入力してください",
+  "ko": "저장 안 됨: name@example.com 같은 이메일 주소를 하나 입력하세요"
+ },
+ {
+  "en": "Saved. Alerts are on.",
+  "zh": "已儲存。提醒已開啟。",
+  "ja": "保存しました。通知はオンです。",
+  "ko": "저장됨. 알림이 켜져 있습니다."
+ },
+ {
+  "en": "Saved. Alerts are off.",
+  "zh": "已儲存。提醒已關閉。",
+  "ja": "保存しました。通知はオフです。",
+  "ko": "저장됨. 알림이 꺼져 있습니다."
+ },
+ {
+  "en": "Enter one plain email address like name@example.com first.",
+  "zh": "請先輸入一個電郵地址，例如 name@example.com。",
+  "ja": "先に name@example.com のようなメールアドレスを 1 つ入力してください。",
+  "ko": "먼저 name@example.com 같은 이메일 주소를 하나 입력하세요."
+ },
+ {
+  "en": "Test handed to NinjaTrader. Check your inbox; if nothing arrives, check Tools > Options > General > Share services.",
+  "zh": "測試已交給 NinjaTrader。請查看收件匣；如未收到，請檢查 Tools > Options > General > Share services。",
+  "ja": "テストを NinjaTrader に渡しました。受信箱を確認してください。届かない場合は Tools > Options > General > Share services を確認してください。",
+  "ko": "테스트를 NinjaTrader에 넘겼습니다. 받은편지함을 확인하세요. 오지 않으면 Tools > Options > General > Share services를 확인하세요."
+ },
+ {
+  "en": "Email not sent: ",
+  "zh": "電郵未寄出：",
+  "ja": "メール未送信：",
+  "ko": "이메일 미발송: "
+ },
+ {
+  "en": "Email alerts on: {0}",
+  "zh": "電郵提醒已開啟：{0}",
+  "ja": "メール通知オン：{0}",
+  "ko": "이메일 알림 켜짐: {0}"
+ },
+ {
+  "en": "Email alerts off.",
+  "zh": "電郵提醒已關閉。",
+  "ja": "メール通知オフ。",
+  "ko": "이메일 알림 꺼짐."
+ },
+ {
+  "en": "Email test handed to NinjaTrader for {0}; check the inbox and NinjaTrader's log.",
+  "zh": "測試電郵已交給 NinjaTrader（{0}）；請查看收件匣及 NinjaTrader 日誌。",
+  "ja": "テストメールを NinjaTrader に渡しました（{0}）。受信箱と NinjaTrader のログを確認してください。",
+  "ko": "테스트 메일을 NinjaTrader에 넘겼습니다 ({0}). 받은편지함과 NinjaTrader 로그를 확인하세요."
+ },
+ {
+  "en": "Email alert not sent (blocked by NinjaTrader share service): {0}",
+  "zh": "電郵提醒未寄出（NinjaTrader 分享服務拒絕）：{0}",
+  "ja": "メール通知未送信（NinjaTrader 共有サービスが拒否）：{0}",
+  "ko": "이메일 알림 미발송 (NinjaTrader 공유 서비스 거부): {0}"
  }
 ]
