@@ -537,7 +537,9 @@ class RiskTests {
  static PositionSnap ConsistencySnap(int qty,double avg,bool hasAvg,string instrument="MNQ 12-26",double ratio=1,int max=10,long version=1,DateTime? read=null,DateTime? evidence=null,bool connected=true,bool contracts=true)
  {
   var t=read??ConsistencyNow;
-  return new PositionSnap{Instrument=instrument,SignedQuantity=qty,HasAveragePrice=hasAvg,AveragePrice=avg,Connected=connected,ContractsVerified=contracts,EvidenceVersion=version,EvidenceUtc=evidence??t,ReadUtc=t,Ratio=ratio,MaxContracts=max};
+  // Settled rows sit outside the report window. Grace cases pass EvidenceUtc themselves.
+  var seen=evidence??(t==DateTime.MinValue?t:t-PositionConsistency.ReportGrace-TimeSpan.FromTicks(1));
+  return new PositionSnap{Instrument=instrument,SignedQuantity=qty,HasAveragePrice=hasAvg,AveragePrice=avg,Connected=connected,ContractsVerified=contracts,EvidenceVersion=version,EvidenceUtc=seen,ReadUtc=t,Ratio=ratio,MaxContracts=max};
  }
  static PositionConsistencyResult ConsistencyEval(PositionSnap leader,PositionSnap follower,double tick=0.25,int threshold=1,DateTime? now=null,int graceSeconds=3)
  {
@@ -612,10 +614,23 @@ class RiskTests {
  }
  static void PositionConsistencyGraceAndReconnect()
  {
-  var lagged=ConsistencyEval(ConsistencySnap(2,100,true,version:5),ConsistencySnap(1,100,true,version:4),0.25,1);
+  // Follower private version is already ahead, and its own stamp is newer, but the copy qty has not arrived.
+  var lagged=ConsistencyEval(ConsistencySnap(2,100,true,version:2,evidence:ConsistencyNow.AddSeconds(-1)),ConsistencySnap(1,100,true,version:12,evidence:ConsistencyNow),0.25,1);
   Eq(PositionConsistencyStatus.WaitingReports,lagged.Status); Eq("wait",lagged.Badge); NullDelta(lagged.QtyDelta); Eq(PositionConsistencyStatus.QtyDiverge!=lagged.Status,true);
-  var confirmed=ConsistencyEval(ConsistencySnap(2,100,true,version:5,evidence:ConsistencyNow.AddSeconds(-4)),ConsistencySnap(1,100,true,version:4),0.25,1);
+  var matched=ConsistencyEval(ConsistencySnap(2,100,true,version:2,evidence:ConsistencyNow),ConsistencySnap(2,100,true,version:12,evidence:ConsistencyNow),0.25,1);
+  Eq(PositionConsistencyStatus.QtyMatch,matched.Status); Eq(0,matched.QtyDelta); Eq(PositionConsistencyStatus.WaitingReports!=matched.Status,true);
+  var scaledWait=ConsistencyEval(ConsistencySnap(4,100,true,version:2,evidence:ConsistencyNow),ConsistencySnap(1,100,true,version:15,evidence:ConsistencyNow,ratio:0.5),0.25,1);
+  Eq(PositionConsistencyStatus.WaitingReports,scaledWait.Status); Eq("wait",scaledWait.Badge); NullDelta(scaledWait.QtyDelta);
+  var scaledMatch=ConsistencyEval(ConsistencySnap(4,100,true,version:2,evidence:ConsistencyNow),ConsistencySnap(2,100,true,version:15,evidence:ConsistencyNow,ratio:0.5),0.25,1);
+  Eq(PositionConsistencyStatus.QtyMatch,scaledMatch.Status); Eq(2,scaledMatch.ExpectedQuantity); Eq(0,scaledMatch.QtyDelta);
+  var edge=ConsistencyEval(ConsistencySnap(2,100,true,version:2,evidence:ConsistencyNow-PositionConsistency.ReportGrace),ConsistencySnap(1,100,true,version:12,evidence:ConsistencyNow),0.25,1);
+  Eq(PositionConsistencyStatus.WaitingReports,edge.Status); Eq("wait",edge.Badge);
+  var confirmed=ConsistencyEval(ConsistencySnap(2,100,true,version:2,evidence:ConsistencyNow.AddSeconds(-4)),ConsistencySnap(1,100,true,version:12,evidence:ConsistencyNow),0.25,1);
   Eq(PositionConsistencyStatus.QtyDiverge,confirmed.Status); Eq(-1,confirmed.QtyDelta); Eq(PositionConsistencyStatus.QtyMatch!=confirmed.Status,true);
+  var future=ConsistencyEval(ConsistencySnap(2,100,true,version:1,evidence:ConsistencyNow.AddSeconds(2)),ConsistencySnap(0,0,false,version:9,evidence:ConsistencyNow),0.25,1);
+  Eq(PositionConsistencyStatus.WaitingReports,future.Status); Eq("wait",future.Badge); NullDelta(future.QtyDelta);
+  var flatInFlight=ConsistencyEval(ConsistencySnap(0,0,false,version:2,evidence:ConsistencyNow),ConsistencySnap(2,100,true,version:11,evidence:ConsistencyNow),0.25,1);
+  Eq(PositionConsistencyStatus.WaitingReports,flatInFlight.Status); Eq("wait",flatInFlight.Badge); NullDelta(flatInFlight.QtyDelta);
   var stale=ConsistencyEval(ConsistencySnap(2,100,true,read:ConsistencyNow.AddSeconds(-4)),ConsistencySnap(2,100,true,read:ConsistencyNow.AddSeconds(-4)));
   Eq(PositionConsistencyStatus.Unavailable,stale.Status); Eq(PositionConsistency.ReasonStale,stale.Reason); Eq(PositionConsistency.Dash,stale.Badge); Eq(PositionConsistencyStatus.QtyMatch!=stale.Status,true);
   var never=ConsistencyEval(ConsistencySnap(2,100,true,read:DateTime.MinValue),ConsistencySnap(2,100,true));
