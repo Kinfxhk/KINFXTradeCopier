@@ -3035,12 +3035,24 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         }
         // Row 0 brand / language / build badge, row 1 session bar (leader, instrument, Start / pause / stop / refresh). Owner: UI v3 header work.
         // Extension hooks (one per work package, so parallel edits never touch the same lines). Keep each body inside its own package.
-        void EditableHeader(bool canEdit){}      // WP1
-        void EditableMonitor(bool canEdit){}     // WP2
-        void EditableSettings(bool canEdit){}    // WP2
-        void EditableLogs(bool canEdit){}        // WP3
-        void UpdateHeaderState(){}               // WP1: called from UpdateCards and SetSessionState
-        void UpdateMonitor(){}                   // WP2: called from UpdateCards
+        // ==== WP1 hooks ====
+        void EditableHeader(bool canEdit){}
+        void UpdateHeaderState(){}   // called from UpdateCards
+        //
+        //
+        //
+        // ==== WP2 hooks ====
+        void EditableMonitor(bool canEdit){}
+        void EditableSettings(bool canEdit){}
+        void UpdateMonitor(){}       // called from UpdateCards
+        //
+        //
+        //
+        // ==== WP3 hooks ====
+        void EditableLogs(bool canEdit){}
+        //
+        //
+        //
         // Free-text notice another package can raise (WP1 sets it for an untested NinjaTrader version); WP2 shows it on the Monitor page.
         internal string HeaderNotice="";
         void BuildHeader()
@@ -3277,8 +3289,17 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         }
         // Work-package wiring hooks: each package fills only its own method.
         void WireWp1(){}  // WP1 instrument picker / header
+        //
+        //
+        //
         void WireWp2(){}  // WP2 monitor + settings pages
+        //
+        //
+        //
         void WireWp3(){}  // WP3 log page
+        //
+        //
+        //
         // Switching language rebuilds the view (all labels are created once). Rows, ticks, drafts and the log are carried over;
         // nothing reaches the engine, and it is refused while a session is attached so a running copy is never disturbed.
         bool ChangeLanguage(string code)

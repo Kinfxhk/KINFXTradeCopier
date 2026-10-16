@@ -534,6 +534,18 @@ class RiskTests {
   foreach(var k in ConfirmPrefs.Kinds){Eq(false,ConfirmPrefs.MustAsk(k,all,false));Eq(true,ConfirmPrefs.MustAsk(k,all,true));}
  }
 // ---- WP1 pure tests (instrument / roll) go here ----
+//
+//
+//
+//
 // ---- WP2 pure tests (monitor summary) go here ----
+//
+//
+//
+//
 // ---- WP3 pure tests (log classifier / export) go here ----
+//
+//
+//
+//
 }
