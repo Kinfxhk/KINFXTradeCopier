@@ -8,8 +8,7 @@ public static class UiTestsWp2 {
   public static Action[] Cases(){ return new Action[]{
     SummaryCardsShowCorrectValues, BannerCollapsesAndLinksSwitchTabs, UnlockAllAndFlattenLiveOnMonitor,
     BulkSectionAppliesOnSettingsTab, GroupHeaderShowsFirmAndCount, MaxIsDefaultWarnBorder, NoClippedTextNoWhiteBlocksAllLanguages,
-    GroupToggleMirrorsGroupByAccount
-  };}
+    GroupToggleMirrorsGroupByAccount, IssuesHaveTheirOwnTab };}
   static T Find<T>(DashboardView v,string tag) where T:FrameworkElement{return BulkUiTests.Visual<T>(v).FirstOrDefault(x=>(x.Tag as string)==tag);}
   static FrameworkElement Tag(DashboardView v,string tag){return BulkUiTests.Visual<FrameworkElement>(v).FirstOrDefault(x=>(x.Tag as string)==tag);}
   static string CardValue(DashboardView v,string tag){var c=Tag(v,tag);BulkUiTests.Check(c!=null,"card exists: "+tag);return BulkUiTests.Visual<TextBlock>(c).Last().Text;}
@@ -29,6 +28,7 @@ public static class UiTestsWp2 {
   }
   static void BannerCollapsesAndLinksSwitchTabs(){
     var v=BulkUiTests.Fresh();
+    v.Sections.SelectedIndex=3;BulkUiTests.Layout(v);
     var issues=Tag(v,"issues");
     BulkUiTests.Check(issues!=null,"issues container exists");
     BulkUiTests.Check(issues.Visibility==Visibility.Collapsed,"issues collapsed with no issues");
@@ -42,13 +42,14 @@ public static class UiTestsWp2 {
     BulkUiTests.Check(v.Sections.SelectedIndex==2,"issue:logs switches to the Logs tab");
   }
   static void UnlockAllAndFlattenLiveOnMonitor(){
-    var v=new DashboardView(false);v.Editable(true);v.Sections.SelectedIndex=0;BulkUiTests.Layout(v);
+    var v=new DashboardView(false);v.Editable(true);v.Sections.SelectedIndex=3;BulkUiTests.Layout(v);
     var banner=Tag(v,"banner");
     var unlock=Find<Button>(v,"unlockAll");
     BulkUiTests.Check(banner!=null&&unlock!=null,"banner and unlockAll exist");
     // unlockAll is inside the banner host
     bool inside=false;for(var a=(DependencyObject)unlock;a!=null;a=System.Windows.Media.VisualTreeHelper.GetParent(a))if(a==banner){inside=true;break;}
     BulkUiTests.Check(inside,"unlockAll lives inside the banner");
+    v.Sections.SelectedIndex=0;BulkUiTests.Layout(v);
     var fs=Find<Button>(v,"flattenSelected");var fa=Find<Button>(v,"flattenAll");
     BulkUiTests.Check(fs!=null&&fa!=null,"flatten buttons live on the monitor tab");
     BulkUiTests.Check(fs.IsEnabled==DashboardSafety.CanExecute("flattenSelected"),"flattenSelected follows CanExecute");
@@ -137,4 +138,30 @@ public static class UiTestsWp2 {
   box.IsChecked=true;BulkUiTests.Check(v.GroupByAccount,"ticking the box still groups");
   box.IsChecked=false;BulkUiTests.Check(!v.GroupByAccount,"unticking the box still ungroups");
  }
+
+  // User request: Unlock all and the issue list move to their own tab so the Monitor table is not pushed down by many accounts.
+  static void IssuesHaveTheirOwnTab(){
+    var v=BulkUiTests.Fresh();
+    BulkUiTests.Check(v.Sections.Items.Count==4,"four tabs: Monitor, Settings, Logs, Issues; got "+v.Sections.Items.Count);
+    var issuesTab=(TabItem)v.Sections.Items[3];
+    BulkUiTests.Check((issuesTab.Header as string)==Lang.T("Issues"),"tab 4 header is Issues with no issues: "+issuesTab.Header);
+    var monitor=(FrameworkElement)((TabItem)v.Sections.Items[0]).Content;
+    BulkUiTests.Check(!BulkUiTests.Visual<FrameworkElement>(monitor).Any(x=>(x.Tag as string)=="unlockAll"||(x.Tag as string)=="issues"||(x.Tag as string)=="banner"),"monitor tab has no Unlock all / issue list");
+    var page=(FrameworkElement)issuesTab.Content;
+    BulkUiTests.Check((page.Tag as string)=="banner","issues tab content is the issues page");
+    for(int i=1;i<=8;i++){v.Rows[i].Latch.Locked=true;v.Rows[i].Latch.Reason="lock reason "+i;v.Rows[i].Changed();}
+    v.Rows[0].Latch.Locked=true;v.Rows[0].Latch.Reason="leader lock (not listed)";v.Rows[0].Changed();
+    v.UpdateCards();
+    BulkUiTests.Check((issuesTab.Header as string)==Lang.T("Issues")+" (8)","header counts follower issues only: "+issuesTab.Header);
+    v.Sections.SelectedIndex=3;BulkUiTests.Layout(v);
+    int links=BulkUiTests.Visual<Button>(v).Count(b=>(b.Tag as string)=="issue:logs");
+    BulkUiTests.Check(links==8,"all 8 issues listed (no '... and N more' cap now that it scrolls): "+links);
+    v.Sections.SelectedIndex=0;BulkUiTests.Layout(v);
+    var card=BulkUiTests.Visual<Border>(v).First(b=>(b.Tag as string)=="card:locked");
+    card.RaiseEvent(new System.Windows.Input.MouseButtonEventArgs(System.Windows.Input.Mouse.PrimaryDevice,0,System.Windows.Input.MouseButton.Left){RoutedEvent=UIElement.MouseLeftButtonUpEvent});
+    BulkUiTests.Check(v.Sections.SelectedIndex==3,"Locked card opens the Issues tab; index "+v.Sections.SelectedIndex);
+    foreach(var r in v.Rows){r.Latch.Locked=false;r.Latch.Reason="";r.Changed();}
+    v.UpdateCards();
+    BulkUiTests.Check((issuesTab.Header as string)==Lang.T("Issues"),"header resets when clear: "+issuesTab.Header);
+  }
 }

@@ -96,6 +96,8 @@ public static class UiTestsWp1 {
   if(v.InstrumentPopup!=null){v.InstrumentPopup.IsOpen=false;v.InstrumentPopup.Child=null;}
   // On real NT the popup root inherits from its PlacementTarget (the icon button). Reproduce that parent explicitly.
   var iconParent=new Border{Child=list};iconParent.SetValue(System.Windows.Documents.TextElement.FontFamilyProperty,btn.FontFamily);
+  // Worst case seen on real NT: an implicit TextBlock style with the icon font also reaches the popup.
+  var iconStyle=new Style(typeof(TextBlock));iconStyle.Setters.Add(new Setter(TextBlock.FontFamilyProperty,btn.FontFamily));iconParent.Resources.Add(typeof(TextBlock),iconStyle);
   BulkUiTests.Check(btn.FontFamily.Source.IndexOf("Icons",StringComparison.OrdinalIgnoreCase)>=0,"picker button uses the icon font: "+btn.FontFamily.Source);
   BulkUiTests.Layout(iconParent);
   var blocks=BulkUiTests.Visual<TextBlock>(iconParent).Where(t=>!string.IsNullOrEmpty(t.Text)).ToList();

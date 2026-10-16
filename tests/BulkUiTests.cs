@@ -384,17 +384,17 @@ public static class BulkUiTests {
   row.Latch.Locked=false;row.Latch.Reason="";row.Changed();v.UpdateCards();
   Check(v.LockedCount==0&&v.LockedText=="","footer clears when the latch is gone");
  }
- // Unlock all: one button on the Copy tab, only while stopped (edit button), sends exactly one "unlockAll" command; the demo view never sends.
+ // Unlock all: one button on the Issues tab (moved off Monitor so the table keeps its height), only while stopped (edit button), sends exactly one "unlockAll" command; the demo view never sends.
  static Button UnlockAllButton(DashboardView v){return Visual<Button>(v).FirstOrDefault(b=>(b.Tag as string)=="unlockAll");}
  static void UnlockAllButtonIsOnCopyTabAndOnlyWhileStopped(){
-  var v=new DashboardView(false);v.Editable(true);v.Sections.SelectedIndex=0;Layout(v);
+  var v=new DashboardView(false);v.Editable(true);v.Sections.SelectedIndex=3;Layout(v);
   var b=UnlockAllButton(v);Check(b!=null,"Unlock all button exists");Check(b.ActualWidth>20&&b.IsEnabled,"laid out and enabled while stopped");
   Check((b.Content as string)==Lang.T("Unlock all"),"label is the translated Unlock all");
   var sent=new System.Collections.Generic.List<string>();v.Command=c=>sent.Add(c);
   b.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
   Check(sent.Count==1&&sent[0]=="unlockAll","one click = exactly one unlockAll command; got ["+string.Join(",",sent)+"]");
   v.Editable(false);Check(!b.IsEnabled,"disabled while a session is attached");
-  var d=Fresh();var db=UnlockAllButton(d);Check(db!=null,"demo view has the button too");var ds=new System.Collections.Generic.List<string>();d.Command=c=>ds.Add(c);
+  var d=Fresh();d.Sections.SelectedIndex=3;Layout(d);var db=UnlockAllButton(d);Check(db!=null,"demo view has the button too");var ds=new System.Collections.Generic.List<string>();d.Command=c=>ds.Add(c);
   db.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));Check(ds.Count==0,"demo view never sends a command");
   Check(!v.StartButton.IsEnabled||DashboardSafety.CanExecute("start"),"Start unchanged by the button");
  }

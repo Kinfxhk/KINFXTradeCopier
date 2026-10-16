@@ -1495,6 +1495,9 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             t["Daily target still reached"] = new[] { "仍達每日目標", "日次目標にまだ到達中", "일일 목표에 아직 도달 상태" };
             t["Daily loss still reached"] = new[] { "仍達每日虧損上限", "日次損失上限にまだ到達中", "일일 손실 한도에 아직 도달 상태" };
             t["Drawdown floor still reached"] = new[] { "仍達回撤下限", "ドローダウン下限にまだ到達中", "드로다운 하한에 아직 도달 상태" };
+            t["Issues"] = new[] { "問題", "問題", "문제" };
+            t["No locks or notes."] = new[] { "沒有鎖定或設定提示。", "ロックや設定の注意はありません。", "잠금이나 설정 알림이 없습니다." };
+            t["Open the Issues tab"] = new[] { "開啟「問題」分頁", "「問題」タブを開く", "'문제' 탭 열기" };
             t["Micro Nasdaq-100"] = new[] { "微型納斯達克100", "マイクロ Nasdaq-100", "마이크로 나스닥100" };
             t["Nasdaq-100"] = new[] { "納斯達克100", "Nasdaq-100", "나스닥100" };
             t["Micro S&P 500"] = new[] { "微型標普500", "マイクロ S&P 500", "마이크로 S&P 500" };
@@ -3474,6 +3477,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             BuildMonitorPage();
             BuildSettingsPage();
             BuildLogPage();
+            BuildIssuesPage();
             BuildFooter();
             Rows.CollectionChanged+=(s,e)=>{if(e.OldItems!=null)foreach(AccountRow r in e.OldItems)r.FollowRequested-=OnFollowRequested;if(e.NewItems!=null)foreach(AccountRow r in e.NewItems)r.FollowRequested+=OnFollowRequested;};view=CollectionViewSource.GetDefaultView(Rows);view.Filter=Matches;AccountGrid.ItemsSource=view;RiskGrid.ItemsSource=view;AttachColumnMenu(ColumnPrefs.Copy,AccountGrid,columnsBarCopy);AttachColumnMenu(ColumnPrefs.Risk,RiskGrid,columnsBarRisk);
             PreviewKeyDown+=(s,e)=>{if(e.Key==System.Windows.Input.Key.F&&System.Windows.Input.Keyboard.Modifiers==System.Windows.Input.ModifierKeys.Control){FocusSearch();e.Handled=true;}else if(e.Key==System.Windows.Input.Key.Escape&&search.IsKeyboardFocusWithin){SearchText="";e.Handled=true;}};search.TextChanged+=(s,e)=>{view.Refresh();UpdateCards();};filter.SelectionChanged+=(s,e)=>{view.Refresh();UpdateCards();};groupBox.Checked+=(s,e)=>GroupByAccount=true;groupBox.Unchecked+=(s,e)=>GroupByAccount=false;ShowLive.Checked+=(s,e)=>Send("refresh");ShowLive.Unchecked+=(s,e)=>Send("refresh");AccountGrid.SelectionChanged+=(s,e)=>UpdateCards();RiskGrid.SelectionChanged+=(s,e)=>UpdateCards();Sections.SelectionChanged+=(s,e)=>{if(summary!=null)UpdateCards();};
@@ -3529,6 +3533,8 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             BuildPickerItems();
             InstrumentPopup.IsOpen=true;
         }
+        // Set on every picker TextBlock: on real NT the popup text still drew as boxes with only an inherited font on the list border.
+        static readonly FontFamily PickerFont=new FontFamily("Segoe UI Variable Text, Segoe UI");
         void BuildPickerItems()
         {
             var panel=(StackPanel)((ScrollViewer)InstrumentList.Child).Content;
@@ -3536,16 +3542,16 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             var recent=RecentRoots!=null?RecentRoots():null;
             foreach(var entry in InstrumentCatalog.Build(recent??new string[0]))
             {
-                if(entry.Header){panel.Children.Add(new TextBlock{Text=Lang.T(entry.Description),FontSize=11,Foreground=Muted,Margin=new Thickness(12,7,12,2)});continue;}
+                if(entry.Header){panel.Children.Add(new TextBlock{Text=Lang.T(entry.Description),FontFamily=PickerFont,FontSize=11,Foreground=Muted,Margin=new Thickness(12,7,12,2)});continue;}
                 panel.Children.Add(PickerRow(entry));
             }
         }
         FrameworkElement PickerRow(InstrumentCatalog.Entry entry)
         {
             var stack=new StackPanel{Orientation=Orientation.Horizontal};
-            stack.Children.Add(new TextBlock{Text=entry.Root,FontSize=13,Foreground=Ink,FontWeight=FontWeights.SemiBold,VerticalAlignment=VerticalAlignment.Center});
-            stack.Children.Add(new TextBlock{Text="  "+entry.Front+"  ",FontSize=13,Foreground=Accent,VerticalAlignment=VerticalAlignment.Center});
-            stack.Children.Add(new TextBlock{Text=entry.ChooseMonth?Lang.T(entry.Description)+" · "+Lang.T("choose month"):Lang.T(entry.Description),FontSize=12,Foreground=Muted,VerticalAlignment=VerticalAlignment.Center});
+            stack.Children.Add(new TextBlock{Text=entry.Root,FontFamily=PickerFont,FontSize=13,Foreground=Ink,FontWeight=FontWeights.SemiBold,VerticalAlignment=VerticalAlignment.Center});
+            stack.Children.Add(new TextBlock{Text="  "+entry.Front+"  ",FontFamily=PickerFont,FontSize=13,Foreground=Accent,VerticalAlignment=VerticalAlignment.Center});
+            stack.Children.Add(new TextBlock{Text=entry.ChooseMonth?Lang.T(entry.Description)+" · "+Lang.T("choose month"):Lang.T(entry.Description),FontFamily=PickerFont,FontSize=12,Foreground=Muted,VerticalAlignment=VerticalAlignment.Center});
             var b=new Button{Content=stack,Tag=entry.Root,HorizontalContentAlignment=HorizontalAlignment.Left,Background=Panel,BorderBrush=Line,Margin=new Thickness(6,1,6,1),Padding=new Thickness(9,5,9,5),Cursor=System.Windows.Input.Cursors.Hand,MinWidth=0,MinHeight=0};
             var t=new ControlTemplate(typeof(Button));var border=new FrameworkElementFactory(typeof(Border));border.SetValue(Border.CornerRadiusProperty,new CornerRadius(4));border.SetValue(Border.BackgroundProperty,new TemplateBindingExtension(Control.BackgroundProperty));border.SetValue(Border.BorderBrushProperty,new TemplateBindingExtension(Control.BorderBrushProperty));border.SetValue(Border.BorderThicknessProperty,new Thickness(1));
             var cp=new FrameworkElementFactory(typeof(ContentPresenter));cp.SetValue(FrameworkElement.HorizontalAlignmentProperty,HorizontalAlignment.Left);cp.SetValue(FrameworkElement.VerticalAlignmentProperty,VerticalAlignment.Center);cp.SetValue(FrameworkElement.MarginProperty,new TemplateBindingExtension(Control.PaddingProperty));border.AppendChild(cp);t.VisualTree=border;b.Template=t;
@@ -3593,10 +3599,10 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 lines.Add(row);
             }
             if(HeaderNotice.Length>0){var t=Text(Lang.Show(HeaderNotice),12,Warn);t.TextWrapping=TextWrapping.Wrap;lines.Add(t);}
-            int max=6;
-            if(lines.Count>max){for(int i=0;i<max;i++)issuesLines.Children.Add(lines[i]);issuesLines.Children.Add(Text(Lang.F("… and {0} more",lines.Count-max),12,Muted));}
-            else foreach(var l in lines)issuesLines.Children.Add(l);
+            foreach(var l in lines){var fe=l as FrameworkElement;if(fe!=null)fe.Margin=new Thickness(0,0,0,6);issuesLines.Children.Add(l);}
             issuesLines.Visibility=lines.Count==0?Visibility.Collapsed:Visibility.Visible;
+            if(issuesEmpty!=null)issuesEmpty.Visibility=lines.Count==0?Visibility.Visible:Visibility.Collapsed;
+            IssueCount=lines.Count;UpdateIssuesTabHeader();
         }
         //
         //
@@ -3638,13 +3644,12 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         // Page 0 (Monitor). Owner: UI v3 page 1 work.
         void BuildMonitorPage()
         {
-            var copy=new Grid();copy.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});copy.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});copy.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});copy.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});copy.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
-            var cards=new WrapPanel{Margin=new Thickness(0,0,0,10)};cardCopying=Text("0",18,Ink);cardLocked=Text("0",18,Ink);cardUnprotected=Text("0",18,Ink);cardPnl=Text("0",18,Ink);cards.Children.Add(CardBox("card:copying",Lang.T("Copying"),cardCopying));cards.Children.Add(CardBox("card:locked",Lang.T("Locked accounts"),cardLocked));cards.Children.Add(CardBox("card:unprotected",Lang.T("Unprotected lots"),cardUnprotected));cards.Children.Add(CardBox("card:pnl",Lang.T("Today P/L"),cardPnl));AddRow(copy,cards,0);
-            var banner=new Border{Background=Panel,BorderBrush=Line,BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(7),Padding=new Thickness(12,8,12,8),Margin=new Thickness(0,0,0,10),Tag="banner"};var bannerStack=new StackPanel();var bannerHead=new StackPanel{Orientation=Orientation.Horizontal};bannerHead.Children.Add(TextTool(Lang.T("Unlock all"),Lang.T("Unlock every locked follower that is flat, connected and no longer at a risk limit (one confirmation). The others stay locked with their reason in Logs. Does NOT start copying."),"unlockAll",()=>Send("unlockAll")));bannerStack.Children.Add(bannerHead);issuesLines=new StackPanel{Tag="issues"};bannerStack.Children.Add(issuesLines);banner.Child=bannerStack;AddRow(copy,banner,1);
+            var copy=new Grid();copy.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});copy.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});copy.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});copy.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
+            var cards=new WrapPanel{Margin=new Thickness(0,0,0,10)};cardCopying=Text("0",18,Ink);cardLocked=Text("0",18,Ink);cardUnprotected=Text("0",18,Ink);cardPnl=Text("0",18,Ink);cards.Children.Add(CardBox("card:copying",Lang.T("Copying"),cardCopying));var lockedCard=CardBox("card:locked",Lang.T("Locked accounts"),cardLocked);lockedCard.Cursor=System.Windows.Input.Cursors.Hand;lockedCard.ToolTip=Lang.T("Open the Issues tab");lockedCard.MouseLeftButtonUp+=(s,e)=>{if(issuesTab!=null)Sections.SelectedItem=issuesTab;};cards.Children.Add(lockedCard);cards.Children.Add(CardBox("card:unprotected",Lang.T("Unprotected lots"),cardUnprotected));cards.Children.Add(CardBox("card:pnl",Lang.T("Today P/L"),cardPnl));AddRow(copy,cards,0);
             var toolbar=new WrapPanel{Margin=new Thickness(0,0,0,9)};
-            search=Input("",185);search.ToolTip=Lang.T("Search account / alias / group / preset · Ctrl+F · Escape clears");toolbar.Children.Add(Labeled("⌕",search,17));filter=Combo(120);filter.ToolTip=Lang.T("Filter displayed account states");filter.ItemsSource=new[]{Lang.T("All"),Lang.T("On"),Lang.T("Paused"),Lang.T("Target")};filter.SelectedIndex=0;toolbar.Children.Add(filter);var ticks=new StackPanel{Orientation=Orientation.Horizontal,Margin=new Thickness(0,0,0,6)};ticks.Children.Add(Icon("\uE73A",Lang.T("Tick all visible followers"),"tickAll",()=>TickVisible(true),true));ticks.Children.Add(Icon("\uE711",Lang.T("Untick all visible followers"),"tickNone",()=>TickVisible(false),true));toolbar.Children.Add(ticks);groupBox=new CheckBox{Template=PlainCheckTemplate(),Content=Lang.T("Group by firm"),Foreground=Muted,Margin=new Thickness(8,6,0,0),ToolTip=Lang.T("Group account rows")};System.Windows.Automation.AutomationProperties.SetName(groupBox,Lang.T("Group by firm"));toolbar.Children.Add(groupBox);AddRow(copy,toolbar,2);columnsBarCopy=toolbar;
-            AccountGrid=GridTable();TickColumn(AccountGrid);AccountColumn(AccountGrid);Column(AccountGrid,"Alias","Alias",100,false,Lang.T("Optional display alias"));RatioColumn(AccountGrid);Column(AccountGrid,"Tgt","TargetText",78,false,Lang.T("Independent daily local profit target · account CCY / 0 = off"),null,true);Column(AccountGrid,"DLL","LossText",78,false,Lang.T("Independent daily loss limit · positive amount / 0 = off"),null,true);AtmColumn(AccountGrid);Column(AccountGrid,"Qty","Position",55,true,Lang.T("Signed position · + long / − short"),null,true);Column(AccountGrid,"P/L","Pnl",95,true,Lang.T("Observed session P/L in account currency · baseline is not historical daily accounting"),"N2",true);Column(AccountGrid,"Bal","BalanceText",130,true,Lang.T("CashValue in account currency; not NetLiquidation / net equity"),null,true);((DataGridTextColumn)AccountGrid.Columns.Last()).ElementStyle.Setters.Add(new Setter(FrameworkElement.ToolTipProperty,new Binding("BalanceDetail")));((DataGridTextColumn)AccountGrid.Columns.Last()).ElementStyle.Setters.Add(new Setter(System.Windows.Automation.AutomationProperties.NameProperty,new Binding("BalanceDetail")));LightColumn(AccountGrid,"Conn","ConnLight","Connection");StateColumn(AccountGrid);OffColumn(AccountGrid);FlatColumn(AccountGrid);AccountGrid.FrozenColumnCount=2;ProportionalCopyColumns(AccountGrid);AccountGrid.GroupStyle.Add(GroupHeaderStyle());AddRow(copy,AccountGrid,3);
-            var actions=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,8,0,0)};var fs=TextTool(Lang.T("Flatten selected"),DashboardSafety.CanExecute("flattenSelected")?Lang.T("Flatten highlighted accounts (market-closes their positions)"):Lang.T("Flatten highlighted accounts · review hold"),"flattenSelected",()=>Send("flattenSelected"));fs.Foreground=Bad;fs.IsEnabled=DashboardSafety.CanExecute("flattenSelected");var fa=TextTool(Lang.T("Flatten all"),DashboardSafety.CanExecute("flattenAll")?Lang.T("Flatten ALL displayed accounts (market-closes every position shown)"):Lang.T("Flatten all displayed accounts · review hold"),"flattenAll",()=>Send("flattenAll"));fa.Foreground=Bad;fa.IsEnabled=DashboardSafety.CanExecute("flattenAll");actions.Children.Add(fs);actions.Children.Add(fa);AddRow(copy,actions,4);
+            search=Input("",185);search.ToolTip=Lang.T("Search account / alias / group / preset · Ctrl+F · Escape clears");toolbar.Children.Add(Labeled("⌕",search,17));filter=Combo(120);filter.ToolTip=Lang.T("Filter displayed account states");filter.ItemsSource=new[]{Lang.T("All"),Lang.T("On"),Lang.T("Paused"),Lang.T("Target")};filter.SelectedIndex=0;toolbar.Children.Add(filter);var ticks=new StackPanel{Orientation=Orientation.Horizontal,Margin=new Thickness(0,0,0,6)};ticks.Children.Add(Icon("\uE73A",Lang.T("Tick all visible followers"),"tickAll",()=>TickVisible(true),true));ticks.Children.Add(Icon("\uE711",Lang.T("Untick all visible followers"),"tickNone",()=>TickVisible(false),true));toolbar.Children.Add(ticks);groupBox=new CheckBox{Template=PlainCheckTemplate(),Content=Lang.T("Group by firm"),Foreground=Muted,Margin=new Thickness(8,6,0,0),ToolTip=Lang.T("Group account rows")};System.Windows.Automation.AutomationProperties.SetName(groupBox,Lang.T("Group by firm"));toolbar.Children.Add(groupBox);AddRow(copy,toolbar,1);columnsBarCopy=toolbar;
+            AccountGrid=GridTable();TickColumn(AccountGrid);AccountColumn(AccountGrid);Column(AccountGrid,"Alias","Alias",100,false,Lang.T("Optional display alias"));RatioColumn(AccountGrid);Column(AccountGrid,"Tgt","TargetText",78,false,Lang.T("Independent daily local profit target · account CCY / 0 = off"),null,true);Column(AccountGrid,"DLL","LossText",78,false,Lang.T("Independent daily loss limit · positive amount / 0 = off"),null,true);AtmColumn(AccountGrid);Column(AccountGrid,"Qty","Position",55,true,Lang.T("Signed position · + long / − short"),null,true);Column(AccountGrid,"P/L","Pnl",95,true,Lang.T("Observed session P/L in account currency · baseline is not historical daily accounting"),"N2",true);Column(AccountGrid,"Bal","BalanceText",130,true,Lang.T("CashValue in account currency; not NetLiquidation / net equity"),null,true);((DataGridTextColumn)AccountGrid.Columns.Last()).ElementStyle.Setters.Add(new Setter(FrameworkElement.ToolTipProperty,new Binding("BalanceDetail")));((DataGridTextColumn)AccountGrid.Columns.Last()).ElementStyle.Setters.Add(new Setter(System.Windows.Automation.AutomationProperties.NameProperty,new Binding("BalanceDetail")));LightColumn(AccountGrid,"Conn","ConnLight","Connection");StateColumn(AccountGrid);OffColumn(AccountGrid);FlatColumn(AccountGrid);AccountGrid.FrozenColumnCount=2;ProportionalCopyColumns(AccountGrid);AccountGrid.GroupStyle.Add(GroupHeaderStyle());AddRow(copy,AccountGrid,2);
+            var actions=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,8,0,0)};var fs=TextTool(Lang.T("Flatten selected"),DashboardSafety.CanExecute("flattenSelected")?Lang.T("Flatten highlighted accounts (market-closes their positions)"):Lang.T("Flatten highlighted accounts · review hold"),"flattenSelected",()=>Send("flattenSelected"));fs.Foreground=Bad;fs.IsEnabled=DashboardSafety.CanExecute("flattenSelected");var fa=TextTool(Lang.T("Flatten all"),DashboardSafety.CanExecute("flattenAll")?Lang.T("Flatten ALL displayed accounts (market-closes every position shown)"):Lang.T("Flatten all displayed accounts · review hold"),"flattenAll",()=>Send("flattenAll"));fa.Foreground=Bad;fa.IsEnabled=DashboardSafety.CanExecute("flattenAll");actions.Children.Add(fs);actions.Children.Add(fa);AddRow(copy,actions,3);
             Sections.Items.Add(new TabItem{Header=Lang.T("Monitor"),Content=copy});
         }
         // Page 1 (was "Risk"). Owner: UI v3 page 2 work.
@@ -3767,6 +3772,24 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             if(LogBox!=null){LogBox.Text=plainText??"";LogBox.ScrollToEnd();}
             UpdateLogTabHeader();
         }
+        // Page 3 (Issues): locks, settings notes and the header notice, with Unlock all. Its own tab so the Monitor table keeps
+        // the full height when many accounts are listed (user request). Appended last so the Monitor/Settings/Logs indexes do not move.
+        TabItem issuesTab;int IssueCount;
+        void BuildIssuesPage()
+        {
+            var page=new Grid{Tag="banner"};page.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});page.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});
+            var head=new DockPanel{Margin=new Thickness(0,0,0,10)};
+            var unlock=TextTool(Lang.T("Unlock all"),Lang.T("Unlock every locked follower that is flat, connected and no longer at a risk limit (one confirmation). The others stay locked with their reason in Logs. Does NOT start copying."),"unlockAll",()=>Send("unlockAll"));
+            DockPanel.SetDock(unlock,Dock.Left);head.Children.Add(unlock);
+            issuesEmpty=Text(Lang.T("No locks or notes."),12,Muted);issuesEmpty.Margin=new Thickness(12,0,0,0);head.Children.Add(issuesEmpty);
+            AddRow(page,head,0);
+            issuesLines=new StackPanel{Tag="issues"};
+            var scroll=new ScrollViewer{VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled,Content=issuesLines};
+            AddRow(page,scroll,1);
+            issuesTab=new TabItem{Header=Lang.T("Issues"),Content=page};Sections.Items.Add(issuesTab);
+        }
+        TextBlock issuesEmpty;
+        void UpdateIssuesTabHeader(){if(issuesTab==null)return;issuesTab.Header=IssueCount>0?Lang.T("Issues")+" ("+IssueCount+")":Lang.T("Issues");issuesTab.Foreground=IssueCount>0?Warn:null;}
         // Row 3 footer: counts, session text, advice and locked lines.
         void BuildFooter()
         {
