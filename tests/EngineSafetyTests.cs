@@ -316,6 +316,53 @@ class EngineSafetyTests {
   using(var e=new CopierEngine(s=>{},t=>{},(attached,s)=>{},(n,r)=>Interlocked.Increment(ref locks))){e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10},new RiskLatch()),Tuple.Create(b,new RiskSettings{MaxContracts=10},new RiskLatch())});Wait(()=>e.EntriesArmed,"isolation arm");l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Wait(()=>b.Submits==1&&locks==1,"isolated error");e.GuardedPause();}
   var live=new NinjaTrader.Cbi.Account{Name="Fake live",Provider=NinjaTrader.Cbi.Provider.Live};using(var e=new CopierEngine(s=>{},t=>{},(attached,s)=>{},(n,r)=>{})){e.Start(live,inst,new[]{Tuple.Create(b,new RiskSettings(),new RiskLatch())});Thread.Sleep(100);Check(!e.Attached&&!e.EntriesArmed,"live forbidden");}
  }
+ // S1: ResumeEntries after a guarded pause copies only LATER entries; entries the leader opened while paused stay uncopied (no catch-up);
+ // existing exits keep being mirrored; resume is refused after any safety block (here: an unsupported leader order / leader disconnect).
+ static void GuardedPauseThenResumeCopiesOnlyLaterEntries(){var l=Acc("rs lead");var a=Acc("rs follow");var logs=new List<string>();AccountTelemetry latest=null;
+  var e=new CopierEngine(m=>{lock(logs)logs.Add(m);},t=>latest=t,(att,m)=>{},(n,r)=>{});
+  try{e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10},new RiskLatch())});Wait(()=>e.EntriesArmed,"arm");
+   Check(!e.CanResume,"nothing to resume while copying");
+   e.GuardedPause();Drain(e);Check(!e.EntriesArmed&&e.CanResume,"pause is resumable");
+   var during=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy);during.OrderId="rs-during";l.Emit(during);Drain(e);Check(a.Submits==0,"entry while paused not copied");
+   e.ResumeEntries();Drain(e);Check(e.EntriesArmed&&!e.CanResume,"resumed");
+   lock(logs)Check(logs.Any(m=>m.StartsWith("Resumed NEW entries")),"resume logged");
+   during.OrderState=NinjaTrader.Cbi.OrderState.Working;during.LimitPrice=101;l.Emit(during);Drain(e);Check(a.Submits==0,"paused entry still not copied after resume (no catch-up)");
+   var later=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy);later.OrderId="rs-later";l.Emit(later);Wait(()=>a.Submits==1,"later entry copied");
+   e.ResumeEntries();Drain(e);lock(logs)Check(logs.Any(m=>m=="Resume refused: entries are already on."),"double resume refused");
+   // pause again, then a safety block: resume must stay refused
+   e.GuardedPause();Drain(e);Check(e.CanResume,"pause again");
+   var bad=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy);bad.OrderId="rs-bad";bad.OrderType=NinjaTrader.Cbi.OrderType.Unsupported;l.Emit(bad);Drain(e);
+   Check(!e.CanResume,"safety block is not resumable");
+   e.ResumeEntries();Drain(e);Check(!e.EntriesArmed,"resume refused after safety block");
+   lock(logs)Check(logs.Any(m=>m.StartsWith("Resume refused: entries were stopped by a safety block")),"refusal logged");
+   e.GuardedPause();Drain(e);Check(!e.CanResume,"a later pause does not make a safety block resumable");
+   e.ResumeEntries();Drain(e);Check(!e.EntriesArmed,"still refused");
+  }finally{e.Dispose();}}
+ static void ResumeRefusedAfterLeaderDisconnect(){var l=Acc("rd lead");var a=Acc("rd follow");var logs=new List<string>();
+  var e=new CopierEngine(m=>{lock(logs)logs.Add(m);},t=>{},(att,m)=>{},(n,r)=>{});
+  try{e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10},new RiskLatch())});Wait(()=>e.EntriesArmed,"arm");
+   e.GuardedPause();Drain(e);l.Connection.Status=NinjaTrader.Cbi.ConnectionStatus.Disconnected;e.Poll();Drain(e);
+   Check(!e.CanResume,"disconnect clears resumable pause");l.Connection.Status=NinjaTrader.Cbi.ConnectionStatus.Connected;
+   e.ResumeEntries();Drain(e);Check(!e.EntriesArmed,"resume refused after disconnect");
+   var o=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy);l.Emit(o);Drain(e);Check(a.Submits==0,"nothing copied");
+  }finally{e.Dispose();}}
+ static void ResumeWithoutSessionRefused(){var logs=new List<string>();var e=new CopierEngine(m=>{lock(logs)logs.Add(m);},t=>{},(att,m)=>{},(n,r)=>{});
+  try{e.GuardedPause();Drain(e);Check(!e.CanResume,"no session: pause not resumable");e.ResumeEntries();Drain(e);Check(!e.EntriesArmed,"no session: refused");
+   lock(logs)Check(logs.Any(m=>m=="Resume refused: no managed session."),"logged");}finally{e.Dispose();}}
+ // Telemetry: after a completed exit the follower reports ExitCompleted (closed, re-follow explicit); a user OFF never does.
+ static void ExitCompletedTelemetryMarksClosedFollower(){var l=Acc("xc lead");var a=Acc("xc follow");var b=Acc("xc user off");AccountTelemetry la=null,lb=null;
+  var e=new CopierEngine(m=>{},t=>{if(t.Name==a.Name)la=t;else if(t.Name==b.Name)lb=t;},(att,m)=>{},(n,r)=>{});
+  try{e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=1},new RiskLatch()),Tuple.Create(b,new RiskSettings{MaxContracts=1},new RiskLatch())});Wait(()=>e.EntriesArmed,"arm");
+   e.SetFollowing(b.Name,false);Drain(e);
+   var en=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",1);en.OrderId="xc-in";l.Emit(en);Wait(()=>a.Submits==1,"entry");
+   var fi=a.Orders.Last();fi.Filled=1;fi.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=1,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});a.Emit(fi);Drain(e);
+   l.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=1,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});
+   var ex=LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"",1);ex.OrderId="xc-out";l.Emit(ex);Wait(()=>a.Submits==2,"exit");
+   var fx=a.Orders.Last();fx.Filled=1;fx.OrderState=NinjaTrader.Cbi.OrderState.Filled;a.Positions.Clear();a.Emit(fx);Drain(e);e.Poll();Drain(e);
+   Check(la!=null&&!la.Following&&la.ExitCompleted,"closed follower reports ExitCompleted");
+   Check(lb!=null&&!lb.Following&&!lb.ExitCompleted,"user OFF is not ExitCompleted");
+   l.Positions.Clear();e.SetFollowing(a.Name,true);Drain(e);Check(la.Following&&!la.ExitCompleted,"re-follow clears it");
+  }finally{e.Dispose();}}
  static NinjaTrader.Cbi.Account Acc(string name){return new NinjaTrader.Cbi.Account{Name=name};}
  static void OverlappingChangesOldEqualAckCannotReleaseReservation() { OverlappingEqualAck(0); }
  static void OverlappingSentChangesOldEqualAckCannotReleaseReservation() { OverlappingEqualAck(1); }

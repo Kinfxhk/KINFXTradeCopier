@@ -623,6 +623,24 @@ static void MonitorSummarySingleCurrency() {
 //
 //
 // ---- WP3 pure tests (log classifier / export) go here ----
+static void RefollowAndBoundaryRules() {
+ Eq(true,Refollow.Eligible(true,false,false,false,true,0));
+ Eq(false,Refollow.Eligible(false,false,false,false,true,0)); // user OFF is never offered
+ Eq(false,Refollow.Eligible(true,true,false,false,true,0));
+ Eq(false,Refollow.Eligible(true,false,true,false,true,0));
+ Eq(false,Refollow.Eligible(true,false,false,true,true,0));
+ Eq(false,Refollow.Eligible(true,false,false,false,false,0));
+ Eq(false,Refollow.Eligible(true,false,false,false,true,1));
+ Eq(false,Refollow.Eligible(true,false,false,false,true,-2));
+ Eq(true,Refollow.Auto(true,true,false,false,false,true,0,0));
+ Eq(false,Refollow.Auto(false,true,false,false,false,true,0,0)); // opt-in required
+ Eq(false,Refollow.Auto(true,true,false,false,false,true,0,1));  // leader must be flat
+ Eq(false,Refollow.Auto(true,true,false,false,false,true,1,0));
+ Eq("pause",BoundaryMode.Parse(null));Eq("pause",BoundaryMode.Parse(""));Eq("pause",BoundaryMode.Parse("x"));Eq("notify",BoundaryMode.Parse("notify"));
+ Eq(false,new RiskSettings().AutoRefollow);
+ var x=SettingsStore.ToXml(new[]{new SavedAccount{Name="A",Settings=new RiskSettings{AutoRefollow=true}}},"MES 12-26","Central Standard Time",17);
+ Eq(true,SettingsStore.FromXml(x)[0].Settings.AutoRefollow);
+}
 static void NotifyPrefsAndDecide() {
  // Off until an address is entered; defaults lock/error/limit/disconnect once it is.
  var d=NotifyPrefs.Defaults();Eq(false,d.Enabled);d.To="me@example.com";Eq(true,d.Enabled);Eq(false,d.On.Contains(NotifyPrefs.Boundary));

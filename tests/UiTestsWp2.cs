@@ -8,7 +8,7 @@ public static class UiTestsWp2 {
   public static Action[] Cases(){ return new Action[]{
     SummaryCardsShowCorrectValues, BannerCollapsesAndLinksSwitchTabs, UnlockAllAndFlattenLiveOnMonitor,
     BulkSectionAppliesOnSettingsTab, GroupHeaderShowsFirmAndCount, MaxIsDefaultWarnBorder, NoClippedTextNoWhiteBlocksAllLanguages,
-    GroupToggleMirrorsGroupByAccount, IssuesHaveTheirOwnTab, LeaderRowIsAlwaysFirst, BulkEditsRatioAndMax, ColumnsFollowImportanceOrder, MonitorTableFitsDefaultWindowInEveryLanguage, SettingsStatusAndConnectionAreTranslated, MaxAndBalanceHeadersSort, IssuesListNotRebuiltWhenUnchanged, CurrencyCodeUsesSharedTableAndIssueOrderIgnored, NotifySectionEditsDraftOnly };}
+    GroupToggleMirrorsGroupByAccount, IssuesHaveTheirOwnTab, LeaderRowIsAlwaysFirst, BulkEditsRatioAndMax, ColumnsFollowImportanceOrder, MonitorTableFitsDefaultWindowInEveryLanguage, SettingsStatusAndConnectionAreTranslated, MaxAndBalanceHeadersSort, IssuesListNotRebuiltWhenUnchanged, CurrencyCodeUsesSharedTableAndIssueOrderIgnored, NotifySectionEditsDraftOnly, ResumeAndRefollowControls };}
   static T Find<T>(DashboardView v,string tag) where T:FrameworkElement{return BulkUiTests.Visual<T>(v).FirstOrDefault(x=>(x.Tag as string)==tag);}
   static FrameworkElement Tag(DashboardView v,string tag){return BulkUiTests.Visual<FrameworkElement>(v).FirstOrDefault(x=>(x.Tag as string)==tag);}
   static string CardValue(DashboardView v,string tag){var c=Tag(v,tag);BulkUiTests.Check(c!=null,"card exists: "+tag);return BulkUiTests.Visual<TextBlock>(c).Last().Text;}
@@ -336,5 +336,29 @@ public static class UiTestsWp2 {
     BulkUiTests.Check(save.IsEnabled&&test.IsEnabled&&v.NotifyToBox.IsEnabled,"alert settings stay editable while attached (they never touch orders)");
     var p=NotifyPrefs.Parse(new[]{"to=x@y.com","on=boundary"});v.ShowNotify(p);
     BulkUiTests.Check(v.NotifyToBox.Text=="x@y.com"&&v.NotifyKindBoxes["boundary"].IsChecked==true&&v.NotifyKindBoxes["lock"].IsChecked==false,"ShowNotify reflects loaded settings");
+  }
+
+  // S1 controls: Resume shows only when the engine reports a resumable pause; Re-follow shows a count and needs an attached session;
+  // Auto re-follow column binds to RiskSettings.AutoRefollow (default off). Pressing them only sends the command.
+  static void ResumeAndRefollowControls(){
+    var v=new DashboardView(false);v.Editable(true);BulkUiTests.Layout(v);var cmds=new System.Collections.Generic.List<string>();v.Command=c=>cmds.Add(c); // non-demo: the demo view never forwards
+    BulkUiTests.Check(v.ResumeButton!=null&&v.ResumeButton.Visibility!=Visibility.Visible,"resume hidden by default");
+    bool canResume=DashboardSafety.CanExecute("resume");
+    v.ShowResume(true);BulkUiTests.Layout(v);BulkUiTests.Check(v.ResumeButton.Visibility==Visibility.Visible&&v.ResumeButton.IsEnabled==canResume,"resume shown while resumable; enabled only where the build allows it");
+    v.ResumeButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+    BulkUiTests.Check(canResume?(cmds.Count==1&&cmds[0]=="resume"):cmds.Count==0,"resume sends only the resume command (none under the review hold)");
+    cmds.Clear();cmds.Add("resume");
+    v.ShowResume(false);BulkUiTests.Check(v.ResumeButton.Visibility!=Visibility.Visible,"hidden again");
+    BulkUiTests.Check(v.RefollowButton!=null&&!v.RefollowButton.IsEnabled,"re-follow disabled with nothing closed");
+    v.ShowRefollow(2);BulkUiTests.Check(!v.RefollowButton.IsEnabled,"re-follow needs an attached session");
+    v.SetSessionState(true,"COPYING");v.ShowRefollow(2);
+    BulkUiTests.Check(v.RefollowButton.IsEnabled&&(v.RefollowButton.Content as string??"").Contains("2"),"re-follow enabled with count");
+    v.RefollowButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+    BulkUiTests.Check(cmds.Count==2&&cmds[1]=="refollow","re-follow sends only its command; got ["+string.Join(",",cmds)+"]");
+    v.ShowRefollow(0);BulkUiTests.Check(!v.RefollowButton.IsEnabled,"re-follow disabled at 0");
+    v.SetSessionState(false,"Stopped");
+    var col=v.RiskGrid.Columns.FirstOrDefault(c=>(c.Header as string??"")=="Auto re-follow"||(c.Header is FrameworkElement&&((c.Header as FrameworkElement).ToolTip as string??"").StartsWith("Auto re-follow")));
+    BulkUiTests.Check(v.RiskGrid.Columns.Any(c=>c.SortMemberPath=="AutoRefollow"),"auto re-follow column present");
+    var row=new AccountRow{Name="X",Role="Follower"};BulkUiTests.Check(!row.AutoRefollow,"auto re-follow default off");row.AutoRefollow=true;BulkUiTests.Check(row.Settings.AutoRefollow,"binds to settings");
   }
 }

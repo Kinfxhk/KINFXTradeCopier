@@ -42,7 +42,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public const string StartTip="REVIEW HOLD: copying unavailable until engine safety issues are fixed";
         public const string LogNote="REVIEW HOLD: Start / Flatten / bulk risk disabled. ATM means order mirroring, not a follower native ATM. No real or simulation orders were submitted by this build verification.";
         public static bool CanExecute(string command)
-        { return command!="start" && command!="flattenSelected" && command!="flattenAll" && command!="batch"; }
+        { return command!="start" && command!="flattenSelected" && command!="flattenAll" && command!="batch" && command!="resume"; }
 #endif
     }
     // Advisory text for settings that are legal but easy to misread. Pure: no account, engine or dispatch access.
@@ -152,6 +152,9 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         // Opt-in per account (default OFF): when THIS account's Daily target or Daily loss latches, send ONE Flatten for it on the session instrument.
         // Never retried, never for any other lock reason (disconnect, unknown order, rejected order ...), other accounts untouched.
         public bool FlatOnLimit;
+        // Opt-in per account (default OFF): after THIS follower's copied exit completes and the leader is flat too, tick it again
+        // automatically (same checks as a manual re-tick: clean, connected, unlocked, entries on). Copies only LATER entries; no catch-up.
+        public bool AutoRefollow;
         public RiskSettings Clone() { return (RiskSettings)MemberwiseClone(); }
         public bool Valid()
         {
@@ -1064,6 +1067,22 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             return new Mail{Subject=subject,Body=body};
         }
     }
+    // S1 one-click re-follow (pure): a follower is offered only when the engine closed it after a completed exit, it is flat, connected,
+    // unlocked and not paused. The engine re-checks everything again (SetFollowing ON) and refuses anything not clean.
+    public static class Refollow
+    {
+        public static bool Eligible(bool exitClosed,bool following,bool locked,bool paused,bool connected,int position)
+        { return exitClosed&&!following&&!locked&&!paused&&connected&&position==0; }
+        // Auto re-follow additionally needs the opt-in and a flat leader.
+        public static bool Auto(bool optIn,bool exitClosed,bool following,bool locked,bool paused,bool connected,int position,int leaderPosition)
+        { return optIn&&leaderPosition==0&&Eligible(exitClosed,following,locked,paused,connected,position); }
+    }
+    // S1 trading-day boundary reaction. "pause" (default) = guarded pause of new entries, as before. "notify" = log only.
+    public static class BoundaryMode
+    {
+        public const string Pause="pause", Notify="notify";
+        public static string Parse(string v){return v==Notify?Notify:Pause;}
+    }
     public static class LogExport
     {
         public static string Mask(string text, IEnumerable<string> names)
@@ -1678,6 +1697,34 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             t["Email alerts off."] = new[] { "電郵提醒已關閉。", "メール通知オフ。", "이메일 알림 꺼짐." };
             t["Email test handed to NinjaTrader for {0}; check the inbox and NinjaTrader's log."] = new[] { "測試電郵已交給 NinjaTrader（{0}）；請查看收件匣及 NinjaTrader 日誌。", "テストメールを NinjaTrader に渡しました（{0}）。受信箱と NinjaTrader のログを確認してください。", "테스트 메일을 NinjaTrader에 넘겼습니다 ({0}). 받은편지함과 NinjaTrader 로그를 확인하세요." };
             t["Email alert not sent (blocked by NinjaTrader share service): {0}"] = new[] { "電郵提醒未寄出（NinjaTrader 分享服務拒絕）：{0}", "メール通知未送信（NinjaTrader 共有サービスが拒否）：{0}", "이메일 알림 미발송 (NinjaTrader 공유 서비스 거부): {0}" };
+            t["Resume new entries"] = new[] { "恢復新進場", "新規エントリーを再開", "신규 진입 재개" };
+            t["Resume new entries after a pause · entries the leader opened while paused are NOT copied"] = new[] { "暫停後恢復新進場 · 暫停期間主帳戶的進場不會補跟", "一時停止後に新規エントリーを再開 · 停止中のリーダーのエントリーはコピーされません", "일시정지 후 신규 진입 재개 · 일시정지 중 리더 진입은 복사되지 않음" };
+            t["Re-follow closed accounts"] = new[] { "重新跟隨已平倉帳戶", "決済済み口座を再フォロー", "청산된 계좌 다시 팔로우" };
+            t["Re-follow closed accounts ({0})"] = new[] { "重新跟隨已平倉帳戶（{0}）", "決済済み口座を再フォロー（{0}）", "청산된 계좌 다시 팔로우 ({0})" };
+            t["Tick again every follower that closed after a copied exit and is flat, connected and unlocked. Only LATER new entries are copied; nothing is caught up."] = new[] { "重新勾選所有因跟隨出場而平倉、且無持倉、已連線、未鎖定的跟單帳戶。只會跟隨之後的新進場，不會補單。", "コピーした決済で決済済みとなり、ノーポジション・接続中・未ロックのフォロワーを再度チェックします。以後の新規エントリーのみコピーし、追いかけ注文はしません。", "복사된 청산으로 청산되었고 포지션 없음·연결됨·잠금 해제된 팔로워를 다시 체크합니다. 이후 신규 진입만 복사하며 따라잡기 주문은 없습니다." };
+            t["Auto re-follow"] = new[] { "自動重新跟隨", "自動再フォロー", "자동 다시 팔로우" };
+            t["Auto re-follow: after this account's copied exit completes and the leader is flat, tick it again automatically. Only later new entries are copied. Off = re-tick by hand."] = new[] { "自動重新跟隨：此帳戶的跟隨出場完成且主帳戶已無持倉後，自動重新勾選。只會跟隨之後的新進場。關閉 = 手動重新勾選。", "自動再フォロー：この口座のコピー決済が完了し、リーダーがノーポジションになったら自動で再チェックします。以後の新規エントリーのみコピー。オフ = 手動で再チェック。", "자동 다시 팔로우: 이 계좌의 복사 청산이 끝나고 리더 포지션이 없으면 자동으로 다시 체크합니다. 이후 신규 진입만 복사. 끔 = 직접 다시 체크." };
+            t["Resume NEW entries?\n\nEntries the leader opened while paused are NOT copied (no catch-up); only later new entries are. Locked or unticked followers stay as they are."] = new[] { "要恢復新進場嗎？\n\n暫停期間主帳戶的進場不會補跟；只會跟隨之後的新進場。已鎖定或未勾選的跟單帳戶維持不變。", "新規エントリーを再開しますか？\n\n停止中のリーダーのエントリーはコピーしません（追いかけなし）。以後の新規エントリーのみコピーします。ロック中・未チェックのフォロワーはそのままです。", "신규 진입을 재개할까요?\n\n일시정지 중 리더 진입은 복사하지 않습니다(따라잡기 없음). 이후 신규 진입만 복사합니다. 잠긴 계좌나 체크 해제된 팔로워는 그대로입니다." };
+            t["Resume cancelled; still paused."] = new[] { "已取消恢復；仍然暫停。", "再開を取り消しました。一時停止のままです。", "재개 취소됨. 계속 일시정지 상태입니다." };
+            t["Re-follow: no closed account is flat, connected and unlocked."] = new[] { "重新跟隨：沒有無持倉、已連線且未鎖定的已平倉帳戶。", "再フォロー：ノーポジション・接続中・未ロックの決済済み口座はありません。", "다시 팔로우: 포지션 없음·연결됨·잠금 해제된 청산 계좌가 없습니다." };
+            t["Tick {0} closed account(s) again?\n{1}\n\nOnly LATER new entries are copied; nothing is caught up. Each account is checked again (flat, connected, unlocked)."] = new[] { "要重新勾選 {0} 個已平倉帳戶嗎？\n{1}\n\n只會跟隨之後的新進場，不會補單。每個帳戶會再檢查一次（無持倉、已連線、未鎖定）。", "決済済み口座 {0} 件を再チェックしますか？\n{1}\n\n以後の新規エントリーのみコピーし、追いかけ注文はしません。各口座を再確認します（ノーポジション・接続中・未ロック）。", "청산된 계좌 {0}개를 다시 체크할까요?\n{1}\n\n이후 신규 진입만 복사하며 따라잡기 주문은 없습니다. 각 계좌를 다시 확인합니다(포지션 없음·연결됨·잠금 해제)." };
+            t["Re-follow cancelled; nothing changed."] = new[] { "已取消重新跟隨；沒有任何變更。", "再フォローを取り消しました。変更はありません。", "다시 팔로우 취소됨. 변경 사항 없음." };
+            t["Re-follow: {0} — only later new entries are copied."] = new[] { "重新跟隨：{0} — 只會跟隨之後的新進場。", "再フォロー：{0} — 以後の新規エントリーのみコピー。", "다시 팔로우: {0} — 이후 신규 진입만 복사." };
+            t["Auto re-follow: {0} — only later new entries are copied."] = new[] { "自動重新跟隨：{0} — 只會跟隨之後的新進場。", "自動再フォロー：{0} — 以後の新規エントリーのみコピー。", "자동 다시 팔로우: {0} — 이후 신규 진입만 복사." };
+            t["Auto re-follow error: {0}"] = new[] { "自動重新跟隨錯誤：{0}", "自動再フォローエラー：{0}", "자동 다시 팔로우 오류: {0}" };
+            t["Pause new entries at the boundary (off = notice only)"] = new[] { "於交易日分界暫停新進場（關閉 = 只作提示）", "境界で新規エントリーを一時停止（オフ = 通知のみ）", "경계 시각에 신규 진입 일시정지 (끔 = 알림만)" };
+            t["Trading-day boundary {0} {1}:00 (DST aware). Notice only: entries NOT paused. Baseline / latch NOT auto-reset."] = new[] { "交易日界線 {0} {1}:00（已考慮夏令時間）。只作提示：新進場未暫停。基準與鎖定不會自動重設。", "取引日の境界 {0} {1}:00（夏時間対応）。通知のみ：新規エントリーは停止していません。基準値・ロックは自動リセットされません。", "거래일 경계 {0} {1}:00 (서머타임 반영). 알림만: 신규 진입은 일시정지되지 않았습니다. 기준값/잠금은 자동 초기화되지 않습니다." };
+            t["Resumed NEW entries. Leader entries seen while paused are NOT copied; only later new entries are. Locked or unticked followers stay as they are."] = new[] { "已恢復新進場。暫停期間主帳戶的進場不會補跟；只會跟隨之後的新進場。已鎖定或未勾選的跟單帳戶維持不變。", "新規エントリーを再開しました。停止中のリーダーのエントリーはコピーしません。以後の新規エントリーのみコピーします。ロック中・未チェックのフォロワーはそのままです。", "신규 진입을 재개했습니다. 일시정지 중 리더 진입은 복사하지 않고 이후 신규 진입만 복사합니다. 잠긴 계좌나 체크 해제된 팔로워는 그대로입니다." };
+            t["Resume refused: {0}."] = new[] { "拒絕恢復：{0}。", "再開を拒否：{0}。", "재개 거부: {0}." };
+            t["no managed session"] = new[] { "沒有管理中的工作階段", "管理中のセッションがありません", "관리 중인 세션 없음" };
+            t["entries are already on"] = new[] { "新進場已經開啟", "新規エントリーはすでにオンです", "신규 진입이 이미 켜져 있음" };
+            t["entries were stopped by a safety block, not by a pause; Stop when flat, then Start"] = new[] { "新進場是被安全封鎖停止，不是暫停；請在無持倉時停止，再重新開始", "新規エントリーは一時停止ではなく安全ブロックで停止しました。ノーポジションで停止してから開始してください", "신규 진입은 일시정지가 아닌 안전 차단으로 중지되었습니다. 포지션이 없을 때 중지 후 다시 시작하세요" };
+            t["flatten / unresolved execution evidence / persistence failure"] = new[] { "平倉中／未解決的成交紀錄／儲存失敗", "決済中／未解決の約定記録／保存失敗", "청산 중/미해결 체결 기록/저장 실패" };
+            t["leader disconnected"] = new[] { "主帳戶已斷線", "リーダー切断", "리더 연결 끊김" };
+            t["session history bound reached"] = new[] { "工作階段紀錄已達上限", "セッション履歴の上限に到達", "세션 기록 한도 도달" };
+            t["a follower has an unresolved provider fault or flatten"] = new[] { "有跟單帳戶的券商錯誤或平倉尚未解決", "フォロワーに未解決のプロバイダー障害または決済があります", "팔로워에 미해결 공급자 오류 또는 청산이 있음" };
+            t["Resume refused: entries were stopped by a safety block, not by a pause; Stop when flat, then Start."] = new[] { "拒絕恢復：新進場是被安全封鎖停止，不是暫停；請在無持倉時停止，再重新開始。", "再開を拒否：新規エントリーは一時停止ではなく安全ブロックで停止しました。ノーポジションで停止してから開始してください。", "재개 거부: 신규 진입은 일시정지가 아닌 안전 차단으로 중지되었습니다. 포지션이 없을 때 중지 후 다시 시작하세요." };
+            t["Closed · re-follow"] = new[] { "已平倉 · 待重新跟隨", "決済済み · 再フォロー待ち", "청산됨 · 다시 팔로우 대기" };
             t["Info"] = new[] { "資訊", "情報", "정보" };
             t["Order"] = new[] { "委託", "注文", "주문" };
             t["Warn"] = new[] { "警告", "警告", "경고" };
@@ -1758,6 +1805,8 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public double Pnl, Equity, Realized, Unrealized, Sod, HighWater;
         public int Position, FollowGeneration, ProcessedFollowGeneration, SessionGeneration;
         public bool Locked, Paused, Following, DisablePending;
+        // Following turned off by the engine because this follower completed its exit (closed; re-follow is explicit).
+        public bool ExitCompleted;
         public string Direction;
     }
     internal sealed class EngineAccount
@@ -1954,6 +2003,10 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         Account leader;
         Instrument instrument;
         volatile bool entries, attached, disposed, suppressNew, ledgerUnresolved;
+        // True only while entries are off because of GuardedPause (user button or trading-day boundary). Every other way entries go off
+        // (engine error, leader disconnect, invalid / ambiguous leader order, history bound, persistence failure, flatten) clears it, so
+        // ResumeEntries can never undo a safety block; those still need Stop flat + Start.
+        volatile bool pauseOnly;
         int pollPending, controlGeneration, sessionGeneration;
         long leaderCaptured, leaderApplied;
         int pendingFollowerCallbacks, nextEntrySequence;
@@ -1979,7 +2032,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public CopierEngine(Action<string> logger,Action<AccountTelemetry> onTelemetry,Action<bool,string> onState,Action<string,string> persistLatch)
         {
             log=logger; telemetry=onTelemetry; stateChanged=onState;durableLock=persistLatch;
-            worker=new SerialWorker(ex=>{ entries=false; log("ENGINE ERROR: "+ex.Message+" — entries blocked; coverage unverified, manual recovery required"); stateChanged(attached,"Error — guarded pause; verify exposure manually"); });
+            worker=new SerialWorker(ex=>{ entries=false;pauseOnly=false; log("ENGINE ERROR: "+ex.Message+" — entries blocked; coverage unverified, manual recovery required"); stateChanged(attached,"Error — guarded pause; verify exposure manually"); });
         }
         public static string AliasFor(string name)
         {
@@ -2129,7 +2182,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                     foreach(var f in followers){ Order[] existing; lock(f.Account.Orders)existing=f.Account.Orders.ToArray(); foreach(var o in existing){ if(o==null||o.Instrument==null||o.Instrument.FullName!=inst.FullName)continue; if(Order.IsTerminalState(o.OrderState))f.AddHistory(o); else if(o.OrderState==OrderState.Initialized&&o.Name!=null&&o.Name.StartsWith("KTC>",StringComparison.Ordinal))f.PreSessionGhost.Add(o); } }
                     foreach(var f in followers.Where(x=>!x.Settings.CopyAtm||!copyAtm))log(f.Account.Name+": ATM exit mirroring OFF — nonmarket exits skipped; market closes only. No native ATM clone / autonomous protection.");
                     followerView=followers.ToArray();
-                    attached=true; entries=false;suppressNew=false;
+                    attached=true; entries=false;pauseOnly=false;suppressNew=false;
                     int session=sessionGeneration; Account origin=leader; string instrumentName=instrument.FullName;
                     leaderHandler=(sender,args)=>LeaderUpdate(sender,args,session,origin,instrumentName);
                     followerHandler=(sender,args)=>FollowerUpdate(sender,args,session,instrumentName);
@@ -2214,13 +2267,13 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 !(s.Action==OrderAction.Buy||s.Action==OrderAction.SellShort||s.Action==OrderAction.Sell||s.Action==OrderAction.BuyToCover) ||
                 !(s.Type==OrderType.Market||s.Type==OrderType.Limit||s.Type==OrderType.StopMarket||s.Type==OrderType.StopLimit||s.Type==OrderType.MIT))
             { BlockEntries(); foreach(var f in followers)Lock(f,"Invalid / unsupported leader order — entries blocked"); return; }
-            if(!Connected(leader)) { entries=false; foreach(var f in followers) Lock(f,"Leader disconnected — no catch-up"); return; }
+            if(!Connected(leader)) { entries=false;pauseOnly=false; foreach(var f in followers) Lock(f,"Leader disconnected — no catch-up"); return; }
             List<CopyLink> copies;
             if(!links.TryGetValue(s.Id,out copies))
             {
                 if(tombstones.Contains(s.Id) || !Alive(s.State)) return;
                 if(suppressNew){tombstones.Add(s.Id);return;}
-                if(links.Count+tombstones.Count>=10000) { entries=false; log("Session history bound reached — guarded pause; stop flat and restart."); return; }
+                if(links.Count+tombstones.Count>=10000) { entries=false;pauseOnly=false; log("Session history bound reached — guarded pause; stop flat and restart."); return; }
                 copies=new List<CopyLink>(); links[s.Id]=copies; // register BEFORE any Create/Submit and before reentrant callbacks.
                 if(!CopyLedger.AllowNew(entries,s.Exit)) { tombstones.Add(s.Id); return; }
                 foreach(var f in followers)
@@ -2922,12 +2975,12 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             bool coverageUnknown=links.Values.SelectMany(v=>v).Any(x=>x.Follower==f&&x.Exit&&x.Order!=null&&!Order.IsTerminalState(x.ObservedState)&&!x.AcceptanceConfirmed);
             if(coverageUnknown)reason=(string.IsNullOrEmpty(reason)?"":reason+" | ")+"Protective coverage unknown — requested, provider acceptance unconfirmed; no retry / chase";
             double realized=f.Account.Get(AccountItem.RealizedProfitLoss,f.Account.Denomination), unrealized=f.Account.Get(AccountItem.UnrealizedProfitLoss,f.Account.Denomination);
-            telemetry(new AccountTelemetry {Name=f.Account.Name,Baseline=f.Settings.Baseline,Currency=f.Account.Denomination.ToString(),Connection=Connected(f.Account)?"Connected":"Disconnected",Pnl=realized+unrealized-f.Settings.Baseline,Equity=f.Account.Get(AccountItem.NetLiquidation,f.Account.Denomination),Realized=realized,Unrealized=unrealized,Sod=f.Account.Get(AccountItem.SodLiquidatingValue,f.Account.Denomination),HighWater=f.HighWater,Position=Position(f.Account,instrument),Direction=Position(f.Account,instrument)>0?"Long":Position(f.Account,instrument)<0?"Short":"Flat",Following=following,FollowGeneration=generation,ProcessedFollowGeneration=processed,SessionGeneration=session,DisablePending=pending,Locked=locked,Reason=reason,Paused=paused,State=locked||coverageUnknown?reason:pending?"OFF — cancellation pending":!following?"OFF / exits managed":paused||!armed?"Paused / exits managed":"Active"});
+            telemetry(new AccountTelemetry {Name=f.Account.Name,Baseline=f.Settings.Baseline,Currency=f.Account.Denomination.ToString(),Connection=Connected(f.Account)?"Connected":"Disconnected",Pnl=realized+unrealized-f.Settings.Baseline,Equity=f.Account.Get(AccountItem.NetLiquidation,f.Account.Denomination),Realized=realized,Unrealized=unrealized,Sod=f.Account.Get(AccountItem.SodLiquidatingValue,f.Account.Denomination),HighWater=f.HighWater,Position=Position(f.Account,instrument),Direction=Position(f.Account,instrument)>0?"Long":Position(f.Account,instrument)<0?"Short":"Flat",Following=following,ExitCompleted=!following&&f.ExitCompleted,FollowGeneration=generation,ProcessedFollowGeneration=processed,SessionGeneration=session,DisablePending=pending,Locked=locked,Reason=reason,Paused=paused,State=locked||coverageUnknown?reason:pending?"OFF — cancellation pending":!following?"OFF / exits managed":paused||!armed?"Paused / exits managed":"Active"});
         }
         public void Poll()
         {
             if(Interlocked.Exchange(ref pollPending,1)!=0)return;
-            if(!worker.Post(()=>{ try { if(attached) { if(!Connected(leader)){entries=false;foreach(var f in followers)Lock(f,"Leader disconnected — no catch-up");} foreach(var f in followers)try {CheckRisk(f);MaintainProtection(f);}catch(Exception ex){Lock(f,"Telemetry error: "+ex.Message);} } } finally {Interlocked.Exchange(ref pollPending,0);} }))Interlocked.Exchange(ref pollPending,0); // refused by a stopped mailbox: do not leave the flag stuck
+            if(!worker.Post(()=>{ try { if(attached) { if(!Connected(leader)){entries=false;pauseOnly=false;foreach(var f in followers)Lock(f,"Leader disconnected — no catch-up");} foreach(var f in followers)try {CheckRisk(f);MaintainProtection(f);}catch(Exception ex){Lock(f,"Telemetry error: "+ex.Message);} } } finally {Interlocked.Exchange(ref pollPending,0);} }))Interlocked.Exchange(ref pollPending,0); // refused by a stopped mailbox: do not leave the flag stuck
         }
         void CancelEntries(EngineAccount f)
         {
@@ -2976,9 +3029,38 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             return request;
         }
         public void PauseAccount(string name,bool paused) { worker.Post(()=>{var f=followers.FirstOrDefault(x=>x.Account.Name==name);if(f!=null){f.Paused=paused;Publish(f);}}); }
-        void BlockEntries() { lock(controlGate) { ++controlGeneration; entries=false; } }
+        void BlockEntries() { lock(controlGate) { ++controlGeneration; entries=false; pauseOnly=false; } }
+        public bool CanResume { get { return attached && !entries && pauseOnly && !disposed; } }
         public void GuardedPause()
-        { BlockEntries(); worker.Post(()=>{stateChanged(attached,"GUARDED PAUSE — no new entries; existing lifecycle + new exits still managed");log("Paused NEW entries. Working entries may still fill; new exits and changes/cancels remain mirrored. Flatten explicitly to remove exposure.");}); }
+        { lock(controlGate) { ++controlGeneration; pauseOnly=attached&&(entries||pauseOnly); entries=false; } worker.Post(()=>{ // a pause never turns an earlier safety block into a resumable pause
+stateChanged(attached,"GUARDED PAUSE — no new entries; existing lifecycle + new exits still managed");log("Paused NEW entries. Working entries may still fill; new exits and changes/cancels remain mirrored. Flatten explicitly to remove exposure.");}); }
+        // Resume NEW entries after a guarded pause only. No catch-up: every leader entry seen before this call (including entries opened while
+        // paused) stays tombstoned, because the control generation moves forward here and LeaderUpdate stamps each event with the generation
+        // it was captured under. It never unlocks, never re-follows and never sends anything by itself. Refused after any safety block.
+        public void ResumeEntries()
+        {
+            int request=Volatile.Read(ref controlGeneration);
+            worker.Post(()=>
+            {
+                string why=null;
+                if(disposed||!attached)why="no managed session";
+                else if(entries)why="entries are already on";
+                else if(!pauseOnly||request!=Volatile.Read(ref controlGeneration))why="entries were stopped by a safety block, not by a pause; Stop when flat, then Start";
+                else if(suppressNew||ledgerUnresolved||persistenceFailed.Count>0)why="flatten / unresolved execution evidence / persistence failure";
+                else if(!Connected(leader))why="leader disconnected";
+                else if(links.Count+tombstones.Count>=10000)why="session history bound reached";
+                else if(followers.Any(f=>f.AllocationUncertain||f.ProviderFaulted||f.Flattening))why="a follower has an unresolved provider fault or flatten";
+                if(why!=null){log("Resume refused: "+why+".");return;}
+                lock(controlGate)
+                {
+                    if(request!=controlGeneration||!pauseOnly){log("Resume refused: entries were stopped by a safety block, not by a pause; Stop when flat, then Start.");return;}
+                    ++controlGeneration;entries=true;pauseOnly=false;
+                }
+                stateChanged(true,"COPYING — "+leader.Name+" / "+instrument.FullName);
+                log("Resumed NEW entries. Leader entries seen while paused are NOT copied; only later new entries are. Locked or unticked followers stay as they are.");
+                foreach(var f in followers)Publish(f);
+            });
+        }
         public void StopFlat()
         {
             BlockEntries();
@@ -3132,7 +3214,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public string Connection { get; set; }
         public string Status { get; set; }
         // Shown text for the Settings table: Status / Connection hold English codes (logic and sorting use them); the cell shows the picked language.
-        public string StatusShown {get{return Lang.Show(Status??"");}}
+        public string StatusShown {get{return ExitClosed?Lang.T("Closed · re-follow"):Lang.Show(Status??"");}}
         public string ConnectionShown {get{return Lang.Show(Connection??"");}}
         public double Pnl { get; set; }
         // 1 profit, -1 loss, 0 flat or unknown (NaN). Cents below half a cent count as zero so rounding noise is not coloured.
@@ -3155,7 +3237,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         int latestFollowSession=-1,latestFollowGeneration;
         public bool FollowPending {get;private set;}
         internal void SyncFollowing(bool following,bool pending){enabled=following&&!Latch.Locked;DisablePending=pending;FollowPending=false;Changed();}
-        internal void InvalidateSessionActivity(){FollowPending=false;DisablePending=false;Paused=false;Status="Disarmed";latestFollowSession=-1;latestFollowGeneration=0;Changed();}
+        internal void InvalidateSessionActivity(){ExitClosed=false;FollowPending=false;DisablePending=false;Paused=false;Status="Disarmed";latestFollowSession=-1;latestFollowGeneration=0;Changed();}
         internal void TrackFollowRequest(int session,int generation,bool following)
         {
             if(session!=latestFollowSession){latestFollowSession=session;latestFollowGeneration=0;}
@@ -3166,13 +3248,16 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             if(t.Name!=Name||t.SessionGeneration!=currentSession)return false;
             if(latestFollowSession==t.SessionGeneration&&t.FollowGeneration<latestFollowGeneration)return false;
             latestFollowSession=t.SessionGeneration;latestFollowGeneration=t.FollowGeneration;
-            Pnl=t.Pnl;Equity=t.Equity;Realized=t.Realized;Unrealized=t.Unrealized;Sod=t.Sod;Position=t.Position;Connection=t.Connection;Status=t.State;Paused=t.Paused;
+            Pnl=t.Pnl;Equity=t.Equity;Realized=t.Realized;Unrealized=t.Unrealized;Sod=t.Sod;Position=t.Position;Connection=t.Connection;Status=t.State;Paused=t.Paused;ExitClosed=t.ExitCompleted&&!t.Following&&!t.Locked;
             if(t.Locked&&!Latch.Locked){Latch.Locked=true;Latch.Reason=t.Reason;}
             Settings.HighWater=t.HighWater;Settings.Baseline=t.Baseline;Settings.BaselineSet=true;
             if(t.ProcessedFollowGeneration==latestFollowGeneration)SyncFollowing(t.Following,t.DisablePending);else Changed();return true;
         }
         public bool CopyAtm {get{return Settings.CopyAtm;}set{Settings.CopyAtm=value;Changed();}}
         public bool FlatOnLimit {get{return Settings.FlatOnLimit;}set{Settings.FlatOnLimit=value;Changed();}}
+        public bool AutoRefollow {get{return Settings.AutoRefollow;}set{Settings.AutoRefollow=value;Changed();}}
+        // The engine turned following off because this follower's copied exit completed ("closed · re-follow"). A user OFF never sets it.
+        public bool ExitClosed {get;private set;}
         public string OnDivergence {get{return Settings.OnDivergence;}set{if(!DivergenceChoice.IsValid(value))throw new ArgumentException(Lang.T("On divergence must be Notify or FlattenOnce"));Settings.OnDivergence=value;Changed();}}
         public bool CanFlat {get{return Role!="Leader"&&CanFollow&&Connection!="Disconnected"&&DashboardSafety.CanExecute("flattenSelected");}}
         public bool CanFollow {get{return Role!="Leader"&&(Account!=null?CopierEngine.Listable(Account):Connection=="Synthetic");}}
@@ -3238,7 +3323,10 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public TabControl Sections;
         internal ComboBox LeaderBox;
         internal TextBox InstrumentBox, LogBox;
-        internal Button StartButton;
+        internal Button StartButton, ResumeButton, RefollowButton;
+        internal void ShowRefollow(int n){if(RefollowButton!=null){RefollowButton.Content=n>0?Lang.F("Re-follow closed accounts ({0})",n):Lang.T("Re-follow closed accounts");RefollowButton.IsEnabled=n>0&&SessionAttached;}}
+        // Shown only while the engine reports a resumable guarded pause (set by the tab every tick).
+        internal void ShowResume(bool canResume){if(ResumeButton!=null){ResumeButton.Visibility=canResume?Visibility.Visible:Visibility.Collapsed;ResumeButton.IsEnabled=canResume&&DashboardSafety.CanExecute("resume");}}
         internal TextBlock StatusText,SessionText,FollowCountText;
         internal ComboBox LanguageBox;
         // Returns true if the language was applied (the owner refuses while a session is attached).
@@ -3506,6 +3594,18 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             var locked=new DataTrigger{Binding=new Binding("IsReadOnly"){RelativeSource=new RelativeSource(RelativeSourceMode.FindAncestor,typeof(DataGrid),1)},Value=true};locked.Setters.Add(new Setter(UIElement.IsEnabledProperty,false));style.Triggers.Add(locked);
             tick.SetValue(FrameworkElement.StyleProperty,style);
             var c=new DataGridTemplateColumn{Header=Lang.T("Flat@Lim"),Width=74,SortMemberPath="FlatOnLimit",CellTemplate=new DataTemplate{VisualTree=tick}};Header(g,c,tip);Key(c,"FlatLim");g.Columns.Add(c);
+        }
+        static void AutoRefollowColumn(DataGrid g)
+        {
+            var tick=new FrameworkElementFactory(typeof(CheckBox));tick.SetValue(FrameworkElement.TagProperty,"autoRefollow");tick.SetValue(Control.TemplateProperty,AtmTemplate());
+            string tip=Lang.T("Auto re-follow: after this account's copied exit completes and the leader is flat, tick it again automatically. Only later new entries are copied. Off = re-tick by hand.");
+            tick.SetValue(System.Windows.Automation.AutomationProperties.NameProperty,tip);tick.SetValue(FrameworkElement.ToolTipProperty,tip);
+            tick.SetValue(FrameworkElement.HorizontalAlignmentProperty,HorizontalAlignment.Center);tick.SetValue(FrameworkElement.VerticalAlignmentProperty,VerticalAlignment.Center);
+            tick.SetBinding(ToggleButton.IsCheckedProperty,new Binding("AutoRefollow"){Mode=BindingMode.TwoWay,UpdateSourceTrigger=UpdateSourceTrigger.PropertyChanged});
+            var style=new Style(typeof(CheckBox));style.Setters.Add(new Setter(UIElement.IsEnabledProperty,new Binding("CanFollow")));
+            var locked=new DataTrigger{Binding=new Binding("IsReadOnly"){RelativeSource=new RelativeSource(RelativeSourceMode.FindAncestor,typeof(DataGrid),1)},Value=true};locked.Setters.Add(new Setter(UIElement.IsEnabledProperty,false));style.Triggers.Add(locked);
+            tick.SetValue(FrameworkElement.StyleProperty,style);
+            var c=new DataGridTemplateColumn{Header=Lang.T("Auto re-follow"),Width=92,SortMemberPath="AutoRefollow",CellTemplate=new DataTemplate{VisualTree=tick}};Header(g,c,tip);Key(c,"AutoRefollow");g.Columns.Add(c);
         }
         static void AtmColumn(DataGrid g)
         {
@@ -3831,7 +3931,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
 #if KINFX_SIM_TEST
             DryBadge=Text(Lang.T("Dry run: off"),11,Warn);DryBadge.Tag="dryBadge";DryBadge.Margin=new Thickness(0,0,14,6);right.Children.Add(DryBadge);
 #endif
-            StartButton=Button(Lang.T("▶  Start"),()=>Send("start"),true);StartButton.ToolTip=DashboardSafety.StartTipShown;ToolTipService.SetShowOnDisabled(StartButton,true);StartButton.IsEnabled=DashboardSafety.CanExecute("start")&&!demo;right.Children.Add(StartButton);var pause=Button(Lang.T("Pause new entries"),()=>Send("pause"));pause.Tag="pause";pause.ToolTip=Lang.T("Guarded pause · new entries only");ToolTipService.SetShowOnDisabled(pause,true);right.Children.Add(pause);right.Children.Add(Icon("\uE71A",Lang.T("Stop when flat"),"stop",()=>Send("stop")));right.Children.Add(Icon("\uE72C",Lang.T("Refresh accounts"),"refresh",()=>Send("refresh")));Grid.SetColumn(right,1);session.Children.Add(right);AddRow(this,new Border{Background=Panel,BorderBrush=Line,BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(7),Padding=new Thickness(12,8,12,0),Margin=new Thickness(0,0,0,10),Child=session},1);
+            StartButton=Button(Lang.T("▶  Start"),()=>Send("start"),true);StartButton.ToolTip=DashboardSafety.StartTipShown;ToolTipService.SetShowOnDisabled(StartButton,true);StartButton.IsEnabled=DashboardSafety.CanExecute("start")&&!demo;right.Children.Add(StartButton);var pause=Button(Lang.T("Pause new entries"),()=>Send("pause"));pause.Tag="pause";pause.ToolTip=Lang.T("Guarded pause · new entries only");ToolTipService.SetShowOnDisabled(pause,true);right.Children.Add(pause);ResumeButton=Button(Lang.T("Resume new entries"),()=>Send("resume"));ResumeButton.Tag="resume";ResumeButton.ToolTip=Lang.T("Resume new entries after a pause · entries the leader opened while paused are NOT copied");ToolTipService.SetShowOnDisabled(ResumeButton,true);ResumeButton.Visibility=Visibility.Collapsed;right.Children.Add(ResumeButton);right.Children.Add(Icon("\uE71A",Lang.T("Stop when flat"),"stop",()=>Send("stop")));right.Children.Add(Icon("\uE72C",Lang.T("Refresh accounts"),"refresh",()=>Send("refresh")));Grid.SetColumn(right,1);session.Children.Add(right);AddRow(this,new Border{Background=Panel,BorderBrush=Line,BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(7),Padding=new Thickness(12,8,12,0),Margin=new Thickness(0,0,0,10),Child=session},1);
         }
         // Row 2: the page container. Pages are added in order: Monitor (0), Settings (1), Logs (2).
         void BuildSections()
@@ -3848,7 +3948,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             search=Input("",185);search.ToolTip=Lang.T("Search account / alias / group / preset · Ctrl+F · Escape clears");toolbar.Children.Add(Labeled("⌕",search,17));filter=Combo(120);filter.ToolTip=Lang.T("Filter displayed account states");filter.ItemsSource=new[]{Lang.T("All"),Lang.T("On"),Lang.T("Paused"),Lang.T("Target")};filter.SelectedIndex=0;toolbar.Children.Add(filter);var ticks=new StackPanel{Orientation=Orientation.Horizontal,Margin=new Thickness(0,0,0,6)};ticks.Children.Add(Icon("\uE73A",Lang.T("Tick all visible followers"),"tickAll",()=>TickVisible(true),true));ticks.Children.Add(Icon("\uE711",Lang.T("Untick all visible followers"),"tickNone",()=>TickVisible(false),true));toolbar.Children.Add(ticks);groupBox=new CheckBox{Template=PlainCheckTemplate(),Content=Lang.T("Group by firm"),Foreground=Muted,Margin=new Thickness(8,6,0,0),ToolTip=Lang.T("Group account rows")};System.Windows.Automation.AutomationProperties.SetName(groupBox,Lang.T("Group by firm"));toolbar.Children.Add(groupBox);AddRow(copy,toolbar,1);columnsBarCopy=toolbar;
             AccountGrid=GridTable();TickColumn(AccountGrid);AccountColumn(AccountGrid);Column(AccountGrid,"Alias","Alias",100,false,Lang.T("Optional display alias"));RatioColumn(AccountGrid);Column(AccountGrid,"Tgt","TargetText",78,false,Lang.T("Independent daily local profit target · account CCY / 0 = off"),null,true);Column(AccountGrid,"DLL","LossText",78,false,Lang.T("Independent daily loss limit · positive amount / 0 = off"),null,true);AtmColumn(AccountGrid);Column(AccountGrid,"Qty","Position",55,true,Lang.T("Signed position · + long / − short"),null,true);Column(AccountGrid,"P/L","Pnl",95,true,Lang.T("Observed session P/L in account currency · baseline is not historical daily accounting"),"N2",true);Column(AccountGrid,"Bal","BalanceText",130,true,Lang.T("CashValue in account currency; not NetLiquidation / net equity"),null,true);AccountGrid.Columns.Last().SortMemberPath="CashBalance";((DataGridTextColumn)AccountGrid.Columns.Last()).ElementStyle.Setters.Add(new Setter(FrameworkElement.ToolTipProperty,new Binding("BalanceDetail")));((DataGridTextColumn)AccountGrid.Columns.Last()).ElementStyle.Setters.Add(new Setter(System.Windows.Automation.AutomationProperties.NameProperty,new Binding("BalanceDetail")));LightColumn(AccountGrid,"Conn","ConnLight","Connection");StateColumn(AccountGrid);OffColumn(AccountGrid);FlatColumn(AccountGrid);OrderColumns(AccountGrid,CopyColumnOrder);AccountGrid.FrozenColumnCount=2;ProportionalCopyColumns(AccountGrid);AccountGrid.GroupStyle.Add(GroupHeaderStyle());AddRow(copy,AccountGrid,2);
             // Flatten is an emergency action: NOT an edit button, so it stays usable while a session is attached (as in 121c44e).
-            var actions=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,8,0,0)};var fs=TextToolFree(Lang.T("Flatten selected"),DashboardSafety.CanExecute("flattenSelected")?Lang.T("Flatten highlighted accounts (market-closes their positions)"):Lang.T("Flatten highlighted accounts · review hold"),"flattenSelected",()=>Send("flattenSelected"));fs.Foreground=Bad;fs.IsEnabled=DashboardSafety.CanExecute("flattenSelected");var fa=TextToolFree(Lang.T("Flatten all"),DashboardSafety.CanExecute("flattenAll")?Lang.T("Flatten ALL displayed accounts (market-closes every position shown)"):Lang.T("Flatten all displayed accounts · review hold"),"flattenAll",()=>Send("flattenAll"));fa.Foreground=Bad;fa.IsEnabled=DashboardSafety.CanExecute("flattenAll");actions.Children.Add(fs);actions.Children.Add(fa);AddRow(copy,actions,3);
+            var actions=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,8,0,0)};var fs=TextToolFree(Lang.T("Flatten selected"),DashboardSafety.CanExecute("flattenSelected")?Lang.T("Flatten highlighted accounts (market-closes their positions)"):Lang.T("Flatten highlighted accounts · review hold"),"flattenSelected",()=>Send("flattenSelected"));fs.Foreground=Bad;fs.IsEnabled=DashboardSafety.CanExecute("flattenSelected");var fa=TextToolFree(Lang.T("Flatten all"),DashboardSafety.CanExecute("flattenAll")?Lang.T("Flatten ALL displayed accounts (market-closes every position shown)"):Lang.T("Flatten all displayed accounts · review hold"),"flattenAll",()=>Send("flattenAll"));fa.Foreground=Bad;fa.IsEnabled=DashboardSafety.CanExecute("flattenAll");RefollowButton=TextToolFree(Lang.T("Re-follow closed accounts"),Lang.T("Tick again every follower that closed after a copied exit and is flat, connected and unlocked. Only LATER new entries are copied; nothing is caught up."),"refollow",()=>Send("refollow"));RefollowButton.IsEnabled=false;actions.Children.Insert(0,RefollowButton);actions.Children.Add(fs);actions.Children.Add(fa);AddRow(copy,actions,3);
             Sections.Items.Add(new TabItem{Header=Lang.T("Monitor"),Content=copy});
         }
         // Page 1 (was "Risk"). Owner: UI v3 page 2 work.
@@ -3875,7 +3975,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             bulkRow.Children.Add(TextTool(Lang.T("Apply"),Lang.T("Apply the chosen setting to the highlighted follower accounts"),"bulkApply",()=>BulkClick(BulkFieldCode(),BulkFieldValue())));
             bulkRow.Children.Add(TextTool(Lang.T("From Leader"),Lang.T("Copy the leader row's Tgt / DLL / ATM to highlighted followers (all visible if none highlighted). One-time copy; edit any row afterwards. Ratio and ticks are not copied."),"bulkLeader",()=>BulkLeaderClick()));
             bulkBar=bulkRow;bulkBar.Tag="bulkbar";bulkField.SelectionChanged+=(s,e)=>UpdateBulkValueControl();UpdateBulkValueControl();bulkBody.Children.Add(bulkRow);bulkSection.Child=bulkBody;AddRow(risk,bulkSection,1);
-            RiskGrid=GridTable();Column(RiskGrid,"Acct","Name",155,true,Lang.T("Broker account"));Column(RiskGrid,"Alias","Alias",115,false,Lang.T("Display alias"));Column(RiskGrid,"Grp","Group",90,false,Lang.T("Account group"));Column(RiskGrid,"Tgt","TargetText",105,false,Lang.T("Daily local profit target · 0 = off"),null,true);Column(RiskGrid,"DLL","LossText",105,false,Lang.T("Daily loss limit · positive value / 0 = off"),null,true);FlatOnLimitColumn(RiskGrid);Column(RiskGrid,"Max","MaxText",60,false,Lang.T("Maximum exact-instrument contracts"),null,true);RiskGrid.Columns.Last().SortMemberPath="MaxContracts";var maxCol=(DataGridTextColumn)RiskGrid.Columns.Last();var maxCellStyle=new Style(typeof(DataGridCell),RiskGrid.CellStyle);var maxDefault=new DataTrigger{Binding=new Binding("MaxIsDefault"),Value=true};maxDefault.Setters.Add(new Setter(Control.BorderBrushProperty,Warn));maxDefault.Setters.Add(new Setter(Control.BorderThicknessProperty,new Thickness(1)));maxDefault.Setters.Add(new Setter(FrameworkElement.ToolTipProperty,Lang.T("Max is still 1: a leader order larger than this is skipped entirely")));maxCellStyle.Triggers.Add(maxDefault);maxCol.CellStyle=maxCellStyle;RatioColumn(RiskGrid);Column(RiskGrid,"P/L","Pnl",95,true,Lang.T("Observed session P/L"),"N2",true);Column(RiskGrid,"CCY","Currency",55,true,Lang.T("Account currency"));Column(RiskGrid,"To Tgt","TargetRemaining",80,true,Lang.T("Amount remaining to daily target (read-only, computed from P/L)"),null,true);Column(RiskGrid,"Loss left","LossRemaining",80,true,Lang.T("How much more can be lost before the daily loss limit (read-only, computed from P/L)"),null,true);Column(RiskGrid,"Qty","Position",50,true,Lang.T("Signed position"),null,true);Column(RiskGrid,"Conn","ConnectionShown",100,true,Lang.T("Connection status"));((DataGridTextColumn)RiskGrid.Columns.Last()).SortMemberPath="Connection";Column(RiskGrid,"St","StatusShown",120,true,Lang.T("Copier / risk state"));((DataGridTextColumn)RiskGrid.Columns.Last()).SortMemberPath="Status";FullTextTip(RiskGrid,"StatusShown");Column(RiskGrid,"Preset","Preset",110,true,Lang.T("Editable firm template"));FullTextTip(RiskGrid,"Preset");Column(RiskGrid,"Cons","ConsistencyAdvice",110,true,Lang.T("Consistency advisory · not a broker guarantee"));FullTextTip(RiskGrid,"ConsistencyAdvice");OrderColumns(RiskGrid,RiskColumnOrder);
+            RiskGrid=GridTable();Column(RiskGrid,"Acct","Name",155,true,Lang.T("Broker account"));Column(RiskGrid,"Alias","Alias",115,false,Lang.T("Display alias"));Column(RiskGrid,"Grp","Group",90,false,Lang.T("Account group"));Column(RiskGrid,"Tgt","TargetText",105,false,Lang.T("Daily local profit target · 0 = off"),null,true);Column(RiskGrid,"DLL","LossText",105,false,Lang.T("Daily loss limit · positive value / 0 = off"),null,true);FlatOnLimitColumn(RiskGrid);AutoRefollowColumn(RiskGrid);Column(RiskGrid,"Max","MaxText",60,false,Lang.T("Maximum exact-instrument contracts"),null,true);RiskGrid.Columns.Last().SortMemberPath="MaxContracts";var maxCol=(DataGridTextColumn)RiskGrid.Columns.Last();var maxCellStyle=new Style(typeof(DataGridCell),RiskGrid.CellStyle);var maxDefault=new DataTrigger{Binding=new Binding("MaxIsDefault"),Value=true};maxDefault.Setters.Add(new Setter(Control.BorderBrushProperty,Warn));maxDefault.Setters.Add(new Setter(Control.BorderThicknessProperty,new Thickness(1)));maxDefault.Setters.Add(new Setter(FrameworkElement.ToolTipProperty,Lang.T("Max is still 1: a leader order larger than this is skipped entirely")));maxCellStyle.Triggers.Add(maxDefault);maxCol.CellStyle=maxCellStyle;RatioColumn(RiskGrid);Column(RiskGrid,"P/L","Pnl",95,true,Lang.T("Observed session P/L"),"N2",true);Column(RiskGrid,"CCY","Currency",55,true,Lang.T("Account currency"));Column(RiskGrid,"To Tgt","TargetRemaining",80,true,Lang.T("Amount remaining to daily target (read-only, computed from P/L)"),null,true);Column(RiskGrid,"Loss left","LossRemaining",80,true,Lang.T("How much more can be lost before the daily loss limit (read-only, computed from P/L)"),null,true);Column(RiskGrid,"Qty","Position",50,true,Lang.T("Signed position"),null,true);Column(RiskGrid,"Conn","ConnectionShown",100,true,Lang.T("Connection status"));((DataGridTextColumn)RiskGrid.Columns.Last()).SortMemberPath="Connection";Column(RiskGrid,"St","StatusShown",120,true,Lang.T("Copier / risk state"));((DataGridTextColumn)RiskGrid.Columns.Last()).SortMemberPath="Status";FullTextTip(RiskGrid,"StatusShown");Column(RiskGrid,"Preset","Preset",110,true,Lang.T("Editable firm template"));FullTextTip(RiskGrid,"Preset");Column(RiskGrid,"Cons","ConsistencyAdvice",110,true,Lang.T("Consistency advisory · not a broker guarantee"));FullTextTip(RiskGrid,"ConsistencyAdvice");OrderColumns(RiskGrid,RiskColumnOrder);
             var action=new FrameworkElementFactory(typeof(Button));CompactCellButton(action,28);action.SetValue(Control.TemplateProperty,OffTemplate());action.SetValue(ContentControl.ContentProperty,"\uE713");action.SetValue(Control.FontFamilyProperty,new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"));action.SetValue(Control.BackgroundProperty,Panel);action.SetValue(Control.ForegroundProperty,Ink);action.SetValue(Control.BorderBrushProperty,Line);action.SetValue(Control.PaddingProperty,new Thickness(4,1,4,1));action.SetValue(FrameworkElement.ToolTipProperty,Lang.T("Account risk / template / history"));var gearStyle=new Style(typeof(Button));var gearLocked=new DataTrigger{Binding=new Binding("IsReadOnly"){RelativeSource=new RelativeSource(RelativeSourceMode.FindAncestor,typeof(DataGrid),1)},Value=true};gearLocked.Setters.Add(new Setter(UIElement.IsEnabledProperty,false));gearStyle.Triggers.Add(gearLocked);action.SetValue(FrameworkElement.StyleProperty,gearStyle);action.AddHandler(ButtonBase.ClickEvent,new RoutedEventHandler((s,e)=>{if(!editable){e.Handled=true;return;}var r=(s as FrameworkElement).DataContext as AccountRow;if(r!=null&&RowSettings!=null)RowSettings(r);}));RiskGrid.Columns.Add(new DataGridTemplateColumn{Header="⚙",Width=40,CellTemplate=new DataTemplate{VisualTree=action}});AddRow(risk,RiskGrid,2);
             AddRow(risk,new TextBlock{Text=Lang.T("OFF cancels owned entries, retains exits · Re-follow explicit / only when clean · ATM OFF may be unprotected · Local guards only"),Foreground=Muted,FontSize=11,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,10,0,0)},3);Sections.Items.Add(new TabItem{Header=Lang.T("Settings"),Content=risk});
         }
@@ -4012,7 +4112,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         // Column order by importance (user request). Monitor: who -> is it safe (state, connection) -> exposure (qty, P/L, balance) ->
         // sizing and limits -> row actions on the far right. Settings: who -> sizing (Ratio, Max) -> limits -> distance to limits -> live values -> notes.
         internal static readonly string[] CopyColumnOrder={"On","Acct","Alias","State","Conn","Qty","P/L","Bal","Ratio","Tgt","DLL","ATM","Off","Flat"};
-        internal static readonly string[] RiskColumnOrder={"Acct","Alias","Grp","Preset","Ratio","Max","Tgt","DLL","FlatLim","To Tgt","Loss left","P/L","Qty","CCY","St","Conn","Cons"};
+        internal static readonly string[] RiskColumnOrder={"Acct","Alias","Grp","Preset","Ratio","Max","Tgt","DLL","FlatLim","AutoRefollow","To Tgt","Loss left","P/L","Qty","CCY","St","Conn","Cons"};
         static void OrderColumns(DataGrid g,string[] keys)
         {
             int at=0;
@@ -4402,7 +4502,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             
             string z=(string)x.Attribute("zone")??"Central Standard Time";TimeZoneInfo.FindSystemTimeZoneById(z);zone=z;
             resetHour=(int?)x.Attribute("resetHour")??17;if(resetHour<0||resetHour>23)throw new InvalidDataException(Lang.T("Reset hour outside 0–23"));
-            lastDay=(string)x.Attribute("lastDay")??"";leaderName=(string)x.Attribute("leader")??"";
+            lastDay=(string)x.Attribute("lastDay")??"";boundaryMode=BoundaryMode.Parse((string)x.Attribute("boundary"));leaderName=(string)x.Attribute("leader")??"";
             // Enabled, pause/arm and live permissions are intentionally NOT persisted.
         }
         void Refresh()
@@ -4431,7 +4531,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         XElement Export()
         {
             foreach(var r in dashboard.Rows)saved[r.Name]=Record(r);
-            var x=SettingsStore.ToXml(saved.Values,dashboard.InstrumentBox.Text.Trim(),zone,resetHour);x.SetAttributeValue("id",instanceId);x.SetAttributeValue("leader",leaderName);x.SetAttributeValue("lastDay",lastDay);return x;
+            var x=SettingsStore.ToXml(saved.Values,dashboard.InstrumentBox.Text.Trim(),zone,resetHour);x.SetAttributeValue("id",instanceId);x.SetAttributeValue("leader",leaderName);x.SetAttributeValue("lastDay",lastDay);x.SetAttributeValue("boundary",boundaryMode);return x;
         }
         void Persist()
         {
@@ -4506,7 +4606,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             {
                 if(!DashboardSafety.CanExecute(c)){Log("REVIEW HOLD: trading and bulk edits disabled. Inspect Dashboard only; use native NT8 for positions.");return;}
                 if(c=="refresh"){Refresh();return;}if(c=="save"){Persist();Log("Settings saved; startup stays disarmed.");return;}
-                if(c=="pause"){engine.GuardedPause();return;}if(c=="stop"){engine.StopFlat();return;}
+                if(c=="pause"){engine.GuardedPause();return;}if(c=="resume"){Resume();return;}if(c=="refollow"){RefollowClosed(false);return;}if(c=="stop"){engine.StopFlat();return;}
                 if(c=="start"){Start();return;}if(c=="flattenSelected"||c=="flattenAll"){Flatten(c=="flattenSelected"?Selected():dashboard.Rows.ToArray(),ConfirmPrefs.KindFor(c));return;}
                 if(c=="pauseSelected"||c=="resumeSelected"){dashboard.SetSelectedPause(c=="pauseSelected");return;}
                 if(engine.Attached){Log("Settings / enabled edits blocked during session. Pause per account or stop when flat first.");return;}
@@ -4519,12 +4619,13 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         }
         void EditTradingDay()
         {
-            var window=new Window {Title=Lang.T("Trading-day settings (local observation)"),Width=500,Height=280,Owner=Window.GetWindow(this),WindowStartupLocation=WindowStartupLocation.CenterOwner,Background=DashboardView.Canvas,Foreground=DashboardView.Ink};
+            var window=new Window {Title=Lang.T("Trading-day settings (local observation)"),Width=500,Height=340,Owner=Window.GetWindow(this),WindowStartupLocation=WindowStartupLocation.CenterOwner,Background=DashboardView.Canvas,Foreground=DashboardView.Ink};
             var panel=new StackPanel {Margin=new Thickness(20)};window.Content=panel;
             panel.Children.Add(new TextBlock {Text=Lang.T("Windows timezone ID (DST aware)"),Margin=new Thickness(0,0,0,8)});var z=new TextBox {Text=zone,Padding=new Thickness(8)};panel.Children.Add(z);
             panel.Children.Add(new TextBlock {Text=Lang.T("Reset boundary hour 0–23 (no automatic latch / baseline reset)"),TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,10,0,8)});var h=new TextBox {Text=resetHour.ToString(),Padding=new Thickness(8)};panel.Children.Add(h);
+            var pauseAt=new CheckBox{Content=Lang.T("Pause new entries at the boundary (off = notice only)"),IsChecked=boundaryMode==BoundaryMode.Pause,Foreground=DashboardView.Ink,Margin=new Thickness(0,12,0,0),Tag="boundaryPause"};panel.Children.Add(pauseAt);
             var apply=new Button {Content=Lang.T("Confirm local day boundary"),Padding=new Thickness(8),Margin=new Thickness(0,14,0,0)};panel.Children.Add(apply);
-            apply.Click+=(s,e)=>{try{TimeZoneInfo.FindSystemTimeZoneById(z.Text.Trim());int hour;if(!int.TryParse(h.Text,out hour)||hour<0||hour>23)throw new ArgumentException(Lang.T("Hour must be 0–23"));zone=z.Text.Trim();resetHour=hour;lastDay=RiskPolicy.TradingDay(DateTime.UtcNow,zone,resetHour);Persist();window.Close();}catch(Exception ex){MessageBox.Show(window,ex.Message,Lang.T("Invalid trading-day setting"));}};window.ShowDialog();
+            apply.Click+=(s,e)=>{try{TimeZoneInfo.FindSystemTimeZoneById(z.Text.Trim());int hour;if(!int.TryParse(h.Text,out hour)||hour<0||hour>23)throw new ArgumentException(Lang.T("Hour must be 0–23"));zone=z.Text.Trim();resetHour=hour;boundaryMode=pauseAt.IsChecked==true?BoundaryMode.Pause:BoundaryMode.Notify;lastDay=RiskPolicy.TradingDay(DateTime.UtcNow,zone,resetHour);Persist();window.Close();}catch(Exception ex){MessageBox.Show(window,ex.Message,Lang.T("Invalid trading-day setting"));}};window.ShowDialog();
         }
         void Start()
         {
@@ -4566,6 +4667,37 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         }
         // Unlock all: one confirmation for every locked follower. Each account is checked with the same rules as the single unlock (RiskPolicy.UnlockBlock);
         // only the ones that pass are unlocked, the rest stay locked and the Logs tab names why. Still disarmed afterwards; nothing is sent.
+        // ---- S1: resume after a pause, trading-day boundary mode, re-follow closed followers ----
+        string boundaryMode=BoundaryMode.Pause;
+        void Resume()
+        {
+            if(!engine.CanResume){Log("Resume refused: entries were stopped by a safety block, not by a pause; Stop when flat, then Start.");return;}
+            if(!ConfirmScope(ConfirmPrefs.Start,Lang.T("Resume NEW entries?\n\nEntries the leader opened while paused are NOT copied (no catch-up); only later new entries are. Locked or unticked followers stay as they are."),new Account[0]))
+            {Log("Resume cancelled; still paused.");return;}
+            engine.ResumeEntries();
+        }
+        // auto=true: Tick() pass for opted-in followers; no dialog, one log line per account.
+        // Auto re-follow tries each closed follower ONCE per close (cleared when it is no longer closed or the session changes), so an
+        // engine refusal (paused, not clean) is logged once and never retried every tick.
+        readonly HashSet<string> autoRefollowTried=new HashSet<string>(StringComparer.Ordinal);int autoRefollowSession=-1;
+        void RefollowClosed(bool auto)
+        {
+            if(!engine.Attached){autoRefollowTried.Clear();return;}
+            if(auto)
+            {
+                if(autoRefollowSession!=engine.SessionGeneration){autoRefollowSession=engine.SessionGeneration;autoRefollowTried.Clear();}
+                foreach(var r in dashboard.Rows)if(!r.ExitClosed)autoRefollowTried.Remove(r.Name);
+            }
+            var leader=dashboard.Rows.FirstOrDefault(r=>r.Role=="Leader");int leaderPos=leader==null?0:leader.Position;
+            var rows=dashboard.Rows.Where(r=>r.Role!="Leader"&&(auto
+                ?!autoRefollowTried.Contains(r.Name)&&Refollow.Auto(r.AutoRefollow,r.ExitClosed,r.Enabled||r.FollowPending,r.Latch.Locked,r.Paused,r.Connection=="Connected",r.Position,leaderPos)
+                :Refollow.Eligible(r.ExitClosed,r.Enabled||r.FollowPending,r.Latch.Locked,r.Paused,r.Connection=="Connected",r.Position))).ToArray();
+            if(rows.Length==0){if(!auto)Log("Re-follow: no closed account is flat, connected and unlocked.");return;}
+            if(!auto&&!ConfirmScope(ConfirmPrefs.Start,Lang.F("Tick {0} closed account(s) again?\n{1}\n\nOnly LATER new entries are copied; nothing is caught up. Each account is checked again (flat, connected, unlocked).",rows.Length,string.Join("\n",rows.Select(r=>r.Alias.Length>0?r.Alias+" ("+r.Name+")":r.Name))),rows.Select(r=>r.Account).Where(a=>a!=null).ToArray()))
+            {Log("Re-follow cancelled; nothing changed.");return;}
+            foreach(var r in rows){if(auto)autoRefollowTried.Add(r.Name);r.Enabled=true;Log((auto?"Auto re-follow: ":"Re-follow: ")+r.Name+" — only later new entries are copied.");}
+            dashboard.UpdateCards();
+        }
         void UnlockAll()
         {
             var locked=dashboard.Rows.Where(r=>r.Role!="Leader"&&r.Latch.Locked).ToArray();
@@ -4746,8 +4878,11 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 dashboard.UpdateCards();
             }
             if(engine.Attached && ++persistTicks>=30){persistTicks=0;Persist();}
+            dashboard.ShowResume(engine.CanResume);
+            if(engine.Attached){try{RefollowClosed(true);}catch(Exception ex){Log("Auto re-follow error: "+ex.Message);}}
+            {var lr=dashboard.Rows.FirstOrDefault(r=>r.Role=="Leader");int lp=lr==null?0:lr.Position;dashboard.ShowRefollow(engine.Attached?dashboard.Rows.Count(r=>r.Role!="Leader"&&Refollow.Eligible(r.ExitClosed,r.Enabled||r.FollowPending,r.Latch.Locked,r.Paused,r.Connection=="Connected",r.Position)):0);}
             string day=RiskPolicy.TradingDay(DateTime.UtcNow,zone,resetHour);
-            if(lastDay.Length==0){lastDay=day;return;}if(day!=lastDay){lastDay=day;engine.GuardedPause();Log("Trading-day boundary "+zone+" "+resetHour+":00 (DST aware). New entries paused. Baseline / latch NOT auto-reset. Confirm new baseline and unlock while flat.");Persist();}
+            if(lastDay.Length==0){lastDay=day;return;}if(day!=lastDay){lastDay=day;if(boundaryMode==BoundaryMode.Notify)Log("Trading-day boundary "+zone+" "+resetHour+":00 (DST aware). Notice only: entries NOT paused. Baseline / latch NOT auto-reset.");else{engine.GuardedPause();Log("Trading-day boundary "+zone+" "+resetHour+":00 (DST aware). New entries paused. Baseline / latch NOT auto-reset. Confirm new baseline and unlock while flat.");}Persist();}
         }
         public bool CanClose() {try{return engine.CanClose();}catch{return false;}}
         protected override string GetHeaderPart(string variable) {return "Dashboard";}
