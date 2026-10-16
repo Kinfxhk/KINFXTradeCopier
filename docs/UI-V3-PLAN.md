@@ -14,7 +14,9 @@ Single file under change: `src/AddOns/KINFXTradeCopier.cs` (NinjaTrader 8 AddOn,
 ## 0. Hard rules (every WP; breaking any one = work rejected)
 
 1. **Engine bytes are frozen.** The span from `// END KINFX PURE` to `public sealed class AccountRow` must not change.
-   Check: `python scripts/engine_guard.py --check 55562fe620ad39ef4c5778babec5339bb5599e47d87fc02b5990b017d8892cf3` must print `ENGINE_OK`.
+   Check: `python scripts/engine_guard.py --check 55562fe620ad39ef4c5778babec5339bb5599e47d87fc02b5990b017d8892cf3` must print `ENGINE_OK` (UI v3 work packages).
+   After UI v3 the S1 commit changed the engine on purpose (ResumeEntries, ExitCompleted telemetry). The current hash is
+   `9cd00717835ee20464621eb8a7d9c01a4cc54ecd55c39309f8e7d90e1ace15d7`; UI-only work after S1 must keep that one.
    You may add NEW pure helper classes inside the PURE region (between `// BEGIN KINFX PURE` and `// BEGIN LANG TABLE`), and edit `AccountRow`, `DashboardView`, `KINFXTradeCopierTab` (UI side only).
 2. **Never touch other WPs' code.** Only edit the methods/hooks listed for your WP. Hooks already exist as empty methods (see §1). If you need something from another WP, write it inside your own hook.
 3. **No trading behaviour change.** Do not change what `Command(...)`, `Start()`, `Flatten(...)`, `FlatOne`, `Follow`, `Pause`, `UnlockAll`, `Unlock`, `engine.*` calls do. Buttons may move to another page; they must still call the same `Send("...")` command string, with the same `Tag` string, and keep `editButtons` membership (disabled while attached) exactly as today.
@@ -68,7 +70,7 @@ python -B scripts/offline.py puresim    --nt-bin "$NB" --artifacts-root C:/ktcar
 KTC_UI_OUT=C:/ktcart/ui-<wp> bash scripts/runui.sh | tail -3                           # WPF suite: 58 + yours, last line UI_TOTAL pass=N fail=0
 python -B -m unittest discover -s tests -p 'test_*.py' 2>&1 | tail -3                   # 485 portable tests, OK
 python scripts/gen_lang.py --check
-python scripts/engine_guard.py --check 55562fe620ad39ef4c5778babec5339bb5599e47d87fc02b5990b017d8892cf3
+python scripts/engine_guard.py --check 9cd00717835ee20464621eb8a7d9c01a4cc54ecd55c39309f8e7d90e1ace15d7   # after S1
 ```
 Result JSON of each offline run: `RESULT <path>/result.json` (fields `pass`, `fail`, `exit_code`). A compile error shows in `<artifact>/compiler-diagnostics.txt`.
 WPF compile errors: `C:/ktcart/ui-<wp>/compiler-diagnostics.txt`.
