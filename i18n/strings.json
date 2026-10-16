@@ -2752,5 +2752,155 @@
   "zh": "仍達回撤下限",
   "ja": "ドローダウン下限にまだ到達中",
   "ko": "드로다운 하한에 아직 도달 상태"
+ },
+ {
+  "en": "Same side/qty does not mean same fill price. Badge only — no auto trade.",
+  "zh": "相同方向／數量不代表相同成交價。僅為標示 — 不會自動交易。",
+  "ja": "同じ方向／数量でも、同じ約定価格とは限りません。表示のみ — 自動売買はありません。",
+  "ko": "같은 방향/수량이라고 같은 체결가는 아닙니다. 표시 전용 — 자동 매매 없음."
+ },
+ {
+  "en": "Waiting for position reports",
+  "zh": "等待持倉回報",
+  "ja": "建玉レポートを待っています",
+  "ko": "포지션 보고를 기다리는 중"
+ },
+ {
+  "en": "Quantity matches",
+  "zh": "數量一致",
+  "ja": "数量は一致",
+  "ko": "수량 일치"
+ },
+ {
+  "en": "Quantity diverges",
+  "zh": "數量偏離",
+  "ja": "数量が乖離",
+  "ko": "수량 불일치"
+ },
+ {
+  "en": "Average fill diverges",
+  "zh": "成交均價偏差",
+  "ja": "平均約定価格が乖離",
+  "ko": "평균 체결가 불일치"
+ },
+ {
+  "en": "Unavailable: not comparable",
+  "zh": "不可用：無法比較",
+  "ja": "利用不可：比較できません",
+  "ko": "사용 불가: 비교할 수 없음"
+ },
+ {
+  "en": "Unavailable: platform contract missing",
+  "zh": "不可用：平台未提供均價或 tick 契約",
+  "ja": "利用不可：プラットフォームに平均価格またはティック契約がありません",
+  "ko": "사용 불가: 플랫폼에 평균가 또는 틱 계약이 없음"
+ },
+ {
+  "en": "Unavailable: disconnected",
+  "zh": "不可用：已斷線",
+  "ja": "利用不可：切断されています",
+  "ko": "사용 불가: 연결 끊김"
+ },
+ {
+  "en": "Unavailable: instrument mismatch",
+  "zh": "不可用：合約不符",
+  "ja": "利用不可：銘柄が一致しません",
+  "ko": "사용 불가: 종목 불일치"
+ },
+ {
+  "en": "Unavailable: stale report",
+  "zh": "不可用：回報已過期",
+  "ja": "利用不可：レポートの期限が切れています",
+  "ko": "사용 불가: 보고가 만료됨"
+ },
+ {
+  "en": "Unavailable: leader flat",
+  "zh": "不可用：主帳戶無持倉",
+  "ja": "利用不可：リーダーに建玉がありません",
+  "ko": "사용 불가: 리더 포지션 없음"
+ },
+ {
+  "en": "Unavailable: average price missing",
+  "zh": "不可用：缺少均價",
+  "ja": "利用不可：平均価格がありません",
+  "ko": "사용 불가: 평균가 없음"
+ },
+ {
+  "en": "Unavailable: tick size invalid",
+  "zh": "不可用：tick 大小無效",
+  "ja": "利用不可：ティックサイズが無効です",
+  "ko": "사용 불가: 틱 크기가 잘못됨"
+ },
+ {
+  "en": "Unavailable: scale settings invalid",
+  "zh": "不可用：比例設定無效",
+  "ja": "利用不可：比率設定が無効です",
+  "ko": "사용 불가: 비율 설정이 잘못됨"
+ },
+ {
+  "en": "Leader row is the comparison baseline",
+  "zh": "主帳戶列是比較基準",
+  "ja": "リーダー行は比較の基準です",
+  "ko": "리더 행은 비교 기준입니다"
+ },
+ {
+  "en": "Expected quantity {0} · actual delta {1}",
+  "zh": "預期數量 {0} · 實際差額 {1}",
+  "ja": "想定数量 {0} · 実際の差 {1}",
+  "ko": "예상 수량 {0} · 실제 차이 {1}"
+ },
+ {
+  "en": "Average-price delta {0} ticks · adverse {1} ticks",
+  "zh": "均價差 {0} ticks · 不利滑價 {1} ticks",
+  "ja": "平均価格差 {0} ティック · 不利な滑り {1} ティック",
+  "ko": "평균가 차이 {0}틱 · 불리한 슬리피지 {1}틱"
+ },
+ {
+  "en": "Avg drift {0}: {1} (display only — no order)",
+  "zh": "均價偏差 {0}：{1}（僅顯示 — 不會下單）",
+  "ja": "平均価格の乖離 {0}: {1}（表示のみ — 注文しません）",
+  "ko": "평균가 괴리 {0}: {1} (표시 전용 — 주문 없음)"
+ },
+ {
+  "en": "Warn if avg differs by more than",
+  "zh": "若均價相差超過",
+  "ja": "平均価格の差が次を超えたら警告",
+  "ko": "평균가 차이가 다음을 넘으면 경고"
+ },
+ {
+  "en": "ticks (display only)",
+  "zh": "個 ticks（僅顯示）",
+  "ja": "ティック（表示のみ）",
+  "ko": "틱 (표시 전용)"
+ },
+ {
+  "en": "Warn if avg differs by more than N ticks (display only)",
+  "zh": "若均價相差超過 N 個 ticks 則警告（僅顯示）",
+  "ja": "平均価格が N ティックを超えて異なる場合に警告（表示のみ）",
+  "ko": "평균가가 N틱을 넘어 다르면 경고 (표시 전용)"
+ },
+ {
+  "en": "Display preference ignored; avg warn ticks reset to the default. Badge only — no order.",
+  "zh": "顯示偏好已忽略；均價警告 ticks 已回復預設。僅為標示 — 不會下單。",
+  "ja": "表示設定を無視しました。平均価格の警告ティックは既定に戻しました。表示のみ — 注文しません。",
+  "ko": "표시 설정을 무시했습니다. 평균가 경고 틱을 기본값으로 되돌렸습니다. 표시 전용 — 주문 없음."
+ },
+ {
+  "en": "Avg warn ticks must be a whole number from 0 to 100 (display only)",
+  "zh": "均價警告 ticks 必須是 0 到 100 的整數（僅顯示）",
+  "ja": "平均価格の警告ティックは 0 から 100 の整数にしてください（表示のみ）",
+  "ko": "평균가 경고 틱은 0에서 100 사이의 정수여야 합니다 (표시 전용)"
+ },
+ {
+  "en": "Position consistency display failed: {0}",
+  "zh": "持倉一致性顯示失敗：{0}",
+  "ja": "建玉の整合表示に失敗しました：{0}",
+  "ko": "포지션 정합 표시 실패: {0}"
+ },
+ {
+  "en": "Drift",
+  "zh": "偏差",
+  "ja": "乖離",
+  "ko": "괴리"
  }
 ]
