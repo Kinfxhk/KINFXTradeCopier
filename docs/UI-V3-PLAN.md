@@ -1,6 +1,6 @@
 # KINFX Trade Copier — UI v3 plan (for worker agents)
 
-Base commit: `07d358d` on branch `feat/ui-v3` (repo `KINFXTradeCopier-final`).
+Base commit: `07d358d` on branch `feat/ui-v3` (local work clone).
 Each worker has its own git worktree, already at that commit:
 
 | WP | Worktree | Branch | Owns |
