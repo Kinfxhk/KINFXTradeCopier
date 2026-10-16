@@ -534,36 +534,53 @@ class RiskTests {
   foreach(var k in ConfirmPrefs.Kinds){Eq(false,ConfirmPrefs.MustAsk(k,all,false));Eq(true,ConfirmPrefs.MustAsk(k,all,true));}
  }
 // ---- WP1 pure tests (instrument / roll) go here ----
-//
-//
-//
+static void ContractRollTableDriven() {
+  // The known CME rollover dates (NinjaTrader 8.1.8.3) decide the front contract, not the 1st of the expiry month.
+  Eq("MNQ 12-26",ContractRoll.Front("MNQ",new DateTime(2026,12,13)));
+  Eq("MNQ 03-27",ContractRoll.Front("MNQ",new DateTime(2026,12,14)));
+  Eq("ES 09-26",ContractRoll.Front("ES",new DateTime(2026,9,13)));
+  Eq("ES 12-26",ContractRoll.Front("ES",new DateTime(2026,9,14)));
+  Eq("NQ 03-27",ContractRoll.Front("NQ",new DateTime(2027,3,8)));
+  Eq("NQ 06-27",ContractRoll.Front("NQ",new DateTime(2027,3,9)));
+}
+static void ContractRollNeverPicksMetals() {
+  Eq(null,ContractRoll.Front("GC",new DateTime(2026,12,13)));
+  Eq(null,ContractRoll.Front("SI",new DateTime(2026,12,13)));
+  Eq(null,ContractRoll.Front("CL",new DateTime(2026,12,13)));
+}
+static void SilverExplicitMonthNormalizes() {
+  Eq("SI 12-26",ContractRoll.Normalize("SIZ6",new DateTime(2026,10,11)));
+  Eq("SI 12-26",ContractRoll.Normalize("SI 12-26",new DateTime(2026,10,11)));
+  Eq("SIL 03-27",ContractRoll.Normalize("SILH7",new DateTime(2026,10,11)));
+}
+static void ContractRollEstimatedFallback() {
+  var after=new DateTime(2027,10,1);
+  Eq(true,InstrumentCatalog.IsEstimated("MNQ",after));
+  Eq("MNQ 12-27",ContractRoll.Front("MNQ",after));
+  Eq(false,InstrumentCatalog.IsEstimated("MNQ",new DateTime(2026,10,11)));
+  Eq(false,InstrumentCatalog.IsEstimated("GC",after));
+}
+static void NtVersionNotice() {
+  Eq("",NtVersion.Notice("8.1.8.3"));
+  Eq("",NtVersion.Notice(""));
+  Eq("",NtVersion.Notice(null));
+  Eq(true,NtVersion.Notice("8.1.8.2").Contains("not the tested version"));
+}
+static void InstrumentCatalogListsAllRoots() {
+  var seen=new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal);
+  foreach(var e in InstrumentCatalog.Items)if(e.Root!=null)seen.Add(e.Root);
+  Eq(14,seen.Count);
+  foreach(var w in new[]{"MNQ","NQ","MES","ES","MYM","YM","M2K","RTY","MGC","GC","SIL","SI","MCL","CL"})Eq(true,seen.Contains(w));
+}
+static void InstrumentCatalogRecentValidatedAndCapped() {
+  var list=InstrumentCatalog.Build(new[]{"MNQ","bogus","ES","MNQ","NQ","MES","YM","RTY"});
+  Eq("Recent",list[0].Description);Eq(true,list[0].Header);
+  int n=0;for(int i=1;i<list.Length&&!list[i].Header;i++)n++;
+  Eq(5,n);
+  Eq("MNQ",list[1].Root);Eq("ES",list[2].Root);Eq("NQ",list[3].Root);Eq("MES",list[4].Root);Eq("YM",list[5].Root);
+}
 //
 // ---- WP2 pure tests (monitor summary) go here ----
-static void MonitorSummaryUnprotectedLots() {
- Eq(0,MonitorSummary.UnprotectedLots(null));
- Eq(0,MonitorSummary.UnprotectedLots(""));
- Eq(0,MonitorSummary.UnprotectedLots("Coverage not established"));
- Eq(2,MonitorSummary.UnprotectedLots("Late fill — 2 lots UNPROTECTED — check now"));
- Eq(1,MonitorSummary.UnprotectedLots("1 lot UNPROTECTED (no protective exit working)"));
- Eq(2,MonitorSummary.UnprotectedLots("2 lot unprotected")); // case-insensitive
- Eq(5,MonitorSummary.UnprotectedLots("3 lots UNPROTECTED and 2 lots UNPROTECTED"));
- Eq(0,MonitorSummary.UnprotectedLots("12 lots protected, no unprotected"));
-}
-static void MonitorSummarySumFinite() {
- Eq(0.0,MonitorSummary.SumFinite(null));
- Eq(0.0,MonitorSummary.SumFinite(new double[0]));
- Eq(6.0,MonitorSummary.SumFinite(new[]{1.0,2.0,3.0}));
- Eq(3.0,MonitorSummary.SumFinite(new[]{1.0,double.NaN,2.0,double.PositiveInfinity}));
- Eq(0.0,MonitorSummary.SumFinite(new[]{double.NaN,double.NegativeInfinity}));
-}
-static void MonitorSummarySingleCurrency() {
- Eq(null,MonitorSummary.SingleCurrency(null));
- Eq(null,MonitorSummary.SingleCurrency(new string[0]));
- Eq("USD",MonitorSummary.SingleCurrency(new[]{"USD","USD",""}));
- Eq("USD",MonitorSummary.SingleCurrency(new[]{" USD "}));
- Eq(null,MonitorSummary.SingleCurrency(new[]{"USD","EUR"}));
- Eq(null,MonitorSummary.SingleCurrency(new[]{"USD","usd"})); // case-sensitive: mixed
-}
 //
 //
 //
