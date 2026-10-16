@@ -2992,6 +2992,8 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public RiskLatch Latch = new RiskLatch();
         public string Name { get; set; }
         public string Role { get; set; }
+        // 0 for the leader so the account tables always list it first (user request); every column sort keeps it on top.
+        public int LeaderRank {get{return Role=="Leader"?0:1;}}
         public string Currency { get; set; }
         public string Connection { get; set; }
         public string Status { get; set; }
@@ -3479,7 +3481,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             BuildLogPage();
             BuildIssuesPage();
             BuildFooter();
-            Rows.CollectionChanged+=(s,e)=>{if(e.OldItems!=null)foreach(AccountRow r in e.OldItems)r.FollowRequested-=OnFollowRequested;if(e.NewItems!=null)foreach(AccountRow r in e.NewItems)r.FollowRequested+=OnFollowRequested;};view=CollectionViewSource.GetDefaultView(Rows);view.Filter=Matches;AccountGrid.ItemsSource=view;RiskGrid.ItemsSource=view;AttachColumnMenu(ColumnPrefs.Copy,AccountGrid,columnsBarCopy);AttachColumnMenu(ColumnPrefs.Risk,RiskGrid,columnsBarRisk);
+            Rows.CollectionChanged+=(s,e)=>{if(e.OldItems!=null)foreach(AccountRow r in e.OldItems)r.FollowRequested-=OnFollowRequested;if(e.NewItems!=null)foreach(AccountRow r in e.NewItems)r.FollowRequested+=OnFollowRequested;};view=CollectionViewSource.GetDefaultView(Rows);view.Filter=Matches;((ListCollectionView)view).CustomSort=new LeaderFirstOrder(Rows,null,ListSortDirection.Ascending);AccountGrid.Sorting+=SortKeepingLeaderFirst;RiskGrid.Sorting+=SortKeepingLeaderFirst;AccountGrid.ItemsSource=view;RiskGrid.ItemsSource=view;AttachColumnMenu(ColumnPrefs.Copy,AccountGrid,columnsBarCopy);AttachColumnMenu(ColumnPrefs.Risk,RiskGrid,columnsBarRisk);
             PreviewKeyDown+=(s,e)=>{if(e.Key==System.Windows.Input.Key.F&&System.Windows.Input.Keyboard.Modifiers==System.Windows.Input.ModifierKeys.Control){FocusSearch();e.Handled=true;}else if(e.Key==System.Windows.Input.Key.Escape&&search.IsKeyboardFocusWithin){SearchText="";e.Handled=true;}};search.TextChanged+=(s,e)=>{view.Refresh();UpdateCards();};filter.SelectionChanged+=(s,e)=>{view.Refresh();UpdateCards();};groupBox.Checked+=(s,e)=>GroupByAccount=true;groupBox.Unchecked+=(s,e)=>GroupByAccount=false;ShowLive.Checked+=(s,e)=>Send("refresh");ShowLive.Unchecked+=(s,e)=>Send("refresh");AccountGrid.SelectionChanged+=(s,e)=>UpdateCards();RiskGrid.SelectionChanged+=(s,e)=>UpdateCards();Sections.SelectionChanged+=(s,e)=>{if(summary!=null)UpdateCards();};
             if(demo){for(int i=1;i<=30;i++)Rows.Add(new AccountRow{Name="Demo "+i.ToString("00"),Alias="Eval "+i,Group=i<=10?"Tradeify":i<=20?"Lucid":"Topstep",Role=i==1?"Leader":"Follower",Connection="Synthetic",Enabled=i>1,Currency="USD",Status=i%7==0?"Target hit":i%4==0?"Paused":"Demo only",Paused=i%4==0,Pnl=i%4==0?-120:i*24.5,Settings=new RiskSettings{Alias="Eval "+i,Group=i<=10?"Tradeify":i<=20?"Lucid":"Topstep",Target=1000,Loss=500,Ratio=1,MaxContracts=4,Preset=Lang.T("Demo / not broker data")}});LeaderBox.ItemsSource=new[]{"Demo 01"};LeaderBox.SelectedIndex=0;ShowLive.IsEnabled=false;}UpdateCards();
         }
@@ -3772,6 +3774,37 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             if(LogBox!=null){LogBox.Text=plainText??"";LogBox.ScrollToEnd();}
             UpdateLogTabHeader();
         }
+        // Display order for the account tables: leader first, then the clicked column (if any), then the original account order.
+        // A full comparer (not SortDescriptions) because WPF's sort is not stable and would shuffle followers with equal keys.
+        sealed class LeaderFirstOrder : System.Collections.IComparer
+        {
+            readonly IList<AccountRow> rows;readonly System.Reflection.PropertyInfo prop;readonly int sign;
+            public LeaderFirstOrder(IList<AccountRow> rows,string path,ListSortDirection dir){this.rows=rows;prop=string.IsNullOrEmpty(path)?null:typeof(AccountRow).GetProperty(path);sign=dir==ListSortDirection.Descending?-1:1;}
+            public int Compare(object x,object y)
+            {
+                var a=x as AccountRow;var b=y as AccountRow;if(a==null||b==null)return 0;
+                int c=a.LeaderRank.CompareTo(b.LeaderRank);if(c!=0)return c;
+                if(prop!=null){c=sign*System.Collections.Comparer.DefaultInvariant.Compare(prop.GetValue(a,null),prop.GetValue(b,null));if(c!=0)return c;}
+                return rows.IndexOf(a).CompareTo(rows.IndexOf(b));
+            }
+        }
+        // Column-header sort that keeps the leader row on top. Replaces DataGrid's default, which clears every SortDescription.
+        void SortKeepingLeaderFirst(object sender,DataGridSortingEventArgs e)
+        {
+            var g=sender as DataGrid;var col=e.Column;if(g==null||col==null||string.IsNullOrEmpty(col.SortMemberPath))return;
+            e.Handled=true;
+            try{g.CommitEdit(DataGridEditingUnit.Row,true);}catch(InvalidOperationException){return;}
+            var dir=col.SortDirection==ListSortDirection.Ascending?ListSortDirection.Descending:ListSortDirection.Ascending;
+            foreach(var grid in new[]{AccountGrid,RiskGrid})foreach(var c in grid.Columns)if(c!=col)c.SortDirection=null;
+            col.SortDirection=dir;
+            ((ListCollectionView)view).CustomSort=new LeaderFirstOrder(Rows,col.SortMemberPath,dir);
+        }
+        // Re-sorts after the leader changes (Role is not a live-sorted property). Skipped while a cell is being edited.
+        public void ResortLeaderFirst()
+        {
+            try{AccountGrid.CommitEdit(DataGridEditingUnit.Row,true);RiskGrid.CommitEdit(DataGridEditingUnit.Row,true);view.Refresh();}
+            catch(InvalidOperationException){}
+        }
         // Page 3 (Issues): locks, settings notes and the header notice, with Unlock all. Its own tab so the Monitor table keeps
         // the full height when many accounts are listed (user request). Appended last so the Monitor/Settings/Logs indexes do not move.
         TabItem issuesTab;int IssueCount;
@@ -4003,7 +4036,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         {
             dashboard.LanguageChanging=ChangeLanguage;dashboard.Command=Command;dashboard.BulkNotice=Log;dashboard.PauseRow=Pause;dashboard.RowSettings=r=>Edit(new[]{r});dashboard.FollowRow=Follow;dashboard.FlatRow=FlatOne;ShowAsk();dashboard.AskChanged=SetAsk;
             dashboard.ApplyColumns(LoadColumns(ColumnsPath));dashboard.ColumnsChanged=SaveColumns;
-            dashboard.LeaderBox.SelectionChanged+=(s,e)=>{if(engine.Attached)return;leaderName=dashboard.LeaderBox.SelectedItem as string ?? "";foreach(var row in dashboard.Rows){row.Role=row.Name==leaderName?"Leader":"Follower";if(row.Role=="Leader")row.Enabled=false;row.Changed();}};
+            dashboard.LeaderBox.SelectionChanged+=(s,e)=>{if(engine.Attached)return;leaderName=dashboard.LeaderBox.SelectedItem as string ?? "";foreach(var row in dashboard.Rows){row.Role=row.Name==leaderName?"Leader":"Follower";if(row.Role=="Leader")row.Enabled=false;row.Changed();}dashboard.ResortLeaderFirst();};
             dashboard.AccountGrid.RowEditEnding+=(s,e)=>Dispatch(()=>{foreach(var row in dashboard.Rows){row.Changed();}dashboard.UpdateCards();});
             dashboard.InstrumentBox.LostKeyboardFocus+=(s,e)=>NormalizeInstrumentBox();
             dashboard.InstrumentBox.KeyDown+=(s,e)=>{if(e.Key==System.Windows.Input.Key.Enter){NormalizeInstrumentBox();e.Handled=true;}};

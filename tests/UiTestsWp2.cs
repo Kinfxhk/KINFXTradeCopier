@@ -8,7 +8,7 @@ public static class UiTestsWp2 {
   public static Action[] Cases(){ return new Action[]{
     SummaryCardsShowCorrectValues, BannerCollapsesAndLinksSwitchTabs, UnlockAllAndFlattenLiveOnMonitor,
     BulkSectionAppliesOnSettingsTab, GroupHeaderShowsFirmAndCount, MaxIsDefaultWarnBorder, NoClippedTextNoWhiteBlocksAllLanguages,
-    GroupToggleMirrorsGroupByAccount, IssuesHaveTheirOwnTab };}
+    GroupToggleMirrorsGroupByAccount, IssuesHaveTheirOwnTab, LeaderRowIsAlwaysFirst };}
   static T Find<T>(DashboardView v,string tag) where T:FrameworkElement{return BulkUiTests.Visual<T>(v).FirstOrDefault(x=>(x.Tag as string)==tag);}
   static FrameworkElement Tag(DashboardView v,string tag){return BulkUiTests.Visual<FrameworkElement>(v).FirstOrDefault(x=>(x.Tag as string)==tag);}
   static string CardValue(DashboardView v,string tag){var c=Tag(v,tag);BulkUiTests.Check(c!=null,"card exists: "+tag);return BulkUiTests.Visual<TextBlock>(c).Last().Text;}
@@ -163,5 +163,31 @@ public static class UiTestsWp2 {
     foreach(var r in v.Rows){r.Latch.Locked=false;r.Latch.Reason="";r.Changed();}
     v.UpdateCards();
     BulkUiTests.Check((issuesTab.Header as string)==Lang.T("Issues"),"header resets when clear: "+issuesTab.Header);
+  }
+
+  // User request: the leader account is always listed first, on both tables, after any column sort and after the leader changes.
+  static void LeaderRowIsAlwaysFirst(){
+    var v=BulkUiTests.Fresh();
+    foreach(var r in v.Rows)r.Role="Follower";
+    var leader=v.Rows[17];leader.Role="Leader";
+    v.ResortLeaderFirst();v.Sections.SelectedIndex=0;BulkUiTests.Layout(v);
+    BulkUiTests.Check(v.AccountGrid.Items[0]==leader,"leader first on Monitor; got "+((AccountRow)v.AccountGrid.Items[0]).Name);
+    BulkUiTests.Check(v.RiskGrid.Items[0]==leader,"leader first on Settings");
+    foreach(var key in new[]{"Acct","P/L"}){
+      var col=v.AccountGrid.Columns.First(c=>(c.Header as string)==Lang.T(key));
+      for(int k=0;k<2;k++){
+        var args=new DataGridSortingEventArgs(col);
+        var m=typeof(DataGrid).GetMethod("OnSorting",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic);m.Invoke(v.AccountGrid,new object[]{args});
+        BulkUiTests.Layout(v);
+        BulkUiTests.Check(v.AccountGrid.Items[0]==leader,"leader first after sorting "+key+" #"+k+"; got "+((AccountRow)v.AccountGrid.Items[0]).Name);
+        BulkUiTests.Check(col.SortDirection==(k==0?System.ComponentModel.ListSortDirection.Ascending:System.ComponentModel.ListSortDirection.Descending),"sort direction toggles on "+key);
+      }
+    }
+    var names=v.AccountGrid.Items.Cast<AccountRow>().Skip(1).Select(r=>r.Pnl).ToList();
+    var sorted=names.OrderByDescending(x=>x).ToList();
+    BulkUiTests.Check(names.SequenceEqual(sorted),"followers still sorted by the clicked column (P/L descending)");
+    leader.Role="Follower";var next=v.Rows[5];next.Role="Leader";v.ResortLeaderFirst();BulkUiTests.Layout(v);
+    BulkUiTests.Check(v.AccountGrid.Items[0]==next,"new leader moves to the top after the leader changes");
+    BulkUiTests.Check(v.Rows.Count==30&&v.AccountGrid.Items.Count==30,"no rows lost");
   }
 }
