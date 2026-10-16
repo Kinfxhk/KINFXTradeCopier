@@ -3651,7 +3651,8 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             var toolbar=new WrapPanel{Margin=new Thickness(0,0,0,9)};
             search=Input("",185);search.ToolTip=Lang.T("Search account / alias / group / preset · Ctrl+F · Escape clears");toolbar.Children.Add(Labeled("⌕",search,17));filter=Combo(120);filter.ToolTip=Lang.T("Filter displayed account states");filter.ItemsSource=new[]{Lang.T("All"),Lang.T("On"),Lang.T("Paused"),Lang.T("Target")};filter.SelectedIndex=0;toolbar.Children.Add(filter);var ticks=new StackPanel{Orientation=Orientation.Horizontal,Margin=new Thickness(0,0,0,6)};ticks.Children.Add(Icon("\uE73A",Lang.T("Tick all visible followers"),"tickAll",()=>TickVisible(true),true));ticks.Children.Add(Icon("\uE711",Lang.T("Untick all visible followers"),"tickNone",()=>TickVisible(false),true));toolbar.Children.Add(ticks);groupBox=new CheckBox{Template=PlainCheckTemplate(),Content=Lang.T("Group by firm"),Foreground=Muted,Margin=new Thickness(8,6,0,0),ToolTip=Lang.T("Group account rows")};System.Windows.Automation.AutomationProperties.SetName(groupBox,Lang.T("Group by firm"));toolbar.Children.Add(groupBox);AddRow(copy,toolbar,1);columnsBarCopy=toolbar;
             AccountGrid=GridTable();TickColumn(AccountGrid);AccountColumn(AccountGrid);Column(AccountGrid,"Alias","Alias",100,false,Lang.T("Optional display alias"));RatioColumn(AccountGrid);Column(AccountGrid,"Tgt","TargetText",78,false,Lang.T("Independent daily local profit target · account CCY / 0 = off"),null,true);Column(AccountGrid,"DLL","LossText",78,false,Lang.T("Independent daily loss limit · positive amount / 0 = off"),null,true);AtmColumn(AccountGrid);Column(AccountGrid,"Qty","Position",55,true,Lang.T("Signed position · + long / − short"),null,true);Column(AccountGrid,"P/L","Pnl",95,true,Lang.T("Observed session P/L in account currency · baseline is not historical daily accounting"),"N2",true);Column(AccountGrid,"Bal","BalanceText",130,true,Lang.T("CashValue in account currency; not NetLiquidation / net equity"),null,true);((DataGridTextColumn)AccountGrid.Columns.Last()).ElementStyle.Setters.Add(new Setter(FrameworkElement.ToolTipProperty,new Binding("BalanceDetail")));((DataGridTextColumn)AccountGrid.Columns.Last()).ElementStyle.Setters.Add(new Setter(System.Windows.Automation.AutomationProperties.NameProperty,new Binding("BalanceDetail")));LightColumn(AccountGrid,"Conn","ConnLight","Connection");StateColumn(AccountGrid);OffColumn(AccountGrid);FlatColumn(AccountGrid);AccountGrid.FrozenColumnCount=2;ProportionalCopyColumns(AccountGrid);AccountGrid.GroupStyle.Add(GroupHeaderStyle());AddRow(copy,AccountGrid,2);
-            var actions=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,8,0,0)};var fs=TextTool(Lang.T("Flatten selected"),DashboardSafety.CanExecute("flattenSelected")?Lang.T("Flatten highlighted accounts (market-closes their positions)"):Lang.T("Flatten highlighted accounts · review hold"),"flattenSelected",()=>Send("flattenSelected"));fs.Foreground=Bad;fs.IsEnabled=DashboardSafety.CanExecute("flattenSelected");var fa=TextTool(Lang.T("Flatten all"),DashboardSafety.CanExecute("flattenAll")?Lang.T("Flatten ALL displayed accounts (market-closes every position shown)"):Lang.T("Flatten all displayed accounts · review hold"),"flattenAll",()=>Send("flattenAll"));fa.Foreground=Bad;fa.IsEnabled=DashboardSafety.CanExecute("flattenAll");actions.Children.Add(fs);actions.Children.Add(fa);AddRow(copy,actions,3);
+            // Flatten is an emergency action: NOT an edit button, so it stays usable while a session is attached (as in 121c44e).
+            var actions=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,8,0,0)};var fs=TextToolFree(Lang.T("Flatten selected"),DashboardSafety.CanExecute("flattenSelected")?Lang.T("Flatten highlighted accounts (market-closes their positions)"):Lang.T("Flatten highlighted accounts · review hold"),"flattenSelected",()=>Send("flattenSelected"));fs.Foreground=Bad;fs.IsEnabled=DashboardSafety.CanExecute("flattenSelected");var fa=TextToolFree(Lang.T("Flatten all"),DashboardSafety.CanExecute("flattenAll")?Lang.T("Flatten ALL displayed accounts (market-closes every position shown)"):Lang.T("Flatten all displayed accounts · review hold"),"flattenAll",()=>Send("flattenAll"));fa.Foreground=Bad;fa.IsEnabled=DashboardSafety.CanExecute("flattenAll");actions.Children.Add(fs);actions.Children.Add(fa);AddRow(copy,actions,3);
             Sections.Items.Add(new TabItem{Header=Lang.T("Monitor"),Content=copy});
         }
         // Page 1 (was "Risk"). Owner: UI v3 page 2 work.
@@ -3746,13 +3747,20 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         {
             if(LogGrid!=null)LogGrid.Visibility=plain?Visibility.Collapsed:Visibility.Visible;
             if(LogBox!=null)LogBox.Visibility=plain?Visibility.Visible:Visibility.Collapsed;
+            RebuildPlain();
             if(plain&&LogBox!=null)LogBox.ScrollToEnd();
         }
+        // Plain text is only kept while the plain view is shown (review: an always-on string copy grew without bound on the UI thread).
+        // It is rebuilt from logRows (capped at 2000) when the view is opened, then appended with AppendText (no full copy per line).
+        bool PlainShown{get{return LogPlainBox!=null&&LogPlainBox.IsChecked==true;}}
+        static string PlainLine(LogLine l){return l.Time.ToString("HH:mm:ss",CultureInfo.InvariantCulture)+"  "+Lang.Show(l.Text);}
         void AppendLogPlain(LogLine l)
         {
-            if(LogBox==null)return;string line=l.Time.ToString("HH:mm:ss",CultureInfo.InvariantCulture)+"  "+Lang.Show(l.Text);
-            LogBox.Text=LogBox.Text.Length==0?line:LogBox.Text+Environment.NewLine+line;
+            if(LogBox==null||!PlainShown)return;
+            if(LogBox.LineCount>2200){RebuildPlain();return;}
+            LogBox.AppendText((LogBox.Text.Length==0?"":Environment.NewLine)+PlainLine(l));
         }
+        void RebuildPlain(){if(LogBox==null)return;LogBox.Text=PlainShown?string.Join(Environment.NewLine,logRows.Select(PlainLine)):"";}
         void UpdateLogTabHeader(){if(logTab!=null)logTab.Header=LogUnseen>0?Lang.T("Logs")+" ("+LogUnseen+")":Lang.T("Logs");}
         void ScrollLogToEnd()
         {
@@ -3771,7 +3779,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         internal void RebuildLog(IEnumerable<LogLine> lines,string plainText)
         {
             logRows.Clear();if(lines!=null)foreach(var l in lines)if(l!=null)logRows.Add(l);
-            if(LogBox!=null){LogBox.Text=plainText??"";LogBox.ScrollToEnd();}
+            if(LogBox!=null){RebuildPlain();LogBox.ScrollToEnd();}
             UpdateLogTabHeader();
         }
         // Display order for the account tables: leader first, then the clicked column (if any), then the original account order.
@@ -3988,16 +3996,27 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         // Plain-text form of the in-memory queue (translated when drawn, so history follows the picked language).
         string LogText(){var sb=new System.Text.StringBuilder();foreach(var l in logs)sb.Append(l.Time.ToString("HH:mm:ss",CultureInfo.InvariantCulture)).Append("  ").Append(Lang.Show(l.Text)).AppendLine();return sb.ToString();}
         internal void RedrawLog(){dashboard.RebuildLog(logs,LogText());}
+        // Daily log lines are buffered and written once per timer tick (and on close), not one open/write/close per line on the UI thread.
+        readonly System.Text.StringBuilder dailyPending=new System.Text.StringBuilder();int dailyPendingLines;
         void AppendDailyFile(LogLine line)
         {
+            if(logFileErrorLogged)return;
+            dailyPending.Append(line.Time.ToString("yyyy-MM-dd HH:mm:ss")).Append("  ").Append(line.Level).Append("  ").Append(line.Text).Append(Environment.NewLine);
+            if(++dailyPendingLines>=500)FlushDailyFile();
+        }
+        void FlushDailyFile()
+        {
+            if(dailyPending.Length==0)return;
+            string text=dailyPending.ToString();dailyPending.Clear();dailyPendingLines=0;
+            if(logFileErrorLogged)return;
             try
             {
                 string dir=Path.Combine(DirectoryPath,"logs");Directory.CreateDirectory(dir);
-                File.AppendAllText(Path.Combine(dir,"kinfx-"+DateTime.Now.ToString("yyyyMMdd")+".log"),line.Time.ToString("yyyy-MM-dd HH:mm:ss")+"  "+line.Level+"  "+line.Text+Environment.NewLine,new System.Text.UTF8Encoding(false));
+                File.AppendAllText(Path.Combine(dir,"kinfx-"+DateTime.Now.ToString("yyyyMMdd")+".log"),text,new System.Text.UTF8Encoding(false));
             }
             catch(Exception ex)
             {
-                if(logFileErrorLogged)return;logFileErrorLogged=true;
+                logFileErrorLogged=true;
                 var err=LogClassifier.Classify("Log file write failed (daily log disabled for this session): "+ex.Message,dashboard.Rows.Select(r=>r.Name));err.Time=DateTime.Now;
                 logs.Enqueue(err);while(logs.Count>LogCap)logs.Dequeue();dashboard.AddLog(err);
             }
@@ -4029,7 +4048,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             engine=new CopierEngine(Log,OnTelemetry,(attached,status)=>{int session=engine.SessionGeneration;Dispatch(()=>dashboard.TrySetSessionState(attached,status,session,engine.SessionGeneration,engine.Attached));},PersistLatch);
             WireDashboard();
             LoadDefault();Refresh();syncNames=CurrentAccountNames();
-            timer=new DispatcherTimer(TimeSpan.FromSeconds(1),DispatcherPriority.Background,(s,e)=>Tick(),Dispatcher);timer.Start();
+            timer=new DispatcherTimer(TimeSpan.FromSeconds(1),DispatcherPriority.Background,(s,e)=>{Tick();FlushDailyFile();},Dispatcher);timer.Start();
         }
         // Everything that attaches this tab to a DashboardView. Repeated for a rebuilt view after a language change.
         void WireDashboard()
@@ -4466,7 +4485,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 dashboard.Rows.Clear();Refresh();}
             catch(Exception ex){settingsCorrupt=true;Log("Restore failed — Start blocked: "+ex.Message);}
         }
-        public override void Cleanup() {if(cleaned)return;timer.Stop();Persist();engine.Dispose();cleaned=true;base.Cleanup();}
+        public override void Cleanup() {if(cleaned)return;timer.Stop();FlushDailyFile();Persist();engine.Dispose();cleaned=true;base.Cleanup();}
     }
     public class KINFXTradeCopierWindowFactory : INTTabFactory
     {

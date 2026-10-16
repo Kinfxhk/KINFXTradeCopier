@@ -54,6 +54,10 @@ public static class UiTestsWp2 {
     BulkUiTests.Check(fs!=null&&fa!=null,"flatten buttons live on the monitor tab");
     BulkUiTests.Check(fs.IsEnabled==DashboardSafety.CanExecute("flattenSelected"),"flattenSelected follows CanExecute");
     BulkUiTests.Check(fa.IsEnabled==DashboardSafety.CanExecute("flattenAll"),"flattenAll follows CanExecute");
+    // Independent review: moving to text buttons put Flatten into editButtons, so Start disabled it. Emergency flatten must survive attach.
+    v.Editable(false);BulkUiTests.Layout(v);
+    BulkUiTests.Check(fs.IsEnabled==DashboardSafety.CanExecute("flattenSelected"),"flattenSelected still follows CanExecute while attached");
+    BulkUiTests.Check(fa.IsEnabled==DashboardSafety.CanExecute("flattenAll"),"flattenAll still follows CanExecute while attached");
   }
   static void BulkSectionAppliesOnSettingsTab(){
     var v=BulkUiTests.Fresh();v.Sections.SelectedIndex=1;BulkUiTests.Layout(v);

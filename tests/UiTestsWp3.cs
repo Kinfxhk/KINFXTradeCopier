@@ -17,8 +17,7 @@ public static class UiTestsWp3 {
     LevelCellsAreColouredByLevel,
     NoClippedToolbarInFourLanguages,
     ComboAndCheckBoxesStayDark,
-    Timing500InZh
-  }; }
+    Timing500InZh, PlainLogIsBoundedAndOnlyBuiltWhenShown }; }
 
   static LogLine Line(string level, string text, string account="") {
     return new LogLine { Time=new DateTime(2026,10,16,12,0,0), Level=level, Account=account, Category="General", Text=text };
@@ -162,4 +161,20 @@ public static class UiTestsWp3 {
    BulkUiTests.Check(ReferenceEquals(tb.Foreground,want[item.Level]),item.Level+" level text colour is "+tb.Foreground+", expected "+want[item.Level]);
   }
  }
+
+  // Independent review: the plain-text copy grew without bound on the UI thread even when the grid view was shown.
+  static void PlainLogIsBoundedAndOnlyBuiltWhenShown(){
+    var v=BulkUiTests.Fresh();v.Sections.SelectedIndex=2;BulkUiTests.Layout(v);
+    for(int i=0;i<2600;i++){var l=LogClassifier.Classify("line "+i,new string[0]);l.Time=DateTime.Now;v.AddLog(l);}
+    BulkUiTests.Check(v.LogGrid.Items.Count==2000,"grid capped at 2000: "+v.LogGrid.Items.Count);
+    BulkUiTests.Check(v.LogBox.Text.Length==0,"plain text not built while the grid view is shown: "+v.LogBox.Text.Length);
+    v.LogPlainBox.IsChecked=true;BulkUiTests.Layout(v);
+    BulkUiTests.Check(v.LogBox.LineCount==2000,"plain view shows the same 2000 lines: "+v.LogBox.LineCount);
+    BulkUiTests.Check(v.LogBox.Text.Contains("line 2599")&&!v.LogBox.Text.Contains("line 599\r"),"newest kept, oldest dropped");
+    for(int i=0;i<400;i++){var l=LogClassifier.Classify("more "+i,new string[0]);l.Time=DateTime.Now;v.AddLog(l);}
+    BulkUiTests.Check(v.LogBox.LineCount<=2201,"plain view stays bounded while shown: "+v.LogBox.LineCount);
+    BulkUiTests.Check(v.LogBox.Text.Contains("more 399"),"newest line appended in plain view");
+    v.LogPlainBox.IsChecked=false;BulkUiTests.Layout(v);
+    BulkUiTests.Check(v.LogBox.Text.Length==0,"plain text released when hidden");
+  }
 }
