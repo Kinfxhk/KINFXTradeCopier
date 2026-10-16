@@ -91,7 +91,7 @@ public static class BulkUiTests {
   var v=Fresh();v.Sections.SelectedIndex=0;Layout(v);
   Func<string,double,string,double> textW=(txt,size,fam)=>{var t=new System.Windows.Media.Typeface(new System.Windows.Media.FontFamily(fam),FontStyles.Normal,FontWeights.Normal,FontStretches.Normal);return new System.Windows.Media.FormattedText(txt,System.Globalization.CultureInfo.InvariantCulture,FlowDirection.LeftToRight,t,size,System.Windows.Media.Brushes.White).WidthIncludingTrailingWhitespace;};
   var worst=new System.Collections.Generic.Dictionary<string,double>{
-   {"Bal",textW("1,250,000.00 USD",13,"Segoe UI")+18},          // BalanceText cell, 9px margins
+   {"Bal",textW("-$1,250,000.00",13,"Segoe UI")+18},          // BalanceText cell, 9px margins
    {"State",textW("Rechecking",13,"Segoe UI")+22},               // longest StateLabel + lamp/padding
    {"P/L",textW("-123,456.78",13,"Consolas")+18}};
   foreach(var c in v.AccountGrid.Columns){

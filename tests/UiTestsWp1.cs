@@ -4,7 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using NinjaTrader.NinjaScript.AddOns.Kinfx;
 public static class UiTestsWp1 {
- public static Action[] Cases(){ return new Action[]{ PickerExistsAndListsRoots, PickerSetsFrontContract, PickerDisabledWhenAttached, StateBadgeReadsStoppedCopyingPaused, UseFrontShowsOnlyWhenStale, PickerListIsDark, HeaderTextNotClippedInEveryLanguage }; }
+ public static Action[] Cases(){ return new Action[]{ PickerExistsAndListsRoots, PickerSetsFrontContract, PickerDisabledWhenAttached, StateBadgeReadsStoppedCopyingPaused, UseFrontShowsOnlyWhenStale, PickerListIsDark, HeaderTextNotClippedInEveryLanguage, PickerRowsDoNotInheritIconFont }; }
  static Button FindTag(DependencyObject root,string tag){ return BulkUiTests.Visual<Button>(root).FirstOrDefault(b=>(b.Tag as string)==tag); }
  // A Popup renders in its own window, not inside the DashboardView, so its child is not in the visual tree off-screen.
  // Host the list inside a DashboardView Border so the real rows render and are measurable.
@@ -84,5 +84,22 @@ public static class UiTestsWp1 {
     BulkUiTests.Check(bad==0,code+": clipped header text, first: '"+first+"'");
    }
   } finally { Lang.Set(was); }
+ }
+
+ // Found on real NinjaTrader (parent review): the Popup inherited the picker button's icon font, so every row drew as boxes.
+ // Checked on the popup in place (not re-hosted inside the DashboardView, which would hide the inheritance).
+ static void PickerRowsDoNotInheritIconFont(){
+  var v=BulkUiTests.Fresh();BulkUiTests.Layout(v);
+  var btn=FindTag(v,"instPick");
+  btn.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+  var list=v.InstrumentList;BulkUiTests.Check(list!=null,"picker list built by the button");
+  if(v.InstrumentPopup!=null){v.InstrumentPopup.IsOpen=false;v.InstrumentPopup.Child=null;}
+  // On real NT the popup root inherits from its PlacementTarget (the icon button). Reproduce that parent explicitly.
+  var iconParent=new Border{Child=list};iconParent.SetValue(System.Windows.Documents.TextElement.FontFamilyProperty,btn.FontFamily);
+  BulkUiTests.Check(btn.FontFamily.Source.IndexOf("Icons",StringComparison.OrdinalIgnoreCase)>=0,"picker button uses the icon font: "+btn.FontFamily.Source);
+  BulkUiTests.Layout(iconParent);
+  var blocks=BulkUiTests.Visual<TextBlock>(iconParent).Where(t=>!string.IsNullOrEmpty(t.Text)).ToList();
+  BulkUiTests.Check(blocks.Count>=14,"picker text blocks: "+blocks.Count);
+  foreach(var tb in blocks){string fam=tb.FontFamily.Source;BulkUiTests.Check(fam.IndexOf("Icons",StringComparison.OrdinalIgnoreCase)<0&&fam.IndexOf("MDL2",StringComparison.OrdinalIgnoreCase)<0,"picker text '"+tb.Text+"' uses icon font "+fam);}
  }
 }

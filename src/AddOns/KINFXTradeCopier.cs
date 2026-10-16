@@ -857,6 +857,37 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             foreach(double v in values)if(RiskPolicy.Finite(v))sum+=v;
             return sum;
         }
+        // Money for display: currency symbol in front ("-$1,234.50"), never the NinjaTrader enum name ("UsDollar").
+        // Accepts the Currency enum name or an ISO code; unknown currencies fall back to "CODE 1,234.50" so nothing is mislabelled as dollars.
+        public static string CurrencySymbol(string currency)
+        {
+            string c=(currency??"").Trim();
+            switch(c)
+            {
+                case "UsDollar":case "USD":return "$";
+                case "Euro":case "EUR":return "\u20AC";
+                case "BritishPound":case "GBP":return "\u00A3";
+                case "JapaneseYen":case "JPY":return "\u00A5";
+                case "AustralianDollar":case "AUD":return "A$";
+                case "CanadianDollar":case "CAD":return "C$";
+                case "HongKongDollar":case "HKD":return "HK$";
+                case "SingaporeDollar":case "SGD":return "S$";
+                case "NewZealandDollar":case "NZD":return "NZ$";
+                case "TaiwanNewDollar":case "TWD":return "NT$";
+                default:return null;
+            }
+        }
+        public static string Money(double value,string currency)
+        {
+            if(double.IsNaN(value)||double.IsInfinity(value))return "\u2014";
+            string amount=Math.Abs(value).ToString("N2",System.Globalization.CultureInfo.InvariantCulture);
+            if(amount=="0.00")value=0;
+            string sign=value<0?"-":"";
+            string sym=CurrencySymbol(currency);
+            if(sym!=null)return sign+sym+amount;
+            string code=(currency??"").Trim();
+            return code.Length==0?sign+amount:code+" "+sign+amount;
+        }
         // The one currency when every non-empty one agrees; null when mixed (the card then shows "Mixed CCY").
         public static string SingleCurrency(System.Collections.Generic.IEnumerable<string> currencies)
         {
@@ -2975,8 +3006,8 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 int index=Array.IndexOf(names,Currency);return index>=0?codes[index]:string.IsNullOrWhiteSpace(Currency)?"CCY?":Currency;
             }
         }
-        public string BalanceText {get{return (Connection=="Connected"||Connection=="Synthetic")&&RiskPolicy.Finite(CashBalance)?CashBalance.ToString("N2",CultureInfo.InvariantCulture)+" "+CurrencyCode:"— "+CurrencyCode;}}
-        public string BalanceDetail {get{return "CashValue · "+Name+" · "+BalanceText+"\nNetLiquidation (net equity, NOT cash balance): "+((Connection=="Connected"||Connection=="Synthetic")&&RiskPolicy.Finite(Equity)?Equity.ToString("N2",CultureInfo.InvariantCulture):"—")+" "+CurrencyCode+"\nAccount.Get reports provider values; currency argument does not convert. Dash = unavailable/disconnected. Synthetic rows are not broker data.";}}
+        public string BalanceText {get{return (Connection=="Connected"||Connection=="Synthetic")&&RiskPolicy.Finite(CashBalance)?MonitorSummary.Money(CashBalance,Currency):"\u2014";}}
+        public string BalanceDetail {get{return "CashValue · "+Name+" · "+BalanceText+"\nNetLiquidation (net equity, NOT cash balance): "+((Connection=="Connected"||Connection=="Synthetic")&&RiskPolicy.Finite(Equity)?MonitorSummary.Money(Equity,Currency):"\u2014")+"\nAccount.Get reports provider values; currency argument does not convert. Dash = unavailable/disconnected. Synthetic rows are not broker data.";}}
         public double Realized { get; set; }
         public double Unrealized { get; set; }
         public double Sod { get; set; }
@@ -3395,7 +3426,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 string name=(g.Name as string)??"";
                 double sum=0;string ccy=null;bool mixed=false;
                 foreach(var it in g.Items){var r=it as AccountRow;if(r==null)continue;if(!RiskPolicy.Finite(r.Pnl))continue;sum+=r.Pnl;if(ccy==null)ccy=r.Currency;else if(!string.Equals(ccy,r.Currency,StringComparison.Ordinal))mixed=true;}
-                string pnl=mixed?Lang.T("Mixed CCY"):(sum.ToString("N2",System.Globalization.CultureInfo.InvariantCulture)+" "+ccy);
+                string pnl=mixed?Lang.T("Mixed CCY"):MonitorSummary.Money(sum,ccy);
                 return name+" ("+g.ItemCount+")"+(pnl.Length>0?" · "+pnl:"");
             }
             public object ConvertBack(object value,System.Type targetType,object parameter,System.Globalization.CultureInfo culture){return System.Windows.Data.Binding.DoNothing;}
@@ -3488,6 +3519,8 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             {
                 InstrumentPopup=new Popup{PlacementTarget=InstPickButton,Placement=PlacementMode.Bottom,StaysOpen=false,AllowsTransparency=true};
                 InstrumentList=new Border{Background=Panel,BorderBrush=Line,BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(5),MinWidth=320,MaxHeight=420};
+                // A Popup inherits fonts from its PlacementTarget: the icon button uses Segoe Fluent Icons, which turned every row into boxes on real NT.
+                TextElement.SetFontFamily(InstrumentList,new FontFamily("Segoe UI Variable Text, Segoe UI"));TextElement.SetForeground(InstrumentList,Ink);
                 var items=new StackPanel{Background=Panel};
                 InstrumentList.Child=new ScrollViewer{VerticalScrollBarVisibility=ScrollBarVisibility.Hidden,Background=Panel,Content=items};
                 InstrumentPopup.Child=InstrumentList;
@@ -3540,7 +3573,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             cardUnprotected.Text=unprotected.ToString(CultureInfo.InvariantCulture);
             string ccy=MonitorSummary.SingleCurrency(followers.Select(r=>r.Currency));
             double pnl=MonitorSummary.SumFinite(followers.Select(r=>r.Pnl));
-            cardPnl.Text=ccy==null?Lang.T("Mixed CCY"):pnl.ToString("N2",CultureInfo.InvariantCulture)+" "+ccy;
+            cardPnl.Text=ccy==null?Lang.T("Mixed CCY"):MonitorSummary.Money(pnl,ccy);
             if(issuesLines==null)return;
             issuesLines.Children.Clear();
             var lines=new List<UIElement>();
@@ -3798,7 +3831,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         void BulkClick(string field,string text){var reason=BulkApply(field,text);var n=BulkNotice;if(n!=null)n(reason==null?"Bulk "+field+" applied to highlighted followers; Ratio and ticks unchanged.":"Bulk "+field+" refused: "+reason);}
         public void SetSelectedPause(bool paused){foreach(var r in SelectedRows().Where(r=>r.CanFollow)){if(!demo&&PauseRow!=null)PauseRow(r,paused);else{r.Paused=paused;r.Changed();}}UpdateCards();}
         public AccountRow[] SelectedRows(){return (Sections.SelectedIndex==1?RiskGrid:AccountGrid).SelectedItems.Cast<AccountRow>().ToArray();}
-        public void UpdateCards(){if(summary==null)return;int ticked=Rows.Count(r=>r.Enabled&&r.Role!="Leader");FollowCountText.Text=Lang.F("→  {0} followers  ",ticked);var ccy=Rows.Select(r=>r.Currency).Where(s=>!string.IsNullOrEmpty(s)).Distinct().ToArray();summary.Text=Lang.F("{0} TICKED  /  {1} ACCTS     ·     P/L  {2}",ticked,Rows.Count,ccy.Length<=1?Rows.Sum(r=>RiskPolicy.Finite(r.Pnl)?r.Pnl:0).ToString("N2")+" "+ccy.FirstOrDefault():Lang.T("Mixed CCY"));selection.Text=Lang.F("{0} sel / {1} rows",SelectedRows().Length,VisibleCount);if(adviceLine!=null)adviceLine.Text=AdviceText;if(lockedLine!=null)lockedLine.Text=LockedText;UpdateHeaderState();UpdateMonitor();}
+        public void UpdateCards(){if(summary==null)return;int ticked=Rows.Count(r=>r.Enabled&&r.Role!="Leader");FollowCountText.Text=Lang.F("→  {0} followers  ",ticked);var ccy=Rows.Select(r=>r.Currency).Where(s=>!string.IsNullOrEmpty(s)).Distinct().ToArray();summary.Text=Lang.F("{0} TICKED  /  {1} ACCTS     ·     P/L  {2}",ticked,Rows.Count,ccy.Length<=1?MonitorSummary.Money(Rows.Sum(r=>RiskPolicy.Finite(r.Pnl)?r.Pnl:0),ccy.FirstOrDefault()):Lang.T("Mixed CCY"));selection.Text=Lang.F("{0} sel / {1} rows",SelectedRows().Length,VisibleCount);if(adviceLine!=null)adviceLine.Text=AdviceText;if(lockedLine!=null)lockedLine.Text=LockedText;UpdateHeaderState();UpdateMonitor();}
         internal bool TrySetSessionState(bool attached,string status,int callbackSession,int currentSession,bool currentAttached){if(callbackSession!=currentSession||attached!=currentAttached)return false;SetSessionState(attached,status);return true;}
         // Last session state shown (true = attached to a copy session). Read by the header badge (WP1).
         internal bool SessionAttached{get;private set;}

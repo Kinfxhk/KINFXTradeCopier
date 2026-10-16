@@ -605,6 +605,15 @@ static void MonitorSummarySingleCurrency() {
  Eq("USD",MonitorSummary.SingleCurrency(new[]{" USD "}));
  Eq(null,MonitorSummary.SingleCurrency(new[]{"USD","EUR"}));
  Eq(null,MonitorSummary.SingleCurrency(new[]{"USD","usd"})); // case-sensitive: mixed
+ // Money shows the symbol, never the NinjaTrader enum name (user: "US DOLLAR 唔洗加，落個符號就得").
+ Eq("-$12,152.80",MonitorSummary.Money(-12152.8,"UsDollar"));
+ Eq("$1,250,000.00",MonitorSummary.Money(1250000,"USD"));
+ Eq("$0.00",MonitorSummary.Money(-0.001,"UsDollar")); // no "-$0.00"
+ Eq("\u20AC5.00",MonitorSummary.Money(5,"Euro"));
+ Eq("HK$5.00",MonitorSummary.Money(5,"HongKongDollar"));
+ Eq("ChinaYuan -5.00",MonitorSummary.Money(-5,"ChinaYuan")); // unknown: keep the code, never pretend it is $
+ Eq("5.00",MonitorSummary.Money(5,""));
+ Eq("\u2014",MonitorSummary.Money(double.NaN,"UsDollar"));
 }
 //
 //
