@@ -848,7 +848,14 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         }
         static bool Awaiting(PositionSnap leader,PositionSnap follower,DateTime nowUtc,TimeSpan grace)
         {
-            if(follower.EvidenceVersion>=leader.EvidenceVersion)return false;
+            // EvidenceMark.Version counts changes on that account alone. Grace follows the leader evidence time.
+            if(!WithinReportGrace(leader,nowUtc,grace))return false;
+            if(leader.SignedQuantity!=0&&leader.SignedQuantity!=int.MinValue&&!ScaleOk(follower))return false;
+            int expected=leader.SignedQuantity==0||leader.SignedQuantity==int.MinValue?0:ExpectedSignedQuantity(leader.SignedQuantity,follower.Ratio,follower.MaxContracts);
+            return follower.SignedQuantity!=expected;
+        }
+        static bool WithinReportGrace(PositionSnap leader,DateTime nowUtc,TimeSpan grace)
+        {
             if(leader.EvidenceUtc==DateTime.MinValue)return false;
             if(leader.EvidenceUtc>nowUtc)return true;
             return nowUtc-leader.EvidenceUtc<=grace;
