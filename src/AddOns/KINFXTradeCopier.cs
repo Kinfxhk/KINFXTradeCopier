@@ -836,6 +836,8 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             var a=(actual??"").Trim();
             if(a.Length==0||a==Tested)return "";
             return Lang.F("NinjaTrader {0} is not the tested version ({1}). It may still work; report problems.",a,Tested);
+        }
+    }
     // Monitor-page summary card math. Pure: no account, engine or UI access.
     public static class MonitorSummary
     {
@@ -861,6 +863,8 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             string found=null;
             if(currencies!=null)foreach(string c in currencies){string t=(c??"").Trim();if(t.Length==0)continue;if(found==null)found=t;else if(!string.Equals(found,t,StringComparison.Ordinal))return null;}
             return found;
+        }
+    }
     // ---- WP3: log model, classifier and export. Pure: no account, engine or UI access. ----
     // One displayed log line. Level is one of Info / Order / Warn / Lock / Error. Text keeps the raw English
     // message (translated only when drawn, so history follows the picked language). LevelText / MessageText /
