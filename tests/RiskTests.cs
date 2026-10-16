@@ -614,6 +614,7 @@ static void MonitorSummarySingleCurrency() {
  Eq("CNY -5.00",MonitorSummary.Money(-5,"ChinaYuan")); // no symbol: ISO code, never the enum name and never pretend it is $
  Eq("CHF 5.00",MonitorSummary.Money(5,"SwissFranc"));
  Eq("XYZ 5.00",MonitorSummary.Money(5,"XYZ")); // unknown name shown as it is
+ Eq("CHF",MonitorSummary.IsoCode("SwissFranc"));Eq("XYZ",MonitorSummary.IsoCode("XYZ"));Eq("",MonitorSummary.IsoCode(null));
  Eq("5.00",MonitorSummary.Money(5,""));
  Eq("\u2014",MonitorSummary.Money(double.NaN,"UsDollar"));
 }

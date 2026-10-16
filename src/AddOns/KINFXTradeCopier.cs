@@ -3025,15 +3025,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public int PnlSign {get{return double.IsNaN(Pnl)||double.IsInfinity(Pnl)||Math.Abs(Pnl)<0.005?0:Pnl>0?1:-1;}}
         public double Equity { get; set; }
         public double CashBalance {get;set;}=double.NaN;
-        public string CurrencyCode
-        {
-            get
-            {
-                string[] names={"AustralianDollar","BritishPound","CanadianDollar","Euro","HongKongDollar","JapaneseYen","SwissFranc","UsDollar","KoreanWon","IndianRupee","SwedishKrona","MexicanPeso","BrazilianReal","SingaporeDollar","ChinaYuan","MalaysiaRinggit","ThailandBaht","TaiwanNewDollar","NewZealandDollar","SouthAfricanRand","CzechRepublicKoruna","NorwayKrone","DenmarkKrone","HungaryForint","PolandZloty","TurkeyLira","IsraeliShekel","RussiaRuble","SaudiRiyal"};
-                string[] codes={"AUD","GBP","CAD","EUR","HKD","JPY","CHF","USD","KRW","INR","SEK","MXN","BRL","SGD","CNY","MYR","THB","TWD","NZD","ZAR","CZK","NOK","DKK","HUF","PLN","TRY","ILS","RUB","SAR"};
-                int index=Array.IndexOf(names,Currency);return index>=0?codes[index]:string.IsNullOrWhiteSpace(Currency)?"CCY?":Currency;
-            }
-        }
+        public string CurrencyCode {get{return string.IsNullOrWhiteSpace(Currency)?"CCY?":MonitorSummary.IsoCode(Currency);}}
         public string BalanceText {get{return (Connection=="Connected"||Connection=="Synthetic")&&RiskPolicy.Finite(CashBalance)?MonitorSummary.Money(CashBalance,Currency):"\u2014";}}
         // Tooltip of the balance cell, in the picked language. {3} stays empty: the amount already carries its currency symbol.
         public string BalanceDetail {get{return Lang.F("CashValue · {0} · {1}\nNetLiquidation (net equity, NOT cash balance): {2} {3}\nAccount.Get reports provider values; currency argument does not convert. Dash = unavailable/disconnected. Synthetic rows are not broker data.",Name,BalanceText,(Connection=="Connected"||Connection=="Synthetic")&&RiskPolicy.Finite(Equity)?MonitorSummary.Money(Equity,Currency):"\u2014","");}}
@@ -3636,7 +3628,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             if(issuesLines==null)return;
             // Rebuilt only when the issue set changes (UpdateCards runs every second and on every telemetry message).
             var sigB=new System.Text.StringBuilder(Lang.Current).Append('|').Append(HeaderNotice);
-            foreach(var r in Rows.Where(x=>x.Role!="Leader")){if(r.Latch.Locked)sigB.Append("\nL").Append(r.Name).Append('\t').Append(r.Alias).Append('\t').Append(r.Latch.Reason);if(r.Advice.Length>0)sigB.Append("\nA").Append(r.Name).Append('\t').Append(r.Alias).Append('\t').Append(r.Advice);}
+            foreach(var r in Rows.Where(x=>x.Role!="Leader").OrderBy(x=>x.Name,StringComparer.Ordinal)){if(r.Latch.Locked)sigB.Append("\nL").Append(r.Name).Append('\t').Append(r.Alias).Append('\t').Append(r.Latch.Reason);if(r.Advice.Length>0)sigB.Append("\nA").Append(r.Name).Append('\t').Append(r.Alias).Append('\t').Append(r.Advice);}
             string sig=sigB.ToString();if(sig==issuesSignature)return;issuesSignature=sig;
             issuesLines.Children.Clear();
             var lines=new List<UIElement>();
@@ -4071,7 +4063,23 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             dailyPending.Add(line);
             if(dailyPending.Count>=500)FlushDailyFile();
         }
+        readonly object closeFileLock=new object();
+        void CloseTimeFileLine(string message)
+        {
+            if(logFileErrorLogged)return;
+            try
+            {
+                var line=LogClassifier.Classify(message??"",new string[0]);line.Time=DateTime.Now;
+                string dir=Path.Combine(DirectoryPath,"logs");
+                lock(closeFileLock){Directory.CreateDirectory(dir);foreach(var file in LogClassifier.DailyFiles(new[]{line}))File.AppendAllText(Path.Combine(dir,file.Key),file.Value,new System.Text.UTF8Encoding(false));}
+            }
+            catch{}
+        }
         void FlushDailyFile()
+        {
+            lock(closeFileLock)FlushDailyFileLocked();
+        }
+        void FlushDailyFileLocked()
         {
             if(dailyPending.Count==0)return;
             var batch=dailyPending.ToArray();dailyPending.Clear();
@@ -4248,6 +4256,9 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 dashboard.AddLog(line);AppendDailyFile(line);
             };
             if(closing&&Dispatcher.CheckAccess()){record();return;}
+            // Engine worker during close (engine.Dispose runs close() on its own thread): the dispatcher queue is not drained any more,
+            // so append the line straight to the daily file. No UI or queue access off the UI thread.
+            if(closing){CloseTimeFileLine(message);return;}
             Dispatch(record);
         }
         AccountRow[] Selected() {return dashboard.SelectedRows();}
@@ -4538,7 +4549,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                     {
                         var a=r.Account;r.Position=qtyInst==null?0:CopierEngine.Position(a,qtyInst);r.Realized=a.Get(AccountItem.RealizedProfitLoss,a.Denomination);r.Unrealized=a.Get(AccountItem.UnrealizedProfitLoss,a.Denomination);r.Equity=a.Get(AccountItem.NetLiquidation,a.Denomination);r.Sod=a.Get(AccountItem.SodLiquidatingValue,a.Denomination);r.Pnl=r.Realized+r.Unrealized-(r.Settings.BaselineSet?r.Settings.Baseline:0);r.Connection=a.Connection==null?"Disconnected":a.Connection.Status.ToString();r.Changed();
                     }
-                    catch(Exception ex){r.Status="Telemetry error";Log(r.Name+": "+ex.Message);}
+                    catch(Exception ex){r.Status="Telemetry error";r.Changed();Log(r.Name+": "+ex.Message);}
                 }
                 dashboard.UpdateCards();
             }

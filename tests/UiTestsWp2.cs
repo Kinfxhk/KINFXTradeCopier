@@ -8,7 +8,7 @@ public static class UiTestsWp2 {
   public static Action[] Cases(){ return new Action[]{
     SummaryCardsShowCorrectValues, BannerCollapsesAndLinksSwitchTabs, UnlockAllAndFlattenLiveOnMonitor,
     BulkSectionAppliesOnSettingsTab, GroupHeaderShowsFirmAndCount, MaxIsDefaultWarnBorder, NoClippedTextNoWhiteBlocksAllLanguages,
-    GroupToggleMirrorsGroupByAccount, IssuesHaveTheirOwnTab, LeaderRowIsAlwaysFirst, BulkEditsRatioAndMax, ColumnsFollowImportanceOrder, MonitorTableFitsDefaultWindowInEveryLanguage, SettingsStatusAndConnectionAreTranslated, MaxAndBalanceHeadersSort, IssuesListNotRebuiltWhenUnchanged };}
+    GroupToggleMirrorsGroupByAccount, IssuesHaveTheirOwnTab, LeaderRowIsAlwaysFirst, BulkEditsRatioAndMax, ColumnsFollowImportanceOrder, MonitorTableFitsDefaultWindowInEveryLanguage, SettingsStatusAndConnectionAreTranslated, MaxAndBalanceHeadersSort, IssuesListNotRebuiltWhenUnchanged, CurrencyCodeUsesSharedTableAndIssueOrderIgnored };}
   static T Find<T>(DashboardView v,string tag) where T:FrameworkElement{return BulkUiTests.Visual<T>(v).FirstOrDefault(x=>(x.Tag as string)==tag);}
   static FrameworkElement Tag(DashboardView v,string tag){return BulkUiTests.Visual<FrameworkElement>(v).FirstOrDefault(x=>(x.Tag as string)==tag);}
   static string CardValue(DashboardView v,string tag){var c=Tag(v,tag);BulkUiTests.Check(c!=null,"card exists: "+tag);return BulkUiTests.Visual<TextBlock>(c).Last().Text;}
@@ -242,6 +242,10 @@ public static class UiTestsWp2 {
         var sv=BulkUiTests.Visual<ScrollViewer>(v.AccountGrid).FirstOrDefault();
         BulkUiTests.Check(sv!=null,code+": grid scroll viewer");
         double cols=v.AccountGrid.Columns.Where(c=>c.Visibility==Visibility.Visible).Sum(c=>c.ActualWidth);
+        // Review 3: also prove the spare width is handed out (identity columns wider than their minimum), not left empty on the right.
+        var acct=v.AccountGrid.Columns.First(c=>DashboardView.ColumnKey(c)=="Acct");var alias=v.AccountGrid.Columns.First(c=>DashboardView.ColumnKey(c)=="Alias");
+        BulkUiTests.Check(acct.ActualWidth>acct.MinWidth+5&&alias.ActualWidth>alias.MinWidth+5,code+": spare width goes to Acct / Alias ("+Math.Round(acct.ActualWidth)+"/"+acct.MinWidth+", "+Math.Round(alias.ActualWidth)+"/"+alias.MinWidth+")");
+        BulkUiTests.Check(sv.ViewportWidth-sv.ExtentWidth<30,code+": no more than 30 px left empty at the right ("+Math.Round(sv.ViewportWidth-sv.ExtentWidth)+")");
         BulkUiTests.Check(sv.ExtentWidth<=sv.ViewportWidth+0.5,code+": monitor table needs a horizontal scrollbar (extent "+Math.Round(sv.ExtentWidth)+" > viewport "+Math.Round(sv.ViewportWidth)+", columns "+Math.Round(cols)+")");
       }
     } finally { Lang.Set(was); }
@@ -296,5 +300,19 @@ public static class UiTestsWp2 {
     v.Rows[2].Latch.Reason="lock B changed";v.UpdateCards();BulkUiTests.Layout(v);
     var texts=BulkUiTests.Visual<TextBlock>(panel).Select(x=>x.Text).ToList();
     BulkUiTests.Check(texts.Any(x=>x.Contains("lock B changed")),"a changed reason is shown");
+  }
+
+  // Review 3: one currency table (AccountRow.CurrencyCode reads MonitorSummary.IsoCode); a row reorder with the same issues does not rebuild.
+  static void CurrencyCodeUsesSharedTableAndIssueOrderIgnored(){
+    BulkUiTests.Check(new AccountRow{Currency="SwissFranc"}.CurrencyCode=="CHF","SwissFranc -> CHF");
+    BulkUiTests.Check(new AccountRow{Currency=""}.CurrencyCode=="CCY?","blank -> CCY?");
+    BulkUiTests.Check(new AccountRow{Currency="XYZ"}.CurrencyCode=="XYZ","unknown kept");
+    var v=BulkUiTests.Fresh();
+    v.Rows[1].Latch.Locked=true;v.Rows[1].Latch.Reason="lock A";v.Rows[2].Latch.Locked=true;v.Rows[2].Latch.Reason="lock B";
+    v.UpdateCards();v.Sections.SelectedIndex=3;BulkUiTests.Layout(v);
+    var panel=BulkUiTests.Visual<StackPanel>(v).First(x=>(x.Tag as string)=="issues");
+    var first=panel.Children.Cast<UIElement>().ToArray();
+    v.Rows.Move(2,1);v.UpdateCards();
+    BulkUiTests.Check(panel.Children.Cast<UIElement>().SequenceEqual(first),"reordering rows with the same issues does not rebuild the list");
   }
 }
