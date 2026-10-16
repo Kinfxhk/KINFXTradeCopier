@@ -357,7 +357,6 @@ public static class UiTestsWp2 {
     BulkUiTests.Check(cmds.Count==2&&cmds[1]=="refollow","re-follow sends only its command; got ["+string.Join(",",cmds)+"]");
     v.ShowRefollow(0);BulkUiTests.Check(!v.RefollowButton.IsEnabled,"re-follow disabled at 0");
     v.SetSessionState(false,"Stopped");
-    var col=v.RiskGrid.Columns.FirstOrDefault(c=>(c.Header as string??"")=="Auto re-follow"||(c.Header is FrameworkElement&&((c.Header as FrameworkElement).ToolTip as string??"").StartsWith("Auto re-follow")));
     BulkUiTests.Check(v.RiskGrid.Columns.Any(c=>c.SortMemberPath=="AutoRefollow"),"auto re-follow column present");
     var row=new AccountRow{Name="X",Role="Follower"};BulkUiTests.Check(!row.AutoRefollow,"auto re-follow default off");row.AutoRefollow=true;BulkUiTests.Check(row.Settings.AutoRefollow,"binds to settings");
   }
