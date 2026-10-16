@@ -502,6 +502,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             var d=new System.Collections.Generic.Dictionary<string,Spec>(StringComparer.Ordinal);
             foreach(var r in new[]{"ES","MES","NQ","MNQ","YM","MYM","RTY","M2K"})d[r]=new Spec{Months=Quarterly,SafeFront=true};
             foreach(var r in new[]{"GC","MGC"})d[r]=new Spec{Months=new[]{2,4,6,8,10,12},SafeFront=false};
+            foreach(var r in new[]{"SI","SIL"})d[r]=new Spec{Months=new[]{3,5,7,9,12},SafeFront=false};
             foreach(var r in new[]{"CL","MCL"})d[r]=new Spec{Months=new[]{1,2,3,4,5,6,7,8,9,10,11,12},SafeFront=false};
             return d;
         }
@@ -512,9 +513,61 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         {
             Spec spec;var r=Clean(root);
             if(r.Length==0||!Roots.TryGetValue(r,out spec)||!spec.SafeFront)return null;
-            var start=new DateTime(now.Year,now.Month,1);
-            for(int add=0;add<=24;add++){var d=start.AddMonths(add);if(spec.Months.Contains(d.Month))return Format(r,d.Month,d.Year);}
+            bool estimated;return QuarterlyFront(r,now.Date,out estimated);
+        }
+        // The front quarterly contract = the newest contract whose roll date <= today. Known dates come from
+        // InstrumentCatalog.QuarterlyRolls (read from NinjaTrader 8.1.8.3); outside that table the roll date is
+        // estimated as the Monday (3rd Friday minus 4 days) of the PREVIOUS quarter's expiry week, and EstimatedFront
+        // reports true so the UI can log that the date was estimated.
+        static string QuarterlyFront(string root,DateTime day,out bool estimated)
+        {
+            estimated=false;
+            var rows=InstrumentCatalog.QuarterlyRolls;
+            string best=null;DateTime bestDate=DateTime.MinValue;
+            for(int y=day.Year-1;y<=day.Year+2;y++)
+                foreach(int m in Quarterly)
+                {
+                    DateTime roll;bool est;
+                    var known=KnownRoll(rows,y,m);
+                    if(known.HasValue){roll=known.Value;est=false;}
+                    else{roll=EstimatedRollDate(y,m);est=true;}
+                    if(roll<=day&&roll>bestDate){bestDate=roll;best=Format(root,m,y);estimated=est;}
+                }
+            return best;
+        }
+        static DateTime? KnownRoll(InstrumentCatalog.RollRow[] rows,int year,int month)
+        {
+            foreach(var row in rows)if(row.Year==year&&row.Month==month)return row.Date;
             return null;
+        }
+        static DateTime EstimatedRollDate(int year,int month)
+        {
+            int prevMonth=month-3,prevYear=year;
+            if(prevMonth<=0){prevMonth+=12;prevYear--;}
+            return ThirdFriday(prevYear,prevMonth).AddDays(-4);
+        }
+        static DateTime ThirdFriday(int year,int month)
+        {
+            var first=new DateTime(year,month,1);
+            int offset=((int)DayOfWeek.Friday-(int)first.DayOfWeek+7)%7;
+            return first.AddDays(offset+14);
+        }
+        // True when the front contract for a quarterly root was determined by the estimate formula, not the known table.
+        public static bool EstimatedFront(string root,DateTime now)
+        {
+            Spec spec;var r=Clean(root);
+            if(r.Length==0||!Roots.TryGetValue(r,out spec)||!spec.SafeFront)return false;
+            bool estimated;QuarterlyFront(r,now.Date,out estimated);return estimated;
+        }
+        // Next `count` listed months for a root starting after the current month (picker for metals / energy; never the front).
+        public static string[] NextMonths(string root,int count,DateTime now)
+        {
+            Spec spec;var r=Clean(root);
+            if(r.Length==0||!Roots.TryGetValue(r,out spec))return new string[0];
+            var list=new System.Collections.Generic.List<string>();
+            var start=new DateTime(now.Year,now.Month,1);
+            for(int add=1;add<=24&&list.Count<count;add++){var d=start.AddMonths(add);if(spec.Months.Contains(d.Month))list.Add(Format(r,d.Month,d.Year));}
+            return list.ToArray();
         }
         static string Explicit(string root,int month,int year)
         {
@@ -676,84 +729,113 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             return name.Length>0;
         }
     }
-    // ---- WP3: log model, classifier and export. Pure: no account, engine or UI access. ----
-    // One displayed log line. Level is one of Info / Order / Warn / Lock / Error. Text keeps the raw English
-    // message (translated only when drawn, so history follows the picked language). LevelText / MessageText /
-    // CategoryText are the translated display strings (Lang lives in the PURE region, so these stay pure).
-    public sealed class LogLine
+    // PURE: instrument picker catalog + the known CME quarterly rollover table. No UI, no accounts, no file access.
+    public static class InstrumentCatalog
     {
-        public DateTime Time { get; set; }
-        public string Level { get; set; }
-        public string Account { get; set; }
-        public string Category { get; set; }
-        public string Text { get; set; }
-        public string LevelText { get { return Lang.T(Level); } }
-        public string CategoryText { get { return Lang.T(Category); } }
-        public string MessageText { get { return Lang.Show(Text); } }
-    }
-    // Classifies a free English engine/UI log message into a LogLine. Rules are case-sensitive substrings,
-    // first match wins in this order: Lock, Error, Order, Warn, else Info. Account is the longest account name
-    // that occurs in the message (ordinal), else "". Category: Lock for lock lines, else Order, Session, Settings,
-    // Accounts, General.
-    public static class LogClassifier
-    {
-        public static readonly string[] Levels = { "Info", "Order", "Warn", "Lock", "Error" };
-        public static LogLine Classify(string message, IEnumerable<string> accountNames)
+        // UI / test clock. Tests pin it to a fixed date; the picker's front month and the header hint follow it.
+        internal static Func<DateTime> Now=()=>DateTime.Now;
+
+        // One row of the CME equity-index rollover table read from NinjaTrader 8.1.8.3 (MasterInstruments.UserData).
+        // "Contract X becomes the front contract on Date". Same for every quarterly index root.
+        public sealed class RollRow { public DateTime Date; public int Month; public int Year; }
+        public static readonly RollRow[] QuarterlyRolls=new RollRow[]
         {
-            string msg = message ?? "";
-            string level = "Info";
-            if (IsLock(msg)) level = "Lock";
-            else if (IsError(msg)) level = "Error";
-            else if (IsOrder(msg)) level = "Order";
-            else if (IsWarn(msg)) level = "Warn";
-            string account = Account(msg, accountNames);
-            string category = level == "Lock" ? "Lock" : Category(msg, level);
-            return new LogLine { Level = level, Account = account, Category = category, Text = msg };
-        }
-        static bool StartsWithAny(string s, params string[] prefixes)
+            new RollRow{Date=new DateTime(2026,6,12),Month=9,Year=2026},
+            new RollRow{Date=new DateTime(2026,9,14),Month=12,Year=2026},
+            new RollRow{Date=new DateTime(2026,12,14),Month=3,Year=2027},
+            new RollRow{Date=new DateTime(2027,3,9),Month=6,Year=2027},
+            new RollRow{Date=new DateTime(2027,6,7),Month=9,Year=2027},
+        };
+
+        // Picker entries. Header rows have Root==null; contract rows carry the full text to write (Front) and a description.
+        public sealed class Entry { public string Root; public string Front; public string Description; public bool Header; public bool ChooseMonth; }
+
+        public sealed class RootInfo { public string Root; public string Group; public string Description; }
+        public static readonly RootInfo[] Roots=new RootInfo[]
         {
-            foreach (var p in prefixes) if (p != null && s.StartsWith(p, StringComparison.Ordinal)) return true;
+            new RootInfo{Root="MNQ",Group="Equity index",Description="Micro Nasdaq-100"},
+            new RootInfo{Root="NQ",Group="Equity index",Description="Nasdaq-100"},
+            new RootInfo{Root="MES",Group="Equity index",Description="Micro S&P 500"},
+            new RootInfo{Root="ES",Group="Equity index",Description="S&P 500"},
+            new RootInfo{Root="MYM",Group="Equity index",Description="Micro Dow"},
+            new RootInfo{Root="YM",Group="Equity index",Description="Dow"},
+            new RootInfo{Root="M2K",Group="Equity index",Description="Micro Russell 2000"},
+            new RootInfo{Root="RTY",Group="Equity index",Description="Russell 2000"},
+            new RootInfo{Root="MGC",Group="Metals",Description="Micro Gold"},
+            new RootInfo{Root="GC",Group="Metals",Description="Gold"},
+            new RootInfo{Root="SIL",Group="Metals",Description="Micro Silver"},
+            new RootInfo{Root="SI",Group="Metals",Description="Silver"},
+            new RootInfo{Root="MCL",Group="Energy",Description="Micro Crude Oil"},
+            new RootInfo{Root="CL",Group="Energy",Description="Crude Oil"},
+        };
+
+        public static bool IsKnown(string root)
+        {
+            var r=(root??"").Trim().ToUpperInvariant();
+            foreach(var info in Roots)if(info.Root==r)return true;
             return false;
         }
-        static bool IsLock(string s) { return s.IndexOf(" LOCK: ", StringComparison.Ordinal) >= 0 || (s.IndexOf("LOCK", StringComparison.Ordinal) >= 0 && s.IndexOf("Coverage not established", StringComparison.Ordinal) >= 0); }
-        static bool IsError(string s) { return StartsWithAny(s, "ENGINE ERROR", "PROVIDER DISPATCH ERROR", "PROVIDER COMPLETION ERROR", "PERSISTENCE ERROR", "DURABLE LATCH WRITE FAILED", "FLATTEN FAILED") || s.IndexOf("UI action failed", StringComparison.Ordinal) >= 0; }
-        static bool IsOrder(string s) { return StartsWithAny(s, "COPY ", "DRY RUN would send", "Flatten request", "Flat requested"); }
-        static bool IsWarn(string s) { return s.IndexOf("refused", StringComparison.Ordinal) >= 0 || s.IndexOf("blocked", StringComparison.Ordinal) >= 0 || s.IndexOf("BLOCKED", StringComparison.Ordinal) >= 0 || s.IndexOf("Refused", StringComparison.Ordinal) >= 0 || s.IndexOf("not recognised", StringComparison.Ordinal) >= 0 || s.IndexOf("not available", StringComparison.Ordinal) >= 0 || s.IndexOf("Trading-day boundary", StringComparison.Ordinal) >= 0 || s.IndexOf("Confirmation skipped", StringComparison.Ordinal) >= 0 || s.IndexOf("NOT saved", StringComparison.Ordinal) >= 0; }
-        static string Account(string s, IEnumerable<string> names)
+
+        static RootInfo Find(string root)
         {
-            if (names == null) return "";
-            string best = "";
-            foreach (var n in names) if (!string.IsNullOrEmpty(n) && s.IndexOf(n, StringComparison.Ordinal) >= 0 && n.Length > best.Length) best = n;
-            return best;
+            var r=(root??"").Trim().ToUpperInvariant();
+            foreach(var info in Roots)if(info.Root==r)return info;
+            return null;
         }
-        static string Category(string s, string level)
+
+        // The standard grouped list (headers + every root), no recent section.
+        public static Entry[] Items { get { return Build(new string[0]); } }
+
+        // Grouped list with the most-recently-picked roots first (validated, deduplicated, max 5), under a "Recent" header.
+        public static Entry[] Build(System.Collections.Generic.IEnumerable<string> recentRoots)
         {
-            if (level == "Order") return "Order";
-            if (StartsWithAny(s, "Armed", "Start", "Stop", "Paused")) return "Session";
-            if (s.IndexOf("Settings", StringComparison.Ordinal) >= 0 || s.IndexOf("saved", StringComparison.Ordinal) >= 0 || s.IndexOf("Unlock", StringComparison.Ordinal) >= 0 || s.IndexOf("unlock", StringComparison.Ordinal) >= 0) return "Settings";
-            if (s.IndexOf("Account list", StringComparison.Ordinal) >= 0) return "Accounts";
-            return "General";
-        }
-    }
-    // Export-time masking: replace each account name by ACCOUNT-<n> (1-based, numbered by first appearance).
-    // Longest names first so a name that is a prefix of another can never leave a half-replaced fragment.
-    public static class LogExport
-    {
-        public static string Mask(string text, IEnumerable<string> names)
-        {
-            if (text == null) return "";
-            if (names == null) return text;
-            var order = new List<string>();
-            var number = new Dictionary<string, int>(StringComparer.Ordinal);
-            foreach (var n in names)
+            var now=Now();
+            var list=new System.Collections.Generic.List<Entry>();
+            var recent=new System.Collections.Generic.List<string>();
+            if(recentRoots!=null)
+                foreach(var raw in recentRoots)
+                {
+                    var root=(raw??"").Trim().ToUpperInvariant();
+                    if(root.Length==0||!IsKnown(root)||recent.Contains(root))continue;
+                    recent.Add(root);
+                    if(recent.Count>=5)break;
+                }
+            if(recent.Count>0)
             {
-                if (string.IsNullOrEmpty(n) || number.ContainsKey(n)) continue;
-                number[n] = number.Count + 1;
-                order.Add(n);
+                list.Add(new Entry{Header=true,Description="Recent"});
+                foreach(var root in recent)AddRoot(list,root,now);
             }
-            string result = text;
-            foreach (var n in order.OrderByDescending(x => x.Length)) result = result.Replace(n, "ACCOUNT-" + number[n]);
-            return result;
+            string group=null;
+            foreach(var info in Roots)
+            {
+                if(info.Group!=group){list.Add(new Entry{Header=true,Description=info.Group});group=info.Group;}
+                AddRoot(list,info.Root,now);
+            }
+            return list.ToArray();
+        }
+
+        static void AddRoot(System.Collections.Generic.List<Entry> list,string root,DateTime now)
+        {
+            var info=Find(root);if(info==null)return;
+            var front=ContractRoll.Front(root,now);
+            if(front!=null){list.Add(new Entry{Root=root,Front=front,Description=info.Description});return;}
+            foreach(var month in ContractRoll.NextMonths(root,2,now))
+                list.Add(new Entry{Root=root,Front=month,Description=info.Description,ChooseMonth=true});
+        }
+
+        // True when the front contract for a quarterly root came from the estimate fallback, not the known table.
+        public static bool IsEstimated(string root,DateTime now){return ContractRoll.EstimatedFront(root,now);}
+    }
+    // PURE: tested NinjaTrader version vs the running one. A mismatch is a warning, never a block.
+    public static class NtVersion
+    {
+        public const string Tested="8.1.8.3";
+        // "" when the running build matches the tested one; otherwise a translated warning naming both.
+        public static string Notice(string actual)
+        {
+            var a=(actual??"").Trim();
+            if(a.Length==0||a==Tested)return "";
+            return Lang.F("NinjaTrader {0} is not the tested version ({1}). It may still work; report problems.",a,Tested);
         }
     }
 // BEGIN LANG TABLE (generated by scripts/gen_lang.py from i18n/strings.json; do not edit by hand)
@@ -1275,28 +1357,33 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             t["Daily target still reached"] = new[] { "仍達每日目標", "日次目標にまだ到達中", "일일 목표에 아직 도달 상태" };
             t["Daily loss still reached"] = new[] { "仍達每日虧損上限", "日次損失上限にまだ到達中", "일일 손실 한도에 아직 도달 상태" };
             t["Drawdown floor still reached"] = new[] { "仍達回撤下限", "ドローダウン下限にまだ到達中", "드로다운 하한에 아직 도달 상태" };
-            t["Info"] = new[] { "資訊", "情報", "정보" };
-            t["Order"] = new[] { "委託", "注文", "주문" };
-            t["Warn"] = new[] { "警告", "警告", "경고" };
-            t["Lock"] = new[] { "鎖定", "ロック", "잠금" };
-            t["General"] = new[] { "一般", "一般", "일반" };
-            t["Session"] = new[] { "連線階段", "セッション", "세션" };
-            t["Accounts"] = new[] { "帳戶", "アカウント", "계정" };
-            t["Account"] = new[] { "帳戶", "アカウント", "계정" };
-            t["Level"] = new[] { "等級", "レベル", "레벨" };
-            t["Time"] = new[] { "時間", "時刻", "시간" };
-            t["Category"] = new[] { "分類", "分類", "분류" };
-            t["Message"] = new[] { "訊息", "メッセージ", "메시지" };
-            t["Auto-scroll"] = new[] { "自動捲動", "自動スクロール", "자동 스크롤" };
-            t["Plain text"] = new[] { "純文字", "プレーンテキスト", "일반 텍스트" };
-            t["Export (account names masked)"] = new[] { "匯出（帳戶名稱已遮蔽）", "エクスポート（口座名をマスク）", "내보내기 (계정명 마스킹)" };
-            t["Show only one severity level"] = new[] { "僅顯示一種嚴重程度", "1つの重要度のみ表示", "심각도 하나만 표시" };
-            t["Show only one account"] = new[] { "僅顯示一個帳戶", "1つの口座のみ表示", "계정 하나만 표시" };
-            t["Search the log text"] = new[] { "搜尋日誌內容", "ログのテキストを検索", "로그 텍스트 검색" };
-            t["Write this log to a file with account names masked"] = new[] { "將此日誌寫入檔案，帳戶名稱已遮蔽", "口座名をマスクしてこのログをファイルに書き出す", "계정명을 마스킹하여 이 로그를 파일로 저장" };
-            t["Log exported to {0} (account names masked)."] = new[] { "日誌已匯出至 {0}（帳戶名稱已遮蔽）。", "ログを {0} にエクスポートしました（口座名はマスク済み）。", "로그를 {0}에 내보냈습니다(계정명 마스킹됨)." };
-            t["Log export failed: {0}"] = new[] { "日誌匯出失敗：{0}", "ログのエクスポートに失敗: {0}", "로그 내보내기 실패: {0}" };
-            t["Log file write failed (daily log disabled for this session): {0}"] = new[] { "日誌檔案寫入失敗（本次工作階段停用每日日誌）：{0}", "ログファイルの書き込みに失敗（このセッションでは日次ログを無効化）: {0}", "로그 파일 쓰기 실패(이 세션의 일일 로그 비활성화): {0}" };
+            t["Micro Nasdaq-100"] = new[] { "微型納斯達克100", "マイクロ Nasdaq-100", "마이크로 나스닥100" };
+            t["Nasdaq-100"] = new[] { "納斯達克100", "Nasdaq-100", "나스닥100" };
+            t["Micro S&P 500"] = new[] { "微型標普500", "マイクロ S&P 500", "마이크로 S&P 500" };
+            t["S&P 500"] = new[] { "標普500", "S&P 500", "S&P 500" };
+            t["Micro Dow"] = new[] { "微型道瓊", "マイクロダウ", "마이크로 다우" };
+            t["Dow"] = new[] { "道瓊", "ダウ", "다우" };
+            t["Micro Russell 2000"] = new[] { "微型羅素2000", "マイクロ Russell 2000", "마이크로 러셀 2000" };
+            t["Russell 2000"] = new[] { "羅素2000", "Russell 2000", "러셀 2000" };
+            t["Micro Gold"] = new[] { "微型黃金", "マイクロゴールド", "마이크로 골드" };
+            t["Gold"] = new[] { "黃金", "ゴールド", "골드" };
+            t["Micro Silver"] = new[] { "微型白銀", "マイクロシルバー", "마이크로 실버" };
+            t["Silver"] = new[] { "白銀", "シルバー", "실버" };
+            t["Micro Crude Oil"] = new[] { "微型原油", "マイクロ原油", "마이크로 원유" };
+            t["Crude Oil"] = new[] { "原油", "原油", "원유" };
+            t["Equity index"] = new[] { "股指", "株価指数", "주가지수" };
+            t["Metals"] = new[] { "金屬", "金属", "금속" };
+            t["Energy"] = new[] { "能源", "エネルギー", "에너지" };
+            t["Recent"] = new[] { "最近使用", "最近", "최근" };
+            t["choose month"] = new[] { "選擇月份", "月を選択", "월 선택" };
+            t["Stopped"] = new[] { "已停止", "停止中", "중지됨" };
+            t["Pause new entries"] = new[] { "暫停新進單", "新規エントリーを一時停止", "신규 진입 일시정지" };
+            t["Front contract is now {0}"] = new[] { "目前近月合約是 {0}", "現在の限月は {0} です", "현재 근월물은 {0}" };
+            t["Use {0}"] = new[] { "使用 {0}", "{0} を使用", "{0} 사용" };
+            t["Contract roll date estimated for {0}; check NinjaTrader's Instrument Manager."] = new[] { "合約換月日期為 {0} 之估計值；請在 NinjaTrader 的 Instrument Manager 中確認。", "{0} の限月ロール日は推定値です。NinjaTrader の Instrument Manager で確認してください。", "{0}의 롤오버 날짜는 추정값입니다. NinjaTrader의 Instrument Manager에서 확인하세요." };
+            t["NinjaTrader {0} is not the tested version ({1}). It may still work; report problems."] = new[] { "NinjaTrader {0} 不是已測試版本（{1}）。可能仍可運作；如有問題請回報。", "NinjaTrader {0} はテスト済みバージョン（{1}）ではありません。動作する可能性はありますが、問題があれば報告してください。", "NinjaTrader {0}은(는) 테스트된 버전({1})이 아닙니다. 작동할 수 있지만 문제가 있으면 보고해 주세요." };
+            t["Instrument picker"] = new[] { "商品選擇器", "銘柄ピッカー", "종목 선택기" };
+            t["Switch the instrument to the current front contract"] = new[] { "將商品切換至目前近月合約", "銘柄を現在の限月に切り替える", "종목을 현재 근월물로 전환" };
 #if KINFX_SIM_TEST
             t["Dry run"] = new[] { "試運行", "ドライラン", "드라이런" };
             t["DRY RUN: decide and log every order, cancel and flatten as \"DRY RUN would send ...\" but send NOTHING. Fixed for the whole session: change it only while stopped."] = new[] { "DRY RUN（試運行）：決定並記錄每一筆下單、取消與平倉為「DRY RUN would send ...」，但不會送出任何內容。整個連線期間固定：僅能在停止時變更。", "DRY RUN（ドライラン）：すべての注文・取消・全決済を判断し「DRY RUN would send ...」としてログに記録しますが、何も送信しません。セッション中は固定：変更は停止中のみ可能。", "DRY RUN(드라이런): 모든 주문, 취소, 청산을 판단하여 \"DRY RUN would send ...\"로 기록하지만 아무것도 전송하지 않습니다. 세션 전체 동안 고정: 중지 상태에서만 변경할 수 있습니다." };
@@ -1312,6 +1399,8 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             t["SIM TEST BUILD · demo / prop-firm evaluation accounts"] = new[] { "SIM 測試版 · 模擬／自營交易公司考核帳戶", "SIMテストビルド · デモ／プロップファーム評価口座", "SIM 테스트 빌드 · 데모 / 프롭펌 평가 계좌" };
             t["SIM TEST BUILD: copies between simulated accounts. An account not yet confirmed as simulated shows a risk warning first."] = new[] { "SIM 測試版：在模擬帳戶之間跟單。尚未確認為模擬的帳戶會先顯示風險警告。", "SIMテストビルド：シミュレーション口座間でコピーします。シミュレーションと未確認の口座は先にリスク警告を表示します。", "SIM 테스트 빌드: 시뮬레이션 계좌 간에 복사합니다. 시뮬레이션으로 확인되지 않은 계좌는 먼저 위험 경고를 표시합니다." };
             t["SIM TEST BUILD: every NinjaTrader account is listed. Simulator / Playback accounts and accounts you confirmed as simulated (sim-allow.txt, filled in for you when you answer the risk warning) can Start / Flatten. ATM means order mirroring, not a follower native ATM. Orders ARE sent to those accounts."] = new[] { "SIM 測試版：列出所有 NinjaTrader 帳戶。Simulator / Playback 帳戶及您已確認為模擬的帳戶（sim-allow.txt，回答風險警告後自動填寫）可使用 Start / Flatten。ATM 指委託單鏡像，並非跟單帳戶的原生 ATM。委託單「會」發送至這些帳戶。", "SIMテストビルド：NinjaTrader の全口座を表示します。Simulator / Playback 口座と、シミュレーションと確認した口座（sim-allow.txt、リスク警告に回答すると自動記入）で Start / Flatten が可能。ATM は注文のミラーリングで、フォロワーのネイティブ ATM ではありません。これらの口座には注文が送信されます。", "SIM 테스트 빌드: 모든 NinjaTrader 계좌를 표시합니다. Simulator / Playback 계좌와 시뮬레이션으로 확인한 계좌(sim-allow.txt, 위험 경고에 답하면 자동 기록)는 Start / Flatten을 사용할 수 있습니다. ATM은 주문 미러링이며 팔로워의 네이티브 ATM이 아닙니다. 해당 계좌로 주문이 전송됩니다." };
+            t["Dry run: on"] = new[] { "試運行：開", "ドライラン：オン", "드라이런: 켜짐" };
+            t["Dry run: off"] = new[] { "試運行：關", "ドライラン：オフ", "드라이런: 꺼짐" };
 #endif
             return t;
         }
@@ -2851,17 +2940,6 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         // "Ask before" switches (Risk tab). Ticked = the confirmation window is shown. Unlock and every risk warning are always asked and have no switch.
         internal CheckBox AskStartBox, AskFlatOneBox, AskFlattenBox;
         internal Action<string,bool> AskChanged;
-        // ==== WP3 log page ====
-        internal DataGrid LogGrid;
-        internal ComboBox LogLevelBox, LogAccountBox;
-        internal TextBox LogSearchBox;
-        internal CheckBox LogPlainBox, LogAutoBox;
-        internal int LogUnseen;
-        internal Action ExportLog;   // tab writes the masked export file (allowed while attached)
-        internal Action ClearQueue;  // tab clears the in-memory queue (Clear log button)
-        readonly ObservableCollection<LogLine> logRows=new ObservableCollection<LogLine>();
-        ICollectionView logView;
-        TabItem logTab;
         // Column visibility. The tab owns the file; the view only applies a set and reports a user change.
         internal Action<HashSet<string>> ColumnsChanged;
         HashSet<string> hiddenColumns=new HashSet<string>(StringComparer.Ordinal);
@@ -2948,12 +3026,6 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         {
             var b=Button(label,action);b.FontSize=12;b.Height=30;b.MinWidth=0;b.Padding=new Thickness(9,0,9,0);b.Margin=new Thickness(0,0,4,0);b.ToolTip=tip;b.Tag=tag;
             System.Windows.Automation.AutomationProperties.SetName(b,tip);ToolTipService.SetShowOnDisabled(b,true);editButtons.Add(b);return b;
-        }
-        // Text-labelled tool button that is NOT an edit button (stays enabled while a session is attached): log export.
-        Button TextToolFree(string label,string tip,string tag,Action action)
-        {
-            var b=Button(label,action);b.FontSize=12;b.Height=30;b.MinWidth=0;b.Padding=new Thickness(9,0,9,0);b.Margin=new Thickness(0,0,4,0);b.ToolTip=tip;b.Tag=tag;
-            System.Windows.Automation.AutomationProperties.SetName(b,tip);ToolTipService.SetShowOnDisabled(b,true);return b;
         }
         static TextBox Input(string text,double width){return new TextBox{Style=new Style(typeof(TextBox)),MinWidth=0,MinHeight=0,FontSize=13,Text=text,Width=width,Padding=new Thickness(8,5,8,5),Margin=new Thickness(0,0,8,0),Background=Panel,Foreground=Ink,BorderBrush=Line,VerticalContentAlignment=VerticalAlignment.Center};}
         // Flat dark template for the drop-down arrow. WPF's default template paints a white / light-blue fill on hover and when disabled; NinjaTrader's own controls never do.
@@ -3155,8 +3227,78 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         // Row 0 brand / language / build badge, row 1 session bar (leader, instrument, Start / pause / stop / refresh). Owner: UI v3 header work.
         // Extension hooks (one per work package, so parallel edits never touch the same lines). Keep each body inside its own package.
         // ==== WP1 hooks ====
-        void EditableHeader(bool canEdit){}
-        void UpdateHeaderState(){}   // called from UpdateCards
+        void EditableHeader(bool canEdit){if(InstPickButton!=null)InstPickButton.IsEnabled=canEdit;if(InstrumentPopup!=null&&!canEdit)InstrumentPopup.IsOpen=false;}
+        void UpdateHeaderState()   // called from UpdateCards
+        {
+            if(StateBadge!=null)
+            {
+                bool anyPaused=Rows.Any(r=>r.Paused);
+                if(!SessionAttached){StateBadge.Text=Lang.T("Stopped");StateBadge.Foreground=Muted;}
+                else if(anyPaused){StateBadge.Text=Lang.T("Paused");StateBadge.Foreground=Warn;}
+                else{StateBadge.Text=Lang.T("Copying");StateBadge.Foreground=Good;}
+            }
+#if KINFX_SIM_TEST
+            if(DryBadge!=null)DryBadge.Text=(DryRunBox!=null&&DryRunBox.IsChecked==true)?Lang.T("Dry run: on"):Lang.T("Dry run: off");
+#endif
+            string front=FrontForBox();
+            if(FrontNotice!=null){bool stale=front!=null;FrontNotice.Visibility=stale?Visibility.Visible:Visibility.Collapsed;if(stale)FrontNotice.Text=Lang.F("Front contract is now {0}",front);}
+            if(UseFrontTool!=null){bool stale=front!=null;UseFrontTool.Visibility=stale?Visibility.Visible:Visibility.Collapsed;if(stale)UseFrontTool.Content=Lang.F("Use {0}",front);}
+        }
+        // The current front contract for a stale quarterly box, or null when the box already holds the front (or is not quarterly).
+        string FrontForBox()
+        {
+            var text=(InstrumentBox==null?"":InstrumentBox.Text??"").Trim();
+            if(text.Length==0)return null;
+            var now=InstrumentCatalog.Now();
+            var normalized=ContractRoll.Normalize(text,now);
+            if(normalized==null)return null;
+            string root=normalized.Split(' ')[0];
+            string front=ContractRoll.Front(root,now);
+            if(front==null||string.Equals(normalized,front,StringComparison.Ordinal))return null;
+            return front;
+        }
+        // Opens/closes the instrument picker; the list is rebuilt each time it opens so the injected clock / recent roots are respected.
+        void TogglePicker()
+        {
+            if(InstrumentPopup==null)
+            {
+                InstrumentPopup=new Popup{PlacementTarget=InstPickButton,Placement=PlacementMode.Bottom,StaysOpen=false,AllowsTransparency=true};
+                InstrumentList=new Border{Background=Panel,BorderBrush=Line,BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(5),MinWidth=320,MaxHeight=420};
+                var items=new StackPanel{Background=Panel};
+                InstrumentList.Child=new ScrollViewer{VerticalScrollBarVisibility=ScrollBarVisibility.Hidden,Background=Panel,Content=items};
+                InstrumentPopup.Child=InstrumentList;
+            }
+            if(InstrumentPopup.IsOpen){InstrumentPopup.IsOpen=false;return;}
+            BuildPickerItems();
+            InstrumentPopup.IsOpen=true;
+        }
+        void BuildPickerItems()
+        {
+            var panel=(StackPanel)((ScrollViewer)InstrumentList.Child).Content;
+            panel.Children.Clear();
+            var recent=RecentRoots!=null?RecentRoots():null;
+            foreach(var entry in InstrumentCatalog.Build(recent??new string[0]))
+            {
+                if(entry.Header){panel.Children.Add(new TextBlock{Text=Lang.T(entry.Description),FontSize=11,Foreground=Muted,Margin=new Thickness(12,7,12,2)});continue;}
+                panel.Children.Add(PickerRow(entry));
+            }
+        }
+        FrameworkElement PickerRow(InstrumentCatalog.Entry entry)
+        {
+            var stack=new StackPanel{Orientation=Orientation.Horizontal};
+            stack.Children.Add(new TextBlock{Text=entry.Root,FontSize=13,Foreground=Ink,FontWeight=FontWeights.SemiBold,VerticalAlignment=VerticalAlignment.Center});
+            stack.Children.Add(new TextBlock{Text="  "+entry.Front+"  ",FontSize=13,Foreground=Accent,VerticalAlignment=VerticalAlignment.Center});
+            stack.Children.Add(new TextBlock{Text=entry.ChooseMonth?Lang.T(entry.Description)+" · "+Lang.T("choose month"):Lang.T(entry.Description),FontSize=12,Foreground=Muted,VerticalAlignment=VerticalAlignment.Center});
+            var b=new Button{Content=stack,Tag=entry.Root,HorizontalContentAlignment=HorizontalAlignment.Left,Background=Panel,BorderBrush=Line,Margin=new Thickness(6,1,6,1),Padding=new Thickness(9,5,9,5),Cursor=System.Windows.Input.Cursors.Hand,MinWidth=0,MinHeight=0};
+            var t=new ControlTemplate(typeof(Button));var border=new FrameworkElementFactory(typeof(Border));border.SetValue(Border.CornerRadiusProperty,new CornerRadius(4));border.SetValue(Border.BackgroundProperty,new TemplateBindingExtension(Control.BackgroundProperty));border.SetValue(Border.BorderBrushProperty,new TemplateBindingExtension(Control.BorderBrushProperty));border.SetValue(Border.BorderThicknessProperty,new Thickness(1));
+            var cp=new FrameworkElementFactory(typeof(ContentPresenter));cp.SetValue(FrameworkElement.HorizontalAlignmentProperty,HorizontalAlignment.Left);cp.SetValue(FrameworkElement.VerticalAlignmentProperty,VerticalAlignment.Center);cp.SetValue(FrameworkElement.MarginProperty,new TemplateBindingExtension(Control.PaddingProperty));border.AppendChild(cp);t.VisualTree=border;b.Template=t;
+            b.MouseEnter+=(s,e)=>b.BorderBrush=Accent;b.MouseLeave+=(s,e)=>b.BorderBrush=Line;
+            b.Click+=(s,e)=>PickInstrument(entry);
+            return b;
+        }
+        void PickInstrument(InstrumentCatalog.Entry entry){InstrumentBox.Text=entry.Front;if(InstrumentPopup!=null)InstrumentPopup.IsOpen=false;UpdateHeaderState();var ev=InstrumentPicked;if(ev!=null)ev();}
+        // "Use {front}" only rewrites the text box (never a command); normalization happens through InstrumentPicked like a pick.
+        void UseFront(){var f=FrontForBox();if(f==null)return;InstrumentBox.Text=f;UpdateHeaderState();var ev=InstrumentPicked;if(ev!=null)ev();}
         //
         //
         //
@@ -3168,18 +3310,32 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         //
         //
         // ==== WP3 hooks ====
-        void EditableLogs(bool canEdit){/* Log filters, export and clear stay usable while attached. Export is not an edit button; Clear log is an edit button and disables with the rest. */}
+        void EditableLogs(bool canEdit){}
         //
         //
         //
         // Free-text notice another package can raise (WP1 sets it for an untested NinjaTrader version); WP2 shows it on the Monitor page.
         internal string HeaderNotice="";
+        // ==== WP1 header / instrument picker fields ====
+        internal Button InstPickButton, UseFrontTool;
+        internal TextBlock StateBadge, FrontNotice;
+        internal Popup InstrumentPopup;
+        internal Border InstrumentList;
+        internal Func<string[]> RecentRoots;
+        internal event Action InstrumentPicked;
+#if KINFX_SIM_TEST
+        internal TextBlock DryBadge;
+#endif
         void BuildHeader()
         {
             var header=new DockPanel{Margin=new Thickness(0,0,0,14)};StatusText=Text(demo?Lang.T("DEMO · NO TRADES"):DashboardSafety.HeaderShown,11,Warn);DockPanel.SetDock(StatusText,Dock.Right);header.Children.Add(StatusText);LanguageBox=Combo(118);LanguageBox.ToolTip=Lang.T("Interface language");System.Windows.Automation.AutomationProperties.SetName(LanguageBox,Lang.T("Language"));LanguageBox.ItemsSource=Lang.Names;LanguageBox.SelectedIndex=Math.Max(0,Array.IndexOf(Lang.Codes,Lang.Current));LanguageBox.Margin=new Thickness(0,0,14,0);DockPanel.SetDock(LanguageBox,Dock.Right);header.Children.Add(LanguageBox);bool languageGuard=false;LanguageBox.SelectionChanged+=(s,e)=>{if(languageGuard||LanguageBox.SelectedIndex<0)return;string code=Lang.Codes[LanguageBox.SelectedIndex];if(code==Lang.Current)return;var ask=LanguageChanging;if(ask!=null&&!ask(code)){languageGuard=true;LanguageBox.SelectedIndex=Array.IndexOf(Lang.Codes,Lang.Current);languageGuard=false;}};var brand=new StackPanel{Orientation=Orientation.Horizontal};brand.Children.Add(Text("KINFX",20,Accent));brand.Children.Add(new TextBlock{Text=Lang.T("  /  Trade Copier"),FontSize=17,Foreground=Ink,VerticalAlignment=VerticalAlignment.Center});header.Children.Add(brand);AddRow(this,header,0);
-            var session=new WrapPanel{Margin=new Thickness(0,0,0,6)};LeaderBox=Combo(232);LeaderBox.ToolTip=Lang.T("Simulation leader account · no live opt-in");session.Children.Add(Labeled(Lang.T("Lead"),LeaderBox));InstrumentBox=Input("MES 12-26",126);InstrumentBox.ToolTip=Lang.T("Exact instrument");session.Children.Add(Labeled(Lang.T("Inst"),InstrumentBox));
-            FollowCountText=Text(Lang.T("→  0 followers  "),12,Muted);session.Children.Add(FollowCountText);
-            StartButton=Button(Lang.T("▶  Start"),()=>Send("start"),true);StartButton.ToolTip=DashboardSafety.StartTipShown;ToolTipService.SetShowOnDisabled(StartButton,true);StartButton.IsEnabled=DashboardSafety.CanExecute("start")&&!demo;session.Children.Add(StartButton);session.Children.Add(Icon("\uE769",Lang.T("Guarded pause · new entries only"),"pause",()=>Send("pause")));session.Children.Add(Icon("\uE71A",Lang.T("Stop when flat"),"stop",()=>Send("stop")));session.Children.Add(Icon("\uE72C",Lang.T("Refresh accounts"),"refresh",()=>Send("refresh")));AddRow(this,new Border{Background=Panel,BorderBrush=Line,BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(7),Padding=new Thickness(12,8,12,0),Margin=new Thickness(0,0,0,10),Child=session},1);
+            var session=new Grid{Margin=new Thickness(0,0,0,6)};session.ColumnDefinitions.Add(new ColumnDefinition{Width=GridLength.Auto});session.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(1,GridUnitType.Star)});
+            var left=new WrapPanel{VerticalAlignment=VerticalAlignment.Center};LeaderBox=Combo(232);LeaderBox.ToolTip=Lang.T("Simulation leader account · no live opt-in");left.Children.Add(Labeled(Lang.T("Lead"),LeaderBox));InstrumentBox=Input("MES 12-26",126);InstrumentBox.ToolTip=Lang.T("Exact instrument");var instGroup=new StackPanel{Orientation=Orientation.Horizontal,Margin=new Thickness(0,0,4,6)};instGroup.Children.Add(Text(Lang.T("Inst")+"  ",11,Muted));instGroup.Children.Add(InstrumentBox);InstPickButton=Icon("\uE70D",Lang.T("Instrument picker"),"instPick",TogglePicker);instGroup.Children.Add(InstPickButton);left.Children.Add(instGroup);FollowCountText=Text(Lang.T("→  0 followers  "),12,Muted);left.Children.Add(FollowCountText);FrontNotice=Text("",11,Warn);FrontNotice.Visibility=Visibility.Collapsed;FrontNotice.Margin=new Thickness(0,0,8,6);left.Children.Add(FrontNotice);UseFrontTool=TextTool("",Lang.T("Switch the instrument to the current front contract"),"useFront",UseFront);UseFrontTool.Visibility=Visibility.Collapsed;UseFrontTool.Margin=new Thickness(0,0,8,6);left.Children.Add(UseFrontTool);Grid.SetColumn(left,0);session.Children.Add(left);
+            var right=new WrapPanel{HorizontalAlignment=HorizontalAlignment.Right,VerticalAlignment=VerticalAlignment.Center};right.Children.Add(Text(Lang.T("State")+"  ",11,Muted));StateBadge=Text(Lang.T("Stopped"),11,Muted);StateBadge.Tag="stateBadge";StateBadge.FontWeight=FontWeights.SemiBold;StateBadge.Margin=new Thickness(0,0,14,6);right.Children.Add(StateBadge);
+#if KINFX_SIM_TEST
+            DryBadge=Text(Lang.T("Dry run: off"),11,Warn);DryBadge.Tag="dryBadge";DryBadge.Margin=new Thickness(0,0,14,6);right.Children.Add(DryBadge);
+#endif
+            StartButton=Button(Lang.T("▶  Start"),()=>Send("start"),true);StartButton.ToolTip=DashboardSafety.StartTipShown;ToolTipService.SetShowOnDisabled(StartButton,true);StartButton.IsEnabled=DashboardSafety.CanExecute("start")&&!demo;right.Children.Add(StartButton);var pause=Button(Lang.T("Pause new entries"),()=>Send("pause"));pause.Tag="pause";pause.ToolTip=Lang.T("Guarded pause · new entries only");ToolTipService.SetShowOnDisabled(pause,true);right.Children.Add(pause);right.Children.Add(Icon("\uE71A",Lang.T("Stop when flat"),"stop",()=>Send("stop")));right.Children.Add(Icon("\uE72C",Lang.T("Refresh accounts"),"refresh",()=>Send("refresh")));Grid.SetColumn(right,1);session.Children.Add(right);AddRow(this,new Border{Background=Panel,BorderBrush=Line,BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(7),Padding=new Thickness(12,8,12,0),Margin=new Thickness(0,0,0,10),Child=session},1);
         }
         // Row 2: the page container. Pages are added in order: Monitor (0), Settings (1), Logs (2).
         void BuildSections()
@@ -3216,93 +3372,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         // Page 2 (Logs). Owner: UI v3 page 3 work.
         void BuildLogPage()
         {
-            var logPanel=new Grid();logPanel.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});logPanel.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});logPanel.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});
-            AddRow(logPanel,new TextBlock{Text=DashboardSafety.LogNoteShown,Foreground=Warn,FontSize=12,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,10)},0);
-            var logTools=new WrapPanel{Margin=new Thickness(0,0,0,8)};
-            LogLevelBox=Combo(96);LogLevelBox.Tag="logLevel";LogLevelBox.ItemsSource=new[]{Lang.T("All")}.Concat(LogClassifier.Levels.Select(x=>Lang.T(x))).ToArray();LogLevelBox.SelectedIndex=0;LogLevelBox.ToolTip=Lang.T("Show only one severity level");LogLevelBox.SelectionChanged+=(s,e)=>{if(logView!=null)logView.Refresh();};logTools.Children.Add(Labeled(Lang.T("Level"),LogLevelBox));
-            LogAccountBox=Combo(150);LogAccountBox.Tag="logAccount";LogAccountBox.ToolTip=Lang.T("Show only one account");LogAccountBox.DropDownOpened+=(s,e)=>RefreshLogAccounts();LogAccountBox.SelectionChanged+=(s,e)=>{if(logView!=null)logView.Refresh();};RefreshLogAccounts();logTools.Children.Add(Labeled(Lang.T("Account"),LogAccountBox));
-            LogSearchBox=Input("",150);LogSearchBox.Tag="logSearch";LogSearchBox.ToolTip=Lang.T("Search the log text");LogSearchBox.TextChanged+=(s,e)=>{if(logView!=null)logView.Refresh();};logTools.Children.Add(Labeled("⌕",LogSearchBox,17));
-            LogAutoBox=new CheckBox{Template=PlainCheckTemplate(),Content=Lang.T("Auto-scroll"),Foreground=Muted,IsChecked=true,Margin=new Thickness(0,2,10,0),Tag="logAuto"};logTools.Children.Add(LogAutoBox);
-            LogPlainBox=new CheckBox{Template=PlainCheckTemplate(),Content=Lang.T("Plain text"),Foreground=Muted,Margin=new Thickness(0,2,10,0),Tag="logPlain"};logTools.Children.Add(LogPlainBox);
-            logTools.Children.Add(TextToolFree(Lang.T("Export (account names masked)"),Lang.T("Write this log to a file with account names masked"),"logExport",()=>{var cb=ExportLog;if(cb!=null)cb();}));
-            logTools.Children.Add(TextTool(Lang.T("Clear log"),Lang.T("Clear this log view (does not affect settings, orders or saved latches)"),"logClear",()=>{ClearLog();var cb=ClearQueue;if(cb!=null)cb();}));
-            AddRow(logPanel,logTools,1);
-            var body=new Grid();
-            LogGrid=GridTable();LogGrid.IsReadOnly=true;LogGrid.Tag="logGrid";BuildLogColumns();
-            LogBox=Input("",double.NaN);LogBox.IsReadOnly=true;LogBox.FontFamily=new FontFamily("Consolas");LogBox.FontSize=12;LogBox.Foreground=Brush("#E4E1EC");LogBox.VerticalContentAlignment=VerticalAlignment.Top;LogBox.VerticalScrollBarVisibility=ScrollBarVisibility.Auto;LogBox.HorizontalScrollBarVisibility=ScrollBarVisibility.Auto;LogBox.Visibility=Visibility.Collapsed;LogBox.Tag="logPlainBox";
-            body.Children.Add(LogGrid);body.Children.Add(LogBox);
-            LogPlainBox.Checked+=(s,e)=>SetLogView(true);LogPlainBox.Unchecked+=(s,e)=>SetLogView(false);
-            AddRow(logPanel,body,2);
-            logTab=new TabItem{Header=Lang.T("Logs"),Content=logPanel};Sections.Items.Add(logTab);
-            logView=CollectionViewSource.GetDefaultView(logRows);logView.Filter=LogMatches;LogGrid.ItemsSource=logView;
-            Sections.SelectionChanged+=(s,e)=>{if(Sections.SelectedIndex==2){LogUnseen=0;UpdateLogTabHeader();RefreshLogAccounts();}};
-            Sections.SelectedIndex=0;
-        }
-        void BuildLogColumns()
-        {
-            LogGrid.Columns.Add(new DataGridTextColumn{Header=Lang.T("Time"),Binding=new Binding("Time"){Mode=BindingMode.OneWay,StringFormat="HH:mm:ss",ConverterCulture=CultureInfo.InvariantCulture},Width=78,IsReadOnly=true});
-            var lvl=new FrameworkElementFactory(typeof(TextBlock));lvl.SetBinding(TextBlock.TextProperty,new Binding("LevelText"){Mode=BindingMode.OneWay});lvl.SetValue(FrameworkElement.MarginProperty,new Thickness(9,0,9,0));lvl.SetValue(FrameworkElement.VerticalAlignmentProperty,VerticalAlignment.Center);lvl.SetValue(TextBlock.ForegroundProperty,Muted);
-            var lvStyle=new Style(typeof(TextBlock));LogLevelTrigger(lvStyle,"Info",Muted);LogLevelTrigger(lvStyle,"Order",Good);LogLevelTrigger(lvStyle,"Warn",Warn);LogLevelTrigger(lvStyle,"Lock",Bad);LogLevelTrigger(lvStyle,"Error",Bad,true);lvl.SetValue(FrameworkElement.StyleProperty,lvStyle);
-            LogGrid.Columns.Add(new DataGridTemplateColumn{Header=Lang.T("Level"),Width=62,IsReadOnly=true,CellTemplate=new DataTemplate{VisualTree=lvl}});
-            var acct=new DataGridTextColumn{Header=Lang.T("Account"),Binding=new Binding("Account"){Mode=BindingMode.OneWay},Width=150,IsReadOnly=true};acct.ElementStyle=LogTextStyle("Account");LogGrid.Columns.Add(acct);
-            LogGrid.Columns.Add(new DataGridTextColumn{Header=Lang.T("Category"),Binding=new Binding("CategoryText"){Mode=BindingMode.OneWay},Width=92,IsReadOnly=true});
-            var msg=new DataGridTextColumn{Header=Lang.T("Message"),Binding=new Binding("MessageText"){Mode=BindingMode.OneWay},Width=new DataGridLength(1,DataGridLengthUnitType.Star),MinWidth=200,IsReadOnly=true};msg.ElementStyle=LogTextStyle("MessageText");LogGrid.Columns.Add(msg);
-        }
-        static Style LogTextStyle(string tooltipPath)
-        {
-            var s=new Style(typeof(TextBlock));s.Setters.Add(new Setter(TextBlock.TextTrimmingProperty,TextTrimming.CharacterEllipsis));if(!string.IsNullOrEmpty(tooltipPath))s.Setters.Add(new Setter(FrameworkElement.ToolTipProperty,new Binding(tooltipPath){Mode=BindingMode.OneWay}));return s;
-        }
-        static void LogLevelTrigger(Style s,string level,Brush brush,bool bold=false)
-        {
-            var t=new DataTrigger{Binding=new Binding("Level"),Value=level};t.Setters.Add(new Setter(TextBlock.ForegroundProperty,brush));if(bold)t.Setters.Add(new Setter(TextBlock.FontWeightProperty,FontWeights.Bold));s.Triggers.Add(t);
-        }
-        void RefreshLogAccounts()
-        {
-            int keep=LogAccountBox.SelectedIndex;
-            var items=new List<string>{Lang.T("All")};
-            foreach(var r in Rows)items.Add(string.IsNullOrEmpty(r.Alias)?r.Name:r.Alias);
-            LogAccountBox.ItemsSource=items.ToArray();LogAccountBox.SelectedIndex=(keep>=0&&keep<items.Count)?keep:0;
-            if(logView!=null)logView.Refresh();
-        }
-        bool LogMatches(object o)
-        {
-            var l=o as LogLine;if(l==null)return false;
-            int li=LogLevelBox==null?0:LogLevelBox.SelectedIndex;if(li>0&&li<=LogClassifier.Levels.Length&&l.Level!=LogClassifier.Levels[li-1])return false;
-            if(LogAccountBox!=null&&LogAccountBox.SelectedIndex>0){string sel=LogAccountBox.SelectedItem as string;string want=null;if(sel!=null){var row=Rows.FirstOrDefault(r=>r.Name==sel||r.Alias==sel);if(row!=null)want=row.Name;}if(want!=null&&l.Account!=want)return false;}
-            string q=LogSearchBox==null?"":(LogSearchBox.Text??"").Trim();if(q.Length>0&&(l.Text??"").IndexOf(q,StringComparison.OrdinalIgnoreCase)<0)return false;
-            return true;
-        }
-        void SetLogView(bool plain)
-        {
-            if(LogGrid!=null)LogGrid.Visibility=plain?Visibility.Collapsed:Visibility.Visible;
-            if(LogBox!=null)LogBox.Visibility=plain?Visibility.Visible:Visibility.Collapsed;
-            if(plain&&LogBox!=null)LogBox.ScrollToEnd();
-        }
-        void AppendLogPlain(LogLine l)
-        {
-            if(LogBox==null)return;string line=l.Time.ToString("HH:mm:ss",CultureInfo.InvariantCulture)+"  "+Lang.Show(l.Text);
-            LogBox.Text=LogBox.Text.Length==0?line:LogBox.Text+Environment.NewLine+line;
-        }
-        void UpdateLogTabHeader(){if(logTab!=null)logTab.Header=LogUnseen>0?Lang.T("Logs")+" ("+LogUnseen+")":Lang.T("Logs");}
-        void ScrollLogToEnd()
-        {
-            if(LogGrid!=null&&logRows.Count>0)LogGrid.ScrollIntoView(logRows[logRows.Count-1]);
-            if(LogBox!=null&&LogPlainBox!=null&&LogPlainBox.IsChecked==true)LogBox.ScrollToEnd();
-        }
-        internal void AddLog(LogLine l)
-        {
-            if(l==null)return;
-            while(logRows.Count>=2000)logRows.RemoveAt(0);
-            logRows.Add(l);
-            if((l.Level=="Warn"||l.Level=="Lock"||l.Level=="Error")&&Sections.SelectedIndex!=2)LogUnseen++;
-            UpdateLogTabHeader();AppendLogPlain(l);
-            if(LogAutoBox!=null&&LogAutoBox.IsChecked==true&&Sections.SelectedIndex==2)ScrollLogToEnd();
-        }
-        internal void RebuildLog(IEnumerable<LogLine> lines,string plainText)
-        {
-            logRows.Clear();if(lines!=null)foreach(var l in lines)if(l!=null)logRows.Add(l);
-            if(LogBox!=null){LogBox.Text=plainText??"";LogBox.ScrollToEnd();}
-            UpdateLogTabHeader();
+            var logPanel=new Grid();logPanel.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});logPanel.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});logPanel.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});AddRow(logPanel,new TextBlock{Text=DashboardSafety.LogNoteShown,Foreground=Warn,FontSize=12,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,10)},0);LogBox=Input("",double.NaN);LogBox.IsReadOnly=true;LogBox.FontFamily=new FontFamily("Consolas");LogBox.FontSize=12;LogBox.Foreground=Brush("#E4E1EC");LogBox.VerticalContentAlignment=VerticalAlignment.Top;LogBox.VerticalScrollBarVisibility=ScrollBarVisibility.Auto;LogBox.HorizontalScrollBarVisibility=ScrollBarVisibility.Auto;var logTools=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,0,0,6)};logTools.Children.Add(TextTool(Lang.T("Clear log"),Lang.T("Clear this log view (does not affect settings, orders or saved latches)"),"logClear",()=>ClearLog()));AddRow(logPanel,logTools,1);AddRow(logPanel,LogBox,2);Sections.Items.Add(new TabItem{Header=Lang.T("Logs"),Content=logPanel});Sections.SelectedIndex=0;
         }
         // Row 3 footer: counts, session text, advice and locked lines.
         void BuildFooter()
@@ -3361,7 +3431,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             string div=leader.OnDivergence;bool lf=leader.FlatOnLimit;foreach(var r in targets){r.Target=tgt;r.Loss=dll;r.CopyAtm=atm;r.OnDivergence=div;r.FlatOnLimit=lf;r.Changed();}
             UpdateCards();return null;
         }
-        public void ClearLog(){LogBox.Text="";logRows.Clear();LogUnseen=0;UpdateLogTabHeader();}
+        public void ClearLog(){LogBox.Text="";}
         public bool BulkBarPresent{get{return bulkBar!=null&&AccountGrid.Parent!=null;}}
         internal Action<string> BulkNotice;
         void BulkLeaderClick(){var reason=BulkFromLeader();var n=BulkNotice;if(n!=null)n(reason==null?"Copied leader Tgt / DLL / ATM to followers (one-time); Ratio and ticks unchanged. Edit any row to fine-tune.":"From Leader refused: "+reason);}
@@ -3463,45 +3533,18 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         DashboardView dashboard; // replaced when the language changes (see ChangeLanguage)
         readonly CopierEngine engine;
         readonly DispatcherTimer timer;
-        readonly Queue<LogLine> logs=new Queue<LogLine>();
-        const int LogCap=2000;
-        bool logFileErrorLogged=false;
-        // Plain-text form of the in-memory queue (translated when drawn, so history follows the picked language).
-        string LogText(){var sb=new System.Text.StringBuilder();foreach(var l in logs)sb.Append(l.Time.ToString("HH:mm:ss",CultureInfo.InvariantCulture)).Append("  ").Append(Lang.Show(l.Text)).AppendLine();return sb.ToString();}
-        internal void RedrawLog(){dashboard.RebuildLog(logs,LogText());}
-        void AppendDailyFile(LogLine line)
-        {
-            try
-            {
-                string dir=Path.Combine(DirectoryPath,"logs");Directory.CreateDirectory(dir);
-                File.AppendAllText(Path.Combine(dir,"kinfx-"+DateTime.Now.ToString("yyyyMMdd")+".log"),line.Time.ToString("yyyy-MM-dd HH:mm:ss")+"  "+line.Level+"  "+line.Text+Environment.NewLine,new System.Text.UTF8Encoding(false));
-            }
-            catch(Exception ex)
-            {
-                if(logFileErrorLogged)return;logFileErrorLogged=true;
-                var err=LogClassifier.Classify("Log file write failed (daily log disabled for this session): "+ex.Message,dashboard.Rows.Select(r=>r.Name));err.Time=DateTime.Now;
-                logs.Enqueue(err);while(logs.Count>LogCap)logs.Dequeue();dashboard.AddLog(err);
-            }
-        }
-        void ExportLogFile()
-        {
-            try
-            {
-                string dir=Path.Combine(DirectoryPath,"logs");Directory.CreateDirectory(dir);
-                string file=Path.Combine(dir,"export-"+DateTime.Now.ToString("yyyyMMdd-HHmmss")+".txt");
-                var names=dashboard.Rows.Select(r=>r.Name).ToArray();
-                var sb=new System.Text.StringBuilder();
-                foreach(var l in logs)sb.Append(l.Time.ToString("yyyy-MM-dd HH:mm:ss")).Append("  ").Append(l.Level).Append("  ").Append(LogExport.Mask(l.Text,names)).AppendLine();
-                File.WriteAllText(file,sb.ToString(),new System.Text.UTF8Encoding(false));
-                Log("Log exported to "+file+" (account names masked).");
-            }
-            catch(Exception ex){Log("Log export failed: "+ex.Message);}
-        }
+        readonly Queue<string> logs=new Queue<string>();
+        // Stored as "HH:mm:ss" + English message; translated when drawn, so history follows the picked language.
+        const int LogStamp=8;
+        string LogText(){return string.Join(Environment.NewLine,logs.Select(l=>l.Length>LogStamp+2?l.Substring(0,LogStamp+2)+Lang.Show(l.Substring(LogStamp+2)):l));}
+        internal void RedrawLog(){dashboard.LogBox.Text=LogText();dashboard.LogBox.ScrollToEnd();}
         readonly Dictionary<string,SavedAccount> saved=new Dictionary<string,SavedAccount>();
         string instanceId=Guid.NewGuid().ToString("N"),zone="Central Standard Time",lastDay="";
         int resetHour=17,persistTicks;
         bool cleaned,loading,settingsCorrupt;
         string leaderName="";
+        readonly HashSet<string> estimatedLogged=new HashSet<string>(StringComparer.Ordinal);
+        static bool ntVersionLogged;
         public KINFXTradeCopierTab()
         {
             TabName="Dashboard";Lang.Set(LoadLanguage(LanguagePath));askSkipped=LoadAsk(AskPath);dashboard=new DashboardView();Content=dashboard;
@@ -3522,7 +3565,15 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             WireWp1();WireWp2();WireWp3();
         }
         // Work-package wiring hooks: each package fills only its own method.
-        void WireWp1(){}  // WP1 instrument picker / header
+        void WireWp1()  // WP1 instrument picker / header
+        {
+            dashboard.InstrumentPicked+=()=>{if(engine.Attached)return;RecordRecent(dashboard.InstrumentBox.Text);NormalizeInstrumentBox();dashboard.UpdateCards();};
+            dashboard.RecentRoots=LoadRecent;
+            string actual="";
+            try{var v=NinjaTrader.Core.Globals.ProductVersion;if(v!=null)actual=v.ToString();}catch{}
+            dashboard.HeaderNotice=NtVersion.Notice(actual);
+            if(!string.IsNullOrEmpty(dashboard.HeaderNotice)&&!ntVersionLogged){ntVersionLogged=true;Log(dashboard.HeaderNotice);}
+        }
         //
         //
         //
@@ -3530,7 +3581,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         //
         //
         //
-        void WireWp3(){dashboard.ExportLog=ExportLogFile;dashboard.ClearQueue=()=>logs.Clear();}  // WP3 log page
+        void WireWp3(){}  // WP3 log page
         //
         //
         //
@@ -3623,12 +3674,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         }
         void Log(string message)
         {
-            Dispatch(()=>
-            {
-                var line=LogClassifier.Classify(message,dashboard.Rows.Select(r=>r.Name));line.Time=DateTime.Now;
-                logs.Enqueue(line);while(logs.Count>LogCap)logs.Dequeue();
-                dashboard.AddLog(line);AppendDailyFile(line);
-            });
+            Dispatch(()=>{logs.Enqueue(DateTime.Now.ToString("HH:mm:ss")+"  "+message);while(logs.Count>300)logs.Dequeue();RedrawLog();});
         }
         AccountRow[] Selected() {return dashboard.SelectedRows();}
         // Title stays English: automation finds this dialog by it and must not depend on the picked language. Body text is translated.
@@ -3849,7 +3895,35 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             string exact=ContractRoll.Normalize(typed,DateTime.Now);
             if(exact==null){if(!string.IsNullOrWhiteSpace(typed)&&Instrument.GetInstrument(typed.Trim(),false)==null)Log("Instrument \""+typed.Trim()+"\" not recognised. Examples: MNQ, ES 12-26, NQZ6.");return;}
             if(exact!=typed.Trim()){dashboard.InstrumentBox.Text=exact;}
+            string root=exact.Split(' ')[0];
+            if(InstrumentCatalog.IsEstimated(root,DateTime.Now)&&!estimatedLogged.Contains(root)){estimatedLogged.Add(root);Log(Lang.F("Contract roll date estimated for {0}; check NinjaTrader's Instrument Manager.",root));}
             if(Instrument.GetInstrument(exact,false)==null)Log("Instrument "+exact+" is not available in this NinjaTrader (check the contract month / Instrument Manager).");
+        }
+        // Recent instrument roots (last 5, most recent first) for the picker. Persisted inside DirectoryPath.
+        string RecentPath{get{return Path.Combine(DirectoryPath,"instruments-recent.txt");}}
+        string[] LoadRecent()
+        {
+            try{if(File.Exists(RecentPath))return File.ReadAllLines(RecentPath);}catch{}
+            return new string[0];
+        }
+        void RecordRecent(string instrumentText)
+        {
+            var root=(instrumentText??"").Trim().Split(' ')[0].Trim().ToUpperInvariant();
+            if(!InstrumentCatalog.IsKnown(root))return;
+            try
+            {
+                Directory.CreateDirectory(DirectoryPath);
+                var list=new List<string>{root};
+                foreach(var line in LoadRecent())
+                {
+                    var r=(line??"").Trim().ToUpperInvariant();
+                    if(r.Length==0||!InstrumentCatalog.IsKnown(r)||r==root||list.Contains(r))continue;
+                    list.Add(r);
+                    if(list.Count>=5)break;
+                }
+                SettingsStore.AtomicWriteLines(RecentPath,list.ToArray());
+            }
+            catch(Exception ex){Log("Settings NOT saved: "+ex.Message);}
         }
         string[] syncNames=new string[0];string syncNoticeKey="";
         // Names of the accounts the dashboard WOULD list right now (same filter as Refresh). Read-only: touches no account state.

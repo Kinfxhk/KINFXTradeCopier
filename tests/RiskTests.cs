@@ -534,9 +534,51 @@ class RiskTests {
   foreach(var k in ConfirmPrefs.Kinds){Eq(false,ConfirmPrefs.MustAsk(k,all,false));Eq(true,ConfirmPrefs.MustAsk(k,all,true));}
  }
 // ---- WP1 pure tests (instrument / roll) go here ----
-//
-//
-//
+static void ContractRollTableDriven() {
+  // The known CME rollover dates (NinjaTrader 8.1.8.3) decide the front contract, not the 1st of the expiry month.
+  Eq("MNQ 12-26",ContractRoll.Front("MNQ",new DateTime(2026,12,13)));
+  Eq("MNQ 03-27",ContractRoll.Front("MNQ",new DateTime(2026,12,14)));
+  Eq("ES 09-26",ContractRoll.Front("ES",new DateTime(2026,9,13)));
+  Eq("ES 12-26",ContractRoll.Front("ES",new DateTime(2026,9,14)));
+  Eq("NQ 03-27",ContractRoll.Front("NQ",new DateTime(2027,3,8)));
+  Eq("NQ 06-27",ContractRoll.Front("NQ",new DateTime(2027,3,9)));
+}
+static void ContractRollNeverPicksMetals() {
+  Eq(null,ContractRoll.Front("GC",new DateTime(2026,12,13)));
+  Eq(null,ContractRoll.Front("SI",new DateTime(2026,12,13)));
+  Eq(null,ContractRoll.Front("CL",new DateTime(2026,12,13)));
+}
+static void SilverExplicitMonthNormalizes() {
+  Eq("SI 12-26",ContractRoll.Normalize("SIZ6",new DateTime(2026,10,11)));
+  Eq("SI 12-26",ContractRoll.Normalize("SI 12-26",new DateTime(2026,10,11)));
+  Eq("SIL 03-27",ContractRoll.Normalize("SILH7",new DateTime(2026,10,11)));
+}
+static void ContractRollEstimatedFallback() {
+  var after=new DateTime(2027,10,1);
+  Eq(true,InstrumentCatalog.IsEstimated("MNQ",after));
+  Eq("MNQ 12-27",ContractRoll.Front("MNQ",after));
+  Eq(false,InstrumentCatalog.IsEstimated("MNQ",new DateTime(2026,10,11)));
+  Eq(false,InstrumentCatalog.IsEstimated("GC",after));
+}
+static void NtVersionNotice() {
+  Eq("",NtVersion.Notice("8.1.8.3"));
+  Eq("",NtVersion.Notice(""));
+  Eq("",NtVersion.Notice(null));
+  Eq(true,NtVersion.Notice("8.1.8.2").Contains("not the tested version"));
+}
+static void InstrumentCatalogListsAllRoots() {
+  var seen=new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal);
+  foreach(var e in InstrumentCatalog.Items)if(e.Root!=null)seen.Add(e.Root);
+  Eq(14,seen.Count);
+  foreach(var w in new[]{"MNQ","NQ","MES","ES","MYM","YM","M2K","RTY","MGC","GC","SIL","SI","MCL","CL"})Eq(true,seen.Contains(w));
+}
+static void InstrumentCatalogRecentValidatedAndCapped() {
+  var list=InstrumentCatalog.Build(new[]{"MNQ","bogus","ES","MNQ","NQ","MES","YM","RTY"});
+  Eq("Recent",list[0].Description);Eq(true,list[0].Header);
+  int n=0;for(int i=1;i<list.Length&&!list[i].Header;i++)n++;
+  Eq(5,n);
+  Eq("MNQ",list[1].Root);Eq("ES",list[2].Root);Eq("NQ",list[3].Root);Eq("MES",list[4].Root);Eq("YM",list[5].Root);
+}
 //
 // ---- WP2 pure tests (monitor summary) go here ----
 //
@@ -544,55 +586,8 @@ class RiskTests {
 //
 //
 // ---- WP3 pure tests (log classifier / export) go here ----
-static void LogClassifierRules() {
- var names=new[]{"Sim101","Sim102","LFE1","LFE10"};
- LogLine l;
- l=LogClassifier.Classify("Sim101 LOCK: Target hit. Coverage not established; manual reconciliation may be required.",names);
- Eq("Lock",l.Level); Eq("Lock",l.Category); Eq("Sim101",l.Account);
- Eq("Lock",LogClassifier.Classify("Coverage not established; LOCK pending manual recovery.",names).Level);
- Eq("Error",LogClassifier.Classify("ENGINE ERROR: boom",names).Level);
- Eq("Error",LogClassifier.Classify("PROVIDER DISPATCH ERROR: boom",names).Level);
- Eq("Error",LogClassifier.Classify("PROVIDER COMPLETION ERROR: boom",names).Level);
- Eq("Error",LogClassifier.Classify("PERSISTENCE ERROR — boom",names).Level);
- Eq("Error",LogClassifier.Classify("DURABLE LATCH WRITE FAILED: boom",names).Level);
- Eq("Error",LogClassifier.Classify("FLATTEN FAILED boom",names).Level);
- Eq("Error",LogClassifier.Classify("UI action failed: boom",names).Level);
- Eq("Order",LogClassifier.Classify("COPY Sim101 Buy 2 MKT",names).Level);
- Eq("Order",LogClassifier.Classify("DRY RUN would send to Sim101: provider call",names).Level);
- Eq("Order",LogClassifier.Classify("Flatten request: Sim101 / MES 12-26",names).Level);
- Eq("Order",LogClassifier.Classify("Flat requested for 2 follower account(s); other accounts keep copying.",names).Level);
- Eq("Warn",LogClassifier.Classify("Start refused: missing leader.",names).Level);
- Eq("Warn",LogClassifier.Classify("Refresh blocked while managing a session.",names).Level);
- Eq("Warn",LogClassifier.Classify("LIVE BLOCKED in v0.2.",names).Level);
- Eq("Warn",LogClassifier.Classify("Instrument \"ZZZ\" not recognised.",names).Level);
- Eq("Warn",LogClassifier.Classify("Trading-day boundary Central Standard Time 17:00 (DST aware).",names).Level);
- Eq("Warn",LogClassifier.Classify("Confirmation skipped (turned off on the Risk tab): Start",names).Level);
- Eq("Warn",LogClassifier.Classify("Settings NOT saved: boom",names).Level);
- Eq("Info",LogClassifier.Classify("Armed explicitly: 3 simulation follower(s).",names).Level);
- Eq("Info",LogClassifier.Classify("Settings saved; startup stays disarmed.",names).Level);
- Eq("Session",LogClassifier.Classify("Armed explicitly: 3 simulation follower(s).",names).Category);
- Eq("Session",LogClassifier.Classify("Start refused: missing leader.",names).Category);
- Eq("Settings",LogClassifier.Classify("Settings NOT saved: boom",names).Category);
- Eq("Settings",LogClassifier.Classify("Confirmed unlock: Sim101; still disarmed.",names).Category);
- Eq("Accounts",LogClassifier.Classify("Account list updated: +Sim102",names).Category);
- Eq("General",LogClassifier.Classify("Some ordinary note.",names).Category);
- Eq("Order",LogClassifier.Classify("COPY Sim101 Buy 2 MKT",names).Category);
- Eq("LFE10",LogClassifier.Classify("COPY LFE10 Buy 2 MKT",names).Account);
- Eq("LFE1",LogClassifier.Classify("COPY LFE1 Buy 2 MKT",names).Account);
- Eq("",LogClassifier.Classify("no account here",names).Account);
- Eq("",LogClassifier.Classify("x",null).Account);
- Eq("Info",LogClassifier.Classify(null,names).Level);
-}
-static void LogExportMask() {
- Eq("ACCOUNT-1",LogExport.Mask("Sim101",new[]{"Sim101"}));
- Eq("ACCOUNT-1 and ACCOUNT-2",LogExport.Mask("Sim101 and Sim102",new[]{"Sim101","Sim102"}));
- Eq("ACCOUNT-1",LogExport.Mask("LFE1",new[]{"LFE1","LFE10"}));
- Eq("ACCOUNT-2",LogExport.Mask("LFE10",new[]{"LFE1","LFE10"}));
- Eq("ACCOUNT-2x",LogExport.Mask("LFE10x",new[]{"LFE1","LFE10"}));
- Eq("no accounts",LogExport.Mask("no accounts",new[]{"Sim101"}));
- Eq("",LogExport.Mask(null,new[]{"Sim101"}));
- Eq("Sim101",LogExport.Mask("Sim101",null));
- Eq("ACCOUNT-1 ACCOUNT-2",LogExport.Mask("A B",new[]{"A","B","A"}));
- Eq("x",LogExport.Mask("x",new string[0]));
-}
+//
+//
+//
+//
 }
