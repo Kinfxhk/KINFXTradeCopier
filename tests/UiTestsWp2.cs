@@ -373,7 +373,8 @@ public static class UiTestsWp2 {
         System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(System.Windows.Threading.DispatcherPriority.ContextIdle,new Action(()=>{}));host.UpdateLayout();
         var sv=BulkUiTests.Visual<ScrollViewer>(v.RiskGrid).FirstOrDefault();
         BulkUiTests.Check(sv!=null,code+": settings grid scroll viewer");
-        BulkUiTests.Check(sv.ExtentWidth<=sv.ViewportWidth+0.5,code+": settings table needs a horizontal scrollbar (extent "+Math.Round(sv.ExtentWidth)+" > viewport "+Math.Round(sv.ViewportWidth)+")");
+        // 10 px of slack: real NT laid the same default columns out a few px wider than this host and still scrolled (99.5 %).
+        BulkUiTests.Check(sv.ExtentWidth<=sv.ViewportWidth-10,code+": settings table needs a horizontal scrollbar on real NT (extent "+Math.Round(sv.ExtentWidth)+" > viewport "+Math.Round(sv.ViewportWidth)+" - 10)");
       }
     } finally { Lang.Set(was); }
   }
