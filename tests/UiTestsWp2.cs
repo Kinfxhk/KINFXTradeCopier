@@ -8,7 +8,7 @@ public static class UiTestsWp2 {
   public static Action[] Cases(){ return new Action[]{
     SummaryCardsShowCorrectValues, BannerCollapsesAndLinksSwitchTabs, UnlockAllAndFlattenLiveOnMonitor,
     BulkSectionAppliesOnSettingsTab, GroupHeaderShowsFirmAndCount, MaxIsDefaultWarnBorder, NoClippedTextNoWhiteBlocksAllLanguages,
-    GroupToggleMirrorsGroupByAccount, IssuesHaveTheirOwnTab, LeaderRowIsAlwaysFirst, BulkEditsRatioAndMax, ColumnsFollowImportanceOrder, MonitorTableFitsDefaultWindowInEveryLanguage };}
+    GroupToggleMirrorsGroupByAccount, IssuesHaveTheirOwnTab, LeaderRowIsAlwaysFirst, BulkEditsRatioAndMax, ColumnsFollowImportanceOrder, MonitorTableFitsDefaultWindowInEveryLanguage, SettingsStatusAndConnectionAreTranslated };}
   static T Find<T>(DashboardView v,string tag) where T:FrameworkElement{return BulkUiTests.Visual<T>(v).FirstOrDefault(x=>(x.Tag as string)==tag);}
   static FrameworkElement Tag(DashboardView v,string tag){return BulkUiTests.Visual<FrameworkElement>(v).FirstOrDefault(x=>(x.Tag as string)==tag);}
   static string CardValue(DashboardView v,string tag){var c=Tag(v,tag);BulkUiTests.Check(c!=null,"card exists: "+tag);return BulkUiTests.Visual<TextBlock>(c).Last().Text;}
@@ -243,6 +243,24 @@ public static class UiTestsWp2 {
         BulkUiTests.Check(sv!=null,code+": grid scroll viewer");
         double cols=v.AccountGrid.Columns.Where(c=>c.Visibility==Visibility.Visible).Sum(c=>c.ActualWidth);
         BulkUiTests.Check(sv.ExtentWidth<=sv.ViewportWidth+0.5,code+": monitor table needs a horizontal scrollbar (extent "+Math.Round(sv.ExtentWidth)+" > viewport "+Math.Round(sv.ViewportWidth)+", columns "+Math.Round(cols)+")");
+      }
+    } finally { Lang.Set(was); }
+  }
+
+  // Real NT sweep: the Settings table showed "Disarmed" / "Connected" in English while the rest of the window was Chinese / Japanese / Korean.
+  static void SettingsStatusAndConnectionAreTranslated(){
+    var was=Lang.Current;
+    try{
+      foreach(var code in new[]{"zh","ja","ko"}){
+        Lang.Set(code);
+        var v=BulkUiTests.Fresh();v.Sections.SelectedIndex=1;
+        v.Rows[1].Status="Disarmed";v.Rows[1].Connection="Connected";v.Rows[1].Changed();
+        BulkUiTests.Layout(v);
+        var shown=BulkUiTests.Visual<TextBlock>(v.RiskGrid).Select(x=>x.Text).ToList();
+        BulkUiTests.Check(shown.Contains(Lang.T("Disarmed"))&&Lang.T("Disarmed")!="Disarmed",code+": status shown translated");
+        BulkUiTests.Check(shown.Contains(Lang.T("Connected"))&&Lang.T("Connected")!="Connected",code+": connection shown translated");
+        BulkUiTests.Check(!shown.Contains("Disarmed")&&!shown.Contains("Connected"),code+": no English status / connection in the Settings table");
+        BulkUiTests.Check(v.Rows[1].Status=="Disarmed"&&v.Rows[1].Connection=="Connected","underlying codes stay English for logic");
       }
     } finally { Lang.Set(was); }
   }

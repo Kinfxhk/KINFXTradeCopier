@@ -489,7 +489,7 @@ public static class BulkUiTests {
     Func<string,DataGridColumn> col=key=>v.RiskGrid.Columns.First(c=>DashboardView.ColumnKey(c)==key);
     Check(col("Tgt").Width.Value>=100&&col("DLL").Width.Value>=100,code+": Tgt / DLL at least 100 px");
     foreach(var k in new[]{"St","Preset","Cons"})Check(col(k).Width.Value<=120,code+": "+k+" at most 120 px ("+col(k).Width.Value+")");
-    foreach(var k in new[]{"St","Preset"}){var b=((DataGridTextColumn)col(k)).Binding as System.Windows.Data.Binding;Check(b!=null&&(b.Path.Path=="Status"||b.Path.Path=="Preset"),code+": "+k+" binds a property, not a label: "+(b==null?"null":b.Path.Path));}
+    foreach(var k in new[]{"St","Preset"}){var b=((DataGridTextColumn)col(k)).Binding as System.Windows.Data.Binding;Check(b!=null&&(b.Path.Path=="StatusShown"||b.Path.Path=="Preset"),code+": "+k+" binds a property, not a label: "+(b==null?"null":b.Path.Path));}
     foreach(var k in new[]{"St","Preset","Cons"}){var st=((DataGridTextColumn)col(k)).ElementStyle;Check(st.Setters.OfType<Setter>().Any(x=>x.Property==FrameworkElement.ToolTipProperty),code+": "+k+" has a full-text tooltip");}
    }
   }finally{Lang.Set(keep);}
