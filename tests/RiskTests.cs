@@ -581,6 +581,31 @@ static void InstrumentCatalogRecentValidatedAndCapped() {
 }
 //
 // ---- WP2 pure tests (monitor summary) go here ----
+static void MonitorSummaryUnprotectedLots() {
+ Eq(0,MonitorSummary.UnprotectedLots(null));
+ Eq(0,MonitorSummary.UnprotectedLots(""));
+ Eq(0,MonitorSummary.UnprotectedLots("Coverage not established"));
+ Eq(2,MonitorSummary.UnprotectedLots("Late fill — 2 lots UNPROTECTED — check now"));
+ Eq(1,MonitorSummary.UnprotectedLots("1 lot UNPROTECTED (no protective exit working)"));
+ Eq(2,MonitorSummary.UnprotectedLots("2 lot unprotected")); // case-insensitive
+ Eq(5,MonitorSummary.UnprotectedLots("3 lots UNPROTECTED and 2 lots UNPROTECTED"));
+ Eq(0,MonitorSummary.UnprotectedLots("12 lots protected, no unprotected"));
+}
+static void MonitorSummarySumFinite() {
+ Eq(0.0,MonitorSummary.SumFinite(null));
+ Eq(0.0,MonitorSummary.SumFinite(new double[0]));
+ Eq(6.0,MonitorSummary.SumFinite(new[]{1.0,2.0,3.0}));
+ Eq(3.0,MonitorSummary.SumFinite(new[]{1.0,double.NaN,2.0,double.PositiveInfinity}));
+ Eq(0.0,MonitorSummary.SumFinite(new[]{double.NaN,double.NegativeInfinity}));
+}
+static void MonitorSummarySingleCurrency() {
+ Eq(null,MonitorSummary.SingleCurrency(null));
+ Eq(null,MonitorSummary.SingleCurrency(new string[0]));
+ Eq("USD",MonitorSummary.SingleCurrency(new[]{"USD","USD",""}));
+ Eq("USD",MonitorSummary.SingleCurrency(new[]{" USD "}));
+ Eq(null,MonitorSummary.SingleCurrency(new[]{"USD","EUR"}));
+ Eq(null,MonitorSummary.SingleCurrency(new[]{"USD","usd"})); // case-sensitive: mixed
+}
 //
 //
 //
