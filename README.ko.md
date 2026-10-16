@@ -26,9 +26,13 @@ NinjaTrader 8에서 한 계좌의 거래를 여러 계좌(Prop Firm **시뮬레�
 
 ## 화면 안내
 
-![화면 안내: 복사 탭 — 합성 DEMO](docs/screenshots/tour-copy-ko.png)
+![화면 안내: 모니터 탭 — 합성 DEMO](docs/screenshots/tour-monitor-ko.png)
 
-![화면 안내: 리스크 탭 — 합성 DEMO](docs/screenshots/tour-risk-ko.png)
+![화면 안내: 설정 탭 — 합성 DEMO](docs/screenshots/tour-settings-ko.png)
+
+![로그 탭 — 합성 DEMO](docs/screenshots/tour-logs-ko.png)
+
+![문제 탭 — 합성 DEMO](docs/screenshots/tour-issues-ko.png)
 
 번호별 설명은 [中文](README.md#介面導覽) 또는 [English](README.en.md#interface-tour) 페이지에 있습니다. 이미지는 합성 DEMO(가상 계좌와 수치)이며 거래 증거가 아닙니다.
 
@@ -97,7 +101,7 @@ Prop firm    ██████████████████████�
 
 1. *New > KINFX Trade Copier*. 이것은 별도로 검토된 SIM TEST 후보의 리허설 목록이며, **현재의 미수용 소스를 실행하라는 허가가 아닙니다**.
 2. **Leader**(예: `Sim101`)와 정확한 계약(예: `MNQ 12-26`)을 고릅니다. NinjaTrader 기본 Orders／Positions 탭에서 Leader와 선택한 모든 Follower가 **연결됨**이고, 해당 종목의 **포지션은 0이고 미체결 주문은 없습니다**. Start는 기존 포지션을 인수하거나 누락분을 메우지 않습니다.
-3. Follower는 **1개만** 체크하고 Ratio는 **1**입니다. **Risk** 탭에서 **Dry run**을 체크합니다.
+3. Follower는 **1개만** 체크하고 Ratio는 **1**입니다. **설정** 탭에서 **드라이런**을 체크합니다.
 4. **Start**를 누르고 Leader, Follower, 계약, Ratio, `DRY RUN` 확인을 읽습니다. Leader의 작은 시뮬레이션 주문은 Logs에 `DRY RUN would send ...`를 내야 합니다. Dry run이 막는 것은 copier의 전송뿐이며, **Leader에 직접 넣는 주문은 막지 않습니다**. 중지하기 전에 **NinjaTrader 기본 화면에서 Leader의 미체결 주문을 취소하고 Leader 포지션을 청산한 뒤**, Leader와 Follower가 무포지션이고 미체결 주문이 없음을 확인합니다. 그다음 **Stop**을 누르고 세션이 분리되었는지 확인합니다. 거절되면 리허설을 멈추고 조사하며, 억지로 잠금을 풀지 마십시오.
 5. **세션 연결이 해제된 뒤에만** Dry run 체크를 해제할 수 있습니다. 1계약 시뮬레이션 주문을 보내려면 정확한 소스에 대한 별도 검토와 허가, 그리고 `DRY RUN`이 없는 새 Start 확인이 필요합니다. 현재 후보는 이 관문을 통과하지 않았습니다. **중지 상태에서만 팔로워를 추가**하고, 선택한 모든 계좌가 연결되어 있고 깨끗한지 다시 확인한 뒤, 전체 범위를 담은 **새 Start 확인**을 읽습니다.
 

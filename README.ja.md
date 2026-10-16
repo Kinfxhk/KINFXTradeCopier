@@ -26,9 +26,13 @@ NinjaTrader 8 で、1 つの口座の取引を複数の口座（Prop Firm の**�
 
 ## 画面ガイド
 
-![画面ガイド：コピータブ — 合成 DEMO](docs/screenshots/tour-copy-ja.png)
+![画面ガイド：モニタータブ — 合成 DEMO](docs/screenshots/tour-monitor-ja.png)
 
-![画面ガイド：リスクタブ — 合成 DEMO](docs/screenshots/tour-risk-ja.png)
+![画面ガイド：設定タブ — 合成 DEMO](docs/screenshots/tour-settings-ja.png)
+
+![ログタブ — 合成 DEMO](docs/screenshots/tour-logs-ja.png)
+
+![問題タブ — 合成 DEMO](docs/screenshots/tour-issues-ja.png)
 
 番号ごとの説明は[中文](README.md#介面導覽)または[English](README.en.md#interface-tour)のページにあります。画像は合成 DEMO（架空の口座と数値）で、取引の証拠ではありません。
 
@@ -97,7 +101,7 @@ Prop firm    ██████████████████████�
 
 1. *New > KINFX Trade Copier*。これは別途レビューした SIM TEST 候補のリハーサル一覧であり、**現在の未受入ソースを実行する許可ではありません**。
 2. **Leader**（例：`Sim101`）と正確な限月（例：`MNQ 12-26`）を選びます。NinjaTrader 標準の Orders／Positions タブで、Leader と選択したすべての Follower が**接続済み**であり、その銘柄の**ポジションはゼロで、未約定の注文はありません**。Start は既存ポジションの引き継ぎも、取りこぼしの補充もしません。
-3. Follower は **1 つだけ** チェックし、Ratio は **1**。**Risk** タブで **Dry run** をオンにします。
+3. Follower は **1 つだけ** チェックし、Ratio は **1**。**設定**タブで **ドライラン** をオンにします。
 4. **Start** を押し、Leader、Follower、限月、Ratio、`DRY RUN` の確認を読みます。Leader の小さい模擬注文で、Logs に `DRY RUN would send ...` が出ます。Dry run が抑止するのは copier の送信だけで、**Leader に自分で出す注文は抑止しません**。停止する前に、**NinjaTrader の標準機能で Leader の未約定注文を取り消し、Leader のポジションを決済してから**、Leader と Follower がフラットで未約定注文がないことを確認します。それから **Stop** を押し、セッションが切り離されたことを確認します。拒否されたらリハーサルを中止して調査し、無理にロック解除しないでください。
 5. **セッションの接続が解除された後にのみ** Dry run を外せます。1 枚の模擬注文を送るには、正確なソースの別途レビューと許可、および `DRY RUN` のない新しい Start 確認が必要です。現在の候補はこの関門を通過していません。**停止中にのみフォロワーを追加**し、選択した全口座が接続済みでクリーンであることを再確認し、範囲全体を含む**新しい Start 確認**を読みます。
 

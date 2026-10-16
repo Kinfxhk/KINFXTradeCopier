@@ -492,21 +492,22 @@ class RiskTests {
  // Column prefs: hidden set round-trips; a hand-edited file can never hide a safety column; garbage lines are ignored.
  static void ColumnPrefsRoundTripAndSafetyColumnsNeverHidden() {
   var s=ColumnPrefs.Parse(new[]{"# c","hide=risk:Preset"," hide = copy:Bal ","hide=copy:Flat","hide=risk:St","show=copy:Acct","hide=risk:Tgt","hide=nogrid:Bal","show=risk:Cons","junk",""});
-  Eq(3,s.Count);Eq(true,s.Contains("risk:Preset")&&s.Contains("copy:Bal")&&s.Contains("risk:Acct")&&!s.Contains("copy:Acct"));
+  // Defaults also hide risk:Preset/Cons/CCY/P/L (Settings fits 1160 px); show=risk:Cons reveals Cons again.
+  Eq(5,s.Count);Eq(true,s.Contains("risk:Preset")&&s.Contains("copy:Bal")&&s.Contains("risk:Acct")&&s.Contains("risk:CCY")&&s.Contains("risk:P/L")&&!s.Contains("copy:Acct")&&!s.Contains("risk:Cons"));
   Eq(false,ColumnPrefs.Visible("risk","Preset",s));Eq(true,ColumnPrefs.Visible("risk","Cons",s));
   foreach(var k in new[]{"On","Ratio","Qty","State","Conn","Off","Flat"})Eq(false,ColumnPrefs.CanHide("copy",k));
   foreach(var k in new[]{"Tgt","DLL","Qty","St","Conn"})Eq(false,ColumnPrefs.CanHide("risk",k));
   // account name: hidden by default (no file / file without a show line), shown again by show=, and the choice round-trips
-  Eq(true,ColumnPrefs.Parse(null).SetEquals(new[]{"copy:Acct","risk:Acct"}));Eq(true,ColumnPrefs.Parse(new[]{"hide=copy:Bal"}).Contains("copy:Acct"));
+  Eq(true,ColumnPrefs.Parse(null).SetEquals(new[]{"copy:Acct","risk:Acct","risk:Preset","risk:Cons","risk:CCY","risk:P/L"}));Eq(true,ColumnPrefs.Parse(new[]{"hide=copy:Bal"}).Contains("copy:Acct"));
   Eq(true,ColumnPrefs.Parse(ColumnPrefs.Serialize(new System.Collections.Generic.HashSet<string>())).Count==0);
   Eq("Sim101",ColumnPrefs.DefaultAlias("Sim101"));Eq("Playback101",ColumnPrefs.DefaultAlias("Playback101"));Eq("FIRMAB..0001",ColumnPrefs.DefaultAlias("FIRMAB12345670001"));
   Eq("XYZ..0042",ColumnPrefs.DefaultAlias("XYZ09876543210042"));Eq("..6789",ColumnPrefs.DefaultAlias("1234567890123456789"));Eq("",ColumnPrefs.DefaultAlias(null));
   Eq(true,ColumnPrefs.Visible("copy","Flat",new System.Collections.Generic.HashSet<string>{"copy:Flat"}));
-  var again=ColumnPrefs.Parse(ColumnPrefs.Serialize(s));Eq(3,again.Count);Eq(true,again.SetEquals(s));
+  var again=ColumnPrefs.Parse(ColumnPrefs.Serialize(s));Eq(5,again.Count);Eq(true,again.SetEquals(s));
  }
  // columns.txt missing (or a blank path) is the default hidden set. A readable file is still parsed, so show= can reveal one grid's account name.
  static void MissingColumnsFileUsesDefaults() {
-  var want=new[]{"copy:Acct","risk:Acct"};
+  var want=new[]{"copy:Acct","risk:Acct","risk:Preset","risk:Cons","risk:CCY","risk:P/L"};
   Eq(true,ColumnPrefs.Load(null).SetEquals(want));
   Eq(true,ColumnPrefs.Load("").SetEquals(want));
   Eq(true,ColumnPrefs.Load(" ").SetEquals(want));
@@ -523,7 +524,7 @@ class RiskTests {
   Eq(true,ColumnPrefs.Visible("copy","Acct",loaded));Eq(false,ColumnPrefs.Visible("risk","Acct",loaded));
   Eq(false,ColumnPrefs.Visible("copy","Bal",loaded));
   System.IO.File.WriteAllLines(present,new[]{"show=copy:Acct","show=risk:Acct"});
-  Eq(0,ColumnPrefs.Load(present).Count);
+  Eq(true,ColumnPrefs.Load(present).SetEquals(new[]{"risk:Preset","risk:Cons","risk:CCY","risk:P/L"}));
   System.IO.File.WriteAllLines(present,new string[0]);
   Eq(true,ColumnPrefs.Load(present).SetEquals(want));
   System.IO.File.Delete(present);

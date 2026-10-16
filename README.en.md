@@ -22,38 +22,52 @@ Authors and contributors take **no responsibility** for any consequence or loss 
 
 ## Interface tour
 
-### Copy tab (while copying)
+One window, four tabs: **Monitor** (watch while copying), **Settings** (change while stopped), **Logs** and **Issues**.
 
-![Interface tour: Copy tab — synthetic DEMO](docs/screenshots/tour-copy-en.png)
+### Monitor tab (while copying)
+
+![Interface tour: Monitor tab — synthetic DEMO](docs/screenshots/tour-monitor-en.png)
 
 | # | Where | What it does |
 |:-:|---|---|
-| 1 | **Lead / Inst** | Pick the leader account and the exact contract (for example `MNQ 12-26`). |
-| 2 | **Start / pause / stop / refresh** | **Start** shows a confirmation listing every follower and its Ratio. Pause stops new entries only; Stop waits until flat; refresh re-reads the account list. |
-| 3 | **Language** | English, 中文（繁體）, 日本語, 한국어; changeable only while stopped. |
-| 4 | **Bulk** | Set Tgt, DLL, ATM, Flat at limit and divergence reaction for the highlighted accounts at once. **From Leader** copies the leader's Tgt / DLL / ATM once; fine-tune each row afterwards. Only while stopped, so it is greyed out here. |
-| 5 | **Columns** | Show or hide columns (or right-click a column header); saved for next time. The account-name column is hidden by default and an automatic **Alias** identifies the row (for example `FIRMAB..0001`); hover it for the full name. |
-| 6 | **On** | Ticked = follow; unticked = no new entries. |
-| 7 | **Ratio** | Per-account multiplier, rounded down. Ratio 2: leader 1 lot, this account 2 lots (still capped by Max). |
-| 8 | **Tgt / DLL** | Daily profit target / daily loss limit in account currency, 0 = off. When hit, the account locks and stops copying. |
-| 9 | **ATM** | Exit-order mirroring (TP / SL), not a clone of NinjaTrader's native ATM strategy. Off may leave the follower unprotected. |
-| 10 | **State** | Leader, Copying, Paused, Locked and so on; hover for the reason. A **Locked** account must be checked in NinjaTrader first; nothing is retried. |
+| 1 | **Lead / Inst** | Pick the leader account and the exact contract (for example `MNQ 12-26`). ▾ lists common index, metal and energy contracts and fills the front month for quarterly index roots. |
+| 2 | **State / Dry run** | Always shown: Stopped, Copying or Paused, and whether Dry run is on. |
+| 3 | **Start / Pause new entries / stop / refresh** | **Start** shows a confirmation listing every follower and its Ratio. **Pause new entries** stops new entries only; exits and order changes still mirror. After a pause, **Resume new entries** appears; leader entries made while paused are never copied. **Stop** waits until flat. |
+| 4 | **Language** | English, 中文（繁體）, 日本語, 한국어; changeable only while stopped. |
+| 5 | **Summary cards** | Copying count, locked accounts (click to open the Issues tab), unprotected lots, today's P/L. |
+| 6 | **Toolbar** | Search (Ctrl+F), state filter, tick / untick all, group by firm, **Columns** (show or hide columns; saved). The account-name column is hidden by default and an automatic **Alias** identifies the row (for example `FIRMAB..0001`); hover it for the full name. |
+| 7 | **On** | Ticked = follow; unticked = no new entries. The leader row is always first. |
+| 8 | **State / Conn** | Leader, Copying, Paused, Locked, Closed · re-follow and so on; hover for the reason. A **Locked** account must be checked in NinjaTrader first; nothing is retried. |
+| 9 | **Qty / P/L / Bal** | Position (+ long / − short), session P/L, cash balance with currency symbol. |
+| 10 | **Ratio / Tgt / DLL / ATM** | Per account. Ratio rounds down and is still capped by Max; Tgt / DLL = daily profit target / daily loss limit (0 = off); ATM = exit-order mirroring (TP / SL), not a clone of NinjaTrader's native ATM strategy. |
 | 11 | **Off / Flat** | **Off** stops following and cancels owned entry orders; position and exits remain. **Flat** closes that one account after you confirm; the others keep copying. |
-| 12 | **Footer** | Session state, ticked count, total P/L, settings notes and locked-account count. |
+| 12 | **Re-follow closed accounts / Flatten selected / Flatten all** | A follower closed by a copied exit shows "Closed · re-follow"; one click ticks them again and only later new entries are copied. The Flatten buttons also work while copying and ask first by default. |
+| 13 | **Footer** | Session state, ticked count, total P/L, settings notes and locked-account count. |
 
-### Risk tab (set while stopped)
+### Settings tab (set while stopped)
 
-![Interface tour: Risk tab — synthetic DEMO](docs/screenshots/tour-risk-en.png)
+![Interface tour: Settings tab — synthetic DEMO](docs/screenshots/tour-settings-en.png)
 
 | # | Where | What it does |
 |:-:|---|---|
-| 1 | **Batch risk / save / trading day** | Presets, save settings, trading-day boundary and timezone. |
-| 2 | **Flatten selected / all** | Market-close the highlighted accounts or every displayed account; asks first by default. |
-| 3 | **Ask before** | Confirmation windows for Start, a row's Flat and Flatten selected / all; untick to skip one. Unlock and risk warnings are always asked. |
-| 4 | **Dry run** | Logs `DRY RUN would send ...` and sends nothing. Change it only while stopped. |
-| 5 | **Tgt / DLL / Flat@Lim** | Flat at limit = when Tgt or DLL is hit, flatten that account once (never retried); off (default) = only lock and stop copying. |
-| 6 | **Max** | Maximum contracts on the exact instrument. |
-| 7 | **To Tgt / Loss left** | Room left to the daily target and the daily loss limit. |
+| 1 | **This session** | Batch risk / presets, save settings, trading-day boundary and timezone (pause new entries at the boundary, or notice only), pause / resume highlighted accounts. |
+| 2 | **Ask before / Dry run** | Confirmation windows for Start, a row's Flat and Flatten selected / all; untick to skip one. Unlock and risk warnings are always asked. Dry run only logs `DRY RUN would send ...` and sends nothing. |
+| 3 | **Email alerts** | Mail on account lock, errors, target / daily loss hit, leader disconnect and the trading-day boundary. Sent through NinjaTrader's own email share service, so KINFX stores no password; account names are masked and mail is rate-limited. Empty address = off. |
+| 4 | **Bulk edit** | Pick a field (Ratio, Max, Tgt, DLL, Flat at limit, ATM, On divergence), enter a value and **Apply** it to the highlighted followers; **From Leader** copies the leader's Tgt / DLL / ATM once. Only while stopped. |
+| 5 | **Max / Ratio** | Maximum contracts on the exact instrument; copy multiplier. While Max is still 1, a larger leader order is skipped entirely; the cell is outlined as a reminder. |
+| 6 | **Tgt / DLL / Flat@Lim** | Flat at limit = when Tgt or DLL is hit, flatten that account once (never retried); off (default) = only lock and stop copying. |
+| 7 | **Re-follow** | On = after this account's copied exit completes and the leader is flat, tick it again automatically; only later new entries are copied. Off (default) = re-follow by hand on the Monitor tab. |
+| 8 | **To Tgt / Loss left** | Room left to the daily target and the daily loss limit. |
+
+### Logs and Issues tabs
+
+![Logs tab — synthetic DEMO](docs/screenshots/tour-logs-en.png)
+
+**Logs**: coloured by level (Info, Order, Warn, Lock, Error), filter by level, account or text; **Export** masks account names. A daily file `logs/kinfx-yyyyMMdd.log` is written as well.
+
+![Issues tab — synthetic DEMO](docs/screenshots/tour-issues-en.png)
+
+**Issues**: every lock reason and settings note, each with a button to the Logs or Settings tab. **Unlock all** unlocks only accounts that are flat, connected and no longer at a risk limit, and never starts copying.
 
 **Screenshot provenance:** the real dashboard control rendered in **synthetic DEMO** mode with **fake accounts and numbers**, no connected account, engine or orders; the numbered markers are added for this guide. It is **not NinjaTrader/provider transaction evidence**. [Tour renderer](docs/screenshots/Tour.cs) · [Older gallery renderer](docs/screenshots/Screenshots.cs) · [More tab screenshots](docs/DEVELOPERS.md#dashboard-gallery-and-source)
 
@@ -100,7 +114,7 @@ A wrong entry can authorize orders to a funded/live account: the file is operato
 
 1. *New > KINFX Trade Copier*. This is a rehearsal checklist for the SIM TEST build, **not permission to run the current unaccepted source**.
 2. Pick the **Leader** (for example `Sim101`) and exact contract (for example `MNQ 12-26`). In NinjaTrader's native Orders / Positions tabs, confirm the leader and every selected follower are **connected**, with **zero position and no working orders** for that instrument. Start has no adoption or catch-up.
-3. Tick **one** follower, Ratio **1**. On the **Risk** tab tick **Dry run**.
+3. Tick **one** follower, Ratio **1**. On the **Settings** tab tick **Dry run**.
 4. Press **Start**; read the leader, follower, contract, Ratio and `DRY RUN` confirmation. A small simulated leader order should produce `DRY RUN would send ...` in Logs. Dry run suppresses copier sends, **not orders you place on the leader**. Before stopping, **cancel working leader orders and close the leader position using native NinjaTrader**; verify every account is flat with no working orders. Then press **Stop** and verify the session detaches. If it refuses, stop the rehearsal and investigate; do not force an unlock.
 5. **Only after the session is detached** may you untick Dry run; the next Start confirmation no longer shows `DRY RUN` and orders are really sent. **Add followers only while stopped**, recheck all selected accounts are connected and clean, and read a new **Start** confirmation for the full scope.
 

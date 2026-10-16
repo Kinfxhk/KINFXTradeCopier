@@ -8,7 +8,7 @@ public static class UiTestsWp2 {
   public static Action[] Cases(){ return new Action[]{
     SummaryCardsShowCorrectValues, BannerCollapsesAndLinksSwitchTabs, UnlockAllAndFlattenLiveOnMonitor,
     BulkSectionAppliesOnSettingsTab, GroupHeaderShowsFirmAndCount, MaxIsDefaultWarnBorder, NoClippedTextNoWhiteBlocksAllLanguages,
-    GroupToggleMirrorsGroupByAccount, IssuesHaveTheirOwnTab, LeaderRowIsAlwaysFirst, BulkEditsRatioAndMax, ColumnsFollowImportanceOrder, MonitorTableFitsDefaultWindowInEveryLanguage, SettingsStatusAndConnectionAreTranslated, MaxAndBalanceHeadersSort, IssuesListNotRebuiltWhenUnchanged, CurrencyCodeUsesSharedTableAndIssueOrderIgnored, NotifySectionEditsDraftOnly, ResumeAndRefollowControls };}
+    GroupToggleMirrorsGroupByAccount, IssuesHaveTheirOwnTab, LeaderRowIsAlwaysFirst, BulkEditsRatioAndMax, ColumnsFollowImportanceOrder, MonitorTableFitsDefaultWindowInEveryLanguage, SettingsStatusAndConnectionAreTranslated, MaxAndBalanceHeadersSort, IssuesListNotRebuiltWhenUnchanged, CurrencyCodeUsesSharedTableAndIssueOrderIgnored, NotifySectionEditsDraftOnly, ResumeAndRefollowControls, SettingsTableFitsDefaultWindowInEveryLanguage };}
   static T Find<T>(DashboardView v,string tag) where T:FrameworkElement{return BulkUiTests.Visual<T>(v).FirstOrDefault(x=>(x.Tag as string)==tag);}
   static FrameworkElement Tag(DashboardView v,string tag){return BulkUiTests.Visual<FrameworkElement>(v).FirstOrDefault(x=>(x.Tag as string)==tag);}
   static string CardValue(DashboardView v,string tag){var c=Tag(v,tag);BulkUiTests.Check(c!=null,"card exists: "+tag);return BulkUiTests.Visual<TextBlock>(c).Last().Text;}
@@ -359,5 +359,22 @@ public static class UiTestsWp2 {
     v.SetSessionState(false,"Stopped");
     BulkUiTests.Check(v.RiskGrid.Columns.Any(c=>c.SortMemberPath=="AutoRefollow"),"auto re-follow column present");
     var row=new AccountRow{Name="X",Role="Follower"};BulkUiTests.Check(!row.AutoRefollow,"auto re-follow default off");row.AutoRefollow=true;BulkUiTests.Check(row.Settings.AutoRefollow,"binds to settings");
+  }
+
+  // Real NT 2026-10-17: at the default 1160 px window the Settings table scrolled sideways (UIA HorizontalViewSize 96.9 %) with the
+  // default columns. The Monitor test above never covered the Settings grid.
+  static void SettingsTableFitsDefaultWindowInEveryLanguage(){
+    var was=Lang.Current;
+    try{
+      foreach(var code in Lang.Codes){
+        Lang.Set(code);
+        var v=BulkUiTests.Fresh();v.ApplyColumns(ColumnPrefs.Defaults());v.Sections.SelectedIndex=1;
+        var host=new Border{Child=v};host.Measure(new Size(1160,840));host.Arrange(new Rect(0,0,1160,840));host.UpdateLayout();
+        System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(System.Windows.Threading.DispatcherPriority.ContextIdle,new Action(()=>{}));host.UpdateLayout();
+        var sv=BulkUiTests.Visual<ScrollViewer>(v.RiskGrid).FirstOrDefault();
+        BulkUiTests.Check(sv!=null,code+": settings grid scroll viewer");
+        BulkUiTests.Check(sv.ExtentWidth<=sv.ViewportWidth+0.5,code+": settings table needs a horizontal scrollbar (extent "+Math.Round(sv.ExtentWidth)+" > viewport "+Math.Round(sv.ViewportWidth)+")");
+      }
+    } finally { Lang.Set(was); }
   }
 }

@@ -204,16 +204,26 @@ class PublicPackage(unittest.TestCase):
         for name, lang, numbered in (('README.md', 'zh', True), ('README.en.md', 'en', True),
                                      ('README.ja.md', 'ja', False), ('README.ko.md', 'ko', False)):
             text = (ROOT / name).read_text(encoding='utf-8')
-            for tab in ('copy', 'risk'):
+            for tab in ('monitor', 'settings', 'logs', 'issues'):
                 link = 'docs/screenshots/tour-%s-%s.png' % (tab, lang)
                 self.assertIn('](%s)' % link, text, name)
                 self.assertTrue((ROOT / link).read_bytes().startswith(bytes([0x89]) + b'PNG'), link)
             if numbered:
-                # One table row per numbered marker drawn by docs/screenshots/Tour.cs (12 on Copy, 7 on Risk).
+                # One table row per numbered marker drawn by docs/screenshots/Tour.cs (13 on Monitor, 8 on Settings).
                 rows = [l for l in text.splitlines() if l.startswith('| ') and l.split('|')[1].strip().isdigit()]
-                self.assertEqual([int(l.split('|')[1]) for l in rows], list(range(1, 13)) + list(range(1, 8)), name)
+                self.assertEqual([int(l.split('|')[1]) for l in rows], list(range(1, 14)) + list(range(1, 9)), name)
                 self.assertIn('docs/screenshots/Tour.cs', text, name)
         self.assertTrue((ROOT / 'docs' / 'screenshots' / 'Tour.cs').is_file())
+        tour = (ROOT / 'docs' / 'screenshots' / 'Tour.cs').read_text(encoding='utf-8')
+        # The renderer's numbered comments are the marker list; the README tables above must match them.
+        body = tour.split('[STAThread]', 1)[1]
+        monitor = body.split('"tour-monitor-"', 1)[1].split('"tour-settings-"', 1)[0]
+        settings = body.split('"tour-settings-"', 1)[1].split('"tour-logs-"', 1)[0]
+        self.assertEqual(re.findall(r'// (\d+) ', monitor), [str(i) for i in range(1, 14)])
+        self.assertEqual(re.findall(r'// (\d+) ', settings), [str(i) for i in range(1, 9)])
+        for old in ('tour-copy-', 'tour-risk-'):
+            for name in ('README.md', 'README.en.md', 'README.ja.md', 'README.ko.md'):
+                self.assertNotIn(old, (ROOT / name).read_text(encoding='utf-8'), name)
         for name in ('DEVELOPERS.md', 'DEVELOPERS.zh-HK.md'):
             text = (ROOT / 'docs' / name).read_text(encoding='utf-8')
             for term in ('d70b8a49ceeb87e2207fe5c9811203723ea7f0edae90d18ebeab334a10e210a5',
