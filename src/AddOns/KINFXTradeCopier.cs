@@ -1077,6 +1077,22 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public static bool Auto(bool optIn,bool exitClosed,bool following,bool locked,bool paused,bool connected,int position,int leaderPosition)
         { return optIn&&leaderPosition==0&&Eligible(exitClosed,following,locked,paused,connected,position); }
     }
+    // S1 auto re-follow: one attempt per close. The attempt is not spent while entries are off (the engine would refuse it), and
+    // entries coming back on, or a new session, give every still-closed follower a fresh attempt. No account or engine access.
+    public sealed class AutoRefollowGate
+    {
+        readonly HashSet<string> tried=new HashSet<string>(StringComparer.Ordinal);int session=int.MinValue;bool armed;
+        // Returns the names that may be re-followed now, and marks them tried.
+        public string[] Take(int sessionGeneration,bool entriesArmed,IEnumerable<string> closedEligible,IEnumerable<string> stillClosed)
+        {
+            if(sessionGeneration!=session){session=sessionGeneration;tried.Clear();}
+            var closed=new HashSet<string>(stillClosed??new string[0],StringComparer.Ordinal);tried.RemoveWhere(n=>!closed.Contains(n));
+            if(entriesArmed&&!armed)tried.Clear();armed=entriesArmed;
+            if(!entriesArmed)return new string[0];
+            var take=(closedEligible??new string[0]).Where(n=>!tried.Contains(n)).Distinct().ToArray();
+            foreach(var n in take)tried.Add(n);return take;
+        }
+    }
     // S1 trading-day boundary reaction. "pause" (default) = guarded pause of new entries, as before. "notify" = log only.
     public static class BoundaryMode
     {
@@ -3326,7 +3342,7 @@ stateChanged(attached,"GUARDED PAUSE — no new entries; existing lifecycle + ne
         internal ComboBox LeaderBox;
         internal TextBox InstrumentBox, LogBox;
         internal Button StartButton, ResumeButton, RefollowButton;
-        internal void ShowRefollow(int n){if(RefollowButton!=null){RefollowButton.Content=n>0?Lang.F("Re-follow closed accounts ({0})",n):Lang.T("Re-follow closed accounts");RefollowButton.IsEnabled=n>0&&SessionAttached;}}
+        internal void ShowRefollow(int n){if(RefollowButton!=null){RefollowButton.Content=n>0?Lang.F("Re-follow closed accounts ({0})",n):Lang.T("Re-follow closed accounts");RefollowButton.IsEnabled=n>0&&SessionAttached&&DashboardSafety.CanExecute("refollow");}}
         // Shown only while the engine reports a resumable guarded pause (set by the tab every tick).
         internal void ShowResume(bool canResume){if(ResumeButton!=null){ResumeButton.Visibility=canResume?Visibility.Visible:Visibility.Collapsed;ResumeButton.IsEnabled=canResume&&DashboardSafety.CanExecute("resume");}}
         internal TextBlock StatusText,SessionText,FollowCountText;
@@ -3977,7 +3993,7 @@ stateChanged(attached,"GUARDED PAUSE — no new entries; existing lifecycle + ne
             bulkRow.Children.Add(TextTool(Lang.T("Apply"),Lang.T("Apply the chosen setting to the highlighted follower accounts"),"bulkApply",()=>BulkClick(BulkFieldCode(),BulkFieldValue())));
             bulkRow.Children.Add(TextTool(Lang.T("From Leader"),Lang.T("Copy the leader row's Tgt / DLL / ATM to highlighted followers (all visible if none highlighted). One-time copy; edit any row afterwards. Ratio and ticks are not copied."),"bulkLeader",()=>BulkLeaderClick()));
             bulkBar=bulkRow;bulkBar.Tag="bulkbar";bulkField.SelectionChanged+=(s,e)=>UpdateBulkValueControl();UpdateBulkValueControl();bulkBody.Children.Add(bulkRow);bulkSection.Child=bulkBody;AddRow(risk,bulkSection,1);
-            RiskGrid=GridTable();Column(RiskGrid,"Acct","Name",155,true,Lang.T("Broker account"));Column(RiskGrid,"Alias","Alias",115,false,Lang.T("Display alias"));Column(RiskGrid,"Grp","Group",90,false,Lang.T("Account group"));Column(RiskGrid,"Tgt","TargetText",95,false,Lang.T("Daily local profit target · 0 = off"),null,true);Column(RiskGrid,"DLL","LossText",95,false,Lang.T("Daily loss limit · positive value / 0 = off"),null,true);FlatOnLimitColumn(RiskGrid);AutoRefollowColumn(RiskGrid);Column(RiskGrid,"Max","MaxText",60,false,Lang.T("Maximum exact-instrument contracts"),null,true);RiskGrid.Columns.Last().SortMemberPath="MaxContracts";var maxCol=(DataGridTextColumn)RiskGrid.Columns.Last();var maxCellStyle=new Style(typeof(DataGridCell),RiskGrid.CellStyle);var maxDefault=new DataTrigger{Binding=new Binding("MaxIsDefault"),Value=true};maxDefault.Setters.Add(new Setter(Control.BorderBrushProperty,Warn));maxDefault.Setters.Add(new Setter(Control.BorderThicknessProperty,new Thickness(1)));maxDefault.Setters.Add(new Setter(FrameworkElement.ToolTipProperty,Lang.T("Max is still 1: a leader order larger than this is skipped entirely")));maxCellStyle.Triggers.Add(maxDefault);maxCol.CellStyle=maxCellStyle;RatioColumn(RiskGrid);Column(RiskGrid,"P/L","Pnl",95,true,Lang.T("Observed session P/L"),"N2",true);Column(RiskGrid,"CCY","Currency",55,true,Lang.T("Account currency"));Column(RiskGrid,"To Tgt","TargetRemaining",80,true,Lang.T("Amount remaining to daily target (read-only, computed from P/L)"),null,true);Column(RiskGrid,"Loss left","LossRemaining",80,true,Lang.T("How much more can be lost before the daily loss limit (read-only, computed from P/L)"),null,true);Column(RiskGrid,"Qty","Position",50,true,Lang.T("Signed position"),null,true);Column(RiskGrid,"Conn","ConnectionShown",100,true,Lang.T("Connection status"));((DataGridTextColumn)RiskGrid.Columns.Last()).SortMemberPath="Connection";Column(RiskGrid,"St","StatusShown",100,true,Lang.T("Copier / risk state"));((DataGridTextColumn)RiskGrid.Columns.Last()).SortMemberPath="Status";FullTextTip(RiskGrid,"StatusShown");Column(RiskGrid,"Preset","Preset",110,true,Lang.T("Editable firm template"));FullTextTip(RiskGrid,"Preset");Column(RiskGrid,"Cons","ConsistencyAdvice",110,true,Lang.T("Consistency advisory · not a broker guarantee"));FullTextTip(RiskGrid,"ConsistencyAdvice");OrderColumns(RiskGrid,RiskColumnOrder);
+            RiskGrid=GridTable();Column(RiskGrid,"Acct","Name",155,true,Lang.T("Broker account"));Column(RiskGrid,"Alias","Alias",115,false,Lang.T("Display alias"));Column(RiskGrid,"Grp","Group",90,false,Lang.T("Account group"));Column(RiskGrid,"Tgt","TargetText",100,false,Lang.T("Daily local profit target · 0 = off"),null,true);Column(RiskGrid,"DLL","LossText",100,false,Lang.T("Daily loss limit · positive value / 0 = off"),null,true);FlatOnLimitColumn(RiskGrid);AutoRefollowColumn(RiskGrid);Column(RiskGrid,"Max","MaxText",60,false,Lang.T("Maximum exact-instrument contracts"),null,true);RiskGrid.Columns.Last().SortMemberPath="MaxContracts";var maxCol=(DataGridTextColumn)RiskGrid.Columns.Last();var maxCellStyle=new Style(typeof(DataGridCell),RiskGrid.CellStyle);var maxDefault=new DataTrigger{Binding=new Binding("MaxIsDefault"),Value=true};maxDefault.Setters.Add(new Setter(Control.BorderBrushProperty,Warn));maxDefault.Setters.Add(new Setter(Control.BorderThicknessProperty,new Thickness(1)));maxDefault.Setters.Add(new Setter(FrameworkElement.ToolTipProperty,Lang.T("Max is still 1: a leader order larger than this is skipped entirely")));maxCellStyle.Triggers.Add(maxDefault);maxCol.CellStyle=maxCellStyle;RatioColumn(RiskGrid);Column(RiskGrid,"P/L","Pnl",95,true,Lang.T("Observed session P/L"),"N2",true);Column(RiskGrid,"CCY","Currency",55,true,Lang.T("Account currency"));Column(RiskGrid,"To Tgt","TargetRemaining",80,true,Lang.T("Amount remaining to daily target (read-only, computed from P/L)"),null,true);Column(RiskGrid,"Loss left","LossRemaining",80,true,Lang.T("How much more can be lost before the daily loss limit (read-only, computed from P/L)"),null,true);Column(RiskGrid,"Qty","Position",50,true,Lang.T("Signed position"),null,true);Column(RiskGrid,"Conn","ConnectionShown",100,true,Lang.T("Connection status"));((DataGridTextColumn)RiskGrid.Columns.Last()).SortMemberPath="Connection";Column(RiskGrid,"St","StatusShown",100,true,Lang.T("Copier / risk state"));((DataGridTextColumn)RiskGrid.Columns.Last()).SortMemberPath="Status";FullTextTip(RiskGrid,"StatusShown");Column(RiskGrid,"Preset","Preset",100,true,Lang.T("Editable firm template"));FullTextTip(RiskGrid,"Preset");Column(RiskGrid,"Cons","ConsistencyAdvice",100,true,Lang.T("Consistency advisory · not a broker guarantee"));FullTextTip(RiskGrid,"ConsistencyAdvice");OrderColumns(RiskGrid,RiskColumnOrder);
             var action=new FrameworkElementFactory(typeof(Button));CompactCellButton(action,28);action.SetValue(Control.TemplateProperty,OffTemplate());action.SetValue(ContentControl.ContentProperty,"\uE713");action.SetValue(Control.FontFamilyProperty,new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"));action.SetValue(Control.BackgroundProperty,Panel);action.SetValue(Control.ForegroundProperty,Ink);action.SetValue(Control.BorderBrushProperty,Line);action.SetValue(Control.PaddingProperty,new Thickness(4,1,4,1));action.SetValue(FrameworkElement.ToolTipProperty,Lang.T("Account risk / template / history"));var gearStyle=new Style(typeof(Button));var gearLocked=new DataTrigger{Binding=new Binding("IsReadOnly"){RelativeSource=new RelativeSource(RelativeSourceMode.FindAncestor,typeof(DataGrid),1)},Value=true};gearLocked.Setters.Add(new Setter(UIElement.IsEnabledProperty,false));gearStyle.Triggers.Add(gearLocked);action.SetValue(FrameworkElement.StyleProperty,gearStyle);action.AddHandler(ButtonBase.ClickEvent,new RoutedEventHandler((s,e)=>{if(!editable){e.Handled=true;return;}var r=(s as FrameworkElement).DataContext as AccountRow;if(r!=null&&RowSettings!=null)RowSettings(r);}));RiskGrid.Columns.Add(new DataGridTemplateColumn{Header="⚙",Width=40,CellTemplate=new DataTemplate{VisualTree=action}});AddRow(risk,RiskGrid,2);
             AddRow(risk,new TextBlock{Text=Lang.T("OFF cancels owned entries, retains exits · Re-follow explicit / only when clean · ATM OFF may be unprotected · Local guards only"),Foreground=Muted,FontSize=11,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,10,0,0)},3);Sections.Items.Add(new TabItem{Header=Lang.T("Settings"),Content=risk});
         }
@@ -4389,7 +4405,7 @@ stateChanged(attached,"GUARDED PAUSE — no new entries; existing lifecycle + ne
             var mail=NotifyPrefs.Decide(notify,notifyLimiter,line,dashboard.Rows.Select(r=>r.Name),DateTime.Now);
             if(mail!=null)SendNotifyMail(notify.To,mail.Subject,mail.Body,false);
         }
-        bool notifyFailLogged;
+        DateTime notifyFailLoggedAt=DateTime.MinValue;
         void SendNotifyMail(string to,string subject,string body,bool test)
         {
             System.Threading.Tasks.Task.Run(()=>
@@ -4400,7 +4416,7 @@ stateChanged(attached,"GUARDED PAUSE — no new entries; existing lifecycle + ne
                 Dispatch(()=>
                 {
                     if(err==null){if(test){Log("Email test handed to NinjaTrader for "+LogExport.Mask(to,new string[0])+"; check the inbox and NinjaTrader's log.");SetNotifyStatus(Lang.T("Test handed to NinjaTrader. Check your inbox; if nothing arrives, check Tools > Options > General > Share services."),false);}}
-                    else{if(test||!notifyFailLogged){notifyFailLogged=!test||notifyFailLogged;Log("Email alert not sent (blocked by NinjaTrader share service): "+err);}if(test)SetNotifyStatus(Lang.T("Email not sent: ")+err,true);}
+                    else{if(test||DateTime.Now-notifyFailLoggedAt>=TimeSpan.FromMinutes(10)){if(!test)notifyFailLoggedAt=DateTime.Now;Log("Email alert not sent (blocked by NinjaTrader share service): "+err);}if(test)SetNotifyStatus(Lang.T("Email not sent: ")+err,true);}
                 });
             });
         }
@@ -4679,25 +4695,29 @@ stateChanged(attached,"GUARDED PAUSE — no new entries; existing lifecycle + ne
             engine.ResumeEntries();
         }
         // auto=true: Tick() pass for opted-in followers; no dialog, one log line per account.
-        // Auto re-follow tries each closed follower ONCE per close (cleared when it is no longer closed or the session changes), so an
-        // engine refusal (paused, not clean) is logged once and never retried every tick.
-        readonly HashSet<string> autoRefollowTried=new HashSet<string>(StringComparer.Ordinal);int autoRefollowSession=-1;
+        // Auto re-follow: one attempt per close, never spent while entries are off (see AutoRefollowGate).
+        readonly AutoRefollowGate autoRefollow=new AutoRefollowGate();
         void RefollowClosed(bool auto)
         {
-            if(!engine.Attached){autoRefollowTried.Clear();return;}
+            if(!engine.Attached)return;
+            var leader=dashboard.Rows.FirstOrDefault(r=>r.Role=="Leader");int leaderPos=leader==null?0:leader.Position;
+            var followers=dashboard.Rows.Where(r=>r.Role!="Leader").ToArray();
+            AccountRow[] rows;
             if(auto)
             {
-                if(autoRefollowSession!=engine.SessionGeneration){autoRefollowSession=engine.SessionGeneration;autoRefollowTried.Clear();}
-                foreach(var r in dashboard.Rows)if(!r.ExitClosed)autoRefollowTried.Remove(r.Name);
+                var eligible=followers.Where(r=>Refollow.Auto(r.AutoRefollow,r.ExitClosed,r.Enabled||r.FollowPending,r.Latch.Locked,r.Paused,r.Connection=="Connected",r.Position,leaderPos)).Select(r=>r.Name);
+                var take=new HashSet<string>(autoRefollow.Take(engine.SessionGeneration,engine.EntriesArmed,eligible,followers.Where(r=>r.ExitClosed).Select(r=>r.Name)),StringComparer.Ordinal);
+                rows=followers.Where(r=>take.Contains(r.Name)).ToArray();
+                if(rows.Length==0)return;
             }
-            var leader=dashboard.Rows.FirstOrDefault(r=>r.Role=="Leader");int leaderPos=leader==null?0:leader.Position;
-            var rows=dashboard.Rows.Where(r=>r.Role!="Leader"&&(auto
-                ?!autoRefollowTried.Contains(r.Name)&&Refollow.Auto(r.AutoRefollow,r.ExitClosed,r.Enabled||r.FollowPending,r.Latch.Locked,r.Paused,r.Connection=="Connected",r.Position,leaderPos)
-                :Refollow.Eligible(r.ExitClosed,r.Enabled||r.FollowPending,r.Latch.Locked,r.Paused,r.Connection=="Connected",r.Position))).ToArray();
-            if(rows.Length==0){if(!auto)Log("Re-follow: no closed account is flat, connected and unlocked.");return;}
-            if(!auto&&!ConfirmScope(ConfirmPrefs.Start,Lang.F("Tick {0} closed account(s) again?\n{1}\n\nOnly LATER new entries are copied; nothing is caught up. Each account is checked again (flat, connected, unlocked).",rows.Length,string.Join("\n",rows.Select(r=>r.Alias.Length>0?r.Alias+" ("+r.Name+")":r.Name))),rows.Select(r=>r.Account).Where(a=>a!=null).ToArray()))
-            {Log("Re-follow cancelled; nothing changed.");return;}
-            foreach(var r in rows){if(auto)autoRefollowTried.Add(r.Name);r.Enabled=true;Log((auto?"Auto re-follow: ":"Re-follow: ")+r.Name+" — only later new entries are copied.");}
+            else
+            {
+                rows=followers.Where(r=>Refollow.Eligible(r.ExitClosed,r.Enabled||r.FollowPending,r.Latch.Locked,r.Paused,r.Connection=="Connected",r.Position)).ToArray();
+                if(rows.Length==0){Log("Re-follow: no closed account is flat, connected and unlocked.");return;}
+                if(!ConfirmScope(ConfirmPrefs.Start,Lang.F("Tick {0} closed account(s) again?\n{1}\n\nOnly LATER new entries are copied; nothing is caught up. Each account is checked again (flat, connected, unlocked).",rows.Length,string.Join("\n",rows.Select(r=>r.Alias.Length>0?r.Alias+" ("+r.Name+")":r.Name))),rows.Select(r=>r.Account).Where(a=>a!=null).ToArray()))
+                {Log("Re-follow cancelled; nothing changed.");return;}
+            }
+            foreach(var r in rows){r.Enabled=true;Log((auto?"Auto re-follow: ":"Re-follow: ")+r.Name+" — only later new entries are copied.");}
             dashboard.UpdateCards();
         }
         void UnlockAll()

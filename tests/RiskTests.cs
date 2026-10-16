@@ -641,6 +641,19 @@ static void RefollowAndBoundaryRules() {
  var x=SettingsStore.ToXml(new[]{new SavedAccount{Name="A",Settings=new RiskSettings{AutoRefollow=true}}},"MES 12-26","Central Standard Time",17);
  Eq(true,SettingsStore.FromXml(x)[0].Settings.AutoRefollow);
 }
+static void AutoRefollowGateWaitsForEntries() {
+ var g=new AutoRefollowGate();var A=new[]{"A"};
+ Eq(1,g.Take(1,true,A,A).Length);                 // first close: one attempt
+ Eq(0,g.Take(1,true,A,A).Length);                 // never every tick
+ Eq(0,g.Take(1,true,new string[0],new string[0]).Length);Eq(1,g.Take(1,true,A,A).Length); // re-opened then closed again: fresh attempt
+ var p=new AutoRefollowGate();
+ Eq(0,p.Take(1,false,A,A).Length);Eq(0,p.Take(1,false,A,A).Length); // paused: wait, do not spend the attempt
+ Eq(1,p.Take(1,true,A,A).Length);                 // review 4 MEDIUM-1: after Resume the still-closed follower is re-followed
+ Eq(0,p.Take(1,true,A,A).Length);
+ Eq(0,p.Take(1,false,A,A).Length);Eq(1,p.Take(1,true,A,A).Length);  // pause/resume again: one more attempt
+ Eq(1,p.Take(2,true,A,A).Length);                 // new session resets
+ Eq(0,new AutoRefollowGate().Take(1,true,null,null).Length);
+}
 static void NotifyPrefsAndDecide() {
  // Off until an address is entered; defaults lock/error/limit/disconnect once it is.
  var d=NotifyPrefs.Defaults();Eq(false,d.Enabled);d.To="me@example.com";Eq(true,d.Enabled);Eq(false,d.On.Contains(NotifyPrefs.Boundary));
