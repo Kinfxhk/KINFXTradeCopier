@@ -3392,17 +3392,38 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         static void ProportionalCopyColumns(DataGrid g)
         {
             // Star allocation across ALL data columns; fixed toggles/status lamps never stretch.
-            // Minimums are the worst-case content widths measured from the real window (Bal "1,250,000.00 USD" ~119 px, State "Rechecking" ~87 px, P/L "-123,456.78" ~97 px).
+            // Minimums are the worst-case content widths measured from the real window (Bal "-$1,250,000.00" ~103 px now that the currency is a symbol, State "Rechecking" ~87 px, P/L "-123,456.78" ~97 px).
             // Extra width goes to the identity columns (Acct, Alias) that actually fill up, not evenly to short numeric columns. Weights are relative star sizes.
-            var minimums=new Dictionary<string,double>{{"Acct",170},{"Alias",95},{"Ratio",60},{"Tgt",75},{"DLL",75},{"Qty",50},{"P/L",100},{"Bal",120},{"State",90}};
+            var minimums=new Dictionary<string,double>{{"Acct",150},{"Alias",95},{"Ratio",60},{"Tgt",75},{"DLL",75},{"Qty",50},{"P/L",100},{"Bal",105},{"State",90}};
             var weights=new Dictionary<string,double>{{"Acct",5},{"Alias",3},{"Ratio",1},{"Tgt",1},{"DLL",1},{"Qty",1},{"P/L",1},{"Bal",1},{"State",1}};
             foreach(var c in g.Columns)
             {
                 double minimum;
-                if(minimums.TryGetValue(ColumnKey(c),out minimum)){c.MinWidth=minimum;c.Width=new DataGridLength(weights[ColumnKey(c)],DataGridLengthUnitType.Star);}
+                if(minimums.TryGetValue(ColumnKey(c),out minimum)){c.MinWidth=minimum;c.Width=new DataGridLength(minimum);}
                 else {double width=c.Width.Value;c.MinWidth=width;c.MaxWidth=width;}
             }
             g.HorizontalScrollBarVisibility=ScrollBarVisibility.Auto;
+            // Widths are computed from the real viewport instead of WPF star sizing: with frozen columns the star pass overshot
+            // by ~10 px, so on real NT at 1160 px the Flat buttons were cut off and a horizontal scrollbar showed.
+            // Refit only when the viewport width or the visible column set changes (column menu hide/show).
+            // Column virtualization off for this table: it has 14 columns that always fit, and with it on a width refit left some cells unrealized.
+            g.EnableColumnVirtualization=false;
+            // Refit when the viewport width or the visible column set changes (ScrollChanged reports both), not on every layout pass.
+            double lastViewport=-1;string lastVisible="";
+            g.AddHandler(ScrollViewer.ScrollChangedEvent,new ScrollChangedEventHandler((s,e)=>
+            {
+                var sv=e.OriginalSource as ScrollViewer;if(sv==null||sv.TemplatedParent!=g)return;
+                double viewport=sv.ViewportWidth;if(viewport<=0)return;
+                var visible=g.Columns.Where(c=>c.Visibility==Visibility.Visible).ToArray();
+                string sig=string.Join("|",visible.Select(ColumnKey));
+                if(Math.Abs(viewport-lastViewport)<0.5&&sig==lastVisible)return;
+                lastViewport=viewport;lastVisible=sig;
+                var flex=visible.Where(c=>minimums.ContainsKey(ColumnKey(c))).ToArray();
+                double fixedWidth=visible.Where(c=>!minimums.ContainsKey(ColumnKey(c))).Sum(c=>c.Width.Value);
+                double extra=Math.Floor(viewport-1-fixedWidth-flex.Sum(c=>minimums[ColumnKey(c)]));
+                double weight=flex.Sum(c=>weights[ColumnKey(c)]);
+                foreach(var c in flex){string k=ColumnKey(c);double w=minimums[k]+(extra>0&&weight>0?Math.Floor(extra*weights[k]/weight):0);if(Math.Abs(c.Width.Value-w)>0.5)c.Width=new DataGridLength(w);}
+            }));
         }
         static void CompactCellButton(FrameworkElementFactory button,double width)
         {

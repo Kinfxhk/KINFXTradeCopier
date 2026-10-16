@@ -8,7 +8,7 @@ public static class UiTestsWp2 {
   public static Action[] Cases(){ return new Action[]{
     SummaryCardsShowCorrectValues, BannerCollapsesAndLinksSwitchTabs, UnlockAllAndFlattenLiveOnMonitor,
     BulkSectionAppliesOnSettingsTab, GroupHeaderShowsFirmAndCount, MaxIsDefaultWarnBorder, NoClippedTextNoWhiteBlocksAllLanguages,
-    GroupToggleMirrorsGroupByAccount, IssuesHaveTheirOwnTab, LeaderRowIsAlwaysFirst, BulkEditsRatioAndMax, ColumnsFollowImportanceOrder };}
+    GroupToggleMirrorsGroupByAccount, IssuesHaveTheirOwnTab, LeaderRowIsAlwaysFirst, BulkEditsRatioAndMax, ColumnsFollowImportanceOrder, MonitorTableFitsDefaultWindowInEveryLanguage };}
   static T Find<T>(DashboardView v,string tag) where T:FrameworkElement{return BulkUiTests.Visual<T>(v).FirstOrDefault(x=>(x.Tag as string)==tag);}
   static FrameworkElement Tag(DashboardView v,string tag){return BulkUiTests.Visual<FrameworkElement>(v).FirstOrDefault(x=>(x.Tag as string)==tag);}
   static string CardValue(DashboardView v,string tag){var c=Tag(v,tag);BulkUiTests.Check(c!=null,"card exists: "+tag);return BulkUiTests.Visual<TextBlock>(c).Last().Text;}
@@ -228,5 +228,22 @@ public static class UiTestsWp2 {
     BulkUiTests.Check(risk.Length==DashboardView.RiskColumnOrder.Length+1,"only the row-settings button follows, at the far right: "+risk.Length);
     BulkUiTests.Check(v.AccountGrid.FrozenColumnCount==2&&copy[0]=="On"&&copy[1]=="Acct","tick and account stay frozen on the left");
     BulkUiTests.Check(copy[copy.Length-1]=="Flat"&&copy[copy.Length-2]=="Off","row actions stay at the far right");
+  }
+
+  // Real NT (1160 x 840): the last column (Flat buttons) was cut off and a horizontal scrollbar showed. Every language must fit with no scrollbar.
+  static void MonitorTableFitsDefaultWindowInEveryLanguage(){
+    var was=Lang.Current;
+    try{
+      foreach(var code in Lang.Codes){
+        Lang.Set(code);
+        var v=BulkUiTests.Fresh();v.Sections.SelectedIndex=0;
+        var host=new Border{Child=v};host.Measure(new Size(1160,840));host.Arrange(new Rect(0,0,1160,840));host.UpdateLayout();
+        System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(System.Windows.Threading.DispatcherPriority.ContextIdle,new Action(()=>{}));host.UpdateLayout();
+        var sv=BulkUiTests.Visual<ScrollViewer>(v.AccountGrid).FirstOrDefault();
+        BulkUiTests.Check(sv!=null,code+": grid scroll viewer");
+        double cols=v.AccountGrid.Columns.Where(c=>c.Visibility==Visibility.Visible).Sum(c=>c.ActualWidth);
+        BulkUiTests.Check(sv.ExtentWidth<=sv.ViewportWidth+0.5,code+": monitor table needs a horizontal scrollbar (extent "+Math.Round(sv.ExtentWidth)+" > viewport "+Math.Round(sv.ViewportWidth)+", columns "+Math.Round(cols)+")");
+      }
+    } finally { Lang.Set(was); }
   }
 }
