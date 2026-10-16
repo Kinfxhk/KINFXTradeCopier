@@ -3034,6 +3034,15 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             if(demo){for(int i=1;i<=30;i++)Rows.Add(new AccountRow{Name="Demo "+i.ToString("00"),Alias="Eval "+i,Group=i<=10?"Tradeify":i<=20?"Lucid":"Topstep",Role=i==1?"Leader":"Follower",Connection="Synthetic",Enabled=i>1,Currency="USD",Status=i%7==0?"Target hit":i%4==0?"Paused":"Demo only",Paused=i%4==0,Pnl=i%4==0?-120:i*24.5,Settings=new RiskSettings{Alias="Eval "+i,Group=i<=10?"Tradeify":i<=20?"Lucid":"Topstep",Target=1000,Loss=500,Ratio=1,MaxContracts=4,Preset=Lang.T("Demo / not broker data")}});LeaderBox.ItemsSource=new[]{"Demo 01"};LeaderBox.SelectedIndex=0;ShowLive.IsEnabled=false;}UpdateCards();
         }
         // Row 0 brand / language / build badge, row 1 session bar (leader, instrument, Start / pause / stop / refresh). Owner: UI v3 header work.
+        // Extension hooks (one per work package, so parallel edits never touch the same lines). Keep each body inside its own package.
+        void EditableHeader(bool canEdit){}      // WP1
+        void EditableMonitor(bool canEdit){}     // WP2
+        void EditableSettings(bool canEdit){}    // WP2
+        void EditableLogs(bool canEdit){}        // WP3
+        void UpdateHeaderState(){}               // WP1: called from UpdateCards and SetSessionState
+        void UpdateMonitor(){}                   // WP2: called from UpdateCards
+        // Free-text notice another package can raise (WP1 sets it for an untested NinjaTrader version); WP2 shows it on the Monitor page.
+        internal string HeaderNotice="";
         void BuildHeader()
         {
             var header=new DockPanel{Margin=new Thickness(0,0,0,14)};StatusText=Text(demo?Lang.T("DEMO · NO TRADES"):DashboardSafety.HeaderShown,11,Warn);DockPanel.SetDock(StatusText,Dock.Right);header.Children.Add(StatusText);LanguageBox=Combo(118);LanguageBox.ToolTip=Lang.T("Interface language");System.Windows.Automation.AutomationProperties.SetName(LanguageBox,Lang.T("Language"));LanguageBox.ItemsSource=Lang.Names;LanguageBox.SelectedIndex=Math.Max(0,Array.IndexOf(Lang.Codes,Lang.Current));LanguageBox.Margin=new Thickness(0,0,14,0);DockPanel.SetDock(LanguageBox,Dock.Right);header.Children.Add(LanguageBox);bool languageGuard=false;LanguageBox.SelectionChanged+=(s,e)=>{if(languageGuard||LanguageBox.SelectedIndex<0)return;string code=Lang.Codes[LanguageBox.SelectedIndex];if(code==Lang.Current)return;var ask=LanguageChanging;if(ask!=null&&!ask(code)){languageGuard=true;LanguageBox.SelectedIndex=Array.IndexOf(Lang.Codes,Lang.Current);languageGuard=false;}};var brand=new StackPanel{Orientation=Orientation.Horizontal};brand.Children.Add(Text("KINFX",20,Accent));brand.Children.Add(new TextBlock{Text=Lang.T("  /  Trade Copier"),FontSize=17,Foreground=Ink,VerticalAlignment=VerticalAlignment.Center});header.Children.Add(brand);AddRow(this,header,0);
@@ -3142,14 +3151,16 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         void BulkClick(string field,string text){var reason=BulkApply(field,text);var n=BulkNotice;if(n!=null)n(reason==null?"Bulk "+field+" applied to highlighted followers; Ratio and ticks unchanged.":"Bulk "+field+" refused: "+reason);}
         public void SetSelectedPause(bool paused){foreach(var r in SelectedRows().Where(r=>r.CanFollow)){if(!demo&&PauseRow!=null)PauseRow(r,paused);else{r.Paused=paused;r.Changed();}}UpdateCards();}
         public AccountRow[] SelectedRows(){return (Sections.SelectedIndex==1?RiskGrid:AccountGrid).SelectedItems.Cast<AccountRow>().ToArray();}
-        public void UpdateCards(){if(summary==null)return;int ticked=Rows.Count(r=>r.Enabled&&r.Role!="Leader");FollowCountText.Text=Lang.F("→  {0} followers  ",ticked);var ccy=Rows.Select(r=>r.Currency).Where(s=>!string.IsNullOrEmpty(s)).Distinct().ToArray();summary.Text=Lang.F("{0} TICKED  /  {1} ACCTS     ·     P/L  {2}",ticked,Rows.Count,ccy.Length<=1?Rows.Sum(r=>RiskPolicy.Finite(r.Pnl)?r.Pnl:0).ToString("N2")+" "+ccy.FirstOrDefault():Lang.T("Mixed CCY"));selection.Text=Lang.F("{0} sel / {1} rows",SelectedRows().Length,VisibleCount);if(adviceLine!=null)adviceLine.Text=AdviceText;if(lockedLine!=null)lockedLine.Text=LockedText;}
+        public void UpdateCards(){if(summary==null)return;int ticked=Rows.Count(r=>r.Enabled&&r.Role!="Leader");FollowCountText.Text=Lang.F("→  {0} followers  ",ticked);var ccy=Rows.Select(r=>r.Currency).Where(s=>!string.IsNullOrEmpty(s)).Distinct().ToArray();summary.Text=Lang.F("{0} TICKED  /  {1} ACCTS     ·     P/L  {2}",ticked,Rows.Count,ccy.Length<=1?Rows.Sum(r=>RiskPolicy.Finite(r.Pnl)?r.Pnl:0).ToString("N2")+" "+ccy.FirstOrDefault():Lang.T("Mixed CCY"));selection.Text=Lang.F("{0} sel / {1} rows",SelectedRows().Length,VisibleCount);if(adviceLine!=null)adviceLine.Text=AdviceText;if(lockedLine!=null)lockedLine.Text=LockedText;UpdateHeaderState();UpdateMonitor();}
         internal bool TrySetSessionState(bool attached,string status,int callbackSession,int currentSession,bool currentAttached){if(callbackSession!=currentSession||attached!=currentAttached)return false;SetSessionState(attached,status);return true;}
-        internal void SetSessionState(bool attached,string status){if(!attached)foreach(var row in Rows)row.InvalidateSessionActivity();SessionText.Text=DashboardSafety.CanExecute("start")?Lang.Show(status):(attached?Lang.T("REVIEW HOLD · unexpected attachment"):Lang.T("Disarmed"));SessionText.ToolTip=Lang.Show(status);Editable(!attached);UpdateCards();}
+        // Last session state shown (true = attached to a copy session). Read by the header badge (WP1).
+        internal bool SessionAttached{get;private set;}
+        internal void SetSessionState(bool attached,string status){SessionAttached=attached;if(!attached)foreach(var row in Rows)row.InvalidateSessionActivity();SessionText.Text=DashboardSafety.CanExecute("start")?Lang.Show(status):(attached?Lang.T("REVIEW HOLD · unexpected attachment"):Lang.T("Disarmed"));SessionText.ToolTip=Lang.Show(status);Editable(!attached);UpdateCards();}
         internal void Editable(bool canEdit){editable=canEdit;LeaderBox.IsEnabled=canEdit;InstrumentBox.IsEnabled=canEdit;ShowLive.IsEnabled=canEdit&&!demo;AccountGrid.IsReadOnly=!canEdit;RiskGrid.IsReadOnly=!canEdit;foreach(var b in editButtons)b.IsEnabled=canEdit;
 #if KINFX_SIM_TEST
             if(DryRunBox!=null)DryRunBox.IsEnabled=canEdit;
 #endif
-            StartButton.IsEnabled=canEdit&&!demo&&DashboardSafety.CanExecute("start");}
+            StartButton.IsEnabled=canEdit&&!demo&&DashboardSafety.CanExecute("start");EditableHeader(canEdit);EditableMonitor(canEdit);EditableSettings(canEdit);EditableLogs(canEdit);}
     }
     public class KINFXTradeCopier : AddOnBase
     {
@@ -3262,7 +3273,12 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             dashboard.AccountGrid.RowEditEnding+=(s,e)=>Dispatch(()=>{foreach(var row in dashboard.Rows){row.Changed();}dashboard.UpdateCards();});
             dashboard.InstrumentBox.LostKeyboardFocus+=(s,e)=>NormalizeInstrumentBox();
             dashboard.InstrumentBox.KeyDown+=(s,e)=>{if(e.Key==System.Windows.Input.Key.Enter){NormalizeInstrumentBox();e.Handled=true;}};
+            WireWp1();WireWp2();WireWp3();
         }
+        // Work-package wiring hooks: each package fills only its own method.
+        void WireWp1(){}  // WP1 instrument picker / header
+        void WireWp2(){}  // WP2 monitor + settings pages
+        void WireWp3(){}  // WP3 log page
         // Switching language rebuilds the view (all labels are created once). Rows, ticks, drafts and the log are carried over;
         // nothing reaches the engine, and it is refused while a session is attached so a running copy is never disturbed.
         bool ChangeLanguage(string code)
