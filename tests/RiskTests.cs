@@ -611,8 +611,55 @@ static void MonitorSummarySingleCurrency() {
 //
 //
 // ---- WP3 pure tests (log classifier / export) go here ----
-//
-//
-//
-//
+static void LogClassifierRules() {
+ var names=new[]{"Sim101","Sim102","LFE1","LFE10"};
+ LogLine l;
+ l=LogClassifier.Classify("Sim101 LOCK: Target hit. Coverage not established; manual reconciliation may be required.",names);
+ Eq("Lock",l.Level); Eq("Lock",l.Category); Eq("Sim101",l.Account);
+ Eq("Lock",LogClassifier.Classify("Coverage not established; LOCK pending manual recovery.",names).Level);
+ Eq("Error",LogClassifier.Classify("ENGINE ERROR: boom",names).Level);
+ Eq("Error",LogClassifier.Classify("PROVIDER DISPATCH ERROR: boom",names).Level);
+ Eq("Error",LogClassifier.Classify("PROVIDER COMPLETION ERROR: boom",names).Level);
+ Eq("Error",LogClassifier.Classify("PERSISTENCE ERROR — boom",names).Level);
+ Eq("Error",LogClassifier.Classify("DURABLE LATCH WRITE FAILED: boom",names).Level);
+ Eq("Error",LogClassifier.Classify("FLATTEN FAILED boom",names).Level);
+ Eq("Error",LogClassifier.Classify("UI action failed: boom",names).Level);
+ Eq("Order",LogClassifier.Classify("COPY Sim101 Buy 2 MKT",names).Level);
+ Eq("Order",LogClassifier.Classify("DRY RUN would send to Sim101: provider call",names).Level);
+ Eq("Order",LogClassifier.Classify("Flatten request: Sim101 / MES 12-26",names).Level);
+ Eq("Order",LogClassifier.Classify("Flat requested for 2 follower account(s); other accounts keep copying.",names).Level);
+ Eq("Warn",LogClassifier.Classify("Start refused: missing leader.",names).Level);
+ Eq("Warn",LogClassifier.Classify("Refresh blocked while managing a session.",names).Level);
+ Eq("Warn",LogClassifier.Classify("LIVE BLOCKED in v0.2.",names).Level);
+ Eq("Warn",LogClassifier.Classify("Instrument \"ZZZ\" not recognised.",names).Level);
+ Eq("Warn",LogClassifier.Classify("Trading-day boundary Central Standard Time 17:00 (DST aware).",names).Level);
+ Eq("Warn",LogClassifier.Classify("Confirmation skipped (turned off on the Risk tab): Start",names).Level);
+ Eq("Warn",LogClassifier.Classify("Settings NOT saved: boom",names).Level);
+ Eq("Info",LogClassifier.Classify("Armed explicitly: 3 simulation follower(s).",names).Level);
+ Eq("Info",LogClassifier.Classify("Settings saved; startup stays disarmed.",names).Level);
+ Eq("Session",LogClassifier.Classify("Armed explicitly: 3 simulation follower(s).",names).Category);
+ Eq("Session",LogClassifier.Classify("Start refused: missing leader.",names).Category);
+ Eq("Settings",LogClassifier.Classify("Settings NOT saved: boom",names).Category);
+ Eq("Settings",LogClassifier.Classify("Confirmed unlock: Sim101; still disarmed.",names).Category);
+ Eq("Accounts",LogClassifier.Classify("Account list updated: +Sim102",names).Category);
+ Eq("General",LogClassifier.Classify("Some ordinary note.",names).Category);
+ Eq("Order",LogClassifier.Classify("COPY Sim101 Buy 2 MKT",names).Category);
+ Eq("LFE10",LogClassifier.Classify("COPY LFE10 Buy 2 MKT",names).Account);
+ Eq("LFE1",LogClassifier.Classify("COPY LFE1 Buy 2 MKT",names).Account);
+ Eq("",LogClassifier.Classify("no account here",names).Account);
+ Eq("",LogClassifier.Classify("x",null).Account);
+ Eq("Info",LogClassifier.Classify(null,names).Level);
+}
+static void LogExportMask() {
+ Eq("ACCOUNT-1",LogExport.Mask("Sim101",new[]{"Sim101"}));
+ Eq("ACCOUNT-1 and ACCOUNT-2",LogExport.Mask("Sim101 and Sim102",new[]{"Sim101","Sim102"}));
+ Eq("ACCOUNT-1",LogExport.Mask("LFE1",new[]{"LFE1","LFE10"}));
+ Eq("ACCOUNT-2",LogExport.Mask("LFE10",new[]{"LFE1","LFE10"}));
+ Eq("ACCOUNT-2x",LogExport.Mask("LFE10x",new[]{"LFE1","LFE10"}));
+ Eq("no accounts",LogExport.Mask("no accounts",new[]{"Sim101"}));
+ Eq("",LogExport.Mask(null,new[]{"Sim101"}));
+ Eq("Sim101",LogExport.Mask("Sim101",null));
+ Eq("ACCOUNT-1 ACCOUNT-2",LogExport.Mask("A B",new[]{"A","B","A"}));
+ Eq("x",LogExport.Mask("x",new string[0]));
+}
 }
