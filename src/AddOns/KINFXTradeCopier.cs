@@ -676,6 +676,86 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             return name.Length>0;
         }
     }
+    // ---- WP3: log model, classifier and export. Pure: no account, engine or UI access. ----
+    // One displayed log line. Level is one of Info / Order / Warn / Lock / Error. Text keeps the raw English
+    // message (translated only when drawn, so history follows the picked language). LevelText / MessageText /
+    // CategoryText are the translated display strings (Lang lives in the PURE region, so these stay pure).
+    public sealed class LogLine
+    {
+        public DateTime Time { get; set; }
+        public string Level { get; set; }
+        public string Account { get; set; }
+        public string Category { get; set; }
+        public string Text { get; set; }
+        public string LevelText { get { return Lang.T(Level); } }
+        public string CategoryText { get { return Lang.T(Category); } }
+        public string MessageText { get { return Lang.Show(Text); } }
+    }
+    // Classifies a free English engine/UI log message into a LogLine. Rules are case-sensitive substrings,
+    // first match wins in this order: Lock, Error, Order, Warn, else Info. Account is the longest account name
+    // that occurs in the message (ordinal), else "". Category: Lock for lock lines, else Order, Session, Settings,
+    // Accounts, General.
+    public static class LogClassifier
+    {
+        public static readonly string[] Levels = { "Info", "Order", "Warn", "Lock", "Error" };
+        public static LogLine Classify(string message, IEnumerable<string> accountNames)
+        {
+            string msg = message ?? "";
+            string level = "Info";
+            if (IsLock(msg)) level = "Lock";
+            else if (IsError(msg)) level = "Error";
+            else if (IsOrder(msg)) level = "Order";
+            else if (IsWarn(msg)) level = "Warn";
+            string account = Account(msg, accountNames);
+            string category = level == "Lock" ? "Lock" : Category(msg, level);
+            return new LogLine { Level = level, Account = account, Category = category, Text = msg };
+        }
+        static bool StartsWithAny(string s, params string[] prefixes)
+        {
+            foreach (var p in prefixes) if (p != null && s.StartsWith(p, StringComparison.Ordinal)) return true;
+            return false;
+        }
+        static bool IsLock(string s) { return s.IndexOf(" LOCK: ", StringComparison.Ordinal) >= 0 || (s.IndexOf("LOCK", StringComparison.Ordinal) >= 0 && s.IndexOf("Coverage not established", StringComparison.Ordinal) >= 0); }
+        static bool IsError(string s) { return StartsWithAny(s, "ENGINE ERROR", "PROVIDER DISPATCH ERROR", "PROVIDER COMPLETION ERROR", "PERSISTENCE ERROR", "DURABLE LATCH WRITE FAILED", "FLATTEN FAILED") || s.IndexOf("UI action failed", StringComparison.Ordinal) >= 0; }
+        static bool IsOrder(string s) { return StartsWithAny(s, "COPY ", "DRY RUN would send", "Flatten request", "Flat requested"); }
+        static bool IsWarn(string s) { return s.IndexOf("refused", StringComparison.Ordinal) >= 0 || s.IndexOf("blocked", StringComparison.Ordinal) >= 0 || s.IndexOf("BLOCKED", StringComparison.Ordinal) >= 0 || s.IndexOf("Refused", StringComparison.Ordinal) >= 0 || s.IndexOf("not recognised", StringComparison.Ordinal) >= 0 || s.IndexOf("not available", StringComparison.Ordinal) >= 0 || s.IndexOf("Trading-day boundary", StringComparison.Ordinal) >= 0 || s.IndexOf("Confirmation skipped", StringComparison.Ordinal) >= 0 || s.IndexOf("NOT saved", StringComparison.Ordinal) >= 0; }
+        static string Account(string s, IEnumerable<string> names)
+        {
+            if (names == null) return "";
+            string best = "";
+            foreach (var n in names) if (!string.IsNullOrEmpty(n) && s.IndexOf(n, StringComparison.Ordinal) >= 0 && n.Length > best.Length) best = n;
+            return best;
+        }
+        static string Category(string s, string level)
+        {
+            if (level == "Order") return "Order";
+            if (StartsWithAny(s, "Armed", "Start", "Stop", "Paused")) return "Session";
+            if (s.IndexOf("Settings", StringComparison.Ordinal) >= 0 || s.IndexOf("saved", StringComparison.Ordinal) >= 0 || s.IndexOf("Unlock", StringComparison.Ordinal) >= 0 || s.IndexOf("unlock", StringComparison.Ordinal) >= 0) return "Settings";
+            if (s.IndexOf("Account list", StringComparison.Ordinal) >= 0) return "Accounts";
+            return "General";
+        }
+    }
+    // Export-time masking: replace each account name by ACCOUNT-<n> (1-based, numbered by first appearance).
+    // Longest names first so a name that is a prefix of another can never leave a half-replaced fragment.
+    public static class LogExport
+    {
+        public static string Mask(string text, IEnumerable<string> names)
+        {
+            if (text == null) return "";
+            if (names == null) return text;
+            var order = new List<string>();
+            var number = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach (var n in names)
+            {
+                if (string.IsNullOrEmpty(n) || number.ContainsKey(n)) continue;
+                number[n] = number.Count + 1;
+                order.Add(n);
+            }
+            string result = text;
+            foreach (var n in order.OrderByDescending(x => x.Length)) result = result.Replace(n, "ACCOUNT-" + number[n]);
+            return result;
+        }
+    }
 // BEGIN LANG TABLE (generated by scripts/gen_lang.py from i18n/strings.json; do not edit by hand)
     // Display-only translation. The English sentence IS the key; a missing translation shows English, never a blank.
     // Engine decisions, lock reasons stored in XML, log text kept in memory and everything the tests read stay English;
@@ -1195,6 +1275,28 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             t["Daily target still reached"] = new[] { "仍達每日目標", "日次目標にまだ到達中", "일일 목표에 아직 도달 상태" };
             t["Daily loss still reached"] = new[] { "仍達每日虧損上限", "日次損失上限にまだ到達中", "일일 손실 한도에 아직 도달 상태" };
             t["Drawdown floor still reached"] = new[] { "仍達回撤下限", "ドローダウン下限にまだ到達中", "드로다운 하한에 아직 도달 상태" };
+            t["Info"] = new[] { "資訊", "情報", "정보" };
+            t["Order"] = new[] { "委託", "注文", "주문" };
+            t["Warn"] = new[] { "警告", "警告", "경고" };
+            t["Lock"] = new[] { "鎖定", "ロック", "잠금" };
+            t["General"] = new[] { "一般", "一般", "일반" };
+            t["Session"] = new[] { "連線階段", "セッション", "세션" };
+            t["Accounts"] = new[] { "帳戶", "アカウント", "계정" };
+            t["Account"] = new[] { "帳戶", "アカウント", "계정" };
+            t["Level"] = new[] { "等級", "レベル", "레벨" };
+            t["Time"] = new[] { "時間", "時刻", "시간" };
+            t["Category"] = new[] { "分類", "分類", "분류" };
+            t["Message"] = new[] { "訊息", "メッセージ", "메시지" };
+            t["Auto-scroll"] = new[] { "自動捲動", "自動スクロール", "자동 스크롤" };
+            t["Plain text"] = new[] { "純文字", "プレーンテキスト", "일반 텍스트" };
+            t["Export (account names masked)"] = new[] { "匯出（帳戶名稱已遮蔽）", "エクスポート（口座名をマスク）", "내보내기 (계정명 마스킹)" };
+            t["Show only one severity level"] = new[] { "僅顯示一種嚴重程度", "1つの重要度のみ表示", "심각도 하나만 표시" };
+            t["Show only one account"] = new[] { "僅顯示一個帳戶", "1つの口座のみ表示", "계정 하나만 표시" };
+            t["Search the log text"] = new[] { "搜尋日誌內容", "ログのテキストを検索", "로그 텍스트 검색" };
+            t["Write this log to a file with account names masked"] = new[] { "將此日誌寫入檔案，帳戶名稱已遮蔽", "口座名をマスクしてこのログをファイルに書き出す", "계정명을 마스킹하여 이 로그를 파일로 저장" };
+            t["Log exported to {0} (account names masked)."] = new[] { "日誌已匯出至 {0}（帳戶名稱已遮蔽）。", "ログを {0} にエクスポートしました（口座名はマスク済み）。", "로그를 {0}에 내보냈습니다(계정명 마스킹됨)." };
+            t["Log export failed: {0}"] = new[] { "日誌匯出失敗：{0}", "ログのエクスポートに失敗: {0}", "로그 내보내기 실패: {0}" };
+            t["Log file write failed (daily log disabled for this session): {0}"] = new[] { "日誌檔案寫入失敗（本次工作階段停用每日日誌）：{0}", "ログファイルの書き込みに失敗（このセッションでは日次ログを無効化）: {0}", "로그 파일 쓰기 실패(이 세션의 일일 로그 비활성화): {0}" };
 #if KINFX_SIM_TEST
             t["Dry run"] = new[] { "試運行", "ドライラン", "드라이런" };
             t["DRY RUN: decide and log every order, cancel and flatten as \"DRY RUN would send ...\" but send NOTHING. Fixed for the whole session: change it only while stopped."] = new[] { "DRY RUN（試運行）：決定並記錄每一筆下單、取消與平倉為「DRY RUN would send ...」，但不會送出任何內容。整個連線期間固定：僅能在停止時變更。", "DRY RUN（ドライラン）：すべての注文・取消・全決済を判断し「DRY RUN would send ...」としてログに記録しますが、何も送信しません。セッション中は固定：変更は停止中のみ可能。", "DRY RUN(드라이런): 모든 주문, 취소, 청산을 판단하여 \"DRY RUN would send ...\"로 기록하지만 아무것도 전송하지 않습니다. 세션 전체 동안 고정: 중지 상태에서만 변경할 수 있습니다." };
@@ -2749,6 +2851,17 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         // "Ask before" switches (Risk tab). Ticked = the confirmation window is shown. Unlock and every risk warning are always asked and have no switch.
         internal CheckBox AskStartBox, AskFlatOneBox, AskFlattenBox;
         internal Action<string,bool> AskChanged;
+        // ==== WP3 log page ====
+        internal DataGrid LogGrid;
+        internal ComboBox LogLevelBox, LogAccountBox;
+        internal TextBox LogSearchBox;
+        internal CheckBox LogPlainBox, LogAutoBox;
+        internal int LogUnseen;
+        internal Action ExportLog;   // tab writes the masked export file (allowed while attached)
+        internal Action ClearQueue;  // tab clears the in-memory queue (Clear log button)
+        readonly ObservableCollection<LogLine> logRows=new ObservableCollection<LogLine>();
+        ICollectionView logView;
+        TabItem logTab;
         // Column visibility. The tab owns the file; the view only applies a set and reports a user change.
         internal Action<HashSet<string>> ColumnsChanged;
         HashSet<string> hiddenColumns=new HashSet<string>(StringComparer.Ordinal);
@@ -2835,6 +2948,12 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         {
             var b=Button(label,action);b.FontSize=12;b.Height=30;b.MinWidth=0;b.Padding=new Thickness(9,0,9,0);b.Margin=new Thickness(0,0,4,0);b.ToolTip=tip;b.Tag=tag;
             System.Windows.Automation.AutomationProperties.SetName(b,tip);ToolTipService.SetShowOnDisabled(b,true);editButtons.Add(b);return b;
+        }
+        // Text-labelled tool button that is NOT an edit button (stays enabled while a session is attached): log export.
+        Button TextToolFree(string label,string tip,string tag,Action action)
+        {
+            var b=Button(label,action);b.FontSize=12;b.Height=30;b.MinWidth=0;b.Padding=new Thickness(9,0,9,0);b.Margin=new Thickness(0,0,4,0);b.ToolTip=tip;b.Tag=tag;
+            System.Windows.Automation.AutomationProperties.SetName(b,tip);ToolTipService.SetShowOnDisabled(b,true);return b;
         }
         static TextBox Input(string text,double width){return new TextBox{Style=new Style(typeof(TextBox)),MinWidth=0,MinHeight=0,FontSize=13,Text=text,Width=width,Padding=new Thickness(8,5,8,5),Margin=new Thickness(0,0,8,0),Background=Panel,Foreground=Ink,BorderBrush=Line,VerticalContentAlignment=VerticalAlignment.Center};}
         // Flat dark template for the drop-down arrow. WPF's default template paints a white / light-blue fill on hover and when disabled; NinjaTrader's own controls never do.
@@ -3049,7 +3168,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         //
         //
         // ==== WP3 hooks ====
-        void EditableLogs(bool canEdit){}
+        void EditableLogs(bool canEdit){/* Log filters, export and clear stay usable while attached. Export is not an edit button; Clear log is an edit button and disables with the rest. */}
         //
         //
         //
@@ -3097,7 +3216,93 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         // Page 2 (Logs). Owner: UI v3 page 3 work.
         void BuildLogPage()
         {
-            var logPanel=new Grid();logPanel.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});logPanel.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});logPanel.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});AddRow(logPanel,new TextBlock{Text=DashboardSafety.LogNoteShown,Foreground=Warn,FontSize=12,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,10)},0);LogBox=Input("",double.NaN);LogBox.IsReadOnly=true;LogBox.FontFamily=new FontFamily("Consolas");LogBox.FontSize=12;LogBox.Foreground=Brush("#E4E1EC");LogBox.VerticalContentAlignment=VerticalAlignment.Top;LogBox.VerticalScrollBarVisibility=ScrollBarVisibility.Auto;LogBox.HorizontalScrollBarVisibility=ScrollBarVisibility.Auto;var logTools=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,0,0,6)};logTools.Children.Add(TextTool(Lang.T("Clear log"),Lang.T("Clear this log view (does not affect settings, orders or saved latches)"),"logClear",()=>ClearLog()));AddRow(logPanel,logTools,1);AddRow(logPanel,LogBox,2);Sections.Items.Add(new TabItem{Header=Lang.T("Logs"),Content=logPanel});Sections.SelectedIndex=0;
+            var logPanel=new Grid();logPanel.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});logPanel.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});logPanel.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});
+            AddRow(logPanel,new TextBlock{Text=DashboardSafety.LogNoteShown,Foreground=Warn,FontSize=12,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,10)},0);
+            var logTools=new WrapPanel{Margin=new Thickness(0,0,0,8)};
+            LogLevelBox=Combo(96);LogLevelBox.Tag="logLevel";LogLevelBox.ItemsSource=new[]{Lang.T("All")}.Concat(LogClassifier.Levels.Select(x=>Lang.T(x))).ToArray();LogLevelBox.SelectedIndex=0;LogLevelBox.ToolTip=Lang.T("Show only one severity level");LogLevelBox.SelectionChanged+=(s,e)=>{if(logView!=null)logView.Refresh();};logTools.Children.Add(Labeled(Lang.T("Level"),LogLevelBox));
+            LogAccountBox=Combo(150);LogAccountBox.Tag="logAccount";LogAccountBox.ToolTip=Lang.T("Show only one account");LogAccountBox.DropDownOpened+=(s,e)=>RefreshLogAccounts();LogAccountBox.SelectionChanged+=(s,e)=>{if(logView!=null)logView.Refresh();};RefreshLogAccounts();logTools.Children.Add(Labeled(Lang.T("Account"),LogAccountBox));
+            LogSearchBox=Input("",150);LogSearchBox.Tag="logSearch";LogSearchBox.ToolTip=Lang.T("Search the log text");LogSearchBox.TextChanged+=(s,e)=>{if(logView!=null)logView.Refresh();};logTools.Children.Add(Labeled("⌕",LogSearchBox,17));
+            LogAutoBox=new CheckBox{Template=PlainCheckTemplate(),Content=Lang.T("Auto-scroll"),Foreground=Muted,IsChecked=true,Margin=new Thickness(0,2,10,0),Tag="logAuto"};logTools.Children.Add(LogAutoBox);
+            LogPlainBox=new CheckBox{Template=PlainCheckTemplate(),Content=Lang.T("Plain text"),Foreground=Muted,Margin=new Thickness(0,2,10,0),Tag="logPlain"};logTools.Children.Add(LogPlainBox);
+            logTools.Children.Add(TextToolFree(Lang.T("Export (account names masked)"),Lang.T("Write this log to a file with account names masked"),"logExport",()=>{var cb=ExportLog;if(cb!=null)cb();}));
+            logTools.Children.Add(TextTool(Lang.T("Clear log"),Lang.T("Clear this log view (does not affect settings, orders or saved latches)"),"logClear",()=>{ClearLog();var cb=ClearQueue;if(cb!=null)cb();}));
+            AddRow(logPanel,logTools,1);
+            var body=new Grid();
+            LogGrid=GridTable();LogGrid.IsReadOnly=true;LogGrid.Tag="logGrid";BuildLogColumns();
+            LogBox=Input("",double.NaN);LogBox.IsReadOnly=true;LogBox.FontFamily=new FontFamily("Consolas");LogBox.FontSize=12;LogBox.Foreground=Brush("#E4E1EC");LogBox.VerticalContentAlignment=VerticalAlignment.Top;LogBox.VerticalScrollBarVisibility=ScrollBarVisibility.Auto;LogBox.HorizontalScrollBarVisibility=ScrollBarVisibility.Auto;LogBox.Visibility=Visibility.Collapsed;LogBox.Tag="logPlainBox";
+            body.Children.Add(LogGrid);body.Children.Add(LogBox);
+            LogPlainBox.Checked+=(s,e)=>SetLogView(true);LogPlainBox.Unchecked+=(s,e)=>SetLogView(false);
+            AddRow(logPanel,body,2);
+            logTab=new TabItem{Header=Lang.T("Logs"),Content=logPanel};Sections.Items.Add(logTab);
+            logView=CollectionViewSource.GetDefaultView(logRows);logView.Filter=LogMatches;LogGrid.ItemsSource=logView;
+            Sections.SelectionChanged+=(s,e)=>{if(Sections.SelectedIndex==2){LogUnseen=0;UpdateLogTabHeader();RefreshLogAccounts();}};
+            Sections.SelectedIndex=0;
+        }
+        void BuildLogColumns()
+        {
+            LogGrid.Columns.Add(new DataGridTextColumn{Header=Lang.T("Time"),Binding=new Binding("Time"){Mode=BindingMode.OneWay,StringFormat="HH:mm:ss",ConverterCulture=CultureInfo.InvariantCulture},Width=78,IsReadOnly=true});
+            var lvl=new FrameworkElementFactory(typeof(TextBlock));lvl.SetBinding(TextBlock.TextProperty,new Binding("LevelText"){Mode=BindingMode.OneWay});lvl.SetValue(FrameworkElement.MarginProperty,new Thickness(9,0,9,0));lvl.SetValue(FrameworkElement.VerticalAlignmentProperty,VerticalAlignment.Center);lvl.SetValue(TextBlock.ForegroundProperty,Muted);
+            var lvStyle=new Style(typeof(TextBlock));LogLevelTrigger(lvStyle,"Info",Muted);LogLevelTrigger(lvStyle,"Order",Good);LogLevelTrigger(lvStyle,"Warn",Warn);LogLevelTrigger(lvStyle,"Lock",Bad);LogLevelTrigger(lvStyle,"Error",Bad,true);lvl.SetValue(FrameworkElement.StyleProperty,lvStyle);
+            LogGrid.Columns.Add(new DataGridTemplateColumn{Header=Lang.T("Level"),Width=62,IsReadOnly=true,CellTemplate=new DataTemplate{VisualTree=lvl}});
+            var acct=new DataGridTextColumn{Header=Lang.T("Account"),Binding=new Binding("Account"){Mode=BindingMode.OneWay},Width=150,IsReadOnly=true};acct.ElementStyle=LogTextStyle("Account");LogGrid.Columns.Add(acct);
+            LogGrid.Columns.Add(new DataGridTextColumn{Header=Lang.T("Category"),Binding=new Binding("CategoryText"){Mode=BindingMode.OneWay},Width=92,IsReadOnly=true});
+            var msg=new DataGridTextColumn{Header=Lang.T("Message"),Binding=new Binding("MessageText"){Mode=BindingMode.OneWay},Width=new DataGridLength(1,DataGridLengthUnitType.Star),MinWidth=200,IsReadOnly=true};msg.ElementStyle=LogTextStyle("MessageText");LogGrid.Columns.Add(msg);
+        }
+        static Style LogTextStyle(string tooltipPath)
+        {
+            var s=new Style(typeof(TextBlock));s.Setters.Add(new Setter(TextBlock.TextTrimmingProperty,TextTrimming.CharacterEllipsis));if(!string.IsNullOrEmpty(tooltipPath))s.Setters.Add(new Setter(FrameworkElement.ToolTipProperty,new Binding(tooltipPath){Mode=BindingMode.OneWay}));return s;
+        }
+        static void LogLevelTrigger(Style s,string level,Brush brush,bool bold=false)
+        {
+            var t=new DataTrigger{Binding=new Binding("Level"),Value=level};t.Setters.Add(new Setter(TextBlock.ForegroundProperty,brush));if(bold)t.Setters.Add(new Setter(TextBlock.FontWeightProperty,FontWeights.Bold));s.Triggers.Add(t);
+        }
+        void RefreshLogAccounts()
+        {
+            int keep=LogAccountBox.SelectedIndex;
+            var items=new List<string>{Lang.T("All")};
+            foreach(var r in Rows)items.Add(string.IsNullOrEmpty(r.Alias)?r.Name:r.Alias);
+            LogAccountBox.ItemsSource=items.ToArray();LogAccountBox.SelectedIndex=(keep>=0&&keep<items.Count)?keep:0;
+            if(logView!=null)logView.Refresh();
+        }
+        bool LogMatches(object o)
+        {
+            var l=o as LogLine;if(l==null)return false;
+            int li=LogLevelBox==null?0:LogLevelBox.SelectedIndex;if(li>0&&li<=LogClassifier.Levels.Length&&l.Level!=LogClassifier.Levels[li-1])return false;
+            if(LogAccountBox!=null&&LogAccountBox.SelectedIndex>0){string sel=LogAccountBox.SelectedItem as string;string want=null;if(sel!=null){var row=Rows.FirstOrDefault(r=>r.Name==sel||r.Alias==sel);if(row!=null)want=row.Name;}if(want!=null&&l.Account!=want)return false;}
+            string q=LogSearchBox==null?"":(LogSearchBox.Text??"").Trim();if(q.Length>0&&(l.Text??"").IndexOf(q,StringComparison.OrdinalIgnoreCase)<0)return false;
+            return true;
+        }
+        void SetLogView(bool plain)
+        {
+            if(LogGrid!=null)LogGrid.Visibility=plain?Visibility.Collapsed:Visibility.Visible;
+            if(LogBox!=null)LogBox.Visibility=plain?Visibility.Visible:Visibility.Collapsed;
+            if(plain&&LogBox!=null)LogBox.ScrollToEnd();
+        }
+        void AppendLogPlain(LogLine l)
+        {
+            if(LogBox==null)return;string line=l.Time.ToString("HH:mm:ss",CultureInfo.InvariantCulture)+"  "+Lang.Show(l.Text);
+            LogBox.Text=LogBox.Text.Length==0?line:LogBox.Text+Environment.NewLine+line;
+        }
+        void UpdateLogTabHeader(){if(logTab!=null)logTab.Header=LogUnseen>0?Lang.T("Logs")+" ("+LogUnseen+")":Lang.T("Logs");}
+        void ScrollLogToEnd()
+        {
+            if(LogGrid!=null&&logRows.Count>0)LogGrid.ScrollIntoView(logRows[logRows.Count-1]);
+            if(LogBox!=null&&LogPlainBox!=null&&LogPlainBox.IsChecked==true)LogBox.ScrollToEnd();
+        }
+        internal void AddLog(LogLine l)
+        {
+            if(l==null)return;
+            while(logRows.Count>=2000)logRows.RemoveAt(0);
+            logRows.Add(l);
+            if((l.Level=="Warn"||l.Level=="Lock"||l.Level=="Error")&&Sections.SelectedIndex!=2)LogUnseen++;
+            UpdateLogTabHeader();AppendLogPlain(l);
+            if(LogAutoBox!=null&&LogAutoBox.IsChecked==true&&Sections.SelectedIndex==2)ScrollLogToEnd();
+        }
+        internal void RebuildLog(IEnumerable<LogLine> lines,string plainText)
+        {
+            logRows.Clear();if(lines!=null)foreach(var l in lines)if(l!=null)logRows.Add(l);
+            if(LogBox!=null){LogBox.Text=plainText??"";LogBox.ScrollToEnd();}
+            UpdateLogTabHeader();
         }
         // Row 3 footer: counts, session text, advice and locked lines.
         void BuildFooter()
@@ -3156,7 +3361,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             string div=leader.OnDivergence;bool lf=leader.FlatOnLimit;foreach(var r in targets){r.Target=tgt;r.Loss=dll;r.CopyAtm=atm;r.OnDivergence=div;r.FlatOnLimit=lf;r.Changed();}
             UpdateCards();return null;
         }
-        public void ClearLog(){LogBox.Text="";}
+        public void ClearLog(){LogBox.Text="";logRows.Clear();LogUnseen=0;UpdateLogTabHeader();}
         public bool BulkBarPresent{get{return bulkBar!=null&&AccountGrid.Parent!=null;}}
         internal Action<string> BulkNotice;
         void BulkLeaderClick(){var reason=BulkFromLeader();var n=BulkNotice;if(n!=null)n(reason==null?"Copied leader Tgt / DLL / ATM to followers (one-time); Ratio and ticks unchanged. Edit any row to fine-tune.":"From Leader refused: "+reason);}
@@ -3258,11 +3463,40 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         DashboardView dashboard; // replaced when the language changes (see ChangeLanguage)
         readonly CopierEngine engine;
         readonly DispatcherTimer timer;
-        readonly Queue<string> logs=new Queue<string>();
-        // Stored as "HH:mm:ss" + English message; translated when drawn, so history follows the picked language.
-        const int LogStamp=8;
-        string LogText(){return string.Join(Environment.NewLine,logs.Select(l=>l.Length>LogStamp+2?l.Substring(0,LogStamp+2)+Lang.Show(l.Substring(LogStamp+2)):l));}
-        internal void RedrawLog(){dashboard.LogBox.Text=LogText();dashboard.LogBox.ScrollToEnd();}
+        readonly Queue<LogLine> logs=new Queue<LogLine>();
+        const int LogCap=2000;
+        bool logFileErrorLogged=false;
+        // Plain-text form of the in-memory queue (translated when drawn, so history follows the picked language).
+        string LogText(){var sb=new System.Text.StringBuilder();foreach(var l in logs)sb.Append(l.Time.ToString("HH:mm:ss",CultureInfo.InvariantCulture)).Append("  ").Append(Lang.Show(l.Text)).AppendLine();return sb.ToString();}
+        internal void RedrawLog(){dashboard.RebuildLog(logs,LogText());}
+        void AppendDailyFile(LogLine line)
+        {
+            try
+            {
+                string dir=Path.Combine(DirectoryPath,"logs");Directory.CreateDirectory(dir);
+                File.AppendAllText(Path.Combine(dir,"kinfx-"+DateTime.Now.ToString("yyyyMMdd")+".log"),line.Time.ToString("yyyy-MM-dd HH:mm:ss")+"  "+line.Level+"  "+line.Text+Environment.NewLine,new System.Text.UTF8Encoding(false));
+            }
+            catch(Exception ex)
+            {
+                if(logFileErrorLogged)return;logFileErrorLogged=true;
+                var err=LogClassifier.Classify("Log file write failed (daily log disabled for this session): "+ex.Message,dashboard.Rows.Select(r=>r.Name));err.Time=DateTime.Now;
+                logs.Enqueue(err);while(logs.Count>LogCap)logs.Dequeue();dashboard.AddLog(err);
+            }
+        }
+        void ExportLogFile()
+        {
+            try
+            {
+                string dir=Path.Combine(DirectoryPath,"logs");Directory.CreateDirectory(dir);
+                string file=Path.Combine(dir,"export-"+DateTime.Now.ToString("yyyyMMdd-HHmmss")+".txt");
+                var names=dashboard.Rows.Select(r=>r.Name).ToArray();
+                var sb=new System.Text.StringBuilder();
+                foreach(var l in logs)sb.Append(l.Time.ToString("yyyy-MM-dd HH:mm:ss")).Append("  ").Append(l.Level).Append("  ").Append(LogExport.Mask(l.Text,names)).AppendLine();
+                File.WriteAllText(file,sb.ToString(),new System.Text.UTF8Encoding(false));
+                Log("Log exported to "+file+" (account names masked).");
+            }
+            catch(Exception ex){Log("Log export failed: "+ex.Message);}
+        }
         readonly Dictionary<string,SavedAccount> saved=new Dictionary<string,SavedAccount>();
         string instanceId=Guid.NewGuid().ToString("N"),zone="Central Standard Time",lastDay="";
         int resetHour=17,persistTicks;
@@ -3296,7 +3530,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         //
         //
         //
-        void WireWp3(){}  // WP3 log page
+        void WireWp3(){dashboard.ExportLog=ExportLogFile;dashboard.ClearQueue=()=>logs.Clear();}  // WP3 log page
         //
         //
         //
@@ -3389,7 +3623,12 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         }
         void Log(string message)
         {
-            Dispatch(()=>{logs.Enqueue(DateTime.Now.ToString("HH:mm:ss")+"  "+message);while(logs.Count>300)logs.Dequeue();RedrawLog();});
+            Dispatch(()=>
+            {
+                var line=LogClassifier.Classify(message,dashboard.Rows.Select(r=>r.Name));line.Time=DateTime.Now;
+                logs.Enqueue(line);while(logs.Count>LogCap)logs.Dequeue();
+                dashboard.AddLog(line);AppendDailyFile(line);
+            });
         }
         AccountRow[] Selected() {return dashboard.SelectedRows();}
         // Title stays English: automation finds this dialog by it and must not depend on the picked language. Body text is translated.
