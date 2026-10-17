@@ -128,12 +128,13 @@ class PublicPackage(unittest.TestCase):
             ('README.en.md', '## First run', 'connected', 'zero position and no working orders',
              'cancel working leader orders and close the leader position using native NinjaTrader',
              'Only after the session is detached', 'Add followers only while stopped'),
+            # Written Chinese uses the UI words (主帳戶 / 停止 / 開始 / 跟單帳戶), review 5 2026-10-17.
             ('README.md', '## 第一次使用', '已連線', '持倉為零且沒有掛單',
-             '使用 NinjaTrader 原生工具取消 Leader 掛單並平掉 Leader 持倉',
-             '只有在工作階段已解除連接後', '僅在停止時新增 Follower'),
+             '使用 NinjaTrader 原生工具取消主帳戶掛單並平掉主帳戶持倉',
+             '只有在工作階段已解除連接後', '僅在停止時新增跟單帳戶'),
             ('README.zh-HK.md', '## 第一次使用', '已連線', '持倉為零且沒有掛單',
-             '使用 NinjaTrader 原生工具取消 Leader 掛單並平掉 Leader 持倉',
-             '只有在工作階段已解除連接後', '僅在停止時新增 Follower'),
+             '使用 NinjaTrader 原生工具取消主帳戶掛單並平掉主帳戶持倉',
+             '只有在工作階段已解除連接後', '僅在停止時新增跟單帳戶'),
             ('README.ja.md', '## 初回の使い方', '接続済み', 'ポジションはゼロで、未約定の注文はありません',
              'NinjaTrader の標準機能で Leader の未約定注文を取り消し、Leader のポジションを決済してから',
              'セッションの接続が解除された後にのみ', '停止中にのみフォロワーを追加'),
@@ -145,9 +146,11 @@ class PublicPackage(unittest.TestCase):
             first_run = text.split(heading, 1)[1].split('![', 1)[0]
             for term in (connected, clean, cleanup, detached, scope):
                 self.assertIn(term, first_run, name)
-            self.assertLess(first_run.index(cleanup), first_run.index('**Stop**'), name)
+            zh = name in ('README.md', 'README.zh-HK.md')
+            stop, start = ('按**停止**', '開始') if zh else ('**Stop**', 'Start')
+            self.assertLess(first_run.index(cleanup), first_run.index(stop), name)
             self.assertLess(first_run.index(detached), first_run.index(scope), name)
-            self.assertIn('Start', first_run[first_run.index(scope):], name)
+            self.assertIn(start, first_run[first_run.index(scope):], name)
 
     def test_readme_allowlist_reload_contract(self):
         for name, terms in (

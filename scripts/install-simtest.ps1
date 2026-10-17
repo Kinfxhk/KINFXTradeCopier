@@ -66,6 +66,6 @@ if ($PSCmdlet.ShouldProcess($dst, "install SIM TEST build (sha256 $sha)")) {
     Write-Host ''
     Write-Host 'Next: (1) NinjaTrader > New > NinjaScript Editor, press F5 (wait for "Compile succeeded").'
     Write-Host '      (2) Create the allow-list file ONLY if your accounts are prop-firm simulated accounts:'
-    Write-Host "          $NinjaDocs\templates\KINFXTradeCopier\sim-allow.txt   (see README, step 4)"
+    Write-Host "          $NinjaDocs\templates\KINFXTradeCopier\sim-allow.txt   (or answer Yes to the risk warning; see README, "Write sim-allow.txt by hand")"
     Write-Host '      (3) New > KINFX Trade Copier.'
 }

@@ -8,7 +8,7 @@ public static class UiTestsWp2 {
   public static Action[] Cases(){ return new Action[]{
     SummaryCardsShowCorrectValues, BannerCollapsesAndLinksSwitchTabs, UnlockAllAndFlattenLiveOnMonitor,
     BulkSectionAppliesOnSettingsTab, GroupHeaderShowsFirmAndCount, MaxIsDefaultWarnBorder, NoClippedTextNoWhiteBlocksAllLanguages,
-    GroupToggleMirrorsGroupByAccount, IssuesHaveTheirOwnTab, LeaderRowIsAlwaysFirst, BulkEditsRatioAndMax, ColumnsFollowImportanceOrder, MonitorTableFitsDefaultWindowInEveryLanguage, SettingsStatusAndConnectionAreTranslated, MaxAndBalanceHeadersSort, IssuesListNotRebuiltWhenUnchanged, CurrencyCodeUsesSharedTableAndIssueOrderIgnored, NotifySectionEditsDraftOnly, ResumeAndRefollowControls, SettingsTableFitsDefaultWindowInEveryLanguage };}
+    GroupToggleMirrorsGroupByAccount, IssuesHaveTheirOwnTab, LeaderRowIsAlwaysFirst, BulkEditsRatioAndMax, ColumnsFollowImportanceOrder, MonitorTableFitsDefaultWindowInEveryLanguage, SettingsStatusAndConnectionAreTranslated, MaxAndBalanceHeadersSort, IssuesListNotRebuiltWhenUnchanged, CurrencyCodeUsesSharedTableAndIssueOrderIgnored, NotifySectionEditsDraftOnly, ResumeAndRefollowControls,ClosedFollowerReadsClosedOnMonitorAndHandFlatIsNotAutoRefollowed, SettingsTableFitsDefaultWindowInEveryLanguage };}
   static T Find<T>(DashboardView v,string tag) where T:FrameworkElement{return BulkUiTests.Visual<T>(v).FirstOrDefault(x=>(x.Tag as string)==tag);}
   static FrameworkElement Tag(DashboardView v,string tag){return BulkUiTests.Visual<FrameworkElement>(v).FirstOrDefault(x=>(x.Tag as string)==tag);}
   static string CardValue(DashboardView v,string tag){var c=Tag(v,tag);BulkUiTests.Check(c!=null,"card exists: "+tag);return BulkUiTests.Visual<TextBlock>(c).Last().Text;}
@@ -359,6 +359,21 @@ public static class UiTestsWp2 {
     v.SetSessionState(false,"Stopped");
     BulkUiTests.Check(v.RiskGrid.Columns.Any(c=>c.SortMemberPath=="AutoRefollow"),"auto re-follow column present");
     var row=new AccountRow{Name="X",Role="Follower"};BulkUiTests.Check(!row.AutoRefollow,"auto re-follow default off");row.AutoRefollow=true;BulkUiTests.Check(row.Settings.AutoRefollow,"binds to settings");
+  }
+  // Review 5 (2026-10-17): the Monitor State column (StateLabel) showed "Off" for a follower closed by a copied exit; only the Settings St
+  // column said "Closed · re-follow", while the README tour describes the Monitor column. A user Flat must never count for AUTO re-follow.
+  static void ClosedFollowerReadsClosedOnMonitorAndHandFlatIsNotAutoRefollowed(){
+    var row=new AccountRow{Name="ACCT-1",Role="Follower",Connection="Connected"};
+    var t=new AccountTelemetry{Name="ACCT-1",SessionGeneration=1,Following=false,ExitCompleted=true,Connection="Connected",State="OFF / exits managed"};
+    BulkUiTests.Check(row.ApplyTelemetry(t,1),"telemetry applied");
+    BulkUiTests.Check(row.ExitClosed&&row.StateLabel=="Closed","Monitor state of a closed follower is Closed, got "+row.StateLabel);
+    string was=Lang.Current;try{foreach(var code in new[]{"zh","ja","ko"}){Lang.Set(code);BulkUiTests.Check(row.StateText!="Closed","Closed translated in "+code);}}finally{Lang.Set(was);}
+    BulkUiTests.Check(!row.UserFlattened,"not hand-flattened by default");
+    row.UserFlattened=true;
+    BulkUiTests.Check(!Refollow.Auto(true,row.UserFlattened,row.ExitClosed,false,false,false,true,0,0),"a hand Flat is never auto re-followed");
+    BulkUiTests.Check(Refollow.Eligible(row.ExitClosed,false,false,false,true,0),"the manual Re-follow button still offers it");
+    var back=new AccountTelemetry{Name="ACCT-1",SessionGeneration=1,Following=true,ExitCompleted=false,Connection="Connected",State="Active"};
+    row.ApplyTelemetry(back,1);BulkUiTests.Check(!row.UserFlattened&&!row.ExitClosed,"following again clears both marks");
   }
 
   // Real NT 2026-10-17: at the default 1160 px window the Settings table scrolled sideways (UIA HorizontalViewSize 96.9 %) with the

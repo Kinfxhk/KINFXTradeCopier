@@ -61,7 +61,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             if(referenceLots>0)
             {
                 if(RiskPolicy.Quantity(referenceLots,s.Ratio)==0)notes.Add(Lang.F("Ratio gives 0 lots for a {0}-lot leader order",referenceLots));
-                else if(s.MaxContracts>0&&RiskPolicy.Quantity(referenceLots,s.Ratio)>s.MaxContracts)notes.Add(Lang.F("size capped by Max {0}",s.MaxContracts));
+                else if(s.MaxContracts>0&&RiskPolicy.Quantity(referenceLots,s.Ratio)>s.MaxContracts)notes.Add(Lang.F("over Max {0}: that order is skipped, not reduced",s.MaxContracts));
             }
             return string.Join("; ",notes);
         }
@@ -1075,9 +1075,10 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
     {
         public static bool Eligible(bool exitClosed,bool following,bool locked,bool paused,bool connected,int position)
         { return exitClosed&&!following&&!locked&&!paused&&connected&&position==0; }
-        // Auto re-follow additionally needs the opt-in and a flat leader.
-        public static bool Auto(bool optIn,bool exitClosed,bool following,bool locked,bool paused,bool connected,int position,int leaderPosition)
-        { return optIn&&leaderPosition==0&&Eligible(exitClosed,following,locked,paused,connected,position); }
+        // Auto re-follow additionally needs the opt-in and a flat leader, and never re-ticks an account the user flattened by hand
+        // (Flat / Flatten selected / Flatten all): the engine marks that close the same way as a copied exit (review 5, 2026-10-17).
+        public static bool Auto(bool optIn,bool userFlattened,bool exitClosed,bool following,bool locked,bool paused,bool connected,int position,int leaderPosition)
+        { return optIn&&!userFlattened&&leaderPosition==0&&Eligible(exitClosed,following,locked,paused,connected,position); }
     }
     // S1 auto re-follow: one attempt per close. The attempt is not spent while entries are off (the engine would refuse it), and
     // entries coming back on, or a new session, give every still-closed follower a fresh attempt. No account or engine access.
@@ -1551,7 +1552,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             t["● {0} LOCKED · check NinjaTrader, then review each reason"] = new[] { "● {0} 已鎖定 · 請檢查 NinjaTrader，再逐一審查原因", "● {0} ロック中 · NinjaTrader を確認し、各理由を確認してください", "● {0} 잠김 · NinjaTrader를 확인한 후 각 사유를 검토하세요" };
             t["⚠ {0} account(s) with a settings note · hover State"] = new[] { "⚠ {0} 個帳戶有設定備註 · 請將游標移至狀態欄", "⚠ 設定メモのある口座 {0} 件 · 状態にカーソルを合わせてください", "⚠ 설정 메모가 있는 계좌 {0}개 · 상태에 마우스를 올리세요" };
             t["Ratio gives 0 lots for a {0}-lot leader order"] = new[] { "對於 {0} 口的主帳戶委託單，比例換算結果為 0 口", "リーダーの {0} ロット注文に対し、比率では 0 ロットになります", "리더의 {0}랏 주문에 대해 비율 적용 결과가 0랏임" };
-            t["size capped by Max {0}"] = new[] { "數量已受 Max {0} 限制", "数量は Max {0} で制限されています", "수량이 Max {0}(으)로 제한됨" };
+            t["over Max {0}: that order is skipped, not reduced"] = new[] { "超過上限 {0}：該筆會整筆略過，不會減量", "最大 {0} を超えるため、その注文は丸ごと見送られます（減らしません）", "최대 {0} 초과: 그 주문은 줄이지 않고 통째로 건너뜁니다" };
             t["Over advisory limit: {0}%"] = new[] { "超出建議上限：{0}%", "推奨上限を超過：{0}%", "권고 한도 초과: {0}%" };
             t["Within advisory limit: {0}%"] = new[] { "在建議上限內：{0}%", "推奨上限内：{0}%", "권고 한도 이내: {0}%" };
             t["Start simulation copying to exactly {0} follower account(s) on {1}?\n\n{2}\n\nLocal copier guards only. No adoption; all selected accounts must be flat / no working instrument orders."] = new[] { "要對 {1} 上恰好 {0} 個跟單帳戶開始模擬跟單嗎？\n\n{2}\n\n僅有本機跟單防護。不採納既有部位；所有已選帳戶必須為平倉狀態，且該商品無掛單。", "{1} の正確に {0} 口座のフォロワーへシミュレーションコピーを開始しますか？\n\n{2}\n\nローカルのコピーガードのみ。引き継ぎは行いません；選択した全口座がフラットで、銘柄の待機中の注文がない必要があります。", "{1}에서 정확히 {0}개 팔로워 계좌로 시뮬레이션 복사를 시작할까요?\n\n{2}\n\n로컬 복사 가드만 적용됨. 인수 없음; 선택한 모든 계좌는 청산 상태이고 해당 종목의 대기 주문이 없어야 함." };
@@ -1745,6 +1746,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             t["Closed · re-follow"] = new[] { "已平倉 · 待重新跟隨", "決済済み · 再フォロー待ち", "청산됨 · 다시 팔로우 대기" };
             t["Trading-day boundary"] = new[] { "交易日分界", "取引日の境界", "거래일 경계" };
             t["Re-follow"] = new[] { "重新跟隨", "再フォロー", "다시 팔로우" };
+            t["Closed"] = new[] { "已平倉", "決済済み", "청산됨" };
             t["Info"] = new[] { "資訊", "情報", "정보" };
             t["Order"] = new[] { "委託", "注文", "주문" };
             t["Warn"] = new[] { "警告", "警告", "경고" };
@@ -3257,7 +3259,7 @@ stateChanged(attached,"GUARDED PAUSE — no new entries; existing lifecycle + ne
         int latestFollowSession=-1,latestFollowGeneration;
         public bool FollowPending {get;private set;}
         internal void SyncFollowing(bool following,bool pending){enabled=following&&!Latch.Locked;DisablePending=pending;FollowPending=false;Changed();}
-        internal void InvalidateSessionActivity(){ExitClosed=false;FollowPending=false;DisablePending=false;Paused=false;Status="Disarmed";latestFollowSession=-1;latestFollowGeneration=0;Changed();}
+        internal void InvalidateSessionActivity(){ExitClosed=false;UserFlattened=false;FollowPending=false;DisablePending=false;Paused=false;Status="Disarmed";latestFollowSession=-1;latestFollowGeneration=0;Changed();}
         internal void TrackFollowRequest(int session,int generation,bool following)
         {
             if(session!=latestFollowSession){latestFollowSession=session;latestFollowGeneration=0;}
@@ -3268,7 +3270,7 @@ stateChanged(attached,"GUARDED PAUSE — no new entries; existing lifecycle + ne
             if(t.Name!=Name||t.SessionGeneration!=currentSession)return false;
             if(latestFollowSession==t.SessionGeneration&&t.FollowGeneration<latestFollowGeneration)return false;
             latestFollowSession=t.SessionGeneration;latestFollowGeneration=t.FollowGeneration;
-            Pnl=t.Pnl;Equity=t.Equity;Realized=t.Realized;Unrealized=t.Unrealized;Sod=t.Sod;Position=t.Position;Connection=t.Connection;Status=t.State;Paused=t.Paused;ExitClosed=t.ExitCompleted&&!t.Following&&!t.Locked;
+            Pnl=t.Pnl;Equity=t.Equity;Realized=t.Realized;Unrealized=t.Unrealized;Sod=t.Sod;Position=t.Position;Connection=t.Connection;Status=t.State;Paused=t.Paused;ExitClosed=t.ExitCompleted&&!t.Following&&!t.Locked;if(t.Following)UserFlattened=false;
             if(t.Locked&&!Latch.Locked){Latch.Locked=true;Latch.Reason=t.Reason;}
             Settings.HighWater=t.HighWater;Settings.Baseline=t.Baseline;Settings.BaselineSet=true;
             if(t.ProcessedFollowGeneration==latestFollowGeneration)SyncFollowing(t.Following,t.DisablePending);else Changed();return true;
@@ -3278,6 +3280,8 @@ stateChanged(attached,"GUARDED PAUSE — no new entries; existing lifecycle + ne
         public bool AutoRefollow {get{return Settings.AutoRefollow;}set{Settings.AutoRefollow=value;Changed();}}
         // The engine turned following off because this follower's copied exit completed ("closed · re-follow"). A user OFF never sets it.
         public bool ExitClosed {get;private set;}
+        // Set when the user confirmed a Flat / Flatten for this account; cleared once the engine reports it following again. Auto re-follow skips it.
+        public bool UserFlattened {get;set;}
         public string OnDivergence {get{return Settings.OnDivergence;}set{if(!DivergenceChoice.IsValid(value))throw new ArgumentException(Lang.T("On divergence must be Notify or FlattenOnce"));Settings.OnDivergence=value;Changed();}}
         public bool CanFlat {get{return Role!="Leader"&&CanFollow&&Connection!="Disconnected"&&DashboardSafety.CanExecute("flattenSelected");}}
         public bool CanFollow {get{return Role!="Leader"&&(Account!=null?CopierEngine.Listable(Account):Connection=="Synthetic");}}
@@ -3286,7 +3290,7 @@ stateChanged(attached,"GUARDED PAUSE — no new entries; existing lifecycle + ne
         public string AccountPrefix {get{string n=Name??"";return n.Length>12?n.Substring(0,n.Length-4):n;}}
         public string AccountSuffix {get{string n=Name??"";return n.Length>12?n.Substring(n.Length-4):"";}}
         public string StateText {get{return Lang.T(StateLabel);}}
-        public string StateLabel {get{return DisablePending?"Cancelling":FollowPending?"Rechecking":Latch.Locked?"Locked":Status=="Telemetry error"?"Error":Paused?"Paused":Role=="Leader"?"Leader":Status=="Active"&&Enabled?"Copying":Connection=="Disconnected"?"Offline":Status=="Demo only"?"Demo":Enabled?"Selected":"Off";}}
+        public string StateLabel {get{return DisablePending?"Cancelling":FollowPending?"Rechecking":Latch.Locked?"Locked":Status=="Telemetry error"?"Error":Paused?"Paused":Role=="Leader"?"Leader":Status=="Active"&&Enabled?"Copying":Connection=="Disconnected"?"Offline":Status=="Demo only"?"Demo":ExitClosed?"Closed":Enabled?"Selected":"Off";}}
         public Brush StateInk {get{return DisablePending?DashboardView.Warn:Latch.Locked||Status=="Telemetry error"?DashboardView.Bad:StateLabel=="Copying"?DashboardView.Good:Paused?DashboardView.Warn:DashboardView.Muted;}}
         // Advisory only (never blocks). Reference lot size is the dashboard's current reference; see SettingsAdvice.
         internal static int AdviceReferenceLots=2;
@@ -4707,7 +4711,7 @@ stateChanged(attached,"GUARDED PAUSE — no new entries; existing lifecycle + ne
             AccountRow[] rows;
             if(auto)
             {
-                var eligible=followers.Where(r=>Refollow.Auto(r.AutoRefollow,r.ExitClosed,r.Enabled||r.FollowPending,r.Latch.Locked,r.Paused,r.Connection=="Connected",r.Position,leaderPos)).Select(r=>r.Name);
+                var eligible=followers.Where(r=>Refollow.Auto(r.AutoRefollow,r.UserFlattened,r.ExitClosed,r.Enabled||r.FollowPending,r.Latch.Locked,r.Paused,r.Connection=="Connected",r.Position,leaderPos)).Select(r=>r.Name);
                 var take=new HashSet<string>(autoRefollow.Take(engine.SessionGeneration,engine.EntriesArmed,eligible,followers.Where(r=>r.ExitClosed).Select(r=>r.Name)),StringComparer.Ordinal);
                 rows=followers.Where(r=>take.Contains(r.Name)).ToArray();
                 if(rows.Length==0)return;
@@ -4782,6 +4786,7 @@ stateChanged(attached,"GUARDED PAUSE — no new entries; existing lifecycle + ne
             if(rows.Length==0){Log("No accounts in flatten scope.");return;}var inst=Instrument.GetInstrument(InstrumentText(),false);if(inst==null){Log("Flatten: exact instrument unknown.");return;}
             var targets=rows.Where(r=>r.Account!=null).Select(r=>r.Account).Distinct().ToArray();
             if(!ConfirmScope(kind,Lang.F("{0}{1}FLATTEN exactly {2} account(s), only {3}.\n{4}\nNew copies will be blocked BEFORE flatten requests. This cancels working orders and closes positions on that instrument. Retry/error remains visible.",DryRunPrefix(),kind==ConfirmPrefs.FlatOne?Lang.T("FLAT ONE ACCOUNT. "):"",targets.Length,inst.FullName,string.Join("\n",targets.Select(a=>a.Name))),targets))return;
+            foreach(var r in rows)if(r.Account!=null)r.UserFlattened=true;
             engine.Flatten(targets,inst);
         }
         void OnTelemetry(AccountTelemetry t)

@@ -87,7 +87,7 @@ class RiskTests {
   Eq(true,SettingsAdvice.For(tiny,"Follower",2).Contains("0 lots"));
   Eq(true,SettingsAdvice.For(tiny,"Follower",5).Equals(""));
   var cap=new RiskSettings{Ratio=3,Target=1000,Loss=500,MaxContracts=4};
-  Eq(true,SettingsAdvice.For(cap,"Follower",2).Contains("capped"));
+  Eq(true,SettingsAdvice.For(cap,"Follower",2).Contains("skipped, not reduced")); // review 5: the order is skipped whole, never reduced to Max
   Eq(true,SettingsAdvice.For(new RiskSettings{Ratio=double.NaN,Target=1,Loss=1,MaxContracts=4},"Follower",2).Contains("Ratio"));
   Eq("",SettingsAdvice.For(null,"Follower",2));
   // leader rows never get follower advice
@@ -633,10 +633,12 @@ static void RefollowAndBoundaryRules() {
  Eq(false,Refollow.Eligible(true,false,false,false,false,0));
  Eq(false,Refollow.Eligible(true,false,false,false,true,1));
  Eq(false,Refollow.Eligible(true,false,false,false,true,-2));
- Eq(true,Refollow.Auto(true,true,false,false,false,true,0,0));
- Eq(false,Refollow.Auto(false,true,false,false,false,true,0,0)); // opt-in required
- Eq(false,Refollow.Auto(true,true,false,false,false,true,0,1));  // leader must be flat
- Eq(false,Refollow.Auto(true,true,false,false,false,true,1,0));
+ Eq(true,Refollow.Auto(true,false,true,false,false,false,true,0,0));
+ Eq(false,Refollow.Auto(false,false,true,false,false,false,true,0,0)); // opt-in required
+ Eq(false,Refollow.Auto(true,false,true,false,false,false,true,0,1));  // leader must be flat
+ Eq(false,Refollow.Auto(true,false,true,false,false,false,true,1,0));
+ Eq(false,Refollow.Auto(true,true,true,false,false,false,true,0,0));   // review 5: a hand Flat is never auto re-followed
+ Eq(true,Refollow.Eligible(true,false,false,false,true,0));            // ... the manual button still offers it (with a confirmation)
  Eq("pause",BoundaryMode.Parse(null));Eq("pause",BoundaryMode.Parse(""));Eq("pause",BoundaryMode.Parse("x"));Eq("notify",BoundaryMode.Parse("notify"));
  Eq(false,new RiskSettings().AutoRefollow);
  var x=SettingsStore.ToXml(new[]{new SavedAccount{Name="A",Settings=new RiskSettings{AutoRefollow=true}}},"MES 12-26","Central Standard Time",17);
