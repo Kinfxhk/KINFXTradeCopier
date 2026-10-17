@@ -87,7 +87,7 @@ class RiskTests {
   Eq(true,SettingsAdvice.For(tiny,"Follower",2).Contains("0 lots"));
   Eq(true,SettingsAdvice.For(tiny,"Follower",5).Equals(""));
   var cap=new RiskSettings{Ratio=3,Target=1000,Loss=500,MaxContracts=4};
-  Eq(true,SettingsAdvice.For(cap,"Follower",2).Contains("capped"));
+  Eq(true,SettingsAdvice.For(cap,"Follower",2).Contains("skipped, not reduced")); // review 5: the order is skipped whole, never reduced to Max
   Eq(true,SettingsAdvice.For(new RiskSettings{Ratio=double.NaN,Target=1,Loss=1,MaxContracts=4},"Follower",2).Contains("Ratio"));
   Eq("",SettingsAdvice.For(null,"Follower",2));
   // leader rows never get follower advice
@@ -487,26 +487,27 @@ class RiskTests {
   Eq(true,ConfirmPrefs.MustAsk(ConfirmPrefs.KindFor("flattenSelected"),onlyRowOff,false));
   Eq("Flat (row)",ConfirmPrefs.Label("flatOne"));Eq("Flatten selected / all",ConfirmPrefs.Label("flatten"));Eq("Start",ConfirmPrefs.Label("start"));
   Eq(false,Lang.Show("Confirmation turned off: Flat (row) (risk warnings and Unlock are still always asked)","zh").StartsWith("Confirmation"));
-  Eq(false,Lang.Show("Confirmation skipped (turned off on the Risk tab): Start","zh").StartsWith("Confirmation"));
+  Eq(false,Lang.Show("Confirmation skipped (turned off on the Settings tab): Start","zh").StartsWith("Confirmation"));
  }
  // Column prefs: hidden set round-trips; a hand-edited file can never hide a safety column; garbage lines are ignored.
  static void ColumnPrefsRoundTripAndSafetyColumnsNeverHidden() {
   var s=ColumnPrefs.Parse(new[]{"# c","hide=risk:Preset"," hide = copy:Bal ","hide=copy:Flat","hide=risk:St","show=copy:Acct","hide=risk:Tgt","hide=nogrid:Bal","show=risk:Cons","junk",""});
-  Eq(3,s.Count);Eq(true,s.Contains("risk:Preset")&&s.Contains("copy:Bal")&&s.Contains("risk:Acct")&&!s.Contains("copy:Acct"));
+  // Defaults also hide risk:Preset/Cons/CCY/P/L (Settings fits 1160 px); show=risk:Cons reveals Cons again.
+  Eq(5,s.Count);Eq(true,s.Contains("risk:Preset")&&s.Contains("copy:Bal")&&s.Contains("risk:Acct")&&s.Contains("risk:CCY")&&s.Contains("risk:P/L")&&!s.Contains("copy:Acct")&&!s.Contains("risk:Cons"));
   Eq(false,ColumnPrefs.Visible("risk","Preset",s));Eq(true,ColumnPrefs.Visible("risk","Cons",s));
   foreach(var k in new[]{"On","Ratio","Qty","State","Conn","Off","Flat"})Eq(false,ColumnPrefs.CanHide("copy",k));
   foreach(var k in new[]{"Tgt","DLL","Qty","St","Conn"})Eq(false,ColumnPrefs.CanHide("risk",k));
   // account name: hidden by default (no file / file without a show line), shown again by show=, and the choice round-trips
-  Eq(true,ColumnPrefs.Parse(null).SetEquals(new[]{"copy:Acct","risk:Acct"}));Eq(true,ColumnPrefs.Parse(new[]{"hide=copy:Bal"}).Contains("copy:Acct"));
+  Eq(true,ColumnPrefs.Parse(null).SetEquals(new[]{"copy:Acct","risk:Acct","risk:Preset","risk:Cons","risk:CCY","risk:P/L"}));Eq(true,ColumnPrefs.Parse(new[]{"hide=copy:Bal"}).Contains("copy:Acct"));
   Eq(true,ColumnPrefs.Parse(ColumnPrefs.Serialize(new System.Collections.Generic.HashSet<string>())).Count==0);
   Eq("Sim101",ColumnPrefs.DefaultAlias("Sim101"));Eq("Playback101",ColumnPrefs.DefaultAlias("Playback101"));Eq("FIRMAB..0001",ColumnPrefs.DefaultAlias("FIRMAB12345670001"));
   Eq("XYZ..0042",ColumnPrefs.DefaultAlias("XYZ09876543210042"));Eq("..6789",ColumnPrefs.DefaultAlias("1234567890123456789"));Eq("",ColumnPrefs.DefaultAlias(null));
   Eq(true,ColumnPrefs.Visible("copy","Flat",new System.Collections.Generic.HashSet<string>{"copy:Flat"}));
-  var again=ColumnPrefs.Parse(ColumnPrefs.Serialize(s));Eq(3,again.Count);Eq(true,again.SetEquals(s));
+  var again=ColumnPrefs.Parse(ColumnPrefs.Serialize(s));Eq(5,again.Count);Eq(true,again.SetEquals(s));
  }
  // columns.txt missing (or a blank path) is the default hidden set. A readable file is still parsed, so show= can reveal one grid's account name.
  static void MissingColumnsFileUsesDefaults() {
-  var want=new[]{"copy:Acct","risk:Acct"};
+  var want=new[]{"copy:Acct","risk:Acct","risk:Preset","risk:Cons","risk:CCY","risk:P/L"};
   Eq(true,ColumnPrefs.Load(null).SetEquals(want));
   Eq(true,ColumnPrefs.Load("").SetEquals(want));
   Eq(true,ColumnPrefs.Load(" ").SetEquals(want));
@@ -523,7 +524,7 @@ class RiskTests {
   Eq(true,ColumnPrefs.Visible("copy","Acct",loaded));Eq(false,ColumnPrefs.Visible("risk","Acct",loaded));
   Eq(false,ColumnPrefs.Visible("copy","Bal",loaded));
   System.IO.File.WriteAllLines(present,new[]{"show=copy:Acct","show=risk:Acct"});
-  Eq(0,ColumnPrefs.Load(present).Count);
+  Eq(true,ColumnPrefs.Load(present).SetEquals(new[]{"risk:Preset","risk:Cons","risk:CCY","risk:P/L"}));
   System.IO.File.WriteAllLines(present,new string[0]);
   Eq(true,ColumnPrefs.Load(present).SetEquals(want));
   System.IO.File.Delete(present);
@@ -533,4 +534,231 @@ class RiskTests {
   Eq(3,all.Count);
   foreach(var k in ConfirmPrefs.Kinds){Eq(false,ConfirmPrefs.MustAsk(k,all,false));Eq(true,ConfirmPrefs.MustAsk(k,all,true));}
  }
+// ---- WP1 pure tests (instrument / roll) go here ----
+static void ContractRollTableDriven() {
+  // The known CME rollover dates (NinjaTrader 8.1.8.3) decide the front contract, not the 1st of the expiry month.
+  Eq("MNQ 12-26",ContractRoll.Front("MNQ",new DateTime(2026,12,13)));
+  Eq("MNQ 03-27",ContractRoll.Front("MNQ",new DateTime(2026,12,14)));
+  Eq("ES 09-26",ContractRoll.Front("ES",new DateTime(2026,9,13)));
+  Eq("ES 12-26",ContractRoll.Front("ES",new DateTime(2026,9,14)));
+  Eq("NQ 03-27",ContractRoll.Front("NQ",new DateTime(2027,3,8)));
+  Eq("NQ 06-27",ContractRoll.Front("NQ",new DateTime(2027,3,9)));
+}
+static void ContractRollNeverPicksMetals() {
+  Eq(null,ContractRoll.Front("GC",new DateTime(2026,12,13)));
+  Eq(null,ContractRoll.Front("SI",new DateTime(2026,12,13)));
+  Eq(null,ContractRoll.Front("CL",new DateTime(2026,12,13)));
+}
+static void SilverExplicitMonthNormalizes() {
+  Eq("SI 12-26",ContractRoll.Normalize("SIZ6",new DateTime(2026,10,11)));
+  Eq("SI 12-26",ContractRoll.Normalize("SI 12-26",new DateTime(2026,10,11)));
+  Eq("SIL 03-27",ContractRoll.Normalize("SILH7",new DateTime(2026,10,11)));
+}
+static void ContractRollEstimatedFallback() {
+  var after=new DateTime(2027,10,1);
+  Eq(true,InstrumentCatalog.IsEstimated("MNQ",after));
+  Eq("MNQ 12-27",ContractRoll.Front("MNQ",after));
+  Eq(false,InstrumentCatalog.IsEstimated("MNQ",new DateTime(2026,10,11)));
+  Eq(false,InstrumentCatalog.IsEstimated("GC",after));
+}
+static void NtVersionNotice() {
+  Eq("",NtVersion.Notice("8.1.8.3"));
+  Eq("",NtVersion.Notice(""));
+  Eq("",NtVersion.Notice(null));
+  Eq(true,NtVersion.Notice("8.1.8.2").Contains("not the tested version"));
+}
+static void InstrumentCatalogListsAllRoots() {
+  var seen=new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal);
+  foreach(var e in InstrumentCatalog.Items)if(e.Root!=null)seen.Add(e.Root);
+  Eq(14,seen.Count);
+  foreach(var w in new[]{"MNQ","NQ","MES","ES","MYM","YM","M2K","RTY","MGC","GC","SIL","SI","MCL","CL"})Eq(true,seen.Contains(w));
+}
+static void InstrumentCatalogRecentValidatedAndCapped() {
+  var list=InstrumentCatalog.Build(new[]{"MNQ","bogus","ES","MNQ","NQ","MES","YM","RTY"});
+  Eq("Recent",list[0].Description);Eq(true,list[0].Header);
+  int n=0;for(int i=1;i<list.Length&&!list[i].Header;i++)n++;
+  Eq(5,n);
+  Eq("MNQ",list[1].Root);Eq("ES",list[2].Root);Eq("NQ",list[3].Root);Eq("MES",list[4].Root);Eq("YM",list[5].Root);
+}
+//
+// ---- WP2 pure tests (monitor summary) go here ----
+static void MonitorSummaryUnprotectedLots() {
+ Eq(0,MonitorSummary.UnprotectedLots(null));
+ Eq(0,MonitorSummary.UnprotectedLots(""));
+ Eq(0,MonitorSummary.UnprotectedLots("Coverage not established"));
+ Eq(2,MonitorSummary.UnprotectedLots("Late fill — 2 lots UNPROTECTED — check now"));
+ Eq(1,MonitorSummary.UnprotectedLots("1 lot UNPROTECTED (no protective exit working)"));
+ Eq(2,MonitorSummary.UnprotectedLots("2 lot unprotected")); // case-insensitive
+ Eq(5,MonitorSummary.UnprotectedLots("3 lots UNPROTECTED and 2 lots UNPROTECTED"));
+ Eq(0,MonitorSummary.UnprotectedLots("12 lots protected, no unprotected"));
+}
+static void MonitorSummarySumFinite() {
+ Eq(0.0,MonitorSummary.SumFinite(null));
+ Eq(0.0,MonitorSummary.SumFinite(new double[0]));
+ Eq(6.0,MonitorSummary.SumFinite(new[]{1.0,2.0,3.0}));
+ Eq(3.0,MonitorSummary.SumFinite(new[]{1.0,double.NaN,2.0,double.PositiveInfinity}));
+ Eq(0.0,MonitorSummary.SumFinite(new[]{double.NaN,double.NegativeInfinity}));
+}
+static void MonitorSummarySingleCurrency() {
+ Eq(null,MonitorSummary.SingleCurrency(null));
+ Eq(null,MonitorSummary.SingleCurrency(new string[0]));
+ Eq("USD",MonitorSummary.SingleCurrency(new[]{"USD","USD",""}));
+ Eq("USD",MonitorSummary.SingleCurrency(new[]{" USD "}));
+ Eq(null,MonitorSummary.SingleCurrency(new[]{"USD","EUR"}));
+ Eq(null,MonitorSummary.SingleCurrency(new[]{"USD","usd"})); // case-sensitive: mixed
+ // Money shows the symbol, never the NinjaTrader enum name (user: "US DOLLAR 唔洗加，落個符號就得").
+ Eq("-$12,152.80",MonitorSummary.Money(-12152.8,"UsDollar"));
+ Eq("$1,250,000.00",MonitorSummary.Money(1250000,"USD"));
+ Eq("$0.00",MonitorSummary.Money(-0.001,"UsDollar")); // no "-$0.00"
+ Eq("\u20AC5.00",MonitorSummary.Money(5,"Euro"));
+ Eq("HK$5.00",MonitorSummary.Money(5,"HongKongDollar"));
+ Eq("CNY -5.00",MonitorSummary.Money(-5,"ChinaYuan")); // no symbol: ISO code, never the enum name and never pretend it is $
+ Eq("CHF 5.00",MonitorSummary.Money(5,"SwissFranc"));
+ Eq("XYZ 5.00",MonitorSummary.Money(5,"XYZ")); // unknown name shown as it is
+ Eq("CHF",MonitorSummary.IsoCode("SwissFranc"));Eq("XYZ",MonitorSummary.IsoCode("XYZ"));Eq("",MonitorSummary.IsoCode(null));
+ Eq("5.00",MonitorSummary.Money(5,""));
+ Eq("\u2014",MonitorSummary.Money(double.NaN,"UsDollar"));
+}
+//
+//
+//
+//
+// ---- WP3 pure tests (log classifier / export) go here ----
+static void RefollowAndBoundaryRules() {
+ Eq(true,Refollow.Eligible(true,false,false,false,true,0));
+ Eq(false,Refollow.Eligible(false,false,false,false,true,0)); // user OFF is never offered
+ Eq(false,Refollow.Eligible(true,true,false,false,true,0));
+ Eq(false,Refollow.Eligible(true,false,true,false,true,0));
+ Eq(false,Refollow.Eligible(true,false,false,true,true,0));
+ Eq(false,Refollow.Eligible(true,false,false,false,false,0));
+ Eq(false,Refollow.Eligible(true,false,false,false,true,1));
+ Eq(false,Refollow.Eligible(true,false,false,false,true,-2));
+ Eq(true,Refollow.Auto(true,false,true,false,false,false,true,0,0));
+ Eq(false,Refollow.Auto(false,false,true,false,false,false,true,0,0)); // opt-in required
+ Eq(false,Refollow.Auto(true,false,true,false,false,false,true,0,1));  // leader must be flat
+ Eq(false,Refollow.Auto(true,false,true,false,false,false,true,1,0));
+ Eq(false,Refollow.Auto(true,true,true,false,false,false,true,0,0));   // review 5: a hand Flat is never auto re-followed
+ Eq(true,Refollow.Eligible(true,false,false,false,true,0));            // ... the manual button still offers it (with a confirmation)
+ Eq("pause",BoundaryMode.Parse(null));Eq("pause",BoundaryMode.Parse(""));Eq("pause",BoundaryMode.Parse("x"));Eq("notify",BoundaryMode.Parse("notify"));
+ Eq(false,new RiskSettings().AutoRefollow);
+ var x=SettingsStore.ToXml(new[]{new SavedAccount{Name="A",Settings=new RiskSettings{AutoRefollow=true}}},"MES 12-26","Central Standard Time",17);
+ Eq(true,SettingsStore.FromXml(x)[0].Settings.AutoRefollow);
+}
+static void AutoRefollowGateWaitsForEntries() {
+ var g=new AutoRefollowGate();var A=new[]{"A"};
+ Eq(1,g.Take(1,true,A,A).Length);                 // first close: one attempt
+ Eq(0,g.Take(1,true,A,A).Length);                 // never every tick
+ Eq(0,g.Take(1,true,new string[0],new string[0]).Length);Eq(1,g.Take(1,true,A,A).Length); // re-opened then closed again: fresh attempt
+ var p=new AutoRefollowGate();
+ Eq(0,p.Take(1,false,A,A).Length);Eq(0,p.Take(1,false,A,A).Length); // paused: wait, do not spend the attempt
+ Eq(1,p.Take(1,true,A,A).Length);                 // review 4 MEDIUM-1: after Resume the still-closed follower is re-followed
+ Eq(0,p.Take(1,true,A,A).Length);
+ Eq(0,p.Take(1,false,A,A).Length);Eq(1,p.Take(1,true,A,A).Length);  // pause/resume again: one more attempt
+ Eq(1,p.Take(2,true,A,A).Length);                 // new session resets
+ Eq(0,new AutoRefollowGate().Take(1,true,null,null).Length);
+}
+static void NotifyPrefsAndDecide() {
+ // Off until an address is entered; defaults lock/error/limit/disconnect once it is.
+ var d=NotifyPrefs.Defaults();Eq(false,d.Enabled);d.To="me@example.com";Eq(true,d.Enabled);Eq(false,d.On.Contains(NotifyPrefs.Boundary));
+ foreach(var bad in new[]{"","  ","me","me@","@x.com","a@b","a@b.","a b@c.com","a@b.com,c@d.com","a@@b.com","a@b.com\nBcc: x@y.com"})Eq(false,NotifyPrefs.IsAddress(bad));
+ Eq(true,NotifyPrefs.IsAddress("trader.one+kinfx@mail.example.co"));
+ var p=NotifyPrefs.Parse(new[]{"# c","to=me@example.com","on=lock","on=boundary","on=bogus","junk"});
+ Eq("me@example.com",p.To);Eq(2,p.On.Count);Eq(true,p.On.Contains("lock")&&p.On.Contains("boundary"));
+ var r=NotifyPrefs.Parse(NotifyPrefs.Serialize(p));Eq(p.To,r.To);Eq(true,r.On.SetEquals(p.On));
+ var none=NotifyPrefs.Parse(new[]{"to=me@example.com","none="});Eq(0,none.On.Count);Eq(false,none.Enabled);
+ Eq(true,NotifyPrefs.Parse(NotifyPrefs.Serialize(none)).On.Count==0);
+ Eq("",NotifyPrefs.Parse(new[]{"to=bad address"}).To);
+ Eq(4,NotifyPrefs.Parse(null).On.Count);
+ // Which lines mail
+ var names=new[]{"Sim101","PropSimFollower1"};
+ Func<string,LogLine> L=m=>{var x=LogClassifier.Classify(m,names);x.Time=new DateTime(2026,10,16,10,0,0);return x;};
+ Eq("lock",NotifyPrefs.KindOf(L("PropSimFollower1 LOCK: Follower order rejected. Coverage not established; manual reconciliation may be required.")));
+ Eq("limit",NotifyPrefs.KindOf(L("PropSimFollower1 LOCK: Daily loss. Local guard only; coverage not established.")));
+ Eq("limit",NotifyPrefs.KindOf(L("PropSimFollower1 LOCK: Target hit. Local guard only; coverage not established.")));
+ Eq("disconnect",NotifyPrefs.KindOf(L("PropSimFollower1 LOCK: Leader disconnected — no catch-up. Coverage not established; manual reconciliation may be required.")));
+ Eq("error",NotifyPrefs.KindOf(L("ENGINE ERROR: boom")));
+ Eq("boundary",NotifyPrefs.KindOf(L("Trading-day boundary Central Standard Time 17:00 (DST aware). New entries paused. Baseline / latch NOT auto-reset. Confirm new baseline and unlock while flat.")));
+ Eq(null,NotifyPrefs.KindOf(L("COPY PropSimFollower1 Buy 1 Market")));
+ Eq(null,NotifyPrefs.KindOf(L("Start refused: no follower")));
+ Eq(null,NotifyPrefs.KindOf(L("Settings saved; startup stays disarmed.")));
+ Eq(null,NotifyPrefs.KindOf(null));
+ // Decide: masked, rate-limited per kind+account, summary of suppressed
+ var s1=NotifyPrefs.Parse(new[]{"to=me@example.com"});var lim=new NotifyPrefs.Limiter();var t0=new DateTime(2026,10,16,10,0,0);
+ var lk=L("PropSimFollower1 LOCK: Follower order rejected. Coverage not established; manual reconciliation may be required.");
+ var m1=NotifyPrefs.Decide(s1,lim,lk,names,t0);
+ Eq(true,m1!=null&&m1.Subject=="KINFX Trade Copier: Account locked");
+ Eq(true,m1.Body.IndexOf("PropSimFollower1",StringComparison.Ordinal)<0&&m1.Body.Contains("ACCOUNT-2"));
+ Eq(true,m1.Body.Contains("never means an order was sent"));
+ Eq(null,NotifyPrefs.Decide(s1,lim,lk,names,t0.AddMinutes(5)));
+ Eq(null,NotifyPrefs.Decide(s1,lim,lk,names,t0.AddMinutes(9)));
+ var m2=NotifyPrefs.Decide(s1,lim,lk,names,t0.AddMinutes(10));Eq(true,m2!=null&&m2.Body.Contains("2 more alert(s) were rate-limited"));
+ var other=L("Sim101 LOCK: Follower order rejected. Coverage not established; manual reconciliation may be required.");
+ Eq(true,NotifyPrefs.Decide(s1,lim,other,names,t0.AddMinutes(10))!=null);
+ Eq(null,NotifyPrefs.Decide(s1,lim,L("Trading-day boundary Central Standard Time 17:00 (DST aware). New entries paused. Baseline / latch NOT auto-reset. Confirm new baseline and unlock while flat."),names,t0));
+ Eq(null,NotifyPrefs.Decide(NotifyPrefs.Defaults(),new NotifyPrefs.Limiter(),lk,names,t0));
+ var cap=new NotifyPrefs.Limiter();int sentN=0;var e1=L("ENGINE ERROR: x");
+ for(int i=0;i<60;i++){var ln=L("ENGINE ERROR: e"+i);ln.Account="A"+i;if(NotifyPrefs.Decide(s1,cap,ln,names,t0.AddSeconds(i))!=null)sentN++;}
+ Eq(20,sentN);
+ Eq(true,NotifyPrefs.Decide(s1,cap,e1,names,t0.AddHours(1).AddSeconds(30))!=null);
+}
+static void LogClassifierRules() {
+ var names=new[]{"Sim101","Sim102","LFE1","LFE10"};
+ LogLine l;
+ l=LogClassifier.Classify("Sim101 LOCK: Target hit. Coverage not established; manual reconciliation may be required.",names);
+ Eq("Lock",l.Level); Eq("Lock",l.Category); Eq("Sim101",l.Account);
+ Eq("Lock",LogClassifier.Classify("Coverage not established; LOCK pending manual recovery.",names).Level);
+ Eq("Error",LogClassifier.Classify("ENGINE ERROR: boom",names).Level);
+ // Review 2: a line logged at 23:59:59 and flushed after midnight must stay in its own day's file.
+ { var a1=LogClassifier.Classify("late line",names);a1.Time=new DateTime(2026,10,16,23,59,59);
+   var b1=LogClassifier.Classify("early line",names);b1.Time=new DateTime(2026,10,17,0,0,1);
+   var c1=LogClassifier.Classify("late two",names);c1.Time=new DateTime(2026,10,16,23,59,59,900);
+   var files=LogClassifier.DailyFiles(new[]{a1,b1,c1});
+   Eq(2,files.Count);Eq("kinfx-20261016.log",files[0].Key);Eq("kinfx-20261017.log",files[1].Key);
+   Eq(true,files[0].Value.Contains("late line")&&files[0].Value.Contains("late two")&&!files[0].Value.Contains("early line"));
+   Eq(true,files[1].Value.StartsWith("2026-10-17 00:00:01  ")&&files[1].Value.Contains("early line"));
+   Eq(0,LogClassifier.DailyFiles(null).Count); }
+ Eq("Error",LogClassifier.Classify("PROVIDER DISPATCH ERROR: boom",names).Level);
+ Eq("Error",LogClassifier.Classify("PROVIDER COMPLETION ERROR: boom",names).Level);
+ Eq("Error",LogClassifier.Classify("PERSISTENCE ERROR — boom",names).Level);
+ Eq("Error",LogClassifier.Classify("DURABLE LATCH WRITE FAILED: boom",names).Level);
+ Eq("Error",LogClassifier.Classify("FLATTEN FAILED boom",names).Level);
+ Eq("Error",LogClassifier.Classify("UI action failed: boom",names).Level);
+ Eq("Order",LogClassifier.Classify("COPY Sim101 Buy 2 MKT",names).Level);
+ Eq("Order",LogClassifier.Classify("DRY RUN would send to Sim101: provider call",names).Level);
+ Eq("Order",LogClassifier.Classify("Flatten request: Sim101 / MES 12-26",names).Level);
+ Eq("Order",LogClassifier.Classify("Flat requested for 2 follower account(s); other accounts keep copying.",names).Level);
+ Eq("Warn",LogClassifier.Classify("Start refused: missing leader.",names).Level);
+ Eq("Warn",LogClassifier.Classify("Refresh blocked while managing a session.",names).Level);
+ Eq("Warn",LogClassifier.Classify("LIVE BLOCKED in v0.2.",names).Level);
+ Eq("Warn",LogClassifier.Classify("Instrument \"ZZZ\" not recognised.",names).Level);
+ Eq("Warn",LogClassifier.Classify("Trading-day boundary Central Standard Time 17:00 (DST aware).",names).Level);
+ Eq("Warn",LogClassifier.Classify("Confirmation skipped (turned off on the Settings tab): Start",names).Level);
+ Eq("Warn",LogClassifier.Classify("Settings NOT saved: boom",names).Level);
+ Eq("Info",LogClassifier.Classify("Armed explicitly: 3 simulation follower(s).",names).Level);
+ Eq("Info",LogClassifier.Classify("Settings saved; startup stays disarmed.",names).Level);
+ Eq("Session",LogClassifier.Classify("Armed explicitly: 3 simulation follower(s).",names).Category);
+ Eq("Session",LogClassifier.Classify("Start refused: missing leader.",names).Category);
+ Eq("Settings",LogClassifier.Classify("Settings NOT saved: boom",names).Category);
+ Eq("Settings",LogClassifier.Classify("Confirmed unlock: Sim101; still disarmed.",names).Category);
+ Eq("Accounts",LogClassifier.Classify("Account list updated: +Sim102",names).Category);
+ Eq("General",LogClassifier.Classify("Some ordinary note.",names).Category);
+ Eq("Order",LogClassifier.Classify("COPY Sim101 Buy 2 MKT",names).Category);
+ Eq("LFE10",LogClassifier.Classify("COPY LFE10 Buy 2 MKT",names).Account);
+ Eq("LFE1",LogClassifier.Classify("COPY LFE1 Buy 2 MKT",names).Account);
+ Eq("",LogClassifier.Classify("no account here",names).Account);
+ Eq("",LogClassifier.Classify("x",null).Account);
+ Eq("Info",LogClassifier.Classify(null,names).Level);
+}
+static void LogExportMask() {
+ Eq("ACCOUNT-1",LogExport.Mask("Sim101",new[]{"Sim101"}));
+ Eq("ACCOUNT-1 and ACCOUNT-2",LogExport.Mask("Sim101 and Sim102",new[]{"Sim101","Sim102"}));
+ Eq("ACCOUNT-1",LogExport.Mask("LFE1",new[]{"LFE1","LFE10"}));
+ Eq("ACCOUNT-2",LogExport.Mask("LFE10",new[]{"LFE1","LFE10"}));
+ Eq("ACCOUNT-2x",LogExport.Mask("LFE10x",new[]{"LFE1","LFE10"}));
+ Eq("no accounts",LogExport.Mask("no accounts",new[]{"Sim101"}));
+ Eq("",LogExport.Mask(null,new[]{"Sim101"}));
+ Eq("Sim101",LogExport.Mask("Sim101",null));
+ Eq("ACCOUNT-1 ACCOUNT-2",LogExport.Mask("A B",new[]{"A","B","A"}));
+ Eq("x",LogExport.Mask("x",new string[0]));
+}
 }

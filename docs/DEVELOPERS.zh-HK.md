@@ -31,7 +31,7 @@ d70b8a49ceeb87e2207fe5c9811203723ea7f0edae90d18ebeab334a10e210a5
 
 ## 已實作範圍與剩餘關卡
 
-- 單一 Copy／Risk／Logs 儀表板，為 10–30 個帳戶設計；各行獨立 Ratio／Tgt／DLL／ATM／OFF／Flat，批量風控只作用於已選行，**From Leader** 僅複製一次預設值。為 30 個帳戶設計不等於通過真實 30 戶驗收。
+- 單一監察／設定／日誌／問題儀表板，為 10–30 個帳戶設計；各行獨立 Ratio／Tgt／DLL／ATM／OFF／Flat，批量風控只作用於已選行，**From Leader** 僅複製一次預設值。為 30 個帳戶設計不等於通過真實 30 戶驗收。
 - 已有各行數值草稿、Risk 對話框驗證、精確 XML 數值往返及關閉時的 callback frontier 檢查。舊說明指 #5 僅部分合併、沒有對話框草稿或精度修正，已經過時。原生視窗焦點／IME／剪貼簿／DPI 驗收仍須獨立處理。
 - 各 Follower 的 provider dispatch 及 mailbox 拒絕後狀態修正已合併。#4 仍需要真 NT 線程／延遲及關閉／Dispose 驗收；離線通過不能證明安全關閉或永不返回的呼叫。
 - 逐戶 Flat 確認框列出帳戶與商品。成功確認須呼叫返回、原生持倉為零／沒有掛單及靜置期；未確認或拋例外會鎖定，絕不重試。歷史模擬測試曾驗證逐戶 Flat，不代表此源碼的每條失敗路徑已驗收。
@@ -70,9 +70,11 @@ d70b8a49ceeb87e2207fe5c9811203723ea7f0edae90d18ebeab334a10e210a5
 
 [儀表板／引擎源碼](../src/AddOns/KINFXTradeCopier.cs) · [截圖呈現程式](screenshots/Screenshots.cs) · [語言表](../i18n/strings.json) · [SIM TEST 安裝腳本源碼](../scripts/install-simtest.ps1)
 
-![Copy 分頁 — 合成 DEMO](screenshots/1-copy.png)
-![Risk 分頁 — 合成 DEMO](screenshots/2-risk.png)
-![Logs 分頁 — 合成 DEMO](screenshots/3-logs.png)
+舊版圖庫（同一控制項，合成 DEMO，由 `Screenshots.cs` 呈現）。目前四個分頁的導覽見 [README](../README.md#介面導覽)。
+
+![監察分頁 — 合成 DEMO](screenshots/1-copy.png)
+![設定分頁 — 合成 DEMO](screenshots/2-risk.png)
+![日誌分頁 — 合成 DEMO](screenshots/3-logs.png)
 
 ## 不涉及交易的貢獻方式
 

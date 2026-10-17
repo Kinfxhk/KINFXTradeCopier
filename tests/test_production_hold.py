@@ -110,7 +110,8 @@ class SourceSyntaxHoldTests(unittest.TestCase):
         # +1 (2026-10-14): dry-run Submit completion reconciles close evidence (no provider callback ever arrives for a dry-run wrapper).
         # +1 (2026-10-14): a skipped Start confirmation logs whether Dry run is ON/OFF (log text only, no order path).
         # +1 (2026-10-15): ConfirmScope: in the SIM build an unconfirmed account asks the risk warning and is remembered on Yes; the default build keeps LIVE BLOCKED.
-        self.assertEqual(code.count("KINFX_SIM_TEST"), 25, "unexpected KINFX_SIM_TEST usage")
+        # +3 (2026-10-16, WP1): SIM-only "Dry run" badge in the header (field + BuildHeader + UpdateHeaderState). Display-only; no order path.
+        self.assertEqual(code.count("KINFX_SIM_TEST"), 28, "unexpected KINFX_SIM_TEST usage")
         for signature in SIGNATURES:
             body = method(self.raw, signature)
             self.assertIn("#if !KINFX_SIM_TEST", body)
@@ -194,13 +195,19 @@ class SourceSyntaxHoldTests(unittest.TestCase):
 
     def test_ui_hold_and_no_automatic_activation(self):
         safety = method(self.text, "public static bool CanExecute(string command)")
-        for command in ("start", "flattenSelected", "flattenAll", "batch"):
+        for command in ("start", "flattenSelected", "flattenAll", "batch", "resume"):
             self.assertIn('command!="' + command + '"', safety)
         self.assertIn("if(demo||!DashboardSafety.CanExecute(c))return;", self.text)
         self.assertIn("if(!DashboardSafety.CanExecute(c))", method(self.text, "void Command(string c)"))
         code = mask_noncode(self.text)
-        # All current actual automatic arming assignments belong to held Start.
-        self.assertEqual(len(re.findall(r"\bentries\s*=\s*true\b", code)), 1)
+        # Arming assignments: held Start, plus ResumeEntries (S1), which only re-opens entries inside an already attached session
+        # after a guarded pause (pauseOnly), and whose dashboard command "resume" is held in the default build.
+        self.assertEqual(len(re.findall(r"\bentries\s*=\s*true\b", code)), 2)
+        resume = mask_noncode(method(self.text, "public void ResumeEntries()"))
+        self.assertEqual(len(re.findall(r"\bentries\s*=\s*true\b", resume)), 1)
+        self.assertRegex(resume, r"if\(request!=controlGeneration\|\|!pauseOnly\)")
+        self.assertRegex(resume, r"if\(disposed\|\|!attached\)")
+        self.assertNotRegex(resume, r"\battached\s*=\s*true\b")
         self.assertEqual(len(re.findall(r"\battached\s*=\s*true\b", code)), 1)
         start = mask_noncode(method(self.text, SIGNATURES[0]))
         self.assertRegex(start, r"\bentries\s*=\s*true\b")

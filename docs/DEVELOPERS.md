@@ -31,7 +31,7 @@ These are **offline results, not real NinjaTrader/provider transaction proof**. 
 
 ## Implemented scope and remaining gates
 
-- One Copy / Risk / Logs dashboard designed for 10–30 accounts, per-row Ratio / Tgt / DLL / ATM / OFF / Flat, highlighted-row bulk risk edits and one-time **From Leader** defaults. Designing for 30 accounts is not real 30-account acceptance.
+- One Monitor / Settings / Logs / Issues dashboard designed for 10–30 accounts, per-row Ratio / Tgt / DLL / ATM / OFF / Flat, highlighted-row bulk risk edits and one-time **From Leader** defaults. Designing for 30 accounts is not real 30-account acceptance.
 - Row-owned numeric drafts and Risk-dialog validation, exact XML numeric round-trip and callback-frontier close checks are present. Earlier descriptions of #5 as only partly merged, without Risk-dialog drafts or precision fixes, are stale. Native focus / IME / clipboard / DPI acceptance remains separate.
 - Per-follower provider dispatch and refused-mailbox bookkeeping fixes are merged. #4 still needs real NT threading/latency and close/Dispose acceptance; an offline pass does not prove safe shutdown or calls that never return.
 - Per-account Flat names the account/instrument in its confirmation. Successful confirmation requires a returned call, native flat/no working orders and the quiet interval; unconfirmed/throwing calls lock and are never retried. Historical sim runs exercised per-account Flat, not every failure path on this source.
@@ -69,8 +69,10 @@ All images render the real `DashboardView` control in **synthetic DEMO** mode: *
 
 [Dashboard / engine source](../src/AddOns/KINFXTradeCopier.cs) · [Screenshot renderer](screenshots/Screenshots.cs) · [Language table](../i18n/strings.json) · [SIM TEST installer source](../scripts/install-simtest.ps1)
 
-![Copy tab — synthetic DEMO](screenshots/1-copy.png)
-![Risk tab — synthetic DEMO](screenshots/2-risk.png)
+Older gallery (same control, synthetic DEMO; tab layout as rendered by `Screenshots.cs`). The current four-tab tour is in the [README](../README.en.md#interface-tour).
+
+![Monitor tab — synthetic DEMO](screenshots/1-copy.png)
+![Settings tab — synthetic DEMO](screenshots/2-risk.png)
 ![Logs tab — synthetic DEMO](screenshots/3-logs.png)
 
 ## Contribute without trading

@@ -1,0 +1,464 @@
+[
+ {
+  "en": "Monitor",
+  "zh": "監察",
+  "ja": "モニター",
+  "ko": "모니터"
+ },
+ {
+  "en": "Locked accounts",
+  "zh": "已鎖定帳戶",
+  "ja": "ロック中の口座",
+  "ko": "잠긴 계좌"
+ },
+ {
+  "en": "Unprotected lots",
+  "zh": "無保護手數",
+  "ja": "保護されていないロット",
+  "ko": "미보호 로트"
+ },
+ {
+  "en": "Today P/L",
+  "zh": "今日盈虧",
+  "ja": "本日の損益",
+  "ko": "오늘 손익"
+ },
+ {
+  "en": "Group by firm",
+  "zh": "依公司分組",
+  "ja": "会社でグループ化",
+  "ko": "회사별 그룹"
+ },
+ {
+  "en": "Flatten selected",
+  "zh": "平倉所選",
+  "ja": "選択項目を全決済",
+  "ko": "선택 항목 청산"
+ },
+ {
+  "en": "Flatten all",
+  "zh": "全部平倉",
+  "ja": "すべて全決済",
+  "ko": "모두 청산"
+ },
+ {
+  "en": "This session",
+  "zh": "本次工作階段",
+  "ja": "このセッション",
+  "ko": "이번 세션"
+ },
+ {
+  "en": "Bulk edit (highlighted follower accounts · only while stopped)",
+  "zh": "批次編輯（已選取的跟單帳戶 · 僅限停止時）",
+  "ja": "一括編集（選択中のフォロワー口座 · 停止中のみ）",
+  "ko": "일괄 편집 (선택한 팔로워 계좌 · 정지 중에만)"
+ },
+ {
+  "en": "ATM exit mirroring",
+  "zh": "ATM 出場單鏡像",
+  "ja": "ATM 決済注文ミラーリング",
+  "ko": "ATM 청산 주문 미러링"
+ },
+ {
+  "en": "Flat at limit",
+  "zh": "達限平倉",
+  "ja": "上限で全決済",
+  "ko": "한도 도달 시 청산"
+ },
+ {
+  "en": "On divergence",
+  "zh": "分歧時",
+  "ja": "ダイバージェンス時",
+  "ko": "다이버전스 시"
+ },
+ {
+  "en": "Notify",
+  "zh": "通知",
+  "ja": "通知",
+  "ko": "알림"
+ },
+ {
+  "en": "Flatten once",
+  "zh": "平倉一次",
+  "ja": "一度だけ全決済",
+  "ko": "1회 청산"
+ },
+ {
+  "en": "Max is still 1: a leader order larger than this is skipped entirely",
+  "zh": "最大手數仍為 1：主帳戶下單手數大於此值時，該筆會被完全略過",
+  "ja": "最大数量が 1 のまま：リーダーの注文数量がこれを超えると、その注文は完全にスキップされます",
+  "ko": "최대 수량이 1인 상태: 리더 주문 수량이 이보다 크면 해당 주문이 완전히 건너뜁니다"
+ },
+ {
+  "en": "… and {0} more",
+  "zh": "… 另有 {0} 項",
+  "ja": "… ほか {0} 件",
+  "ko": "… 외 {0}개"
+ },
+ {
+  "en": "Which setting to change on highlighted accounts",
+  "zh": "要變更已選取帳戶的哪項設定",
+  "ja": "選択中の口座で変更する設定",
+  "ko": "선택한 계좌에서 변경할 설정"
+ },
+ {
+  "en": "Value for the highlighted accounts",
+  "zh": "已選取帳戶的值",
+  "ja": "選択中の口座に対する値",
+  "ko": "선택한 계좌의 값"
+ },
+ {
+  "en": "Apply the chosen setting to the highlighted follower accounts",
+  "zh": "將所選設定套用至已選取的跟單帳戶",
+  "ja": "選択した設定を選択中のフォロワー口座に適用",
+  "ko": "선택한 설정을 선택한 팔로워 계좌에 적용"
+ },
+ {
+  "en": "Max contracts",
+  "zh": "手數上限",
+  "ja": "最大枚数",
+  "ko": "최대 계약 수"
+ },
+ {
+  "en": "Ratio for the highlighted accounts · plain positive number like 1 or 0.5",
+  "zh": "已選取帳戶的比例 · 正數，例如 1 或 0.5",
+  "ja": "選択中の口座の比率 · 1 や 0.5 などの正の数",
+  "ko": "선택한 계좌의 비율 · 1 또는 0.5 같은 양수"
+ },
+ {
+  "en": "Max contracts for the highlighted accounts · whole number >= 1",
+  "zh": "已選取帳戶的手數上限 · 整數，至少 1",
+  "ja": "選択中の口座の最大枚数 · 1 以上の整数",
+  "ko": "선택한 계좌의 최대 계약 수 · 1 이상의 정수"
+ },
+ {
+  "en": "Email alerts (through NinjaTrader's email share service)",
+  "zh": "電郵提醒（經 NinjaTrader 電郵分享服務）",
+  "ja": "メール通知（NinjaTrader のメール共有サービス経由）",
+  "ko": "이메일 알림 (NinjaTrader 이메일 공유 서비스 사용)"
+ },
+ {
+  "en": "Send alerts to this address · empty = off",
+  "zh": "提醒寄往此地址 · 留空 = 關閉",
+  "ja": "この宛先に通知 · 空欄 = オフ",
+  "ko": "이 주소로 알림 · 비워 두면 끔"
+ },
+ {
+  "en": "Alert email address",
+  "zh": "提醒電郵地址",
+  "ja": "通知メールアドレス",
+  "ko": "알림 이메일 주소"
+ },
+ {
+  "en": "To",
+  "zh": "收件人",
+  "ja": "宛先",
+  "ko": "받는 사람"
+ },
+ {
+  "en": "Account locked",
+  "zh": "帳戶已鎖定",
+  "ja": "口座ロック",
+  "ko": "계좌 잠김"
+ },
+ {
+  "en": "Errors",
+  "zh": "錯誤",
+  "ja": "エラー",
+  "ko": "오류"
+ },
+ {
+  "en": "Target / daily loss hit",
+  "zh": "達到目標／每日虧損",
+  "ja": "目標／日次損失に到達",
+  "ko": "목표/일일 손실 도달"
+ },
+ {
+  "en": "Leader disconnected",
+  "zh": "主帳戶斷線",
+  "ja": "リーダー切断",
+  "ko": "리더 연결 끊김"
+ },
+ {
+  "en": "Email alert",
+  "zh": "電郵提醒",
+  "ja": "メール通知",
+  "ko": "이메일 알림"
+ },
+ {
+  "en": "Save",
+  "zh": "儲存",
+  "ja": "保存",
+  "ko": "저장"
+ },
+ {
+  "en": "Save the email alert settings",
+  "zh": "儲存電郵提醒設定",
+  "ja": "メール通知の設定を保存",
+  "ko": "이메일 알림 설정 저장"
+ },
+ {
+  "en": "Send test",
+  "zh": "寄出測試",
+  "ja": "テスト送信",
+  "ko": "테스트 보내기"
+ },
+ {
+  "en": "Send one test mail now through NinjaTrader's default email share service",
+  "zh": "立即經 NinjaTrader 預設電郵分享服務寄出一封測試郵件",
+  "ja": "NinjaTrader の既定メール共有サービスで今すぐテストメールを 1 通送信",
+  "ko": "NinjaTrader 기본 이메일 공유 서비스로 지금 테스트 메일 1통 보내기"
+ },
+ {
+  "en": "Set up an email share service in NinjaTrader: Tools > Options > General > Share services. KINFX stores no password. Alerts never place, change or cancel orders.",
+  "zh": "請先在 NinjaTrader 設定電郵分享服務：Tools > Options > General > Share services。KINFX 不儲存任何密碼。提醒絕不會下單、改單或取消委託。",
+  "ja": "NinjaTrader でメール共有サービスを設定してください：Tools > Options > General > Share services。KINFX はパスワードを保存しません。通知が注文の発注・変更・取消を行うことはありません。",
+  "ko": "NinjaTrader에서 이메일 공유 서비스를 설정하세요: Tools > Options > General > Share services. KINFX는 비밀번호를 저장하지 않습니다. 알림은 주문을 내거나 변경하거나 취소하지 않습니다."
+ },
+ {
+  "en": "Not saved: enter one plain email address like name@example.com",
+  "zh": "未儲存：請輸入一個電郵地址，例如 name@example.com",
+  "ja": "保存されていません：name@example.com のようなメールアドレスを 1 つ入力してください",
+  "ko": "저장 안 됨: name@example.com 같은 이메일 주소를 하나 입력하세요"
+ },
+ {
+  "en": "Saved. Alerts are on.",
+  "zh": "已儲存。提醒已開啟。",
+  "ja": "保存しました。通知はオンです。",
+  "ko": "저장됨. 알림이 켜져 있습니다."
+ },
+ {
+  "en": "Saved. Alerts are off.",
+  "zh": "已儲存。提醒已關閉。",
+  "ja": "保存しました。通知はオフです。",
+  "ko": "저장됨. 알림이 꺼져 있습니다."
+ },
+ {
+  "en": "Enter one plain email address like name@example.com first.",
+  "zh": "請先輸入一個電郵地址，例如 name@example.com。",
+  "ja": "先に name@example.com のようなメールアドレスを 1 つ入力してください。",
+  "ko": "먼저 name@example.com 같은 이메일 주소를 하나 입력하세요."
+ },
+ {
+  "en": "Test handed to NinjaTrader. Check your inbox; if nothing arrives, check Tools > Options > General > Share services.",
+  "zh": "測試已交給 NinjaTrader。請查看收件匣；如未收到，請檢查 Tools > Options > General > Share services。",
+  "ja": "テストを NinjaTrader に渡しました。受信箱を確認してください。届かない場合は Tools > Options > General > Share services を確認してください。",
+  "ko": "테스트를 NinjaTrader에 넘겼습니다. 받은편지함을 확인하세요. 오지 않으면 Tools > Options > General > Share services를 확인하세요."
+ },
+ {
+  "en": "Email not sent: ",
+  "zh": "電郵未寄出：",
+  "ja": "メール未送信：",
+  "ko": "이메일 미발송: "
+ },
+ {
+  "en": "Email alerts on: {0}",
+  "zh": "電郵提醒已開啟：{0}",
+  "ja": "メール通知オン：{0}",
+  "ko": "이메일 알림 켜짐: {0}"
+ },
+ {
+  "en": "Email alerts off.",
+  "zh": "電郵提醒已關閉。",
+  "ja": "メール通知オフ。",
+  "ko": "이메일 알림 꺼짐."
+ },
+ {
+  "en": "Email test handed to NinjaTrader for {0}; check the inbox and NinjaTrader's log.",
+  "zh": "測試電郵已交給 NinjaTrader（{0}）；請查看收件匣及 NinjaTrader 日誌。",
+  "ja": "テストメールを NinjaTrader に渡しました（{0}）。受信箱と NinjaTrader のログを確認してください。",
+  "ko": "테스트 메일을 NinjaTrader에 넘겼습니다 ({0}). 받은편지함과 NinjaTrader 로그를 확인하세요."
+ },
+ {
+  "en": "Email alert not sent (blocked by NinjaTrader share service): {0}",
+  "zh": "電郵提醒未寄出（NinjaTrader 分享服務拒絕）：{0}",
+  "ja": "メール通知未送信（NinjaTrader 共有サービスが拒否）：{0}",
+  "ko": "이메일 알림 미발송 (NinjaTrader 공유 서비스 거부): {0}"
+ },
+ {
+  "en": "Resume new entries",
+  "zh": "恢復新進場",
+  "ja": "新規エントリーを再開",
+  "ko": "신규 진입 재개"
+ },
+ {
+  "en": "Resume new entries after a pause · entries the leader opened while paused are NOT copied",
+  "zh": "暫停後恢復新進場 · 暫停期間主帳戶的進場不會補跟",
+  "ja": "一時停止後に新規エントリーを再開 · 停止中のリーダーのエントリーはコピーされません",
+  "ko": "일시정지 후 신규 진입 재개 · 일시정지 중 리더 진입은 복사되지 않음"
+ },
+ {
+  "en": "Re-follow closed accounts",
+  "zh": "重新跟隨已平倉帳戶",
+  "ja": "決済済み口座を再フォロー",
+  "ko": "청산된 계좌 다시 팔로우"
+ },
+ {
+  "en": "Re-follow closed accounts ({0})",
+  "zh": "重新跟隨已平倉帳戶（{0}）",
+  "ja": "決済済み口座を再フォロー（{0}）",
+  "ko": "청산된 계좌 다시 팔로우 ({0})"
+ },
+ {
+  "en": "Tick again every follower that closed after a copied exit and is flat, connected and unlocked. Only LATER new entries are copied; nothing is caught up.",
+  "zh": "重新勾選所有因跟隨出場而平倉、且無持倉、已連線、未鎖定的跟單帳戶。只會跟隨之後的新進場，不會補單。",
+  "ja": "コピーした決済で決済済みとなり、ノーポジション・接続中・未ロックのフォロワーを再度チェックします。以後の新規エントリーのみコピーし、追いかけ注文はしません。",
+  "ko": "복사된 청산으로 청산되었고 포지션 없음·연결됨·잠금 해제된 팔로워를 다시 체크합니다. 이후 신규 진입만 복사하며 따라잡기 주문은 없습니다."
+ },
+ {
+  "en": "Auto re-follow",
+  "zh": "自動重新跟隨",
+  "ja": "自動再フォロー",
+  "ko": "자동 다시 팔로우"
+ },
+ {
+  "en": "Auto re-follow: after this account's copied exit completes and the leader is flat, tick it again automatically. Only later new entries are copied. Off = re-tick by hand.",
+  "zh": "自動重新跟隨：此帳戶的跟隨出場完成且主帳戶已無持倉後，自動重新勾選。只會跟隨之後的新進場。關閉 = 手動重新勾選。",
+  "ja": "自動再フォロー：この口座のコピー決済が完了し、リーダーがノーポジションになったら自動で再チェックします。以後の新規エントリーのみコピー。オフ = 手動で再チェック。",
+  "ko": "자동 다시 팔로우: 이 계좌의 복사 청산이 끝나고 리더 포지션이 없으면 자동으로 다시 체크합니다. 이후 신규 진입만 복사. 끔 = 직접 다시 체크."
+ },
+ {
+  "en": "Resume NEW entries?\n\nEntries the leader opened while paused are NOT copied (no catch-up); only later new entries are. Locked or unticked followers stay as they are.",
+  "zh": "要恢復新進場嗎？\n\n暫停期間主帳戶的進場不會補跟；只會跟隨之後的新進場。已鎖定或未勾選的跟單帳戶維持不變。",
+  "ja": "新規エントリーを再開しますか？\n\n停止中のリーダーのエントリーはコピーしません（追いかけなし）。以後の新規エントリーのみコピーします。ロック中・未チェックのフォロワーはそのままです。",
+  "ko": "신규 진입을 재개할까요?\n\n일시정지 중 리더 진입은 복사하지 않습니다(따라잡기 없음). 이후 신규 진입만 복사합니다. 잠긴 계좌나 체크 해제된 팔로워는 그대로입니다."
+ },
+ {
+  "en": "Resume cancelled; still paused.",
+  "zh": "已取消恢復；仍然暫停。",
+  "ja": "再開を取り消しました。一時停止のままです。",
+  "ko": "재개 취소됨. 계속 일시정지 상태입니다."
+ },
+ {
+  "en": "Re-follow: no closed account is flat, connected and unlocked.",
+  "zh": "重新跟隨：沒有無持倉、已連線且未鎖定的已平倉帳戶。",
+  "ja": "再フォロー：ノーポジション・接続中・未ロックの決済済み口座はありません。",
+  "ko": "다시 팔로우: 포지션 없음·연결됨·잠금 해제된 청산 계좌가 없습니다."
+ },
+ {
+  "en": "Tick {0} closed account(s) again?\n{1}\n\nOnly LATER new entries are copied; nothing is caught up. Each account is checked again (flat, connected, unlocked).",
+  "zh": "要重新勾選 {0} 個已平倉帳戶嗎？\n{1}\n\n只會跟隨之後的新進場，不會補單。每個帳戶會再檢查一次（無持倉、已連線、未鎖定）。",
+  "ja": "決済済み口座 {0} 件を再チェックしますか？\n{1}\n\n以後の新規エントリーのみコピーし、追いかけ注文はしません。各口座を再確認します（ノーポジション・接続中・未ロック）。",
+  "ko": "청산된 계좌 {0}개를 다시 체크할까요?\n{1}\n\n이후 신규 진입만 복사하며 따라잡기 주문은 없습니다. 각 계좌를 다시 확인합니다(포지션 없음·연결됨·잠금 해제)."
+ },
+ {
+  "en": "Re-follow cancelled; nothing changed.",
+  "zh": "已取消重新跟隨；沒有任何變更。",
+  "ja": "再フォローを取り消しました。変更はありません。",
+  "ko": "다시 팔로우 취소됨. 변경 사항 없음."
+ },
+ {
+  "en": "Re-follow: {0} — only later new entries are copied.",
+  "zh": "重新跟隨：{0} — 只會跟隨之後的新進場。",
+  "ja": "再フォロー：{0} — 以後の新規エントリーのみコピー。",
+  "ko": "다시 팔로우: {0} — 이후 신규 진입만 복사."
+ },
+ {
+  "en": "Auto re-follow: {0} — only later new entries are copied.",
+  "zh": "自動重新跟隨：{0} — 只會跟隨之後的新進場。",
+  "ja": "自動再フォロー：{0} — 以後の新規エントリーのみコピー。",
+  "ko": "자동 다시 팔로우: {0} — 이후 신규 진입만 복사."
+ },
+ {
+  "en": "Auto re-follow error: {0}",
+  "zh": "自動重新跟隨錯誤：{0}",
+  "ja": "自動再フォローエラー：{0}",
+  "ko": "자동 다시 팔로우 오류: {0}"
+ },
+ {
+  "en": "Pause new entries at the boundary (off = notice only)",
+  "zh": "於交易日分界暫停新進場（關閉 = 只作提示）",
+  "ja": "境界で新規エントリーを一時停止（オフ = 通知のみ）",
+  "ko": "경계 시각에 신규 진입 일시정지 (끔 = 알림만)"
+ },
+ {
+  "en": "Trading-day boundary {0} {1}:00 (DST aware). Notice only: entries NOT paused. Baseline / latch NOT auto-reset.",
+  "zh": "交易日界線 {0} {1}:00（已考慮夏令時間）。只作提示：新進場未暫停。基準與鎖定不會自動重設。",
+  "ja": "取引日の境界 {0} {1}:00（夏時間対応）。通知のみ：新規エントリーは停止していません。基準値・ロックは自動リセットされません。",
+  "ko": "거래일 경계 {0} {1}:00 (서머타임 반영). 알림만: 신규 진입은 일시정지되지 않았습니다. 기준값/잠금은 자동 초기화되지 않습니다."
+ },
+ {
+  "en": "Resumed NEW entries. Leader entries seen while paused are NOT copied; only later new entries are. Locked or unticked followers stay as they are.",
+  "zh": "已恢復新進場。暫停期間主帳戶的進場不會補跟；只會跟隨之後的新進場。已鎖定或未勾選的跟單帳戶維持不變。",
+  "ja": "新規エントリーを再開しました。停止中のリーダーのエントリーはコピーしません。以後の新規エントリーのみコピーします。ロック中・未チェックのフォロワーはそのままです。",
+  "ko": "신규 진입을 재개했습니다. 일시정지 중 리더 진입은 복사하지 않고 이후 신규 진입만 복사합니다. 잠긴 계좌나 체크 해제된 팔로워는 그대로입니다."
+ },
+ {
+  "en": "Resume refused: {0}.",
+  "zh": "拒絕恢復：{0}。",
+  "ja": "再開を拒否：{0}。",
+  "ko": "재개 거부: {0}."
+ },
+ {
+  "en": "no managed session",
+  "zh": "沒有管理中的工作階段",
+  "ja": "管理中のセッションがありません",
+  "ko": "관리 중인 세션 없음"
+ },
+ {
+  "en": "entries are already on",
+  "zh": "新進場已經開啟",
+  "ja": "新規エントリーはすでにオンです",
+  "ko": "신규 진입이 이미 켜져 있음"
+ },
+ {
+  "en": "entries were stopped by a safety block, not by a pause; Stop when flat, then Start",
+  "zh": "新進場是被安全封鎖停止，不是暫停；請在無持倉時停止，再重新開始",
+  "ja": "新規エントリーは一時停止ではなく安全ブロックで停止しました。ノーポジションで停止してから開始してください",
+  "ko": "신규 진입은 일시정지가 아닌 안전 차단으로 중지되었습니다. 포지션이 없을 때 중지 후 다시 시작하세요"
+ },
+ {
+  "en": "flatten / unresolved execution evidence / persistence failure",
+  "zh": "平倉中／未解決的成交紀錄／儲存失敗",
+  "ja": "決済中／未解決の約定記録／保存失敗",
+  "ko": "청산 중/미해결 체결 기록/저장 실패"
+ },
+ {
+  "en": "leader disconnected",
+  "zh": "主帳戶已斷線",
+  "ja": "リーダー切断",
+  "ko": "리더 연결 끊김"
+ },
+ {
+  "en": "session history bound reached",
+  "zh": "工作階段紀錄已達上限",
+  "ja": "セッション履歴の上限に到達",
+  "ko": "세션 기록 한도 도달"
+ },
+ {
+  "en": "a follower has an unresolved provider fault or flatten",
+  "zh": "有跟單帳戶的券商錯誤或平倉尚未解決",
+  "ja": "フォロワーに未解決のプロバイダー障害または決済があります",
+  "ko": "팔로워에 미해결 공급자 오류 또는 청산이 있음"
+ },
+ {
+  "en": "Resume refused: entries were stopped by a safety block, not by a pause; Stop when flat, then Start.",
+  "zh": "拒絕恢復：新進場是被安全封鎖停止，不是暫停；請在無持倉時停止，再重新開始。",
+  "ja": "再開を拒否：新規エントリーは一時停止ではなく安全ブロックで停止しました。ノーポジションで停止してから開始してください。",
+  "ko": "재개 거부: 신규 진입은 일시정지가 아닌 안전 차단으로 중지되었습니다. 포지션이 없을 때 중지 후 다시 시작하세요."
+ },
+ {
+  "en": "Closed · re-follow",
+  "zh": "已平倉 · 待重新跟隨",
+  "ja": "決済済み · 再フォロー待ち",
+  "ko": "청산됨 · 다시 팔로우 대기"
+ },
+ {
+  "en": "Trading-day boundary",
+  "zh": "交易日分界",
+  "ja": "取引日の境界",
+  "ko": "거래일 경계"
+ },
+ {
+  "en": "Re-follow",
+  "zh": "重新跟隨",
+  "ja": "再フォロー",
+  "ko": "다시 팔로우"
+ },
+ {
+  "en": "Closed",
+  "zh": "已平倉",
+  "ja": "決済済み",
+  "ko": "청산됨"
+ }
+]

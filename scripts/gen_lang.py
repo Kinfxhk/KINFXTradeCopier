@@ -74,6 +74,9 @@ def render(rows):
 
 def main():
     rows = json.loads(DATA.read_text(encoding='utf-8'))
+    # Work-package additions (i18n/strings.wp1.json ...) are merged after the main table; a duplicate English key is an error.
+    for extra in sorted(DATA.parent.glob('strings.wp*.json')):
+        rows += json.loads(extra.read_text(encoding='utf-8'))
     validate(rows)
     block = render(rows)
     raw = SRC.read_bytes()
