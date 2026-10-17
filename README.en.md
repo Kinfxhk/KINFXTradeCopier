@@ -75,25 +75,30 @@ One window, four tabs: **Monitor** (watch while copying), **Settings** (change w
 
 **For reviewed testing, not a general release.** Do not trade the current unaccepted build merely because it compiles.
 
-1. Download `KINFXTradeCopier-SIMTEST.zip` from the [v0.2.1-simtest-alpha](https://github.com/Kinfxhk/KINFXTradeCopier/releases/tag/v0.2.1-simtest-alpha) release (exported by NinjaTrader 8 itself; **do not unzip it**; the release notes give its SHA-256).
-2. NinjaTrader: *Control Center > Tools > Import > NinjaScript Add-On...*, pick the zip.
-3. Answer **Yes** to the "trusted source" question; if it says the file already exists, **Yes** replaces an older copy of this add-on only.
-4. Restart NinjaTrader when asked, then open *New > KINFX Trade Copier*.
+> The zip on the [v0.2.1-simtest-alpha](https://github.com/Kinfxhk/KINFXTradeCopier/releases/tag/v0.2.1-simtest-alpha) release has the **older interface** (Copy / Risk / Logs). It does not have the Monitor / Settings / Logs / Issues tabs, Resume new entries, Re-follow or email alerts shown on this page. For now the new interface installs from the source only; a new zip follows after it is checked on real NinjaTrader.
 
-**Accounts load by themselves.** Every NinjaTrader account is listed and can be ticked; you type no account names. The first time you press **Start** or **Flatten** with an account not yet confirmed as simulated (anything other than Simulator / Playback, e.g. a prop-firm evaluation account), a **risk warning names it**: KINFX cannot tell an evaluation account from a funded or live one. **Yes** = you confirm it is simulated; it is saved to `Documents\NinjaTrader 8\templates\KINFXTradeCopier\sim-allow.txt` and not asked again. **No** = nothing is saved or sent. This warning can never be switched off; delete the line from the file to be asked again.
-
-<details>
-<summary>Install from the source</summary>
+### Install from the source (this interface)
 
 1. *Code > Download ZIP* on this page, then unzip (or `git clone https://github.com/Kinfxhk/KINFXTradeCopier`).
 2. In the unzipped folder run in PowerShell:
    ```powershell
    powershell -ExecutionPolicy Bypass -File scripts\install-simtest.ps1
    ```
-   It copies the SIM TEST build into `Documents\NinjaTrader 8\bin\Custom\AddOns`, backs up anything it replaces and touches no account. `-WhatIf` previews, `-Remove` uninstalls.
+   It copies the SIM TEST build into `Documents\NinjaTrader 8\bin\Custom\AddOns`, backs up anything it replaces (including an older copy imported from the zip) to `Documents\NinjaTrader 8\KINFX-backups` and touches no account. If another copy of this add-on exists elsewhere, it stops and names the path; move that copy out first. `-WhatIf` previews, `-Remove` uninstalls.
 3. In NinjaTrader: *New > NinjaScript Editor*, press **F5**, wait for *Compile succeeded*. If it errors, stop.
+4. Open *New > KINFX Trade Copier*.
+
+<details>
+<summary>Import the release zip (older interface)</summary>
+
+1. Download `KINFXTradeCopier-SIMTEST.zip` from the [v0.2.1-simtest-alpha](https://github.com/Kinfxhk/KINFXTradeCopier/releases/tag/v0.2.1-simtest-alpha) release (exported by NinjaTrader 8 itself; **do not unzip it**; the release notes give its SHA-256).
+2. NinjaTrader: *Control Center > Tools > Import > NinjaScript Add-On...*, pick the zip.
+3. Answer **Yes** to the "trusted source" question; if it says the file already exists, **Yes** replaces an older copy of this add-on only.
+4. Restart NinjaTrader when asked, then open *New > KINFX Trade Copier*.
 
 </details>
+
+**Accounts load by themselves.** Every NinjaTrader account is listed and can be ticked; you type no account names. The first time you press **Start** or **Flatten** with an account not yet confirmed as simulated (anything other than Simulator / Playback, e.g. a prop-firm evaluation account), a **risk warning names it**: KINFX cannot tell an evaluation account from a funded or live one. **Yes** = you confirm it is simulated; it is saved to `Documents\NinjaTrader 8\templates\KINFXTradeCopier\sim-allow.txt` and not asked again. **No** = nothing is saved or sent. This warning can never be switched off; delete the line from the file to be asked again.
 
 <details>
 <summary>Write sim-allow.txt by hand</summary>
@@ -113,10 +118,34 @@ A wrong entry can authorize orders to a funded/live account: the file is operato
 ## First run
 
 1. *New > KINFX Trade Copier*. This is a rehearsal checklist for the SIM TEST build, **not permission to run the current unaccepted source**.
-2. Pick the **Leader** (for example `Sim101`) and exact contract (for example `MNQ 12-26`). In NinjaTrader's native Orders / Positions tabs, confirm the leader and every selected follower are **connected**, with **zero position and no working orders** for that instrument. Start has no adoption or catch-up.
-3. Tick **one** follower, Ratio **1**. On the **Settings** tab tick **Dry run**.
-4. Press **Start**; read the leader, follower, contract, Ratio and `DRY RUN` confirmation. A small simulated leader order should produce `DRY RUN would send ...` in Logs. Dry run suppresses copier sends, **not orders you place on the leader**. Before stopping, **cancel working leader orders and close the leader position using native NinjaTrader**; verify every account is flat with no working orders. Then press **Stop** and verify the session detaches. If it refuses, stop the rehearsal and investigate; do not force an unlock.
+2. On the **Monitor** tab pick the **Leader** (for example `Sim101`) and exact contract (for example `MNQ 12-26`, or pick it from ▾). In NinjaTrader's native Orders / Positions tabs, confirm the leader and every selected follower are **connected**, with **zero position and no working orders** for that instrument. Start has no adoption or catch-up.
+3. Tick **one** follower. On the **Settings** tab set its Ratio to **1** and Max to **1**, and tick **Dry run**; the header then shows "Dry run: on".
+4. Press **Start**; read the leader, follower, contract, Ratio and `DRY RUN` confirmation. A small simulated leader order should produce `DRY RUN would send ...` on the **Logs** tab. Dry run suppresses copier sends, **not orders you place on the leader**. You can try **Pause new entries** and then **Resume new entries**: leader entries made while paused are not copied. Before stopping, **cancel working leader orders and close the leader position using native NinjaTrader**; verify every account is flat with no working orders. Then press **Stop** and verify the session detaches. If it refuses, stop the rehearsal and investigate; do not force an unlock.
 5. **Only after the session is detached** may you untick Dry run; the next Start confirmation no longer shows `DRY RUN` and orders are really sent. **Add followers only while stopped**, recheck all selected accounts are connected and clean, and read a new **Start** confirmation for the full scope.
+6. A follower closed by a copied leader exit shows "Closed · re-follow" and does not take the next entry. Press **Re-follow closed accounts** on the Monitor tab, or turn on **Re-follow** (automatic) for that account on the Settings tab. Both copy only later new entries; nothing is caught up.
+
+## Where settings are kept
+
+Everything is in `Documents\NinjaTrader 8\templates\KINFXTradeCopier`. Removing the add-on does not delete these files.
+
+| File | Holds |
+|---|---|
+| `sim-allow.txt` | Accounts confirmed as simulated (written when you answer Yes to the risk warning). |
+| `<window id>.xml`, `last-workspace.xml` | Per-account Ratio, Max, Tgt, DLL, ATM, Re-follow and so on, plus the trading-day boundary. |
+| `risk-latches.xml` | Locks. They survive a restart; unlock them on the Issues tab. |
+| `columns.txt` | Which columns are shown; delete it to get the default columns back. |
+| `confirm-prefs.txt` | The "Ask before" switches. |
+| `notify.txt` | Email alert address and event kinds (no password). |
+| `language.txt`, `instruments-recent.txt` | Interface language; recently used contracts. |
+| `logs\kinfx-yyyyMMdd.log` | Daily log. `logs\export-*.txt` are exported logs with account names masked. |
+
+## Email alerts
+
+1. NinjaTrader: *Tools > Options > General > Share services*, add an email share service. NinjaTrader keeps the mail account and password; KINFX never reads or stores them.
+2. On the KINFX **Settings** tab, under **Email alerts**, enter the address, tick the events you want and press **Save**.
+3. Press **Send test** and check the inbox; if nothing arrives, check NinjaTrader's *Log* tab.
+
+With no address set, nothing is ever sent. Once an address is set, account lock, errors, target / daily loss hit and leader disconnect are on by default; the trading-day boundary is off by default. At most one mail per event kind and account every 10 minutes and 20 mails per hour in total; the rest are counted in the next mail. Account names in mail are masked. Alerts never place, change or cancel orders. **Mail delivery is not yet verified on real NinjaTrader.**
 
 ## Progress
 
@@ -156,16 +185,18 @@ Historical checklist evidence, not acceptance of the current candidate. The curr
 Real tests so far: 1 simulator leader, up to 11 **simulated** prop-firm evaluation accounts (5 Lucid, 6 Tradeify), MNQ, Market + Limit + Stop, TP/SL OCO. No funded or live account was ever used. Each tick and its limits: [`docs/PROGRESS.json`](docs/PROGRESS.json). Score = weighted: ✅ 100%, 🟡 50%, design only 10%. Snapshot 2026-10-15, source `8a8deb196fa8`.
 <!-- PROGRESS:END -->
 
-The ticks and percentages are a **weighted historical checklist**, **not a release-readiness percentage**. The latest real-NinjaTrader run (2026-10-15 evening) used source `8a8deb196fa8` (SIM TEST build, the one in the release zip); it is test evidence, not acceptance. [Tick evidence and limits](docs/PROGRESS.json) · [Real NT test log](docs/VM-PROGRESS.md) · [Offline results and safety blockers](docs/DEVELOPERS.md)
+The ticks and percentages are a **weighted historical checklist**, **not a release-readiness percentage**. The latest real-NinjaTrader trading run (2026-10-15 evening) used source `8a8deb196fa8` (SIM TEST build, the one in the release zip); it is test evidence, not acceptance. The current source's interface was checked page by page on real NinjaTrader in all four languages on 2026-10-17 (Start not pressed, no order sent); Resume new entries, Re-follow and email alerts have offline tests only. [Tick evidence and limits](docs/PROGRESS.json) · [Real NT test log](docs/VM-PROGRESS.md) · [Offline results and safety blockers](docs/DEVELOPERS.md)
 
 ## Know the limits
 
 - It is a **source alpha**, not an accepted trading build. **Not proved yet:** 20–30 accounts, a real leader disconnect (a Simulator leader reconnects through another connection at once, so the test setup cannot produce one), real partial fills, an ATM start failure, a stalled provider call, a rejected Flatten and restart recovery. Offline compile/tests do not prove these.
+- **Offline tests only:** Resume new entries, Re-follow closed accounts (including automatic re-follow), the trading-day boundary "notice only" mode and email alerts have not been run after Start on real NinjaTrader.
+- Max defaults to 1. When a leader order, after Ratio, is larger than Max, that order is **skipped entirely**, not reduced to Max; the Settings tab outlines a Max that is still 1.
 - A **Locked** account requires native NinjaTrader investigation. Unlocking is **not** reconciliation of an uncertain engine ledger, a hidden accepted request or a thrown Flatten. The verified-flat recovery gate is missing ([#9](https://github.com/Kinfxhk/KINFXTradeCopier/issues/9); known FAIL `ExplicitManualFlatReconciliationAvailable`). The copier never retries a Flatten or catches up after disconnect.
 - NinjaTrader's own Orders and Positions tabs are the truth, not this window. It cannot stop orders you place by hand and cannot guarantee fills.
 - Do not remove the safety hold in the default build to "just try it".
 
-Trouble? Open an [issue](https://github.com/Kinfxhk/KINFXTradeCopier/issues) with a **redacted** Logs tab (no account names, no balances).
+Trouble? Open an [issue](https://github.com/Kinfxhk/KINFXTradeCopier/issues) with a **redacted** log (**Export** on the Logs tab masks account names; leave balances out).
 
 ## More
 

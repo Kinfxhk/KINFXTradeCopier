@@ -98,7 +98,7 @@
  {
   "en": "Paused",
   "zh": "已暫停",
-  "ja": "停止中",
+  "ja": "一時停止中",
   "ko": "일시정지됨"
  },
  {
@@ -1508,7 +1508,7 @@
  {
   "en": "Paused / exits managed",
   "zh": "已暫停／出場管理中",
-  "ja": "停止中／決済管理中",
+  "ja": "一時停止中／決済管理中",
   "ko": "일시정지됨 / 청산 관리 중"
  },
  {
@@ -2538,10 +2538,10 @@
   "ko": "한도청산"
  },
  {
-  "en": "Confirmation skipped (turned off on the Risk tab): {0}",
-  "zh": "已略過確認（已在風控分頁關閉）：{0}",
-  "ja": "確認を省略（リスクタブでオフ）：{0}",
-  "ko": "확인 생략(리스크 탭에서 끔): {0}"
+  "en": "Confirmation skipped (turned off on the Settings tab): {0}",
+  "zh": "已略過確認（已在設定分頁關閉）：{0}",
+  "ja": "確認を省略（設定タブでオフ）：{0}",
+  "ko": "확인 생략(설정 탭에서 끔): {0}"
  },
  {
   "en": "Confirmation turned back on: {0}",

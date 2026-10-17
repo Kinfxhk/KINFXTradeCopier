@@ -39,7 +39,7 @@ public static class Tour {
  // One marker: outline around the target, numbered badge on its top-left corner (or above it, for the footer).
  static void Marker(Canvas layer,Rect r,int n,double w,double h,bool above=false){
   if(r.IsEmpty)throw new InvalidOperationException("marker "+n+" has no target");
-  r.Inflate(1,1);
+  r.Inflate(4,2); // keep the outline off the glyphs: at 1 px it covered the last character of a label
   var outline=new Border{Width=r.Width,Height=r.Height,BorderBrush=Mark,BorderThickness=new Thickness(2),CornerRadius=new CornerRadius(5)};
   Canvas.SetLeft(outline,r.X);Canvas.SetTop(outline,r.Y);layer.Children.Add(outline);
   var badge=new Border{Width=22,Height=22,CornerRadius=new CornerRadius(11),Background=Mark,BorderBrush=MarkInk,BorderThickness=new Thickness(1.5),

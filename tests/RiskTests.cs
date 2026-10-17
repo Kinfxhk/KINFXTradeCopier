@@ -487,7 +487,7 @@ class RiskTests {
   Eq(true,ConfirmPrefs.MustAsk(ConfirmPrefs.KindFor("flattenSelected"),onlyRowOff,false));
   Eq("Flat (row)",ConfirmPrefs.Label("flatOne"));Eq("Flatten selected / all",ConfirmPrefs.Label("flatten"));Eq("Start",ConfirmPrefs.Label("start"));
   Eq(false,Lang.Show("Confirmation turned off: Flat (row) (risk warnings and Unlock are still always asked)","zh").StartsWith("Confirmation"));
-  Eq(false,Lang.Show("Confirmation skipped (turned off on the Risk tab): Start","zh").StartsWith("Confirmation"));
+  Eq(false,Lang.Show("Confirmation skipped (turned off on the Settings tab): Start","zh").StartsWith("Confirmation"));
  }
  // Column prefs: hidden set round-trips; a hand-edited file can never hide a safety column; garbage lines are ignored.
  static void ColumnPrefsRoundTripAndSafetyColumnsNeverHidden() {
@@ -730,7 +730,7 @@ static void LogClassifierRules() {
  Eq("Warn",LogClassifier.Classify("LIVE BLOCKED in v0.2.",names).Level);
  Eq("Warn",LogClassifier.Classify("Instrument \"ZZZ\" not recognised.",names).Level);
  Eq("Warn",LogClassifier.Classify("Trading-day boundary Central Standard Time 17:00 (DST aware).",names).Level);
- Eq("Warn",LogClassifier.Classify("Confirmation skipped (turned off on the Risk tab): Start",names).Level);
+ Eq("Warn",LogClassifier.Classify("Confirmation skipped (turned off on the Settings tab): Start",names).Level);
  Eq("Warn",LogClassifier.Classify("Settings NOT saved: boom",names).Level);
  Eq("Info",LogClassifier.Classify("Armed explicitly: 3 simulation follower(s).",names).Level);
  Eq("Info",LogClassifier.Classify("Settings saved; startup stays disarmed.",names).Level);

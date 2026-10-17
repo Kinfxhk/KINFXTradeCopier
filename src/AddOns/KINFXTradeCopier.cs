@@ -666,7 +666,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public static bool Known(string kind){return kind!=null&&Array.IndexOf(Kinds,kind)>=0;}
         // The switch is chosen by the BUTTON pressed, never by how many rows are in scope: "Flatten selected" on one highlighted row is still "Flatten selected / all".
         public static string KindFor(string command){return command=="flatOne"?FlatOne:command=="start"?Start:Flatten;}
-        // English label of a switch (as shown on the Risk tab), so log lines translate instead of printing internal codes.
+        // English label of a switch (as shown on the Settings tab), so log lines translate instead of printing internal codes.
         public static string Label(string kind){return kind==Start?"Start":kind==FlatOne?"Flat (row)":kind==Flatten?"Flatten selected / all":kind;}
         public static HashSet<string> Parse(IEnumerable<string> lines)
         {
@@ -1210,7 +1210,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             t["Rechecking"] = new[] { "重新檢查中", "再確認中", "재확인 중" };
             t["Locked"] = new[] { "已鎖定", "ロック中", "잠김" };
             t["Error"] = new[] { "錯誤", "エラー", "오류" };
-            t["Paused"] = new[] { "已暫停", "停止中", "일시정지됨" };
+            t["Paused"] = new[] { "已暫停", "一時停止中", "일시정지됨" };
             t["Copying"] = new[] { "跟單中", "コピー中", "복사 중" };
             t["Offline"] = new[] { "離線", "オフライン", "오프라인" };
             t["Demo only"] = new[] { "僅限示範", "デモのみ", "데모 전용" };
@@ -1437,7 +1437,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             t["Protective coverage unknown — requested, provider acceptance unconfirmed; no retry / chase"] = new[] { "保護狀況不明——已提出請求，供應端是否接受未確認；不重試／不追單", "保護の状況は不明——要求済み、プロバイダーの受理は未確認；再試行／追随なし", "보호 상태 불명 — 요청됨, 제공자 수락 미확인; 재시도/추격 없음" };
             t["OFF — cancellation pending"] = new[] { "OFF——取消待處理", "OFF——キャンセル保留中", "OFF — 취소 대기 중" };
             t["OFF / exits managed"] = new[] { "OFF／出場管理中", "OFF／決済管理中", "OFF / 청산 관리 중" };
-            t["Paused / exits managed"] = new[] { "已暫停／出場管理中", "停止中／決済管理中", "일시정지됨 / 청산 관리 중" };
+            t["Paused / exits managed"] = new[] { "已暫停／出場管理中", "一時停止中／決済管理中", "일시정지됨 / 청산 관리 중" };
             t["DISARMED — explicit Start required"] = new[] { "未武裝——須明確按下開始", "非アーム——明示的な開始が必要", "비무장 — 명시적인 시작 필요" };
             t["FLATTEN requested — new entries blocked; verify flat status"] = new[] { "已要求平倉——新進場已封鎖；請確認持倉歸零狀態", "全決済を要求——新規エントリーはブロック；フラット状態を確認してください", "청산 요청됨 — 신규 진입 차단; 청산 상태를 확인하십시오" };
             t["Manually abandoned after provider reconciliation; late close risk remains"] = new[] { "供應端對帳後已手動放棄；仍有延遲平倉風險", "プロバイダーの照合後に手動で放棄；遅延クローズのリスクが残ります", "제공자 대조 후 수동으로 포기됨; 지연 청산 위험이 남아 있음" };
@@ -1608,7 +1608,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             t["When Tgt or DLL is hit: only lock and stop copying (default) for highlighted accounts"] = new[] { "選取的帳戶達到每日目標或每日虧損上限時：只鎖定並停止跟單（預設）", "選択口座が日次目標または日次損失上限に達したとき：ロックしてコピーを停止するのみ（既定）", "선택한 계좌가 일일 목표 또는 일일 손실 한도에 도달하면: 잠그고 복사만 중지(기본값)" };
             t["Flat at limit: when this account hits its Tgt or DLL, flatten it ONCE (never retried). Off = only lock and stop copying."] = new[] { "達限平倉：此帳戶達到每日目標或每日虧損上限時平倉一次（不會重試）。關閉＝只鎖定並停止跟單。", "上限で決済：この口座が日次目標または日次損失上限に達したら1回だけ決済（再試行なし）。オフ＝ロックしてコピー停止のみ。", "한도 청산: 이 계좌가 일일 목표 또는 일일 손실 한도에 도달하면 한 번 청산(재시도 없음). 끄기 = 잠그고 복사만 중지." };
             t["Flat@Lim"] = new[] { "達限平倉", "上限決済", "한도청산" };
-            t["Confirmation skipped (turned off on the Risk tab): {0}"] = new[] { "已略過確認（已在風控分頁關閉）：{0}", "確認を省略（リスクタブでオフ）：{0}", "확인 생략(리스크 탭에서 끔): {0}" };
+            t["Confirmation skipped (turned off on the Settings tab): {0}"] = new[] { "已略過確認（已在設定分頁關閉）：{0}", "確認を省略（設定タブでオフ）：{0}", "확인 생략(설정 탭에서 끔): {0}" };
             t["Confirmation turned back on: {0}"] = new[] { "已重新開啟確認：{0}", "確認を再びオン：{0}", "확인 다시 켬: {0}" };
             t["Confirmation turned off: {0} (risk warnings and Unlock are still always asked)"] = new[] { "已關閉確認：{0}（風險警告及解鎖仍一律詢問）", "確認をオフ：{0}（リスク警告とロック解除は常に確認）", "확인 끔: {0} (위험 경고와 잠금 해제는 항상 확인)" };
             t["Settings NOT saved: {0}"] = new[] { "設定未儲存：{0}", "設定は保存されていません：{0}", "설정이 저장되지 않았습니다: {0}" };
@@ -1662,7 +1662,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             t["Recent"] = new[] { "最近使用", "最近", "최근" };
             t["choose month"] = new[] { "選擇月份", "月を選択", "월 선택" };
             t["Stopped"] = new[] { "已停止", "停止中", "중지됨" };
-            t["Pause new entries"] = new[] { "暫停新進單", "新規エントリーを一時停止", "신규 진입 일시정지" };
+            t["Pause new entries"] = new[] { "暫停新進場", "新規エントリーを一時停止", "신규 진입 일시정지" };
             t["Front contract is now {0}"] = new[] { "目前近月合約是 {0}", "現在の限月は {0} です", "현재 근월물은 {0}" };
             t["Use {0}"] = new[] { "使用 {0}", "{0} を使用", "{0} 사용" };
             t["Contract roll date estimated for {0}; check NinjaTrader's Instrument Manager."] = new[] { "合約換月日期為 {0} 之估計值；請在 NinjaTrader 的 Instrument Manager 中確認。", "{0} の限月ロール日は推定値です。NinjaTrader の Instrument Manager で確認してください。", "{0}의 롤오버 날짜는 추정값입니다. NinjaTrader의 Instrument Manager에서 확인하세요." };
@@ -3361,7 +3361,7 @@ stateChanged(attached,"GUARDED PAUSE — no new entries; existing lifecycle + ne
         internal Action<AccountRow,bool> FollowRow;
         // Per-account Flat: one account, one click. The tab confirms (names the account and instrument) before anything is sent.
         internal Action<AccountRow> FlatRow;
-        // "Ask before" switches (Risk tab). Ticked = the confirmation window is shown. Unlock and every risk warning are always asked and have no switch.
+        // "Ask before" switches (Settings tab). Ticked = the confirmation window is shown. Unlock and every risk warning are always asked and have no switch.
         internal CheckBox AskStartBox, AskFlatOneBox, AskFlattenBox;
         // Email alerts (Settings page). The tab loads / saves notify.txt and sends; the view only edits a draft.
         internal TextBox NotifyToBox;internal readonly Dictionary<string,CheckBox> NotifyKindBoxes=new Dictionary<string,CheckBox>(StringComparer.Ordinal);
@@ -4576,13 +4576,13 @@ stateChanged(attached,"GUARDED PAUSE — no new entries; existing lifecycle + ne
         AccountRow[] Selected() {return dashboard.SelectedRows();}
         // Title stays English: automation finds this dialog by it and must not depend on the picked language. Body text is translated.
         bool Confirm(string text) {return MessageBox.Show(Window.GetWindow(this),text,"KINFX confirmation",MessageBoxButton.YesNo,MessageBoxImage.Warning)==MessageBoxResult.Yes;}
-        // A skippable confirmation. When the user turned this kind off (Risk tab, "Ask before") the action goes ahead and the Logs tab says so.
+        // A skippable confirmation. When the user turned this kind off (Settings tab, "Ask before") the action goes ahead and the Logs tab says so.
         // riskWarning=true (an account in scope is not confirmed simulated) always shows the window, whatever was saved.
         bool Confirm(string kind,string text,bool riskWarning)
         {
             askSkipped=LoadAsk(AskPath); // another Dashboard tab may have changed it: the file is the only truth (unreadable file = ask everything)
             if(ConfirmPrefs.MustAsk(kind,askSkipped,riskWarning))return Confirm(text);
-            Log("Confirmation skipped (turned off on the Risk tab): "+ConfirmPrefs.Label(kind));
+            Log("Confirmation skipped (turned off on the Settings tab): "+ConfirmPrefs.Label(kind));
 #if KINFX_SIM_TEST
             if(kind==ConfirmPrefs.Start)Log(dashboard.DryRunBox!=null&&dashboard.DryRunBox.IsChecked==true?"Dry run is ON: nothing will be sent.":"Dry run is OFF: real simulation orders WILL be sent.");
 #endif

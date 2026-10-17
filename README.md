@@ -75,25 +75,30 @@
 
 **以下供已覆核的測試使用，不是一般發佈。** 不要僅因編譯成功便以目前未驗收的版本交易。
 
-1. 從 [v0.2.1-simtest-alpha](https://github.com/Kinfxhk/KINFXTradeCopier/releases/tag/v0.2.1-simtest-alpha) 發佈頁下載 `KINFXTradeCopier-SIMTEST.zip`（由 NinjaTrader 8 本身匯出，**毋須解壓**；發佈說明列出 SHA-256）。
-2. NinjaTrader：*Control Center > Tools > Import > NinjaScript Add-On...*，選取該 zip。
-3. 詢問是否信任來源時按 **Yes**；若提示檔案已存在，按 **Yes** 只會取代本外掛的舊版本。
-4. 按提示重新啟動 NinjaTrader，然後開啟 *New > KINFX Trade Copier*。
+> 發佈頁 [v0.2.1-simtest-alpha](https://github.com/Kinfxhk/KINFXTradeCopier/releases/tag/v0.2.1-simtest-alpha) 的 zip 是**舊版介面**（跟單／風控／日誌三頁），不包括本頁介紹的監察／設定／日誌／問題分頁、恢復新進場、重新跟隨及電郵提醒。新介面目前只可從源碼安裝；新的 zip 會在真實 NinjaTrader 驗證後才發佈。
 
-**帳戶自動載入。** 開啟後會列出所有 NinjaTrader 帳戶，可直接勾選，無須輸入帳戶名稱。首次對尚未確認為模擬的帳戶（Simulator／Playback 以外，例如 Prop Firm 考核帳戶）按**開始**或**平倉**時，會顯示**列明該帳戶的風險警告**：KINFX 無法分辨考核帳戶與已注資或實盤帳戶。按**是**＝您確認為模擬帳戶，帳戶會寫入 `Documents\NinjaTrader 8\templates\KINFXTradeCopier\sim-allow.txt`，以後不再詢問；按**否**＝不儲存、不發送任何指令。此警告不能關閉；如需再次詢問，請從檔案刪除該行。
-
-<details>
-<summary>從源碼安裝</summary>
+### 從源碼安裝（本頁介面）
 
 1. 在本頁選擇 *Code > Download ZIP* 並解壓（或執行 `git clone https://github.com/Kinfxhk/KINFXTradeCopier`）。
 2. 在解壓後的資料夾，以 PowerShell 執行：
    ```powershell
    powershell -ExecutionPolicy Bypass -File scripts\install-simtest.ps1
    ```
-   腳本會將 SIM TEST 源碼複製至 `Documents\NinjaTrader 8\bin\Custom\AddOns`，取代舊檔前會備份，不會操作帳戶。`-WhatIf` 可預覽，`-Remove` 可移除。
+   腳本會將 SIM TEST 源碼複製至 `Documents\NinjaTrader 8\bin\Custom\AddOns`，取代舊檔（包括由 zip 匯入的舊版）前會備份至 `Documents\NinjaTrader 8\KINFX-backups`，不會操作帳戶。若在其他位置另有一份本外掛，腳本會停止並列出路徑，請先移走。`-WhatIf` 可預覽，`-Remove` 可移除。
 3. 在 NinjaTrader 選擇 *New > NinjaScript Editor*，按 **F5**，等待 *Compile succeeded*。若出錯，請停止。
+4. 開啟 *New > KINFX Trade Copier*。
+
+<details>
+<summary>匯入發佈頁 zip（舊版介面）</summary>
+
+1. 從 [v0.2.1-simtest-alpha](https://github.com/Kinfxhk/KINFXTradeCopier/releases/tag/v0.2.1-simtest-alpha) 發佈頁下載 `KINFXTradeCopier-SIMTEST.zip`（由 NinjaTrader 8 本身匯出，**毋須解壓**；發佈說明列出 SHA-256）。
+2. NinjaTrader：*Control Center > Tools > Import > NinjaScript Add-On...*，選取該 zip。
+3. 詢問是否信任來源時按 **Yes**；若提示檔案已存在，按 **Yes** 只會取代本外掛的舊版本。
+4. 按提示重新啟動 NinjaTrader，然後開啟 *New > KINFX Trade Copier*。
 
 </details>
+
+**帳戶自動載入。** 開啟後會列出所有 NinjaTrader 帳戶，可直接勾選，無須輸入帳戶名稱。首次對尚未確認為模擬的帳戶（Simulator／Playback 以外，例如 Prop Firm 考核帳戶）按**開始**或**平倉**時，會顯示**列明該帳戶的風險警告**：KINFX 無法分辨考核帳戶與已注資或實盤帳戶。按**是**＝您確認為模擬帳戶，帳戶會寫入 `Documents\NinjaTrader 8\templates\KINFXTradeCopier\sim-allow.txt`，以後不再詢問；按**否**＝不儲存、不發送任何指令。此警告不能關閉；如需再次詢問，請從檔案刪除該行。
 
 <details>
 <summary>手動填寫 sim-allow.txt</summary>
@@ -113,10 +118,34 @@ MYFIRM-SIM-67890 = Firm B
 ## 第一次使用
 
 1. *New > KINFX Trade Copier*。以下是 SIM TEST 版的演練清單，**並非允許以目前未驗收的源碼交易**。
-2. 選擇**主帳**（例如 `Sim101`）並輸入確切合約（例如 `MNQ 12-26`）。在 NinjaTrader 原生 Orders／Positions 分頁確認主帳戶及所有已選跟單帳戶**已連線**，該商品的**持倉為零且沒有掛單**。開始時不會承接現有倉位或補單。
-3. 僅勾選 **1 個**跟單帳戶，比例設為 **1**。在**設定**分頁勾選**試運行**。
-4. 按**開始**，核對主帳戶、跟單帳戶、合約、比例及 `DRY RUN` 確認內容。在主帳戶下一張小量模擬單，日誌應顯示 `DRY RUN would send ...`。試運行只阻止 copier 發送，**不會阻止您在主帳戶下單**。停止之前，**使用 NinjaTrader 原生工具取消 Leader 掛單並平掉 Leader 持倉**，確認所有帳戶均已平倉且沒有掛單，再按 **Stop**（停止）並確認工作階段已解除連接。如果拒絕停止，請中止演練並調查，不要強行解鎖。
+2. 在**監察**分頁選擇**主帳**（例如 `Sim101`）並輸入確切合約（例如 `MNQ 12-26`，亦可按 ▾ 選擇）。在 NinjaTrader 原生 Orders／Positions 分頁確認主帳戶及所有已選跟單帳戶**已連線**，該商品的**持倉為零且沒有掛單**。開始時不會承接現有倉位或補單。
+3. 僅勾選 **1 個**跟單帳戶。在**設定**分頁把該帳戶的比例設為 **1**、上限設為 **1**，並勾選**試運行**；頂部會顯示「試運行：開」。
+4. 按**開始**，核對主帳戶、跟單帳戶、合約、比例及 `DRY RUN` 確認內容。在主帳戶下一張小量模擬單，**日誌**分頁應顯示 `DRY RUN would send ...`。試運行只阻止 copier 發送，**不會阻止您在主帳戶下單**。可試按**暫停新進場**，再按**恢復新進場**：暫停期間主帳戶的進場不會補跟。停止之前，**使用 NinjaTrader 原生工具取消 Leader 掛單並平掉 Leader 持倉**，確認所有帳戶均已平倉且沒有掛單，再按 **Stop**（停止）並確認工作階段已解除連接。如果拒絕停止，請中止演練並調查，不要強行解鎖。
 5. **只有在工作階段已解除連接後**才可取消勾選試運行，之後的 Start 確認不再顯示 `DRY RUN`，訂單會真正發送。**僅在停止時新增 Follower**（跟單帳戶），再次核對所有已選帳戶已連線且狀態乾淨，並閱讀涵蓋完整範圍的新 **Start** 確認。
+6. 跟單帳戶隨主帳戶出場而平倉後，會顯示「已平倉 · 待重新跟隨」，不會跟下一筆進場。在監察分頁按**重新跟隨已平倉帳戶**，或在設定分頁為該帳戶開啟**重新跟隨**（自動）。兩者都只跟之後的新進場，不會補單。
+
+## 設定檔位置
+
+所有設定均保存在 `Documents\NinjaTrader 8\templates\KINFXTradeCopier`。移除外掛不會刪除這些檔案。
+
+| 檔案 | 內容 |
+|---|---|
+| `sim-allow.txt` | 已確認為模擬的帳戶（在風險警告按「是」時寫入）。 |
+| `<視窗編號>.xml`、`last-workspace.xml` | 各帳戶的比例、上限、Tgt、DLL、ATM、重新跟隨等設定，以及交易日分界。 |
+| `risk-latches.xml` | 鎖定記錄。重新啟動後仍保留，須在「問題」分頁解鎖。 |
+| `columns.txt` | 欄位顯示設定；刪除後恢復預設欄位。 |
+| `confirm-prefs.txt` | 「操作前確認」設定。 |
+| `notify.txt` | 電郵提醒的收件地址及事件類別（不含密碼）。 |
+| `language.txt`、`instruments-recent.txt` | 介面語言；最近使用的合約。 |
+| `logs\kinfx-yyyyMMdd.log` | 每日日誌。`logs\export-*.txt` 是匯出的日誌（帳戶名稱已遮蔽）。 |
+
+## 電郵提醒
+
+1. NinjaTrader：*Tools > Options > General > Share services*，新增電郵分享服務。郵件帳戶及密碼由 NinjaTrader 保存，KINFX 不會讀取或儲存。
+2. 在 KINFX **設定**分頁的**電郵提醒**，輸入收件地址，勾選要提醒的事件，按**儲存**。
+3. 按**寄出測試**並查看收件匣；如未收到，請查看 NinjaTrader 的 *Log* 分頁。
+
+未填地址時不會寄出任何郵件。填寫地址後，預設提醒帳戶鎖定、錯誤、達到目標／每日虧損及主帳戶斷線；交易日分界預設不提醒。同一帳戶的同一類事件每 10 分鐘最多 1 封，每小時合共最多 20 封，其餘會計入下一封郵件。郵件內的帳戶名稱會遮蔽。提醒不會下單、改單或取消委託。**電郵寄送尚未在真實 NinjaTrader 驗證。**
 
 ## 進度
 
@@ -156,16 +185,18 @@ Prop firm    ██████████████████████�
 歷史真實測試：1 個模擬 Leader、最多 11 個**模擬** Prop Firm 評估帳戶（Lucid 5 個、Tradeify 6 個）、MNQ、市價＋限價＋停損單、TP/SL OCO。從未使用 funded 或實盤帳戶。各項詳情與限制：[`docs/PROGRESS.json`](docs/PROGRESS.json)。計分按權重：✅ 100%、🟡 50%、只有設計 10%。快照 2026-10-15，源碼 `8a8deb196fa8`。
 <!-- PROGRESS:END -->
 
-勾號及分數是**加權歷史檢查清單**，**並非發佈就緒百分比**。最近一次真實 NinjaTrader 測試（2026-10-15 晚上）使用源碼 `8a8deb196fa8`（SIM TEST 版，即發佈頁 zip 的版本），屬測試證據，不是驗收。[各項證據與限制](docs/PROGRESS.json) · [真實 NT 測試記錄](docs/VM-PROGRESS.md) · [離線結果與安全阻礙](docs/DEVELOPERS.zh-HK.md)
+勾號及分數是**加權歷史檢查清單**，**並非發佈就緒百分比**。最近一次真實 NinjaTrader 交易測試（2026-10-15 晚上）使用源碼 `8a8deb196fa8`（SIM TEST 版，即發佈頁 zip 的版本），屬測試證據，不是驗收。目前源碼的介面已於 2026-10-17 在真實 NinjaTrader 以四種語言逐頁檢查（未按開始、未發送任何訂單）；恢復新進場、重新跟隨及電郵提醒只有離線測試。[各項證據與限制](docs/PROGRESS.json) · [真實 NT 測試記錄](docs/VM-PROGRESS.md) · [離線結果與安全阻礙](docs/DEVELOPERS.zh-HK.md)
 
 ## 使用限制
 
 - 本項目是**源碼 alpha**，不是已驗收的交易版本。**尚未證明：**20–30 個帳戶、真正的主帳戶斷線（Simulator 主帳戶會經另一連線即時重連，無法在測試環境重現）、真實部分成交、ATM 啟動失敗、provider 呼叫停滯、Flatten 被拒及重啟恢復。離線編譯／測試不能證明以上行為。
+- **只有離線測試：**恢復新進場、重新跟隨已平倉帳戶（包括自動重新跟隨）、交易日分界「只作提示」模式及電郵提醒，尚未在真實 NinjaTrader 按開始驗證。
+- 上限預設為 1。主帳戶單筆手數按比例換算後超過上限時，該筆會**整筆略過**，不會縮減至上限手數；設定分頁會以邊框提示仍為 1 的上限。
 - **已鎖定**的帳戶須在原生 NinjaTrader 調查並核對。解鎖**不等於**核對不確定的引擎記錄、隱藏的已接受請求或拋出例外的 Flatten。仍缺少可驗證已平倉的恢復關卡（[#9](https://github.com/Kinfxhk/KINFXTradeCopier/issues/9)，已知 FAIL `ExplicitManualFlatReconciliationAvailable`）。copier 不會重試 Flatten，亦不會在斷線後補單。
 - 以 NinjaTrader 原生 Orders／Positions 分頁為準，而非此視窗。本軟件不能阻止手動下單，亦不能保證成交。
 - 不得為了試用而移除預設版的安全封鎖。
 
-遇到問題？請開立 [issue](https://github.com/Kinfxhk/KINFXTradeCopier/issues) 並附上**已遮蓋敏感資料**的日誌（不含帳戶名稱、結餘）。
+遇到問題？請開立 [issue](https://github.com/Kinfxhk/KINFXTradeCopier/issues) 並附上**已遮蓋敏感資料**的日誌（日誌分頁的**匯出**會遮蔽帳戶名稱；請勿附上結餘）。
 
 ## 更多
 
