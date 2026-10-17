@@ -75,9 +75,17 @@ One window, four tabs: **Monitor** (watch while copying), **Settings** (change w
 
 **For reviewed testing, not a general release.** Do not trade the current unaccepted build merely because it compiles.
 
-> The zip on the [v0.2.1-simtest-alpha](https://github.com/Kinfxhk/KINFXTradeCopier/releases/tag/v0.2.1-simtest-alpha) release has the **older interface** (Copy / Risk / Logs). It does not have the Monitor / Settings / Logs / Issues tabs, Resume new entries, Re-follow or email alerts shown on this page. For now the new interface installs from the source only; a new zip follows after it is checked on real NinjaTrader.
+### Import the NinjaTrader zip (recommended)
 
-### Install from the source (this interface)
+1. Download `KINFXTradeCopier-SIMTEST.zip` from the [v0.3.0-simtest-alpha](https://github.com/Kinfxhk/KINFXTradeCopier/releases/tag/v0.3.0-simtest-alpha) release (exported by NinjaTrader 8 itself; **do not unzip it**; the release notes give its SHA-256). It is the interface shown on this page.
+2. NinjaTrader: *Control Center > Tools > Import > NinjaScript Add-On...*, pick the zip.
+3. Answer **Yes** to the "trusted source" question; if it says the file already exists, **Yes** replaces an older copy of this add-on only.
+4. Restart NinjaTrader when asked, then open *New > KINFX Trade Copier*.
+
+> This zip was compiled and its Dashboard opened on real NinjaTrader, but Resume new entries, Re-follow and email alerts have not been run after Start yet (see "Know the limits").
+
+<details>
+<summary>Install from the source</summary>
 
 1. *Code > Download ZIP* on this page, then unzip (or `git clone https://github.com/Kinfxhk/KINFXTradeCopier`).
 2. In the unzipped folder run in PowerShell:
@@ -87,14 +95,6 @@ One window, four tabs: **Monitor** (watch while copying), **Settings** (change w
    It copies the SIM TEST build into `Documents\NinjaTrader 8\bin\Custom\AddOns`, backs up anything it replaces (including an older copy imported from the zip) to `Documents\NinjaTrader 8\KINFX-backups` and touches no account. If another copy of this add-on exists elsewhere, it stops and names the path; move that copy out first. `-WhatIf` previews, `-Remove` uninstalls.
 3. In NinjaTrader: *New > NinjaScript Editor*, press **F5**, wait for *Compile succeeded*. If it errors, stop.
 4. Open *New > KINFX Trade Copier*.
-
-<details>
-<summary>Import the release zip (older interface)</summary>
-
-1. Download `KINFXTradeCopier-SIMTEST.zip` from the [v0.2.1-simtest-alpha](https://github.com/Kinfxhk/KINFXTradeCopier/releases/tag/v0.2.1-simtest-alpha) release (exported by NinjaTrader 8 itself; **do not unzip it**; the release notes give its SHA-256).
-2. NinjaTrader: *Control Center > Tools > Import > NinjaScript Add-On...*, pick the zip.
-3. Answer **Yes** to the "trusted source" question; if it says the file already exists, **Yes** replaces an older copy of this add-on only.
-4. Restart NinjaTrader when asked, then open *New > KINFX Trade Copier*.
 
 </details>
 
@@ -185,7 +185,7 @@ Historical checklist evidence, not acceptance of the current candidate. The curr
 Real tests so far: 1 simulator leader, up to 11 **simulated** prop-firm evaluation accounts (5 Lucid, 6 Tradeify), MNQ, Market + Limit + Stop, TP/SL OCO. No funded or live account was ever used. Each tick and its limits: [`docs/PROGRESS.json`](docs/PROGRESS.json). Score = weighted: ✅ 100%, 🟡 50%, design only 10%. Snapshot 2026-10-15, source `8a8deb196fa8`.
 <!-- PROGRESS:END -->
 
-The ticks and percentages are a **weighted historical checklist**, **not a release-readiness percentage**. The latest real-NinjaTrader trading run (2026-10-15 evening) used source `8a8deb196fa8` (SIM TEST build, the one in the release zip); it is test evidence, not acceptance. The current source's interface was checked page by page on real NinjaTrader in all four languages on 2026-10-17 (Start not pressed, no order sent); Resume new entries, Re-follow and email alerts have offline tests only. [Tick evidence and limits](docs/PROGRESS.json) · [Real NT test log](docs/VM-PROGRESS.md) · [Offline results and safety blockers](docs/DEVELOPERS.md)
+The ticks and percentages are a **weighted historical checklist**, **not a release-readiness percentage**. The latest real-NinjaTrader trading run (2026-10-15 evening) used source `8a8deb196fa8` (SIM TEST build, the one in the older v0.2.0 zip); it is test evidence, not acceptance. The current source's interface was checked page by page on real NinjaTrader in all four languages on 2026-10-17, and the v0.3.0 zip's file compiled and opened there (Start not pressed, no order sent); Resume new entries, Re-follow and email alerts have offline tests only. [Tick evidence and limits](docs/PROGRESS.json) · [Real NT test log](docs/VM-PROGRESS.md) · [Offline results and safety blockers](docs/DEVELOPERS.md)
 
 ## Know the limits
 
