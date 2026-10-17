@@ -236,7 +236,7 @@ class PublicPackage(unittest.TestCase):
 
     def test_readmes_describe_the_current_build(self):
         # The README is the manual (user request 2026-10-17): every language explains the four-tab interface, says the release
-        # zip is the older interface, lists the settings files the source really writes and explains email alerts.
+        # zip is the v0.3.0 release of this interface (2026-10-17), lists the settings files the source really writes and explains email alerts.
         src = (ROOT / 'src' / 'AddOns' / 'KINFXTradeCopier.cs').read_text(encoding='utf-8-sig')
         files = ('sim-allow.txt', 'last-workspace.xml', 'risk-latches.xml', 'columns.txt', 'confirm-prefs.txt',
                  'notify.txt', 'language.txt', 'instruments-recent.txt')
@@ -245,19 +245,19 @@ class PublicPackage(unittest.TestCase):
         for code in ('"logs"', '"kinfx-"', 'TimeSpan.FromMinutes(10)', 'PerHour=20'):
             self.assertTrue(code in src, 'source changed: ' + code)
         for name, terms in (
-            ('README.md', ('監察', '設定', '日誌', '問題', '舊版介面', '恢復新進場', '重新跟隨', '電郵提醒', '整筆略過', '每 10 分鐘最多 1 封')),
-            ('README.en.md', ('Monitor', 'Settings', 'Logs', 'Issues', 'older interface', 'Resume new entries', 'Re-follow',
+            ('README.md', ('監察', '設定', '日誌', '問題', 'v0.3.0-simtest-alpha', '恢復新進場', '重新跟隨', '電郵提醒', '整筆略過', '每 10 分鐘最多 1 封')),
+            ('README.en.md', ('Monitor', 'Settings', 'Logs', 'Issues', 'v0.3.0-simtest-alpha', 'Resume new entries', 'Re-follow',
                               'Email alerts', 'skipped entirely', 'every 10 minutes')),
-            ('README.ja.md', ('モニター', '設定', 'ログ', '問題', '旧画面', '新規エントリーを再開', '再フォロー', 'メール通知',
+            ('README.ja.md', ('モニター', '設定', 'ログ', '問題', 'v0.3.0-simtest-alpha', '新規エントリーを再開', '再フォロー', 'メール通知',
                               '丸ごと見送られ', '10 分に 1 通')),
-            ('README.ko.md', ('모니터', '설정', '로그', '문제', '이전 화면', '신규 진입 재개', '다시 팔로우', '이메일 알림',
+            ('README.ko.md', ('모니터', '설정', '로그', '문제', 'v0.3.0-simtest-alpha', '신규 진입 재개', '다시 팔로우', '이메일 알림',
                               '통째로 건너뛰며', '10분에 1통')),
         ):
             text = (ROOT / name).read_text(encoding='utf-8')
             for term in terms + files + ('kinfx-yyyyMMdd.log', 'Share services', 'KINFX-backups'):
                 self.assertTrue(term in text, '%s lacks %s' % (name, term))
             # Old tab names must not come back as instructions.
-            for old in ('Risk tab', 'Copy tab', '風控分頁', '跟單分頁', 'リスクタブ', '리스크 탭', '![Copy'):
+            for old in ('Risk tab', 'Copy tab', '風控分頁', '跟單分頁', 'リスクタブ', '리스크 탭', '![Copy', 'v0.2.1-simtest-alpha'):
                 self.assertFalse(old in text, '%s still says %s' % (name, old))
 
 if __name__ == '__main__':
