@@ -75,9 +75,17 @@ NinjaTrader 8 で、1 つのリーダー口座の取引を複数のフォロワ�
 
 **レビュー済みのテスト用であり、一般公開ではありません。** コンパイルできたという理由だけで、現在の未受入の版で取引しないでください。
 
-> [v0.2.1-simtest-alpha](https://github.com/Kinfxhk/KINFXTradeCopier/releases/tag/v0.2.1-simtest-alpha) の zip は**旧画面**（コピー／リスク／ログの 3 タブ）です。このページのモニター／設定／ログ／問題タブ、新規エントリーの再開、再フォロー、メール通知は含みません。新しい画面は今のところソースからのみインストールできます。新しい zip は実機 NinjaTrader で確認した後に公開します。
+### NinjaTrader の zip をインポート（推奨）
 
-### ソースからインストール（このページの画面）
+1. [v0.3.0-simtest-alpha](https://github.com/Kinfxhk/KINFXTradeCopier/releases/tag/v0.3.0-simtest-alpha) から `KINFXTradeCopier-SIMTEST.zip` をダウンロードします（NinjaTrader 8 自身が書き出したもの。**解凍しません**。SHA-256 はリリースノートにあります）。このページの画面と同じ内容です。
+2. NinjaTrader：*Control Center > Tools > Import > NinjaScript Add-On...* で zip を選びます。
+3. 信頼できる提供元かを聞かれたら **Yes**。ファイルが既にあると言われたら、**Yes** はこのアドオンの旧版だけを置き換えます。
+4. 求められたら NinjaTrader を再起動し、*New > KINFX Trade Copier* を開きます。
+
+> この zip は実機 NinjaTrader でコンパイルしダッシュボードを開きましたが、新規エントリーの再開、再フォロー、メール通知は開始後にまだ確認していません（「制限」を参照）。
+
+<details>
+<summary>ソースからインストール</summary>
 
 1. このページの *Code > Download ZIP* を解凍します（または `git clone https://github.com/Kinfxhk/KINFXTradeCopier`）。
 2. 解凍したフォルダーで PowerShell を実行します：
@@ -87,14 +95,6 @@ NinjaTrader 8 で、1 つのリーダー口座の取引を複数のフォロワ�
    SIM TEST ビルドを `Documents\NinjaTrader 8\bin\Custom\AddOns` にコピーし、置き換える前（zip で入れた旧版を含む）に `Documents\NinjaTrader 8\KINFX-backups` へバックアップします。口座は操作しません。別の場所にもう 1 つこのアドオンがあると、停止してそのパスを示します。先に移動してください。`-WhatIf` はプレビュー、`-Remove` は削除です。
 3. NinjaTrader で *New > NinjaScript Editor* を開き、**F5** を押し、*Compile succeeded* を待ちます。エラーなら中止します。
 4. *New > KINFX Trade Copier* を開きます。
-
-<details>
-<summary>リリースの zip をインポート（旧画面）</summary>
-
-1. [v0.2.1-simtest-alpha](https://github.com/Kinfxhk/KINFXTradeCopier/releases/tag/v0.2.1-simtest-alpha) から `KINFXTradeCopier-SIMTEST.zip` をダウンロードします（NinjaTrader 8 自身が書き出したもの。**解凍しません**。SHA-256 はリリースノートにあります）。
-2. NinjaTrader：*Control Center > Tools > Import > NinjaScript Add-On...* で zip を選びます。
-3. 信頼できる提供元かを聞かれたら **Yes**。ファイルが既にあると言われたら、**Yes** はこのアドオンの旧版だけを置き換えます。
-4. 求められたら NinjaTrader を再起動し、*New > KINFX Trade Copier* を開きます。
 
 </details>
 
@@ -185,7 +185,7 @@ Prop firm    ██████████████████████�
 これまでの実機テスト：シミュレーターのリーダー 1、最大 11 の**シミュレーション** Prop Firm 評価口座（Lucid 5、Tradeify 6）、MNQ、成行＋指値＋逆指値、TP/SL OCO。funded またはライブ口座は一度も使用していません。各項目と制限：[`docs/PROGRESS.json`](docs/PROGRESS.json)。配点は加重：✅ 100%、🟡 50%、設計のみ 10%。スナップショット 2026-10-15、ソース `8a8deb196fa8`。
 <!-- PROGRESS:END -->
 
-チェックと百分率は**加重した過去のチェックリスト**であり、**リリース準備の割合ではありません**。直近の実機 NinjaTrader での取引テスト（2026-10-15 夜）はソース `8a8deb196fa8`（SIM TEST ビルド、リリースの zip と同じ）で、テスト証拠であり受入ではありません。現在のソースの画面は 2026-10-17 に実機 NinjaTrader で 4 言語すべてをページごとに確認しました（開始は押さず、注文は送っていません）。新規エントリーの再開、再フォロー、メール通知はオフラインテストのみです。[各項目の証拠と制限](docs/PROGRESS.json) · [実機 NT テスト記録](docs/VM-PROGRESS.md) · [オフライン結果と安全上の障害](docs/DEVELOPERS.md)
+チェックと百分率は**加重した過去のチェックリスト**であり、**リリース準備の割合ではありません**。直近の実機 NinjaTrader での取引テスト（2026-10-15 夜）はソース `8a8deb196fa8`（SIM TEST ビルド、旧 v0.2.0 zip と同じ）で、テスト証拠であり受入ではありません。現在のソースの画面は 2026-10-17 に実機 NinjaTrader で 4 言語すべてをページごとに確認し、v0.3.0 zip のファイルも実機でコンパイルして開きました（開始は押さず、注文は送っていません）。新規エントリーの再開、再フォロー、メール通知はオフラインテストのみです。[各項目の証拠と制限](docs/PROGRESS.json) · [実機 NT テスト記録](docs/VM-PROGRESS.md) · [オフライン結果と安全上の障害](docs/DEVELOPERS.md)
 
 ## 制限
 

@@ -75,9 +75,17 @@
 
 **以下供已覆核的測試使用，不是一般發佈。** 不要僅因編譯成功便以目前未驗收的版本交易。
 
-> 發佈頁 [v0.2.1-simtest-alpha](https://github.com/Kinfxhk/KINFXTradeCopier/releases/tag/v0.2.1-simtest-alpha) 的 zip 是**舊版介面**（跟單／風控／日誌三頁），不包括本頁介紹的監察／設定／日誌／問題分頁、恢復新進場、重新跟隨及電郵提醒。新介面目前只可從源碼安裝；新的 zip 會在真實 NinjaTrader 驗證後才發佈。
+### 匯入 NinjaTrader zip（建議）
 
-### 從源碼安裝（本頁介面）
+1. 從 [v0.3.0-simtest-alpha](https://github.com/Kinfxhk/KINFXTradeCopier/releases/tag/v0.3.0-simtest-alpha) 發佈頁下載 `KINFXTradeCopier-SIMTEST.zip`（由 NinjaTrader 8 本身匯出，**毋須解壓**；發佈說明列出 SHA-256）。內容與本頁介面相同。
+2. NinjaTrader：*Control Center > Tools > Import > NinjaScript Add-On...*，選取該 zip。
+3. 詢問是否信任來源時按 **Yes**；若提示檔案已存在，按 **Yes** 只會取代本外掛的舊版本。
+4. 按提示重新啟動 NinjaTrader，然後開啟 *New > KINFX Trade Copier*。
+
+> 此 zip 已在真實 NinjaTrader 編譯並開啟儀表板，但尚未按開始驗證恢復新進場、重新跟隨及電郵提醒（見「使用限制」）。
+
+<details>
+<summary>從源碼安裝</summary>
 
 1. 在本頁選擇 *Code > Download ZIP* 並解壓（或執行 `git clone https://github.com/Kinfxhk/KINFXTradeCopier`）。
 2. 在解壓後的資料夾，以 PowerShell 執行：
@@ -87,14 +95,6 @@
    腳本會將 SIM TEST 源碼複製至 `Documents\NinjaTrader 8\bin\Custom\AddOns`，取代舊檔（包括由 zip 匯入的舊版）前會備份至 `Documents\NinjaTrader 8\KINFX-backups`，不會操作帳戶。若在其他位置另有一份本外掛，腳本會停止並列出路徑，請先移走。`-WhatIf` 可預覽，`-Remove` 可移除。
 3. 在 NinjaTrader 選擇 *New > NinjaScript Editor*，按 **F5**，等待 *Compile succeeded*。若出錯，請停止。
 4. 開啟 *New > KINFX Trade Copier*。
-
-<details>
-<summary>匯入發佈頁 zip（舊版介面）</summary>
-
-1. 從 [v0.2.1-simtest-alpha](https://github.com/Kinfxhk/KINFXTradeCopier/releases/tag/v0.2.1-simtest-alpha) 發佈頁下載 `KINFXTradeCopier-SIMTEST.zip`（由 NinjaTrader 8 本身匯出，**毋須解壓**；發佈說明列出 SHA-256）。
-2. NinjaTrader：*Control Center > Tools > Import > NinjaScript Add-On...*，選取該 zip。
-3. 詢問是否信任來源時按 **Yes**；若提示檔案已存在，按 **Yes** 只會取代本外掛的舊版本。
-4. 按提示重新啟動 NinjaTrader，然後開啟 *New > KINFX Trade Copier*。
 
 </details>
 
@@ -185,7 +185,7 @@ Prop firm    ██████████████████████�
 歷史真實測試：1 個模擬 Leader、最多 11 個**模擬** Prop Firm 評估帳戶（Lucid 5 個、Tradeify 6 個）、MNQ、市價＋限價＋停損單、TP/SL OCO。從未使用 funded 或實盤帳戶。各項詳情與限制：[`docs/PROGRESS.json`](docs/PROGRESS.json)。計分按權重：✅ 100%、🟡 50%、只有設計 10%。快照 2026-10-15，源碼 `8a8deb196fa8`。
 <!-- PROGRESS:END -->
 
-勾號及分數是**加權歷史檢查清單**，**並非發佈就緒百分比**。最近一次真實 NinjaTrader 交易測試（2026-10-15 晚上）使用源碼 `8a8deb196fa8`（SIM TEST 版，即發佈頁 zip 的版本），屬測試證據，不是驗收。目前源碼的介面已於 2026-10-17 在真實 NinjaTrader 以四種語言逐頁檢查（未按開始、未發送任何訂單）；恢復新進場、重新跟隨及電郵提醒只有離線測試。[各項證據與限制](docs/PROGRESS.json) · [真實 NT 測試記錄](docs/VM-PROGRESS.md) · [離線結果與安全阻礙](docs/DEVELOPERS.zh-HK.md)
+勾號及分數是**加權歷史檢查清單**，**並非發佈就緒百分比**。最近一次真實 NinjaTrader 交易測試（2026-10-15 晚上）使用源碼 `8a8deb196fa8`（SIM TEST 版，即舊版 v0.2.0 zip 的版本），屬測試證據，不是驗收。目前源碼的介面已於 2026-10-17 在真實 NinjaTrader 以四種語言逐頁檢查，v0.3.0 zip 的檔案亦已在真實 NinjaTrader 編譯並開啟（未按開始、未發送任何訂單）；恢復新進場、重新跟隨及電郵提醒只有離線測試。[各項證據與限制](docs/PROGRESS.json) · [真實 NT 測試記錄](docs/VM-PROGRESS.md) · [離線結果與安全阻礙](docs/DEVELOPERS.zh-HK.md)
 
 ## 使用限制
 
