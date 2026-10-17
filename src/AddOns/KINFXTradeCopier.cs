@@ -42,7 +42,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public const string StartTip="REVIEW HOLD: copying unavailable until engine safety issues are fixed";
         public const string LogNote="REVIEW HOLD: Start / Flatten / bulk risk disabled. ATM means order mirroring, not a follower native ATM. No real or simulation orders were submitted by this build verification.";
         public static bool CanExecute(string command)
-        { return command!="start" && command!="flattenSelected" && command!="flattenAll" && command!="batch"; }
+        { return command!="start" && command!="flattenSelected" && command!="flattenAll" && command!="batch" && command!="resume"; }
 #endif
     }
     // Advisory text for settings that are legal but easy to misread. Pure: no account, engine or dispatch access.
@@ -61,7 +61,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             if(referenceLots>0)
             {
                 if(RiskPolicy.Quantity(referenceLots,s.Ratio)==0)notes.Add(Lang.F("Ratio gives 0 lots for a {0}-lot leader order",referenceLots));
-                else if(s.MaxContracts>0&&RiskPolicy.Quantity(referenceLots,s.Ratio)>s.MaxContracts)notes.Add(Lang.F("size capped by Max {0}",s.MaxContracts));
+                else if(s.MaxContracts>0&&RiskPolicy.Quantity(referenceLots,s.Ratio)>s.MaxContracts)notes.Add(Lang.F("over Max {0}: that order is skipped, not reduced",s.MaxContracts));
             }
             return string.Join("; ",notes);
         }
@@ -152,6 +152,9 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         // Opt-in per account (default OFF): when THIS account's Daily target or Daily loss latches, send ONE Flatten for it on the session instrument.
         // Never retried, never for any other lock reason (disconnect, unknown order, rejected order ...), other accounts untouched.
         public bool FlatOnLimit;
+        // Opt-in per account (default OFF): after THIS follower's copied exit completes and the leader is flat too, tick it again
+        // automatically (same checks as a manual re-tick: clean, connected, unlocked, entries on). Copies only LATER entries; no catch-up.
+        public bool AutoRefollow;
         public RiskSettings Clone() { return (RiskSettings)MemberwiseClone(); }
         public bool Valid()
         {
@@ -502,6 +505,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             var d=new System.Collections.Generic.Dictionary<string,Spec>(StringComparer.Ordinal);
             foreach(var r in new[]{"ES","MES","NQ","MNQ","YM","MYM","RTY","M2K"})d[r]=new Spec{Months=Quarterly,SafeFront=true};
             foreach(var r in new[]{"GC","MGC"})d[r]=new Spec{Months=new[]{2,4,6,8,10,12},SafeFront=false};
+            foreach(var r in new[]{"SI","SIL"})d[r]=new Spec{Months=new[]{3,5,7,9,12},SafeFront=false};
             foreach(var r in new[]{"CL","MCL"})d[r]=new Spec{Months=new[]{1,2,3,4,5,6,7,8,9,10,11,12},SafeFront=false};
             return d;
         }
@@ -512,9 +516,61 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         {
             Spec spec;var r=Clean(root);
             if(r.Length==0||!Roots.TryGetValue(r,out spec)||!spec.SafeFront)return null;
-            var start=new DateTime(now.Year,now.Month,1);
-            for(int add=0;add<=24;add++){var d=start.AddMonths(add);if(spec.Months.Contains(d.Month))return Format(r,d.Month,d.Year);}
+            bool estimated;return QuarterlyFront(r,now.Date,out estimated);
+        }
+        // The front quarterly contract = the newest contract whose roll date <= today. Known dates come from
+        // InstrumentCatalog.QuarterlyRolls (read from NinjaTrader 8.1.8.3); outside that table the roll date is
+        // estimated as the Monday (3rd Friday minus 4 days) of the PREVIOUS quarter's expiry week, and EstimatedFront
+        // reports true so the UI can log that the date was estimated.
+        static string QuarterlyFront(string root,DateTime day,out bool estimated)
+        {
+            estimated=false;
+            var rows=InstrumentCatalog.QuarterlyRolls;
+            string best=null;DateTime bestDate=DateTime.MinValue;
+            for(int y=day.Year-1;y<=day.Year+2;y++)
+                foreach(int m in Quarterly)
+                {
+                    DateTime roll;bool est;
+                    var known=KnownRoll(rows,y,m);
+                    if(known.HasValue){roll=known.Value;est=false;}
+                    else{roll=EstimatedRollDate(y,m);est=true;}
+                    if(roll<=day&&roll>bestDate){bestDate=roll;best=Format(root,m,y);estimated=est;}
+                }
+            return best;
+        }
+        static DateTime? KnownRoll(InstrumentCatalog.RollRow[] rows,int year,int month)
+        {
+            foreach(var row in rows)if(row.Year==year&&row.Month==month)return row.Date;
             return null;
+        }
+        static DateTime EstimatedRollDate(int year,int month)
+        {
+            int prevMonth=month-3,prevYear=year;
+            if(prevMonth<=0){prevMonth+=12;prevYear--;}
+            return ThirdFriday(prevYear,prevMonth).AddDays(-4);
+        }
+        static DateTime ThirdFriday(int year,int month)
+        {
+            var first=new DateTime(year,month,1);
+            int offset=((int)DayOfWeek.Friday-(int)first.DayOfWeek+7)%7;
+            return first.AddDays(offset+14);
+        }
+        // True when the front contract for a quarterly root was determined by the estimate formula, not the known table.
+        public static bool EstimatedFront(string root,DateTime now)
+        {
+            Spec spec;var r=Clean(root);
+            if(r.Length==0||!Roots.TryGetValue(r,out spec)||!spec.SafeFront)return false;
+            bool estimated;QuarterlyFront(r,now.Date,out estimated);return estimated;
+        }
+        // Next `count` listed months for a root starting after the current month (picker for metals / energy; never the front).
+        public static string[] NextMonths(string root,int count,DateTime now)
+        {
+            Spec spec;var r=Clean(root);
+            if(r.Length==0||!Roots.TryGetValue(r,out spec))return new string[0];
+            var list=new System.Collections.Generic.List<string>();
+            var start=new DateTime(now.Year,now.Month,1);
+            for(int add=1;add<=24&&list.Count<count;add++){var d=start.AddMonths(add);if(spec.Months.Contains(d.Month))list.Add(Format(r,d.Month,d.Year));}
+            return list.ToArray();
         }
         static string Explicit(string root,int month,int year)
         {
@@ -558,7 +614,9 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         };
         // Hidden until the user shows them (user request 2026-10-15: the account name takes too much room; the Alias identifies the account,
         // every account gets an alias automatically and the Alias cell's tooltip shows the full name). "show=" in columns.txt reveals one.
-        static readonly string[] hiddenByDefault={Copy+":Acct",Risk+":Acct"};
+        // Settings also hides Preset, Cons, CCY and P/L by default (P/L is on Monitor): with every column shown the Settings table needed
+        // a horizontal scrollbar at the default 1160 px window (real NT 2026-10-17). The Columns button shows any of them again.
+        static readonly string[] hiddenByDefault={Copy+":Acct",Risk+":Acct",Risk+":Preset",Risk+":Cons",Risk+":CCY",Risk+":P/L"};
         public static HashSet<string> Defaults(){return new HashSet<string>(hiddenByDefault,StringComparer.Ordinal);}
         // Missing, blank or unreadable columns.txt keeps the default hidden columns. A readable file is parsed, so show= can reveal one.
         public static HashSet<string> Load(string path){try{if(!string.IsNullOrEmpty(path)&&File.Exists(path))return Parse(File.ReadAllLines(path));}catch{}return Defaults();}
@@ -608,7 +666,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public static bool Known(string kind){return kind!=null&&Array.IndexOf(Kinds,kind)>=0;}
         // The switch is chosen by the BUTTON pressed, never by how many rows are in scope: "Flatten selected" on one highlighted row is still "Flatten selected / all".
         public static string KindFor(string command){return command=="flatOne"?FlatOne:command=="start"?Start:Flatten;}
-        // English label of a switch (as shown on the Risk tab), so log lines translate instead of printing internal codes.
+        // English label of a switch (as shown on the Settings tab), so log lines translate instead of printing internal codes.
         public static string Label(string kind){return kind==Start?"Start":kind==FlatOne?"Flat (row)":kind==Flatten?"Flatten selected / all":kind;}
         public static HashSet<string> Parse(IEnumerable<string> lines)
         {
@@ -674,6 +732,393 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             if(eq<0){name=t;return true;}
             name=t.Substring(0,eq).Trim();alias=t.Substring(eq+1).Trim();
             return name.Length>0;
+        }
+    }
+    // PURE: instrument picker catalog + the known CME quarterly rollover table. No UI, no accounts, no file access.
+    public static class InstrumentCatalog
+    {
+        // UI / test clock. Tests pin it to a fixed date; the picker's front month and the header hint follow it.
+        internal static Func<DateTime> Now=()=>DateTime.Now;
+
+        // One row of the CME equity-index rollover table read from NinjaTrader 8.1.8.3 (MasterInstruments.UserData).
+        // "Contract X becomes the front contract on Date". Same for every quarterly index root.
+        public sealed class RollRow { public DateTime Date; public int Month; public int Year; }
+        public static readonly RollRow[] QuarterlyRolls=new RollRow[]
+        {
+            new RollRow{Date=new DateTime(2026,6,12),Month=9,Year=2026},
+            new RollRow{Date=new DateTime(2026,9,14),Month=12,Year=2026},
+            new RollRow{Date=new DateTime(2026,12,14),Month=3,Year=2027},
+            new RollRow{Date=new DateTime(2027,3,9),Month=6,Year=2027},
+            new RollRow{Date=new DateTime(2027,6,7),Month=9,Year=2027},
+        };
+
+        // Picker entries. Header rows have Root==null; contract rows carry the full text to write (Front) and a description.
+        public sealed class Entry { public string Root; public string Front; public string Description; public bool Header; public bool ChooseMonth; }
+
+        public sealed class RootInfo { public string Root; public string Group; public string Description; }
+        public static readonly RootInfo[] Roots=new RootInfo[]
+        {
+            new RootInfo{Root="MNQ",Group="Equity index",Description="Micro Nasdaq-100"},
+            new RootInfo{Root="NQ",Group="Equity index",Description="Nasdaq-100"},
+            new RootInfo{Root="MES",Group="Equity index",Description="Micro S&P 500"},
+            new RootInfo{Root="ES",Group="Equity index",Description="S&P 500"},
+            new RootInfo{Root="MYM",Group="Equity index",Description="Micro Dow"},
+            new RootInfo{Root="YM",Group="Equity index",Description="Dow"},
+            new RootInfo{Root="M2K",Group="Equity index",Description="Micro Russell 2000"},
+            new RootInfo{Root="RTY",Group="Equity index",Description="Russell 2000"},
+            new RootInfo{Root="MGC",Group="Metals",Description="Micro Gold"},
+            new RootInfo{Root="GC",Group="Metals",Description="Gold"},
+            new RootInfo{Root="SIL",Group="Metals",Description="Micro Silver"},
+            new RootInfo{Root="SI",Group="Metals",Description="Silver"},
+            new RootInfo{Root="MCL",Group="Energy",Description="Micro Crude Oil"},
+            new RootInfo{Root="CL",Group="Energy",Description="Crude Oil"},
+        };
+
+        public static bool IsKnown(string root)
+        {
+            var r=(root??"").Trim().ToUpperInvariant();
+            foreach(var info in Roots)if(info.Root==r)return true;
+            return false;
+        }
+
+        static RootInfo Find(string root)
+        {
+            var r=(root??"").Trim().ToUpperInvariant();
+            foreach(var info in Roots)if(info.Root==r)return info;
+            return null;
+        }
+
+        // The standard grouped list (headers + every root), no recent section.
+        public static Entry[] Items { get { return Build(new string[0]); } }
+
+        // Grouped list with the most-recently-picked roots first (validated, deduplicated, max 5), under a "Recent" header.
+        public static Entry[] Build(System.Collections.Generic.IEnumerable<string> recentRoots)
+        {
+            var now=Now();
+            var list=new System.Collections.Generic.List<Entry>();
+            var recent=new System.Collections.Generic.List<string>();
+            if(recentRoots!=null)
+                foreach(var raw in recentRoots)
+                {
+                    var root=(raw??"").Trim().ToUpperInvariant();
+                    if(root.Length==0||!IsKnown(root)||recent.Contains(root))continue;
+                    recent.Add(root);
+                    if(recent.Count>=5)break;
+                }
+            if(recent.Count>0)
+            {
+                list.Add(new Entry{Header=true,Description="Recent"});
+                foreach(var root in recent)AddRoot(list,root,now);
+            }
+            string group=null;
+            foreach(var info in Roots)
+            {
+                if(info.Group!=group){list.Add(new Entry{Header=true,Description=info.Group});group=info.Group;}
+                AddRoot(list,info.Root,now);
+            }
+            return list.ToArray();
+        }
+
+        static void AddRoot(System.Collections.Generic.List<Entry> list,string root,DateTime now)
+        {
+            var info=Find(root);if(info==null)return;
+            var front=ContractRoll.Front(root,now);
+            if(front!=null){list.Add(new Entry{Root=root,Front=front,Description=info.Description});return;}
+            foreach(var month in ContractRoll.NextMonths(root,2,now))
+                list.Add(new Entry{Root=root,Front=month,Description=info.Description,ChooseMonth=true});
+        }
+
+        // True when the front contract for a quarterly root came from the estimate fallback, not the known table.
+        public static bool IsEstimated(string root,DateTime now){return ContractRoll.EstimatedFront(root,now);}
+    }
+    // PURE: tested NinjaTrader version vs the running one. A mismatch is a warning, never a block.
+    public static class NtVersion
+    {
+        public const string Tested="8.1.8.3";
+        // "" when the running build matches the tested one; otherwise a translated warning naming both.
+        public static string Notice(string actual)
+        {
+            var a=(actual??"").Trim();
+            if(a.Length==0||a==Tested)return "";
+            return Lang.F("NinjaTrader {0} is not the tested version ({1}). It may still work; report problems.",a,Tested);
+        }
+    }
+    // Monitor-page summary card math. Pure: no account, engine or UI access.
+    public static class MonitorSummary
+    {
+        // Lots the engine itself could not protect, parsed from a lock reason like "… 2 lots UNPROTECTED …". 0 when absent.
+        public static int UnprotectedLots(string reason)
+        {
+            if(string.IsNullOrEmpty(reason))return 0;
+            int total=0;
+            foreach(System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(reason,@"(\d+)\s+lot(s)?\s+UNPROTECTED",System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+            {int n;if(int.TryParse(m.Groups[1].Value,System.Globalization.NumberStyles.None,System.Globalization.CultureInfo.InvariantCulture,out n))total+=n;}
+            return total;
+        }
+        // Sum of the finite values; NaN / Infinity contribute nothing.
+        public static double SumFinite(System.Collections.Generic.IEnumerable<double> values)
+        {
+            double sum=0;if(values==null)return 0;
+            foreach(double v in values)if(RiskPolicy.Finite(v))sum+=v;
+            return sum;
+        }
+        // Money for display: currency symbol in front ("-$1,234.50"), never the NinjaTrader enum name ("UsDollar").
+        // Accepts the Currency enum name or an ISO code; unknown currencies fall back to "CODE 1,234.50" so nothing is mislabelled as dollars.
+        public static string CurrencySymbol(string currency)
+        {
+            string c=(currency??"").Trim();
+            switch(c)
+            {
+                case "UsDollar":case "USD":return "$";
+                case "Euro":case "EUR":return "\u20AC";
+                case "BritishPound":case "GBP":return "\u00A3";
+                case "JapaneseYen":case "JPY":return "\u00A5";
+                case "AustralianDollar":case "AUD":return "A$";
+                case "CanadianDollar":case "CAD":return "C$";
+                case "HongKongDollar":case "HKD":return "HK$";
+                case "SingaporeDollar":case "SGD":return "S$";
+                case "NewZealandDollar":case "NZD":return "NZ$";
+                case "TaiwanNewDollar":case "TWD":return "NT$";
+                default:return null;
+            }
+        }
+        // NinjaTrader Currency enum name -> ISO code for currencies without a symbol above (unknown names are shown as they are).
+        static readonly string[] currencyNames={"AustralianDollar","BritishPound","CanadianDollar","Euro","HongKongDollar","JapaneseYen","SwissFranc","UsDollar","KoreanWon","IndianRupee","SwedishKrona","MexicanPeso","BrazilianReal","SingaporeDollar","ChinaYuan","MalaysiaRinggit","ThailandBaht","TaiwanNewDollar","NewZealandDollar","SouthAfricanRand","CzechRepublicKoruna","NorwayKrone","DenmarkKrone","HungaryForint","PolandZloty","TurkeyLira","IsraeliShekel","RussiaRuble","SaudiRiyal"};
+        static readonly string[] currencyCodes={"AUD","GBP","CAD","EUR","HKD","JPY","CHF","USD","KRW","INR","SEK","MXN","BRL","SGD","CNY","MYR","THB","TWD","NZD","ZAR","CZK","NOK","DKK","HUF","PLN","TRY","ILS","RUB","SAR"};
+        public static string IsoCode(string currency){string c=(currency??"").Trim();int i=Array.IndexOf(currencyNames,c);return i>=0?currencyCodes[i]:c;}
+        public static string Money(double value,string currency)
+        {
+            if(double.IsNaN(value)||double.IsInfinity(value))return "\u2014";
+            string amount=Math.Abs(value).ToString("N2",System.Globalization.CultureInfo.InvariantCulture);
+            if(amount=="0.00")value=0;
+            string sign=value<0?"-":"";
+            string sym=CurrencySymbol(currency);
+            if(sym!=null)return sign+sym+amount;
+            string code=IsoCode(currency);
+            return code.Length==0?sign+amount:code+" "+sign+amount;
+        }
+        // The one currency when every non-empty one agrees; null when mixed (the card then shows "Mixed CCY").
+        public static string SingleCurrency(System.Collections.Generic.IEnumerable<string> currencies)
+        {
+            string found=null;
+            if(currencies!=null)foreach(string c in currencies){string t=(c??"").Trim();if(t.Length==0)continue;if(found==null)found=t;else if(!string.Equals(found,t,StringComparison.Ordinal))return null;}
+            return found;
+        }
+    }
+    // ---- WP3: log model, classifier and export. Pure: no account, engine or UI access. ----
+    // One displayed log line. Level is one of Info / Order / Warn / Lock / Error. Text keeps the raw English
+    // message (translated only when drawn, so history follows the picked language). LevelText / MessageText /
+    // CategoryText are the translated display strings (Lang lives in the PURE region, so these stay pure).
+    public sealed class LogLine
+    {
+        public DateTime Time { get; set; }
+        public string Level { get; set; }
+        public string Account { get; set; }
+        public string Category { get; set; }
+        public string Text { get; set; }
+        public string LevelText { get { return Lang.T(Level); } }
+        public string CategoryText { get { return Lang.T(Category); } }
+        public string MessageText { get { return Lang.Show(Text); } }
+    }
+    // Classifies a free English engine/UI log message into a LogLine. Rules are case-sensitive substrings,
+    // first match wins in this order: Lock, Error, Order, Warn, else Info. Account is the longest account name
+    // that occurs in the message (ordinal), else "". Category: Lock for lock lines, else Order, Session, Settings,
+    // Accounts, General.
+    public static class LogClassifier
+    {
+        // Daily log text grouped by each line's own date: file name "kinfx-yyyyMMdd.log" -> text, in time order of first appearance. Pure.
+        public static List<KeyValuePair<string,string>> DailyFiles(IEnumerable<LogLine> lines)
+        {
+            var order=new List<string>();var text=new Dictionary<string,System.Text.StringBuilder>();
+            if(lines!=null)foreach(var l in lines)
+            {
+                if(l==null)continue;
+                string name="kinfx-"+l.Time.ToString("yyyyMMdd",CultureInfo.InvariantCulture)+".log";
+                System.Text.StringBuilder sb;if(!text.TryGetValue(name,out sb)){sb=new System.Text.StringBuilder();text[name]=sb;order.Add(name);}
+                sb.Append(l.Time.ToString("yyyy-MM-dd HH:mm:ss",CultureInfo.InvariantCulture)).Append("  ").Append(l.Level).Append("  ").Append(l.Text).Append(Environment.NewLine);
+            }
+            return order.Select(n=>new KeyValuePair<string,string>(n,text[n].ToString())).ToList();
+        }
+        public static readonly string[] Levels = { "Info", "Order", "Warn", "Lock", "Error" };
+        public static LogLine Classify(string message, IEnumerable<string> accountNames)
+        {
+            string msg = message ?? "";
+            string level = "Info";
+            if (IsLock(msg)) level = "Lock";
+            else if (IsError(msg)) level = "Error";
+            else if (IsOrder(msg)) level = "Order";
+            else if (IsWarn(msg)) level = "Warn";
+            string account = Account(msg, accountNames);
+            string category = level == "Lock" ? "Lock" : Category(msg, level);
+            return new LogLine { Level = level, Account = account, Category = category, Text = msg };
+        }
+        static bool StartsWithAny(string s, params string[] prefixes)
+        {
+            foreach (var p in prefixes) if (p != null && s.StartsWith(p, StringComparison.Ordinal)) return true;
+            return false;
+        }
+        static bool IsLock(string s) { return s.IndexOf(" LOCK: ", StringComparison.Ordinal) >= 0 || (s.IndexOf("LOCK", StringComparison.Ordinal) >= 0 && s.IndexOf("Coverage not established", StringComparison.Ordinal) >= 0); }
+        static bool IsError(string s) { return StartsWithAny(s, "ENGINE ERROR", "PROVIDER DISPATCH ERROR", "PROVIDER COMPLETION ERROR", "PERSISTENCE ERROR", "DURABLE LATCH WRITE FAILED", "FLATTEN FAILED") || s.IndexOf("UI action failed", StringComparison.Ordinal) >= 0; }
+        static bool IsOrder(string s) { return StartsWithAny(s, "COPY ", "DRY RUN would send", "Flatten request", "Flat requested"); }
+        static bool IsWarn(string s) { return s.IndexOf("refused", StringComparison.Ordinal) >= 0 || s.IndexOf("blocked", StringComparison.Ordinal) >= 0 || s.IndexOf("BLOCKED", StringComparison.Ordinal) >= 0 || s.IndexOf("Refused", StringComparison.Ordinal) >= 0 || s.IndexOf("not recognised", StringComparison.Ordinal) >= 0 || s.IndexOf("not available", StringComparison.Ordinal) >= 0 || s.IndexOf("Trading-day boundary", StringComparison.Ordinal) >= 0 || s.IndexOf("Confirmation skipped", StringComparison.Ordinal) >= 0 || s.IndexOf("NOT saved", StringComparison.Ordinal) >= 0; }
+        static string Account(string s, IEnumerable<string> names)
+        {
+            if (names == null) return "";
+            string best = "";
+            foreach (var n in names) if (!string.IsNullOrEmpty(n) && s.IndexOf(n, StringComparison.Ordinal) >= 0 && n.Length > best.Length) best = n;
+            return best;
+        }
+        static string Category(string s, string level)
+        {
+            if (level == "Order") return "Order";
+            if (StartsWithAny(s, "Armed", "Start", "Stop", "Paused")) return "Session";
+            if (s.IndexOf("Settings", StringComparison.Ordinal) >= 0 || s.IndexOf("saved", StringComparison.Ordinal) >= 0 || s.IndexOf("Unlock", StringComparison.Ordinal) >= 0 || s.IndexOf("unlock", StringComparison.Ordinal) >= 0) return "Settings";
+            if (s.IndexOf("Account list", StringComparison.Ordinal) >= 0) return "Accounts";
+            return "General";
+        }
+    }
+    // Export-time masking: replace each account name by ACCOUNT-<n> (1-based, numbered by first appearance).
+    // Longest names first so a name that is a prefix of another can never leave a half-replaced fragment.
+    // Email alerts (pure). Settings live in notify.txt: "to=<address>" and one "on=<kind>" per alert kind; unknown lines are ignored.
+    // Mail is sent through NinjaTrader's own default email share service (Tools > Options > General > Share services), so KINFX never stores
+    // a password or SMTP server. Decide() picks which log lines alert and rate-limits them; it never touches the engine or orders.
+    public static class NotifyPrefs
+    {
+        public const string Lock="lock", Error="error", Limit="limit", Disconnect="disconnect", Boundary="boundary";
+        public static readonly string[] Kinds={Lock,Error,Limit,Disconnect,Boundary};
+        public static string Label(string kind){return kind==Lock?"Account locked":kind==Error?"Errors":kind==Limit?"Target / daily loss hit":kind==Disconnect?"Leader disconnected":kind==Boundary?"Trading-day boundary":kind;}
+        public sealed class Settings
+        {
+            public string To="";
+            public readonly HashSet<string> On=new HashSet<string>(StringComparer.Ordinal);
+            public bool Enabled{get{return IsAddress(To)&&On.Count>0;}}
+        }
+        // Default: nothing is sent until the user enters an address. Once an address is set, lock / error / limit / disconnect are on.
+        public static Settings Defaults(){var s=new Settings();foreach(var k in new[]{Lock,Error,Limit,Disconnect})s.On.Add(k);return s;}
+        public static bool IsAddress(string a)
+        {
+            if(string.IsNullOrWhiteSpace(a))return false;a=a.Trim();
+            if(a.Length>254||a.IndexOfAny(new[]{' ',',',';','\r','\n','\t','<','>','"'})>=0)return false;
+            int at=a.IndexOf('@');return at>0&&at==a.LastIndexOf('@')&&a.IndexOf('.',at)>at+1&&!a.EndsWith(".");
+        }
+        public static Settings Parse(IEnumerable<string> lines)
+        {
+            var s=Defaults();if(lines==null)return s;bool anyOn=false;var on=new HashSet<string>(StringComparer.Ordinal);
+            foreach(var raw in lines)
+            {
+                if(raw==null)continue;string t=raw.Trim();if(t.Length==0||t.StartsWith("#"))continue;
+                int eq=t.IndexOf('=');if(eq<0)continue;string key=t.Substring(0,eq).Trim(),val=t.Substring(eq+1).Trim();
+                if(key=="to"){s.To=IsAddress(val)?val:"";}
+                else if(key=="on"){anyOn=true;if(Array.IndexOf(Kinds,val)>=0)on.Add(val);}
+                else if(key=="none"){anyOn=true;}
+            }
+            if(anyOn){s.On.Clear();foreach(var k in on)s.On.Add(k);}
+            return s;
+        }
+        public static string[] Serialize(Settings s)
+        {
+            var list=new List<string>{"# KINFX Trade Copier: email alerts. Mail goes through NinjaTrader's default email share service; no password is stored here."};
+            list.Add("to="+(s==null?"":s.To));
+            if(s==null||s.On.Count==0)list.Add("none=");
+            else foreach(var k in Kinds)if(s.On.Contains(k))list.Add("on="+k);
+            return list.ToArray();
+        }
+        // Which alert kind a classified log line raises, or null. Order lines, plain info and warnings never mail.
+        public static string KindOf(LogLine line)
+        {
+            if(line==null||line.Text==null)return null;string m=line.Text;
+            if(line.Level=="Lock")
+            {
+                if(m.IndexOf("Leader disconnected",StringComparison.Ordinal)>=0)return Disconnect;
+                if(m.IndexOf(" LOCK: Target hit",StringComparison.Ordinal)>=0||m.IndexOf(" LOCK: Daily loss",StringComparison.Ordinal)>=0||m.IndexOf(" LOCK: Drawdown floor",StringComparison.Ordinal)>=0)return Limit;
+                return Lock;
+            }
+            if(line.Level=="Error")return Error;
+            if(m.StartsWith("Trading-day boundary",StringComparison.Ordinal))return Boundary;
+            return null;
+        }
+        // Rate limit: at most one mail per kind+account every 10 minutes and at most 20 mails per hour overall; the rest are counted
+        // and summarised in the next mail. State is the caller's (one per Dashboard tab).
+        public sealed class Limiter
+        {
+            readonly Dictionary<string,DateTime> last=new Dictionary<string,DateTime>(StringComparer.Ordinal);
+            readonly Queue<DateTime> sent=new Queue<DateTime>();
+            public int Suppressed;
+            public static readonly TimeSpan PerKey=TimeSpan.FromMinutes(10);public const int PerHour=20;
+            public bool Allow(string kind,string account,DateTime now)
+            {
+                while(sent.Count>0&&now-sent.Peek()>=TimeSpan.FromHours(1))sent.Dequeue();
+                string key=kind+"|"+(account??"");DateTime prev;
+                if((last.TryGetValue(key,out prev)&&now-prev<PerKey)||sent.Count>=PerHour){Suppressed++;return false;}
+                last[key]=now;sent.Enqueue(now);return true;
+            }
+        }
+        public sealed class Mail{public string Subject="",Body="";}
+        // The mail for one line, or null when it must not be sent. Account names are masked like a log export.
+        public static Mail Decide(Settings s,Limiter limiter,LogLine line,IEnumerable<string> accountNames,DateTime now)
+        {
+            if(s==null||!s.Enabled||limiter==null)return null;
+            string kind=KindOf(line);if(kind==null||!s.On.Contains(kind))return null;
+            if(!limiter.Allow(kind,line.Account,now))return null;
+            int skipped=limiter.Suppressed;limiter.Suppressed=0;
+            string text=LogExport.Mask(line.Text,accountNames);
+            string subject="KINFX Trade Copier: "+Label(kind);
+            string body=now.ToString("yyyy-MM-dd HH:mm:ss",CultureInfo.InvariantCulture)+"  "+line.Level+"\n"+text+"\n\n"
+                +(skipped>0?skipped+" more alert(s) were rate-limited since the last mail; see the Logs tab.\n":"")
+                +"Sent by KINFX Trade Copier through NinjaTrader. Account names are masked. This mail never means an order was sent or cancelled.";
+            return new Mail{Subject=subject,Body=body};
+        }
+    }
+    // S1 one-click re-follow (pure): a follower is offered only when the engine closed it after a completed exit, it is flat, connected,
+    // unlocked and not paused. The engine re-checks everything again (SetFollowing ON) and refuses anything not clean.
+    public static class Refollow
+    {
+        public static bool Eligible(bool exitClosed,bool following,bool locked,bool paused,bool connected,int position)
+        { return exitClosed&&!following&&!locked&&!paused&&connected&&position==0; }
+        // Auto re-follow additionally needs the opt-in and a flat leader, and never re-ticks an account the user flattened by hand
+        // (Flat / Flatten selected / Flatten all): the engine marks that close the same way as a copied exit (review 5, 2026-10-17).
+        public static bool Auto(bool optIn,bool userFlattened,bool exitClosed,bool following,bool locked,bool paused,bool connected,int position,int leaderPosition)
+        { return optIn&&!userFlattened&&leaderPosition==0&&Eligible(exitClosed,following,locked,paused,connected,position); }
+    }
+    // S1 auto re-follow: one attempt per close. The attempt is not spent while entries are off (the engine would refuse it), and
+    // entries coming back on, or a new session, give every still-closed follower a fresh attempt. No account or engine access.
+    public sealed class AutoRefollowGate
+    {
+        readonly HashSet<string> tried=new HashSet<string>(StringComparer.Ordinal);int session=int.MinValue;bool armed;
+        // Returns the names that may be re-followed now, and marks them tried.
+        public string[] Take(int sessionGeneration,bool entriesArmed,IEnumerable<string> closedEligible,IEnumerable<string> stillClosed)
+        {
+            if(sessionGeneration!=session){session=sessionGeneration;tried.Clear();}
+            var closed=new HashSet<string>(stillClosed??new string[0],StringComparer.Ordinal);tried.RemoveWhere(n=>!closed.Contains(n));
+            if(entriesArmed&&!armed)tried.Clear();armed=entriesArmed;
+            if(!entriesArmed)return new string[0];
+            var take=(closedEligible??new string[0]).Where(n=>!tried.Contains(n)).Distinct().ToArray();
+            foreach(var n in take)tried.Add(n);return take;
+        }
+    }
+    // S1 trading-day boundary reaction. "pause" (default) = guarded pause of new entries, as before. "notify" = log only.
+    public static class BoundaryMode
+    {
+        public const string Pause="pause", Notify="notify";
+        public static string Parse(string v){return v==Notify?Notify:Pause;}
+    }
+    public static class LogExport
+    {
+        public static string Mask(string text, IEnumerable<string> names)
+        {
+            if (text == null) return "";
+            if (names == null) return text;
+            var order = new List<string>();
+            var number = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach (var n in names)
+            {
+                if (string.IsNullOrEmpty(n) || number.ContainsKey(n)) continue;
+                number[n] = number.Count + 1;
+                order.Add(n);
+            }
+            string result = text;
+            foreach (var n in order.OrderByDescending(x => x.Length)) result = result.Replace(n, "ACCOUNT-" + number[n]);
+            return result;
         }
     }
 // BEGIN LANG TABLE (generated by scripts/gen_lang.py from i18n/strings.json; do not edit by hand)
@@ -766,7 +1211,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             t["Rechecking"] = new[] { "重新檢查中", "再確認中", "재확인 중" };
             t["Locked"] = new[] { "已鎖定", "ロック中", "잠김" };
             t["Error"] = new[] { "錯誤", "エラー", "오류" };
-            t["Paused"] = new[] { "已暫停", "停止中", "일시정지됨" };
+            t["Paused"] = new[] { "已暫停", "一時停止中", "일시정지됨" };
             t["Copying"] = new[] { "跟單中", "コピー中", "복사 중" };
             t["Offline"] = new[] { "離線", "オフライン", "오프라인" };
             t["Demo only"] = new[] { "僅限示範", "デモのみ", "데모 전용" };
@@ -993,7 +1438,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             t["Protective coverage unknown — requested, provider acceptance unconfirmed; no retry / chase"] = new[] { "保護狀況不明——已提出請求，供應端是否接受未確認；不重試／不追單", "保護の状況は不明——要求済み、プロバイダーの受理は未確認；再試行／追随なし", "보호 상태 불명 — 요청됨, 제공자 수락 미확인; 재시도/추격 없음" };
             t["OFF — cancellation pending"] = new[] { "OFF——取消待處理", "OFF——キャンセル保留中", "OFF — 취소 대기 중" };
             t["OFF / exits managed"] = new[] { "OFF／出場管理中", "OFF／決済管理中", "OFF / 청산 관리 중" };
-            t["Paused / exits managed"] = new[] { "已暫停／出場管理中", "停止中／決済管理中", "일시정지됨 / 청산 관리 중" };
+            t["Paused / exits managed"] = new[] { "已暫停／出場管理中", "一時停止中／決済管理中", "일시정지됨 / 청산 관리 중" };
             t["DISARMED — explicit Start required"] = new[] { "未武裝——須明確按下開始", "非アーム——明示的な開始が必要", "비무장 — 명시적인 시작 필요" };
             t["FLATTEN requested — new entries blocked; verify flat status"] = new[] { "已要求平倉——新進場已封鎖；請確認持倉歸零狀態", "全決済を要求——新規エントリーはブロック；フラット状態を確認してください", "청산 요청됨 — 신규 진입 차단; 청산 상태를 확인하십시오" };
             t["Manually abandoned after provider reconciliation; late close risk remains"] = new[] { "供應端對帳後已手動放棄；仍有延遲平倉風險", "プロバイダーの照合後に手動で放棄；遅延クローズのリスクが残ります", "제공자 대조 후 수동으로 포기됨; 지연 청산 위험이 남아 있음" };
@@ -1092,7 +1537,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             t["Account sync error: {0}"] = new[] { "帳戶同步錯誤：{0}", "口座同期エラー：{0}", "계좌 동기화 오류: {0}" };
             t["Trading-day boundary {0} {1}:00 (DST aware). New entries paused. Baseline / latch NOT auto-reset. Confirm new baseline and unlock while flat."] = new[] { "交易日界線 {0} {1}:00（已考慮日光節約時間）。新進場已暫停。基準值／鎖存不會自動重設。請在持倉歸零時確認新基準值並解除鎖定。", "取引日境界 {0} {1}:00（夏時間考慮）。新規エントリーは一時停止中。ベースライン／ラッチは自動リセットされません。フラットの状態で新しいベースラインを確認し、ロックを解除してください。", "거래일 경계 {0} {1}:00 (서머타임 반영). 신규 진입 일시정지됨. 기준값/래치는 자동 초기화되지 않음. 청산 상태에서 새 기준값을 확인하고 잠금을 해제하세요." };
             t["Restore failed — Start blocked: {0}"] = new[] { "還原失敗 — 已封鎖開始：{0}", "復元に失敗 — 開始をブロックしました：{0}", "복원 실패 — 시작이 차단되었습니다: {0}" };
-            t["Bulk {0} applied to highlighted followers; Ratio and ticks unchanged."] = new[] { "已將批次{0}套用至選取的跟單帳戶；比例與跳動點數不變。", "一括{0}を選択中のフォロワーに適用；比率とティックは変更なし。", "일괄 {0}을(를) 선택한 팔로워에 적용함; 비율과 틱은 변경되지 않음." };
+            t["Bulk {0} applied to highlighted followers; follow ticks unchanged."] = new[] { "已將批次{0}套用至選取的跟單帳戶；跟單勾選不變。", "一括{0}を選択中のフォロワーに適用；フォローのチェックは変更なし。", "일괄 {0}을(를) 선택한 팔로워에 적용함; 팔로우 체크는 변경되지 않음." };
             t["Bulk {0} refused: {1}"] = new[] { "批次{0}已被拒絕：{1}", "一括{0}を拒否：{1}", "일괄 {0} 거부됨: {1}" };
             t["From Leader refused: {0}"] = new[] { "取自主帳戶已被拒絕：{0}", "リーダーからの取得を拒否：{0}", "리더에서 가져오기 거부됨: {0}" };
             t["{0} open order(s) [{1}]"] = new[] { "{0} 筆未平倉委託單 [{1}]", "未約定注文 {0} 件 [{1}]", "미체결 주문 {0}건 [{1}]" };
@@ -1107,7 +1552,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             t["● {0} LOCKED · check NinjaTrader, then review each reason"] = new[] { "● {0} 已鎖定 · 請檢查 NinjaTrader，再逐一審查原因", "● {0} ロック中 · NinjaTrader を確認し、各理由を確認してください", "● {0} 잠김 · NinjaTrader를 확인한 후 각 사유를 검토하세요" };
             t["⚠ {0} account(s) with a settings note · hover State"] = new[] { "⚠ {0} 個帳戶有設定備註 · 請將游標移至狀態欄", "⚠ 設定メモのある口座 {0} 件 · 状態にカーソルを合わせてください", "⚠ 설정 메모가 있는 계좌 {0}개 · 상태에 마우스를 올리세요" };
             t["Ratio gives 0 lots for a {0}-lot leader order"] = new[] { "對於 {0} 口的主帳戶委託單，比例換算結果為 0 口", "リーダーの {0} ロット注文に対し、比率では 0 ロットになります", "리더의 {0}랏 주문에 대해 비율 적용 결과가 0랏임" };
-            t["size capped by Max {0}"] = new[] { "數量已受 Max {0} 限制", "数量は Max {0} で制限されています", "수량이 Max {0}(으)로 제한됨" };
+            t["over Max {0}: that order is skipped, not reduced"] = new[] { "超過上限 {0}：該筆會整筆略過，不會減量", "最大 {0} を超えるため、その注文は丸ごと見送られます（減らしません）", "최대 {0} 초과: 그 주문은 줄이지 않고 통째로 건너뜁니다" };
             t["Over advisory limit: {0}%"] = new[] { "超出建議上限：{0}%", "推奨上限を超過：{0}%", "권고 한도 초과: {0}%" };
             t["Within advisory limit: {0}%"] = new[] { "在建議上限內：{0}%", "推奨上限内：{0}%", "권고 한도 이내: {0}%" };
             t["Start simulation copying to exactly {0} follower account(s) on {1}?\n\n{2}\n\nLocal copier guards only. No adoption; all selected accounts must be flat / no working instrument orders."] = new[] { "要對 {1} 上恰好 {0} 個跟單帳戶開始模擬跟單嗎？\n\n{2}\n\n僅有本機跟單防護。不採納既有部位；所有已選帳戶必須為平倉狀態，且該商品無掛單。", "{1} の正確に {0} 口座のフォロワーへシミュレーションコピーを開始しますか？\n\n{2}\n\nローカルのコピーガードのみ。引き継ぎは行いません；選択した全口座がフラットで、銘柄の待機中の注文がない必要があります。", "{1}에서 정확히 {0}개 팔로워 계좌로 시뮬레이션 복사를 시작할까요?\n\n{2}\n\n로컬 복사 가드만 적용됨. 인수 없음; 선택한 모든 계좌는 청산 상태이고 해당 종목의 대기 주문이 없어야 함." };
@@ -1164,7 +1609,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             t["When Tgt or DLL is hit: only lock and stop copying (default) for highlighted accounts"] = new[] { "選取的帳戶達到每日目標或每日虧損上限時：只鎖定並停止跟單（預設）", "選択口座が日次目標または日次損失上限に達したとき：ロックしてコピーを停止するのみ（既定）", "선택한 계좌가 일일 목표 또는 일일 손실 한도에 도달하면: 잠그고 복사만 중지(기본값)" };
             t["Flat at limit: when this account hits its Tgt or DLL, flatten it ONCE (never retried). Off = only lock and stop copying."] = new[] { "達限平倉：此帳戶達到每日目標或每日虧損上限時平倉一次（不會重試）。關閉＝只鎖定並停止跟單。", "上限で決済：この口座が日次目標または日次損失上限に達したら1回だけ決済（再試行なし）。オフ＝ロックしてコピー停止のみ。", "한도 청산: 이 계좌가 일일 목표 또는 일일 손실 한도에 도달하면 한 번 청산(재시도 없음). 끄기 = 잠그고 복사만 중지." };
             t["Flat@Lim"] = new[] { "達限平倉", "上限決済", "한도청산" };
-            t["Confirmation skipped (turned off on the Risk tab): {0}"] = new[] { "已略過確認（已在風控分頁關閉）：{0}", "確認を省略（リスクタブでオフ）：{0}", "확인 생략(리스크 탭에서 끔): {0}" };
+            t["Confirmation skipped (turned off on the Settings tab): {0}"] = new[] { "已略過確認（已在設定分頁關閉）：{0}", "確認を省略（設定タブでオフ）：{0}", "확인 생략(설정 탭에서 끔): {0}" };
             t["Confirmation turned back on: {0}"] = new[] { "已重新開啟確認：{0}", "確認を再びオン：{0}", "확인 다시 켬: {0}" };
             t["Confirmation turned off: {0} (risk warnings and Unlock are still always asked)"] = new[] { "已關閉確認：{0}（風險警告及解鎖仍一律詢問）", "確認をオフ：{0}（リスク警告とロック解除は常に確認）", "확인 끔: {0} (위험 경고와 잠금 해제는 항상 확인)" };
             t["Settings NOT saved: {0}"] = new[] { "設定未儲存：{0}", "設定は保存されていません：{0}", "설정이 저장되지 않았습니다: {0}" };
@@ -1195,6 +1640,135 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             t["Daily target still reached"] = new[] { "仍達每日目標", "日次目標にまだ到達中", "일일 목표에 아직 도달 상태" };
             t["Daily loss still reached"] = new[] { "仍達每日虧損上限", "日次損失上限にまだ到達中", "일일 손실 한도에 아직 도달 상태" };
             t["Drawdown floor still reached"] = new[] { "仍達回撤下限", "ドローダウン下限にまだ到達中", "드로다운 하한에 아직 도달 상태" };
+            t["Issues"] = new[] { "問題", "問題", "문제" };
+            t["No locks or notes."] = new[] { "沒有鎖定或設定提示。", "ロックや設定の注意はありません。", "잠금이나 설정 알림이 없습니다." };
+            t["Open the Issues tab"] = new[] { "開啟「問題」分頁", "「問題」タブを開く", "'문제' 탭 열기" };
+            t["Micro Nasdaq-100"] = new[] { "微型納斯達克100", "マイクロ Nasdaq-100", "마이크로 나스닥100" };
+            t["Nasdaq-100"] = new[] { "納斯達克100", "Nasdaq-100", "나스닥100" };
+            t["Micro S&P 500"] = new[] { "微型標普500", "マイクロ S&P 500", "마이크로 S&P 500" };
+            t["S&P 500"] = new[] { "標普500", "S&P 500", "S&P 500" };
+            t["Micro Dow"] = new[] { "微型道瓊", "マイクロダウ", "마이크로 다우" };
+            t["Dow"] = new[] { "道瓊", "ダウ", "다우" };
+            t["Micro Russell 2000"] = new[] { "微型羅素2000", "マイクロ Russell 2000", "마이크로 러셀 2000" };
+            t["Russell 2000"] = new[] { "羅素2000", "Russell 2000", "러셀 2000" };
+            t["Micro Gold"] = new[] { "微型黃金", "マイクロゴールド", "마이크로 골드" };
+            t["Gold"] = new[] { "黃金", "ゴールド", "골드" };
+            t["Micro Silver"] = new[] { "微型白銀", "マイクロシルバー", "마이크로 실버" };
+            t["Silver"] = new[] { "白銀", "シルバー", "실버" };
+            t["Micro Crude Oil"] = new[] { "微型原油", "マイクロ原油", "마이크로 원유" };
+            t["Crude Oil"] = new[] { "原油", "原油", "원유" };
+            t["Equity index"] = new[] { "股指", "株価指数", "주가지수" };
+            t["Metals"] = new[] { "金屬", "金属", "금속" };
+            t["Energy"] = new[] { "能源", "エネルギー", "에너지" };
+            t["Recent"] = new[] { "最近使用", "最近", "최근" };
+            t["choose month"] = new[] { "選擇月份", "月を選択", "월 선택" };
+            t["Stopped"] = new[] { "已停止", "停止中", "중지됨" };
+            t["Pause new entries"] = new[] { "暫停新進場", "新規エントリーを一時停止", "신규 진입 일시정지" };
+            t["Front contract is now {0}"] = new[] { "目前近月合約是 {0}", "現在の限月は {0} です", "현재 근월물은 {0}" };
+            t["Use {0}"] = new[] { "使用 {0}", "{0} を使用", "{0} 사용" };
+            t["Contract roll date estimated for {0}; check NinjaTrader's Instrument Manager."] = new[] { "合約換月日期為 {0} 之估計值；請在 NinjaTrader 的 Instrument Manager 中確認。", "{0} の限月ロール日は推定値です。NinjaTrader の Instrument Manager で確認してください。", "{0}의 롤오버 날짜는 추정값입니다. NinjaTrader의 Instrument Manager에서 확인하세요." };
+            t["NinjaTrader {0} is not the tested version ({1}). It may still work; report problems."] = new[] { "NinjaTrader {0} 不是已測試版本（{1}）。可能仍可運作；如有問題請回報。", "NinjaTrader {0} はテスト済みバージョン（{1}）ではありません。動作する可能性はありますが、問題があれば報告してください。", "NinjaTrader {0}은(는) 테스트된 버전({1})이 아닙니다. 작동할 수 있지만 문제가 있으면 보고해 주세요." };
+            t["Instrument picker"] = new[] { "商品選擇器", "銘柄ピッカー", "종목 선택기" };
+            t["Switch the instrument to the current front contract"] = new[] { "將商品切換至目前近月合約", "銘柄を現在の限月に切り替える", "종목을 현재 근월물로 전환" };
+            t["Monitor"] = new[] { "監察", "モニター", "모니터" };
+            t["Locked accounts"] = new[] { "已鎖定帳戶", "ロック中の口座", "잠긴 계좌" };
+            t["Unprotected lots"] = new[] { "無保護手數", "保護されていないロット", "미보호 로트" };
+            t["Today P/L"] = new[] { "今日盈虧", "本日の損益", "오늘 손익" };
+            t["Group by firm"] = new[] { "依公司分組", "会社でグループ化", "회사별 그룹" };
+            t["Flatten selected"] = new[] { "平倉所選", "選択項目を全決済", "선택 항목 청산" };
+            t["Flatten all"] = new[] { "全部平倉", "すべて全決済", "모두 청산" };
+            t["This session"] = new[] { "本次工作階段", "このセッション", "이번 세션" };
+            t["Bulk edit (highlighted follower accounts · only while stopped)"] = new[] { "批次編輯（已選取的跟單帳戶 · 僅限停止時）", "一括編集（選択中のフォロワー口座 · 停止中のみ）", "일괄 편집 (선택한 팔로워 계좌 · 정지 중에만)" };
+            t["ATM exit mirroring"] = new[] { "ATM 出場單鏡像", "ATM 決済注文ミラーリング", "ATM 청산 주문 미러링" };
+            t["Flat at limit"] = new[] { "達限平倉", "上限で全決済", "한도 도달 시 청산" };
+            t["On divergence"] = new[] { "分歧時", "ダイバージェンス時", "다이버전스 시" };
+            t["Notify"] = new[] { "通知", "通知", "알림" };
+            t["Flatten once"] = new[] { "平倉一次", "一度だけ全決済", "1회 청산" };
+            t["Max is still 1: a leader order larger than this is skipped entirely"] = new[] { "最大手數仍為 1：主帳戶下單手數大於此值時，該筆會被完全略過", "最大数量が 1 のまま：リーダーの注文数量がこれを超えると、その注文は完全にスキップされます", "최대 수량이 1인 상태: 리더 주문 수량이 이보다 크면 해당 주문이 완전히 건너뜁니다" };
+            t["… and {0} more"] = new[] { "… 另有 {0} 項", "… ほか {0} 件", "… 외 {0}개" };
+            t["Which setting to change on highlighted accounts"] = new[] { "要變更已選取帳戶的哪項設定", "選択中の口座で変更する設定", "선택한 계좌에서 변경할 설정" };
+            t["Value for the highlighted accounts"] = new[] { "已選取帳戶的值", "選択中の口座に対する値", "선택한 계좌의 값" };
+            t["Apply the chosen setting to the highlighted follower accounts"] = new[] { "將所選設定套用至已選取的跟單帳戶", "選択した設定を選択中のフォロワー口座に適用", "선택한 설정을 선택한 팔로워 계좌에 적용" };
+            t["Max contracts"] = new[] { "手數上限", "最大枚数", "최대 계약 수" };
+            t["Ratio for the highlighted accounts · plain positive number like 1 or 0.5"] = new[] { "已選取帳戶的比例 · 正數，例如 1 或 0.5", "選択中の口座の比率 · 1 や 0.5 などの正の数", "선택한 계좌의 비율 · 1 또는 0.5 같은 양수" };
+            t["Max contracts for the highlighted accounts · whole number >= 1"] = new[] { "已選取帳戶的手數上限 · 整數，至少 1", "選択中の口座の最大枚数 · 1 以上の整数", "선택한 계좌의 최대 계약 수 · 1 이상의 정수" };
+            t["Email alerts (through NinjaTrader's email share service)"] = new[] { "電郵提醒（經 NinjaTrader 電郵分享服務）", "メール通知（NinjaTrader のメール共有サービス経由）", "이메일 알림 (NinjaTrader 이메일 공유 서비스 사용)" };
+            t["Send alerts to this address · empty = off"] = new[] { "提醒寄往此地址 · 留空 = 關閉", "この宛先に通知 · 空欄 = オフ", "이 주소로 알림 · 비워 두면 끔" };
+            t["Alert email address"] = new[] { "提醒電郵地址", "通知メールアドレス", "알림 이메일 주소" };
+            t["To"] = new[] { "收件人", "宛先", "받는 사람" };
+            t["Account locked"] = new[] { "帳戶已鎖定", "口座ロック", "계좌 잠김" };
+            t["Errors"] = new[] { "錯誤", "エラー", "오류" };
+            t["Target / daily loss hit"] = new[] { "達到目標／每日虧損", "目標／日次損失に到達", "목표/일일 손실 도달" };
+            t["Leader disconnected"] = new[] { "主帳戶斷線", "リーダー切断", "리더 연결 끊김" };
+            t["Email alert"] = new[] { "電郵提醒", "メール通知", "이메일 알림" };
+            t["Save"] = new[] { "儲存", "保存", "저장" };
+            t["Save the email alert settings"] = new[] { "儲存電郵提醒設定", "メール通知の設定を保存", "이메일 알림 설정 저장" };
+            t["Send test"] = new[] { "寄出測試", "テスト送信", "테스트 보내기" };
+            t["Send one test mail now through NinjaTrader's default email share service"] = new[] { "立即經 NinjaTrader 預設電郵分享服務寄出一封測試郵件", "NinjaTrader の既定メール共有サービスで今すぐテストメールを 1 通送信", "NinjaTrader 기본 이메일 공유 서비스로 지금 테스트 메일 1통 보내기" };
+            t["Set up an email share service in NinjaTrader: Tools > Options > General > Share services. KINFX stores no password. Alerts never place, change or cancel orders."] = new[] { "請先在 NinjaTrader 設定電郵分享服務：Tools > Options > General > Share services。KINFX 不儲存任何密碼。提醒絕不會下單、改單或取消委託。", "NinjaTrader でメール共有サービスを設定してください：Tools > Options > General > Share services。KINFX はパスワードを保存しません。通知が注文の発注・変更・取消を行うことはありません。", "NinjaTrader에서 이메일 공유 서비스를 설정하세요: Tools > Options > General > Share services. KINFX는 비밀번호를 저장하지 않습니다. 알림은 주문을 내거나 변경하거나 취소하지 않습니다." };
+            t["Not saved: enter one plain email address like name@example.com"] = new[] { "未儲存：請輸入一個電郵地址，例如 name@example.com", "保存されていません：name@example.com のようなメールアドレスを 1 つ入力してください", "저장 안 됨: name@example.com 같은 이메일 주소를 하나 입력하세요" };
+            t["Saved. Alerts are on."] = new[] { "已儲存。提醒已開啟。", "保存しました。通知はオンです。", "저장됨. 알림이 켜져 있습니다." };
+            t["Saved. Alerts are off."] = new[] { "已儲存。提醒已關閉。", "保存しました。通知はオフです。", "저장됨. 알림이 꺼져 있습니다." };
+            t["Enter one plain email address like name@example.com first."] = new[] { "請先輸入一個電郵地址，例如 name@example.com。", "先に name@example.com のようなメールアドレスを 1 つ入力してください。", "먼저 name@example.com 같은 이메일 주소를 하나 입력하세요." };
+            t["Test handed to NinjaTrader. Check your inbox; if nothing arrives, check Tools > Options > General > Share services."] = new[] { "測試已交給 NinjaTrader。請查看收件匣；如未收到，請檢查 Tools > Options > General > Share services。", "テストを NinjaTrader に渡しました。受信箱を確認してください。届かない場合は Tools > Options > General > Share services を確認してください。", "테스트를 NinjaTrader에 넘겼습니다. 받은편지함을 확인하세요. 오지 않으면 Tools > Options > General > Share services를 확인하세요." };
+            t["Email not sent: "] = new[] { "電郵未寄出：", "メール未送信：", "이메일 미발송: " };
+            t["Email alerts on: {0}"] = new[] { "電郵提醒已開啟：{0}", "メール通知オン：{0}", "이메일 알림 켜짐: {0}" };
+            t["Email alerts off."] = new[] { "電郵提醒已關閉。", "メール通知オフ。", "이메일 알림 꺼짐." };
+            t["Email test handed to NinjaTrader for {0}; check the inbox and NinjaTrader's log."] = new[] { "測試電郵已交給 NinjaTrader（{0}）；請查看收件匣及 NinjaTrader 日誌。", "テストメールを NinjaTrader に渡しました（{0}）。受信箱と NinjaTrader のログを確認してください。", "테스트 메일을 NinjaTrader에 넘겼습니다 ({0}). 받은편지함과 NinjaTrader 로그를 확인하세요." };
+            t["Email alert not sent (blocked by NinjaTrader share service): {0}"] = new[] { "電郵提醒未寄出（NinjaTrader 分享服務拒絕）：{0}", "メール通知未送信（NinjaTrader 共有サービスが拒否）：{0}", "이메일 알림 미발송 (NinjaTrader 공유 서비스 거부): {0}" };
+            t["Resume new entries"] = new[] { "恢復新進場", "新規エントリーを再開", "신규 진입 재개" };
+            t["Resume new entries after a pause · entries the leader opened while paused are NOT copied"] = new[] { "暫停後恢復新進場 · 暫停期間主帳戶的進場不會補跟", "一時停止後に新規エントリーを再開 · 停止中のリーダーのエントリーはコピーされません", "일시정지 후 신규 진입 재개 · 일시정지 중 리더 진입은 복사되지 않음" };
+            t["Re-follow closed accounts"] = new[] { "重新跟隨已平倉帳戶", "決済済み口座を再フォロー", "청산된 계좌 다시 팔로우" };
+            t["Re-follow closed accounts ({0})"] = new[] { "重新跟隨已平倉帳戶（{0}）", "決済済み口座を再フォロー（{0}）", "청산된 계좌 다시 팔로우 ({0})" };
+            t["Tick again every follower that closed after a copied exit and is flat, connected and unlocked. Only LATER new entries are copied; nothing is caught up."] = new[] { "重新勾選所有因跟隨出場而平倉、且無持倉、已連線、未鎖定的跟單帳戶。只會跟隨之後的新進場，不會補單。", "コピーした決済で決済済みとなり、ノーポジション・接続中・未ロックのフォロワーを再度チェックします。以後の新規エントリーのみコピーし、追いかけ注文はしません。", "복사된 청산으로 청산되었고 포지션 없음·연결됨·잠금 해제된 팔로워를 다시 체크합니다. 이후 신규 진입만 복사하며 따라잡기 주문은 없습니다." };
+            t["Auto re-follow"] = new[] { "自動重新跟隨", "自動再フォロー", "자동 다시 팔로우" };
+            t["Auto re-follow: after this account's copied exit completes and the leader is flat, tick it again automatically. Only later new entries are copied. Off = re-tick by hand."] = new[] { "自動重新跟隨：此帳戶的跟隨出場完成且主帳戶已無持倉後，自動重新勾選。只會跟隨之後的新進場。關閉 = 手動重新勾選。", "自動再フォロー：この口座のコピー決済が完了し、リーダーがノーポジションになったら自動で再チェックします。以後の新規エントリーのみコピー。オフ = 手動で再チェック。", "자동 다시 팔로우: 이 계좌의 복사 청산이 끝나고 리더 포지션이 없으면 자동으로 다시 체크합니다. 이후 신규 진입만 복사. 끔 = 직접 다시 체크." };
+            t["Resume NEW entries?\n\nEntries the leader opened while paused are NOT copied (no catch-up); only later new entries are. Locked or unticked followers stay as they are."] = new[] { "要恢復新進場嗎？\n\n暫停期間主帳戶的進場不會補跟；只會跟隨之後的新進場。已鎖定或未勾選的跟單帳戶維持不變。", "新規エントリーを再開しますか？\n\n停止中のリーダーのエントリーはコピーしません（追いかけなし）。以後の新規エントリーのみコピーします。ロック中・未チェックのフォロワーはそのままです。", "신규 진입을 재개할까요?\n\n일시정지 중 리더 진입은 복사하지 않습니다(따라잡기 없음). 이후 신규 진입만 복사합니다. 잠긴 계좌나 체크 해제된 팔로워는 그대로입니다." };
+            t["Resume cancelled; still paused."] = new[] { "已取消恢復；仍然暫停。", "再開を取り消しました。一時停止のままです。", "재개 취소됨. 계속 일시정지 상태입니다." };
+            t["Re-follow: no closed account is flat, connected and unlocked."] = new[] { "重新跟隨：沒有無持倉、已連線且未鎖定的已平倉帳戶。", "再フォロー：ノーポジション・接続中・未ロックの決済済み口座はありません。", "다시 팔로우: 포지션 없음·연결됨·잠금 해제된 청산 계좌가 없습니다." };
+            t["Tick {0} closed account(s) again?\n{1}\n\nOnly LATER new entries are copied; nothing is caught up. Each account is checked again (flat, connected, unlocked)."] = new[] { "要重新勾選 {0} 個已平倉帳戶嗎？\n{1}\n\n只會跟隨之後的新進場，不會補單。每個帳戶會再檢查一次（無持倉、已連線、未鎖定）。", "決済済み口座 {0} 件を再チェックしますか？\n{1}\n\n以後の新規エントリーのみコピーし、追いかけ注文はしません。各口座を再確認します（ノーポジション・接続中・未ロック）。", "청산된 계좌 {0}개를 다시 체크할까요?\n{1}\n\n이후 신규 진입만 복사하며 따라잡기 주문은 없습니다. 각 계좌를 다시 확인합니다(포지션 없음·연결됨·잠금 해제)." };
+            t["Re-follow cancelled; nothing changed."] = new[] { "已取消重新跟隨；沒有任何變更。", "再フォローを取り消しました。変更はありません。", "다시 팔로우 취소됨. 변경 사항 없음." };
+            t["Re-follow: {0} — only later new entries are copied."] = new[] { "重新跟隨：{0} — 只會跟隨之後的新進場。", "再フォロー：{0} — 以後の新規エントリーのみコピー。", "다시 팔로우: {0} — 이후 신규 진입만 복사." };
+            t["Auto re-follow: {0} — only later new entries are copied."] = new[] { "自動重新跟隨：{0} — 只會跟隨之後的新進場。", "自動再フォロー：{0} — 以後の新規エントリーのみコピー。", "자동 다시 팔로우: {0} — 이후 신규 진입만 복사." };
+            t["Auto re-follow error: {0}"] = new[] { "自動重新跟隨錯誤：{0}", "自動再フォローエラー：{0}", "자동 다시 팔로우 오류: {0}" };
+            t["Pause new entries at the boundary (off = notice only)"] = new[] { "於交易日分界暫停新進場（關閉 = 只作提示）", "境界で新規エントリーを一時停止（オフ = 通知のみ）", "경계 시각에 신규 진입 일시정지 (끔 = 알림만)" };
+            t["Trading-day boundary {0} {1}:00 (DST aware). Notice only: entries NOT paused. Baseline / latch NOT auto-reset."] = new[] { "交易日界線 {0} {1}:00（已考慮夏令時間）。只作提示：新進場未暫停。基準與鎖定不會自動重設。", "取引日の境界 {0} {1}:00（夏時間対応）。通知のみ：新規エントリーは停止していません。基準値・ロックは自動リセットされません。", "거래일 경계 {0} {1}:00 (서머타임 반영). 알림만: 신규 진입은 일시정지되지 않았습니다. 기준값/잠금은 자동 초기화되지 않습니다." };
+            t["Resumed NEW entries. Leader entries seen while paused are NOT copied; only later new entries are. Locked or unticked followers stay as they are."] = new[] { "已恢復新進場。暫停期間主帳戶的進場不會補跟；只會跟隨之後的新進場。已鎖定或未勾選的跟單帳戶維持不變。", "新規エントリーを再開しました。停止中のリーダーのエントリーはコピーしません。以後の新規エントリーのみコピーします。ロック中・未チェックのフォロワーはそのままです。", "신규 진입을 재개했습니다. 일시정지 중 리더 진입은 복사하지 않고 이후 신규 진입만 복사합니다. 잠긴 계좌나 체크 해제된 팔로워는 그대로입니다." };
+            t["Resume refused: {0}."] = new[] { "拒絕恢復：{0}。", "再開を拒否：{0}。", "재개 거부: {0}." };
+            t["no managed session"] = new[] { "沒有管理中的工作階段", "管理中のセッションがありません", "관리 중인 세션 없음" };
+            t["entries are already on"] = new[] { "新進場已經開啟", "新規エントリーはすでにオンです", "신규 진입이 이미 켜져 있음" };
+            t["entries were stopped by a safety block, not by a pause; Stop when flat, then Start"] = new[] { "新進場是被安全封鎖停止，不是暫停；請在無持倉時停止，再重新開始", "新規エントリーは一時停止ではなく安全ブロックで停止しました。ノーポジションで停止してから開始してください", "신규 진입은 일시정지가 아닌 안전 차단으로 중지되었습니다. 포지션이 없을 때 중지 후 다시 시작하세요" };
+            t["flatten / unresolved execution evidence / persistence failure"] = new[] { "平倉中／未解決的成交紀錄／儲存失敗", "決済中／未解決の約定記録／保存失敗", "청산 중/미해결 체결 기록/저장 실패" };
+            t["leader disconnected"] = new[] { "主帳戶已斷線", "リーダー切断", "리더 연결 끊김" };
+            t["session history bound reached"] = new[] { "工作階段紀錄已達上限", "セッション履歴の上限に到達", "세션 기록 한도 도달" };
+            t["a follower has an unresolved provider fault or flatten"] = new[] { "有跟單帳戶的券商錯誤或平倉尚未解決", "フォロワーに未解決のプロバイダー障害または決済があります", "팔로워에 미해결 공급자 오류 또는 청산이 있음" };
+            t["Resume refused: entries were stopped by a safety block, not by a pause; Stop when flat, then Start."] = new[] { "拒絕恢復：新進場是被安全封鎖停止，不是暫停；請在無持倉時停止，再重新開始。", "再開を拒否：新規エントリーは一時停止ではなく安全ブロックで停止しました。ノーポジションで停止してから開始してください。", "재개 거부: 신규 진입은 일시정지가 아닌 안전 차단으로 중지되었습니다. 포지션이 없을 때 중지 후 다시 시작하세요." };
+            t["Closed · re-follow"] = new[] { "已平倉 · 待重新跟隨", "決済済み · 再フォロー待ち", "청산됨 · 다시 팔로우 대기" };
+            t["Trading-day boundary"] = new[] { "交易日分界", "取引日の境界", "거래일 경계" };
+            t["Re-follow"] = new[] { "重新跟隨", "再フォロー", "다시 팔로우" };
+            t["Closed"] = new[] { "已平倉", "決済済み", "청산됨" };
+            t["Info"] = new[] { "資訊", "情報", "정보" };
+            t["Order"] = new[] { "委託", "注文", "주문" };
+            t["Warn"] = new[] { "警告", "警告", "경고" };
+            t["Lock"] = new[] { "鎖定", "ロック", "잠금" };
+            t["General"] = new[] { "一般", "一般", "일반" };
+            t["Session"] = new[] { "連線階段", "セッション", "세션" };
+            t["Accounts"] = new[] { "帳戶", "アカウント", "계정" };
+            t["Account"] = new[] { "帳戶", "アカウント", "계정" };
+            t["Level"] = new[] { "等級", "レベル", "레벨" };
+            t["Time"] = new[] { "時間", "時刻", "시간" };
+            t["Category"] = new[] { "分類", "分類", "분류" };
+            t["Message"] = new[] { "訊息", "メッセージ", "메시지" };
+            t["Auto-scroll"] = new[] { "自動捲動", "自動スクロール", "자동 스크롤" };
+            t["Plain text"] = new[] { "純文字", "プレーンテキスト", "일반 텍스트" };
+            t["Export (account names masked)"] = new[] { "匯出（帳戶名稱已遮蔽）", "エクスポート（口座名をマスク）", "내보내기 (계정명 마스킹)" };
+            t["Show only one severity level"] = new[] { "僅顯示一種嚴重程度", "1つの重要度のみ表示", "심각도 하나만 표시" };
+            t["Show only one account"] = new[] { "僅顯示一個帳戶", "1つの口座のみ表示", "계정 하나만 표시" };
+            t["Search the log text"] = new[] { "搜尋日誌內容", "ログのテキストを検索", "로그 텍스트 검색" };
+            t["Write this log to a file with account names masked"] = new[] { "將此日誌寫入檔案，帳戶名稱已遮蔽", "口座名をマスクしてこのログをファイルに書き出す", "계정명을 마스킹하여 이 로그를 파일로 저장" };
+            t["Log exported to {0} (account names masked)."] = new[] { "日誌已匯出至 {0}（帳戶名稱已遮蔽）。", "ログを {0} にエクスポートしました（口座名はマスク済み）。", "로그를 {0}에 내보냈습니다(계정명 마스킹됨)." };
+            t["Log export failed: {0}"] = new[] { "日誌匯出失敗：{0}", "ログのエクスポートに失敗: {0}", "로그 내보내기 실패: {0}" };
+            t["Log file write failed (daily log disabled for this session): {0}"] = new[] { "日誌檔案寫入失敗（本次工作階段停用每日日誌）：{0}", "ログファイルの書き込みに失敗（このセッションでは日次ログを無効化）: {0}", "로그 파일 쓰기 실패(이 세션의 일일 로그 비활성화): {0}" };
 #if KINFX_SIM_TEST
             t["Dry run"] = new[] { "試運行", "ドライラン", "드라이런" };
             t["DRY RUN: decide and log every order, cancel and flatten as \"DRY RUN would send ...\" but send NOTHING. Fixed for the whole session: change it only while stopped."] = new[] { "DRY RUN（試運行）：決定並記錄每一筆下單、取消與平倉為「DRY RUN would send ...」，但不會送出任何內容。整個連線期間固定：僅能在停止時變更。", "DRY RUN（ドライラン）：すべての注文・取消・全決済を判断し「DRY RUN would send ...」としてログに記録しますが、何も送信しません。セッション中は固定：変更は停止中のみ可能。", "DRY RUN(드라이런): 모든 주문, 취소, 청산을 판단하여 \"DRY RUN would send ...\"로 기록하지만 아무것도 전송하지 않습니다. 세션 전체 동안 고정: 중지 상태에서만 변경할 수 있습니다." };
@@ -1210,6 +1784,8 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             t["SIM TEST BUILD · demo / prop-firm evaluation accounts"] = new[] { "SIM 測試版 · 模擬／自營交易公司考核帳戶", "SIMテストビルド · デモ／プロップファーム評価口座", "SIM 테스트 빌드 · 데모 / 프롭펌 평가 계좌" };
             t["SIM TEST BUILD: copies between simulated accounts. An account not yet confirmed as simulated shows a risk warning first."] = new[] { "SIM 測試版：在模擬帳戶之間跟單。尚未確認為模擬的帳戶會先顯示風險警告。", "SIMテストビルド：シミュレーション口座間でコピーします。シミュレーションと未確認の口座は先にリスク警告を表示します。", "SIM 테스트 빌드: 시뮬레이션 계좌 간에 복사합니다. 시뮬레이션으로 확인되지 않은 계좌는 먼저 위험 경고를 표시합니다." };
             t["SIM TEST BUILD: every NinjaTrader account is listed. Simulator / Playback accounts and accounts you confirmed as simulated (sim-allow.txt, filled in for you when you answer the risk warning) can Start / Flatten. ATM means order mirroring, not a follower native ATM. Orders ARE sent to those accounts."] = new[] { "SIM 測試版：列出所有 NinjaTrader 帳戶。Simulator / Playback 帳戶及您已確認為模擬的帳戶（sim-allow.txt，回答風險警告後自動填寫）可使用 Start / Flatten。ATM 指委託單鏡像，並非跟單帳戶的原生 ATM。委託單「會」發送至這些帳戶。", "SIMテストビルド：NinjaTrader の全口座を表示します。Simulator / Playback 口座と、シミュレーションと確認した口座（sim-allow.txt、リスク警告に回答すると自動記入）で Start / Flatten が可能。ATM は注文のミラーリングで、フォロワーのネイティブ ATM ではありません。これらの口座には注文が送信されます。", "SIM 테스트 빌드: 모든 NinjaTrader 계좌를 표시합니다. Simulator / Playback 계좌와 시뮬레이션으로 확인한 계좌(sim-allow.txt, 위험 경고에 답하면 자동 기록)는 Start / Flatten을 사용할 수 있습니다. ATM은 주문 미러링이며 팔로워의 네이티브 ATM이 아닙니다. 해당 계좌로 주문이 전송됩니다." };
+            t["Dry run: on"] = new[] { "試運行：開", "ドライラン：オン", "드라이런: 켜짐" };
+            t["Dry run: off"] = new[] { "試運行：關", "ドライラン：オフ", "드라이런: 꺼짐" };
 #endif
             return t;
         }
@@ -1251,6 +1827,8 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public double Pnl, Equity, Realized, Unrealized, Sod, HighWater;
         public int Position, FollowGeneration, ProcessedFollowGeneration, SessionGeneration;
         public bool Locked, Paused, Following, DisablePending;
+        // Following turned off by the engine because this follower completed its exit (closed; re-follow is explicit).
+        public bool ExitCompleted;
         public string Direction;
     }
     internal sealed class EngineAccount
@@ -1447,6 +2025,10 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         Account leader;
         Instrument instrument;
         volatile bool entries, attached, disposed, suppressNew, ledgerUnresolved;
+        // True only while entries are off because of GuardedPause (user button or trading-day boundary). Every other way entries go off
+        // (engine error, leader disconnect, invalid / ambiguous leader order, history bound, persistence failure, flatten) clears it, so
+        // ResumeEntries can never undo a safety block; those still need Stop flat + Start.
+        volatile bool pauseOnly;
         int pollPending, controlGeneration, sessionGeneration;
         long leaderCaptured, leaderApplied;
         int pendingFollowerCallbacks, nextEntrySequence;
@@ -1472,7 +2054,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public CopierEngine(Action<string> logger,Action<AccountTelemetry> onTelemetry,Action<bool,string> onState,Action<string,string> persistLatch)
         {
             log=logger; telemetry=onTelemetry; stateChanged=onState;durableLock=persistLatch;
-            worker=new SerialWorker(ex=>{ entries=false; log("ENGINE ERROR: "+ex.Message+" — entries blocked; coverage unverified, manual recovery required"); stateChanged(attached,"Error — guarded pause; verify exposure manually"); });
+            worker=new SerialWorker(ex=>{ entries=false;pauseOnly=false; log("ENGINE ERROR: "+ex.Message+" — entries blocked; coverage unverified, manual recovery required"); stateChanged(attached,"Error — guarded pause; verify exposure manually"); });
         }
         public static string AliasFor(string name)
         {
@@ -1622,7 +2204,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                     foreach(var f in followers){ Order[] existing; lock(f.Account.Orders)existing=f.Account.Orders.ToArray(); foreach(var o in existing){ if(o==null||o.Instrument==null||o.Instrument.FullName!=inst.FullName)continue; if(Order.IsTerminalState(o.OrderState))f.AddHistory(o); else if(o.OrderState==OrderState.Initialized&&o.Name!=null&&o.Name.StartsWith("KTC>",StringComparison.Ordinal))f.PreSessionGhost.Add(o); } }
                     foreach(var f in followers.Where(x=>!x.Settings.CopyAtm||!copyAtm))log(f.Account.Name+": ATM exit mirroring OFF — nonmarket exits skipped; market closes only. No native ATM clone / autonomous protection.");
                     followerView=followers.ToArray();
-                    attached=true; entries=false;suppressNew=false;
+                    attached=true; entries=false;pauseOnly=false;suppressNew=false;
                     int session=sessionGeneration; Account origin=leader; string instrumentName=instrument.FullName;
                     leaderHandler=(sender,args)=>LeaderUpdate(sender,args,session,origin,instrumentName);
                     followerHandler=(sender,args)=>FollowerUpdate(sender,args,session,instrumentName);
@@ -1707,13 +2289,13 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 !(s.Action==OrderAction.Buy||s.Action==OrderAction.SellShort||s.Action==OrderAction.Sell||s.Action==OrderAction.BuyToCover) ||
                 !(s.Type==OrderType.Market||s.Type==OrderType.Limit||s.Type==OrderType.StopMarket||s.Type==OrderType.StopLimit||s.Type==OrderType.MIT))
             { BlockEntries(); foreach(var f in followers)Lock(f,"Invalid / unsupported leader order — entries blocked"); return; }
-            if(!Connected(leader)) { entries=false; foreach(var f in followers) Lock(f,"Leader disconnected — no catch-up"); return; }
+            if(!Connected(leader)) { entries=false;pauseOnly=false; foreach(var f in followers) Lock(f,"Leader disconnected — no catch-up"); return; }
             List<CopyLink> copies;
             if(!links.TryGetValue(s.Id,out copies))
             {
                 if(tombstones.Contains(s.Id) || !Alive(s.State)) return;
                 if(suppressNew){tombstones.Add(s.Id);return;}
-                if(links.Count+tombstones.Count>=10000) { entries=false; log("Session history bound reached — guarded pause; stop flat and restart."); return; }
+                if(links.Count+tombstones.Count>=10000) { entries=false;pauseOnly=false; log("Session history bound reached — guarded pause; stop flat and restart."); return; }
                 copies=new List<CopyLink>(); links[s.Id]=copies; // register BEFORE any Create/Submit and before reentrant callbacks.
                 if(!CopyLedger.AllowNew(entries,s.Exit)) { tombstones.Add(s.Id); return; }
                 foreach(var f in followers)
@@ -2415,12 +2997,12 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             bool coverageUnknown=links.Values.SelectMany(v=>v).Any(x=>x.Follower==f&&x.Exit&&x.Order!=null&&!Order.IsTerminalState(x.ObservedState)&&!x.AcceptanceConfirmed);
             if(coverageUnknown)reason=(string.IsNullOrEmpty(reason)?"":reason+" | ")+"Protective coverage unknown — requested, provider acceptance unconfirmed; no retry / chase";
             double realized=f.Account.Get(AccountItem.RealizedProfitLoss,f.Account.Denomination), unrealized=f.Account.Get(AccountItem.UnrealizedProfitLoss,f.Account.Denomination);
-            telemetry(new AccountTelemetry {Name=f.Account.Name,Baseline=f.Settings.Baseline,Currency=f.Account.Denomination.ToString(),Connection=Connected(f.Account)?"Connected":"Disconnected",Pnl=realized+unrealized-f.Settings.Baseline,Equity=f.Account.Get(AccountItem.NetLiquidation,f.Account.Denomination),Realized=realized,Unrealized=unrealized,Sod=f.Account.Get(AccountItem.SodLiquidatingValue,f.Account.Denomination),HighWater=f.HighWater,Position=Position(f.Account,instrument),Direction=Position(f.Account,instrument)>0?"Long":Position(f.Account,instrument)<0?"Short":"Flat",Following=following,FollowGeneration=generation,ProcessedFollowGeneration=processed,SessionGeneration=session,DisablePending=pending,Locked=locked,Reason=reason,Paused=paused,State=locked||coverageUnknown?reason:pending?"OFF — cancellation pending":!following?"OFF / exits managed":paused||!armed?"Paused / exits managed":"Active"});
+            telemetry(new AccountTelemetry {Name=f.Account.Name,Baseline=f.Settings.Baseline,Currency=f.Account.Denomination.ToString(),Connection=Connected(f.Account)?"Connected":"Disconnected",Pnl=realized+unrealized-f.Settings.Baseline,Equity=f.Account.Get(AccountItem.NetLiquidation,f.Account.Denomination),Realized=realized,Unrealized=unrealized,Sod=f.Account.Get(AccountItem.SodLiquidatingValue,f.Account.Denomination),HighWater=f.HighWater,Position=Position(f.Account,instrument),Direction=Position(f.Account,instrument)>0?"Long":Position(f.Account,instrument)<0?"Short":"Flat",Following=following,ExitCompleted=!following&&f.ExitCompleted,FollowGeneration=generation,ProcessedFollowGeneration=processed,SessionGeneration=session,DisablePending=pending,Locked=locked,Reason=reason,Paused=paused,State=locked||coverageUnknown?reason:pending?"OFF — cancellation pending":!following?"OFF / exits managed":paused||!armed?"Paused / exits managed":"Active"});
         }
         public void Poll()
         {
             if(Interlocked.Exchange(ref pollPending,1)!=0)return;
-            if(!worker.Post(()=>{ try { if(attached) { if(!Connected(leader)){entries=false;foreach(var f in followers)Lock(f,"Leader disconnected — no catch-up");} foreach(var f in followers)try {CheckRisk(f);MaintainProtection(f);}catch(Exception ex){Lock(f,"Telemetry error: "+ex.Message);} } } finally {Interlocked.Exchange(ref pollPending,0);} }))Interlocked.Exchange(ref pollPending,0); // refused by a stopped mailbox: do not leave the flag stuck
+            if(!worker.Post(()=>{ try { if(attached) { if(!Connected(leader)){entries=false;pauseOnly=false;foreach(var f in followers)Lock(f,"Leader disconnected — no catch-up");} foreach(var f in followers)try {CheckRisk(f);MaintainProtection(f);}catch(Exception ex){Lock(f,"Telemetry error: "+ex.Message);} } } finally {Interlocked.Exchange(ref pollPending,0);} }))Interlocked.Exchange(ref pollPending,0); // refused by a stopped mailbox: do not leave the flag stuck
         }
         void CancelEntries(EngineAccount f)
         {
@@ -2469,9 +3051,38 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             return request;
         }
         public void PauseAccount(string name,bool paused) { worker.Post(()=>{var f=followers.FirstOrDefault(x=>x.Account.Name==name);if(f!=null){f.Paused=paused;Publish(f);}}); }
-        void BlockEntries() { lock(controlGate) { ++controlGeneration; entries=false; } }
+        void BlockEntries() { lock(controlGate) { ++controlGeneration; entries=false; pauseOnly=false; } }
+        public bool CanResume { get { return attached && !entries && pauseOnly && !disposed; } }
         public void GuardedPause()
-        { BlockEntries(); worker.Post(()=>{stateChanged(attached,"GUARDED PAUSE — no new entries; existing lifecycle + new exits still managed");log("Paused NEW entries. Working entries may still fill; new exits and changes/cancels remain mirrored. Flatten explicitly to remove exposure.");}); }
+        { lock(controlGate) { ++controlGeneration; pauseOnly=attached&&(entries||pauseOnly); entries=false; } worker.Post(()=>{ // a pause never turns an earlier safety block into a resumable pause
+stateChanged(attached,"GUARDED PAUSE — no new entries; existing lifecycle + new exits still managed");log("Paused NEW entries. Working entries may still fill; new exits and changes/cancels remain mirrored. Flatten explicitly to remove exposure.");}); }
+        // Resume NEW entries after a guarded pause only. No catch-up: every leader entry seen before this call (including entries opened while
+        // paused) stays tombstoned, because the control generation moves forward here and LeaderUpdate stamps each event with the generation
+        // it was captured under. It never unlocks, never re-follows and never sends anything by itself. Refused after any safety block.
+        public void ResumeEntries()
+        {
+            int request=Volatile.Read(ref controlGeneration);
+            worker.Post(()=>
+            {
+                string why=null;
+                if(disposed||!attached)why="no managed session";
+                else if(entries)why="entries are already on";
+                else if(!pauseOnly||request!=Volatile.Read(ref controlGeneration))why="entries were stopped by a safety block, not by a pause; Stop when flat, then Start";
+                else if(suppressNew||ledgerUnresolved||persistenceFailed.Count>0)why="flatten / unresolved execution evidence / persistence failure";
+                else if(!Connected(leader))why="leader disconnected";
+                else if(links.Count+tombstones.Count>=10000)why="session history bound reached";
+                else if(followers.Any(f=>f.AllocationUncertain||f.ProviderFaulted||f.Flattening))why="a follower has an unresolved provider fault or flatten";
+                if(why!=null){log("Resume refused: "+why+".");return;}
+                lock(controlGate)
+                {
+                    if(request!=controlGeneration||!pauseOnly){log("Resume refused: entries were stopped by a safety block, not by a pause; Stop when flat, then Start.");return;}
+                    ++controlGeneration;entries=true;pauseOnly=false;
+                }
+                stateChanged(true,"COPYING — "+leader.Name+" / "+instrument.FullName);
+                log("Resumed NEW entries. Leader entries seen while paused are NOT copied; only later new entries are. Locked or unticked followers stay as they are.");
+                foreach(var f in followers)Publish(f);
+            });
+        }
         public void StopFlat()
         {
             BlockEntries();
@@ -2619,25 +3230,23 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public RiskLatch Latch = new RiskLatch();
         public string Name { get; set; }
         public string Role { get; set; }
+        // 0 for the leader so the account tables always list it first (user request); every column sort keeps it on top.
+        public int LeaderRank {get{return Role=="Leader"?0:1;}}
         public string Currency { get; set; }
         public string Connection { get; set; }
         public string Status { get; set; }
+        // Shown text for the Settings table: Status / Connection hold English codes (logic and sorting use them); the cell shows the picked language.
+        public string StatusShown {get{return ExitClosed?Lang.T("Closed · re-follow"):Lang.Show(Status??"");}}
+        public string ConnectionShown {get{return Lang.Show(Connection??"");}}
         public double Pnl { get; set; }
         // 1 profit, -1 loss, 0 flat or unknown (NaN). Cents below half a cent count as zero so rounding noise is not coloured.
         public int PnlSign {get{return double.IsNaN(Pnl)||double.IsInfinity(Pnl)||Math.Abs(Pnl)<0.005?0:Pnl>0?1:-1;}}
         public double Equity { get; set; }
         public double CashBalance {get;set;}=double.NaN;
-        public string CurrencyCode
-        {
-            get
-            {
-                string[] names={"AustralianDollar","BritishPound","CanadianDollar","Euro","HongKongDollar","JapaneseYen","SwissFranc","UsDollar","KoreanWon","IndianRupee","SwedishKrona","MexicanPeso","BrazilianReal","SingaporeDollar","ChinaYuan","MalaysiaRinggit","ThailandBaht","TaiwanNewDollar","NewZealandDollar","SouthAfricanRand","CzechRepublicKoruna","NorwayKrone","DenmarkKrone","HungaryForint","PolandZloty","TurkeyLira","IsraeliShekel","RussiaRuble","SaudiRiyal"};
-                string[] codes={"AUD","GBP","CAD","EUR","HKD","JPY","CHF","USD","KRW","INR","SEK","MXN","BRL","SGD","CNY","MYR","THB","TWD","NZD","ZAR","CZK","NOK","DKK","HUF","PLN","TRY","ILS","RUB","SAR"};
-                int index=Array.IndexOf(names,Currency);return index>=0?codes[index]:string.IsNullOrWhiteSpace(Currency)?"CCY?":Currency;
-            }
-        }
-        public string BalanceText {get{return (Connection=="Connected"||Connection=="Synthetic")&&RiskPolicy.Finite(CashBalance)?CashBalance.ToString("N2",CultureInfo.InvariantCulture)+" "+CurrencyCode:"— "+CurrencyCode;}}
-        public string BalanceDetail {get{return "CashValue · "+Name+" · "+BalanceText+"\nNetLiquidation (net equity, NOT cash balance): "+((Connection=="Connected"||Connection=="Synthetic")&&RiskPolicy.Finite(Equity)?Equity.ToString("N2",CultureInfo.InvariantCulture):"—")+" "+CurrencyCode+"\nAccount.Get reports provider values; currency argument does not convert. Dash = unavailable/disconnected. Synthetic rows are not broker data.";}}
+        public string CurrencyCode {get{return string.IsNullOrWhiteSpace(Currency)?"CCY?":MonitorSummary.IsoCode(Currency);}}
+        public string BalanceText {get{return (Connection=="Connected"||Connection=="Synthetic")&&RiskPolicy.Finite(CashBalance)?MonitorSummary.Money(CashBalance,Currency):"\u2014";}}
+        // Tooltip of the balance cell, in the picked language. {3} stays empty: the amount already carries its currency symbol.
+        public string BalanceDetail {get{return Lang.F("CashValue · {0} · {1}\nNetLiquidation (net equity, NOT cash balance): {2} {3}\nAccount.Get reports provider values; currency argument does not convert. Dash = unavailable/disconnected. Synthetic rows are not broker data.",Name,BalanceText,(Connection=="Connected"||Connection=="Synthetic")&&RiskPolicy.Finite(Equity)?MonitorSummary.Money(Equity,Currency):"\u2014","");}}
         public double Realized { get; set; }
         public double Unrealized { get; set; }
         public double Sod { get; set; }
@@ -2650,7 +3259,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         int latestFollowSession=-1,latestFollowGeneration;
         public bool FollowPending {get;private set;}
         internal void SyncFollowing(bool following,bool pending){enabled=following&&!Latch.Locked;DisablePending=pending;FollowPending=false;Changed();}
-        internal void InvalidateSessionActivity(){FollowPending=false;DisablePending=false;Paused=false;Status="Disarmed";latestFollowSession=-1;latestFollowGeneration=0;Changed();}
+        internal void InvalidateSessionActivity(){ExitClosed=false;UserFlattened=false;FollowPending=false;DisablePending=false;Paused=false;Status="Disarmed";latestFollowSession=-1;latestFollowGeneration=0;Changed();}
         internal void TrackFollowRequest(int session,int generation,bool following)
         {
             if(session!=latestFollowSession){latestFollowSession=session;latestFollowGeneration=0;}
@@ -2661,13 +3270,18 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             if(t.Name!=Name||t.SessionGeneration!=currentSession)return false;
             if(latestFollowSession==t.SessionGeneration&&t.FollowGeneration<latestFollowGeneration)return false;
             latestFollowSession=t.SessionGeneration;latestFollowGeneration=t.FollowGeneration;
-            Pnl=t.Pnl;Equity=t.Equity;Realized=t.Realized;Unrealized=t.Unrealized;Sod=t.Sod;Position=t.Position;Connection=t.Connection;Status=t.State;Paused=t.Paused;
+            Pnl=t.Pnl;Equity=t.Equity;Realized=t.Realized;Unrealized=t.Unrealized;Sod=t.Sod;Position=t.Position;Connection=t.Connection;Status=t.State;Paused=t.Paused;ExitClosed=t.ExitCompleted&&!t.Following&&!t.Locked;if(t.Following)UserFlattened=false;
             if(t.Locked&&!Latch.Locked){Latch.Locked=true;Latch.Reason=t.Reason;}
             Settings.HighWater=t.HighWater;Settings.Baseline=t.Baseline;Settings.BaselineSet=true;
             if(t.ProcessedFollowGeneration==latestFollowGeneration)SyncFollowing(t.Following,t.DisablePending);else Changed();return true;
         }
         public bool CopyAtm {get{return Settings.CopyAtm;}set{Settings.CopyAtm=value;Changed();}}
         public bool FlatOnLimit {get{return Settings.FlatOnLimit;}set{Settings.FlatOnLimit=value;Changed();}}
+        public bool AutoRefollow {get{return Settings.AutoRefollow;}set{Settings.AutoRefollow=value;Changed();}}
+        // The engine turned following off because this follower's copied exit completed ("closed · re-follow"). A user OFF never sets it.
+        public bool ExitClosed {get;private set;}
+        // Set when the user confirmed a Flat / Flatten for this account; cleared once the engine reports it following again. Auto re-follow skips it.
+        public bool UserFlattened {get;set;}
         public string OnDivergence {get{return Settings.OnDivergence;}set{if(!DivergenceChoice.IsValid(value))throw new ArgumentException(Lang.T("On divergence must be Notify or FlattenOnce"));Settings.OnDivergence=value;Changed();}}
         public bool CanFlat {get{return Role!="Leader"&&CanFollow&&Connection!="Disconnected"&&DashboardSafety.CanExecute("flattenSelected");}}
         public bool CanFollow {get{return Role!="Leader"&&(Account!=null?CopierEngine.Listable(Account):Connection=="Synthetic");}}
@@ -2676,7 +3290,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public string AccountPrefix {get{string n=Name??"";return n.Length>12?n.Substring(0,n.Length-4):n;}}
         public string AccountSuffix {get{string n=Name??"";return n.Length>12?n.Substring(n.Length-4):"";}}
         public string StateText {get{return Lang.T(StateLabel);}}
-        public string StateLabel {get{return DisablePending?"Cancelling":FollowPending?"Rechecking":Latch.Locked?"Locked":Status=="Telemetry error"?"Error":Paused?"Paused":Role=="Leader"?"Leader":Status=="Active"&&Enabled?"Copying":Connection=="Disconnected"?"Offline":Status=="Demo only"?"Demo":Enabled?"Selected":"Off";}}
+        public string StateLabel {get{return DisablePending?"Cancelling":FollowPending?"Rechecking":Latch.Locked?"Locked":Status=="Telemetry error"?"Error":Paused?"Paused":Role=="Leader"?"Leader":Status=="Active"&&Enabled?"Copying":Connection=="Disconnected"?"Offline":Status=="Demo only"?"Demo":ExitClosed?"Closed":Enabled?"Selected":"Off";}}
         public Brush StateInk {get{return DisablePending?DashboardView.Warn:Latch.Locked||Status=="Telemetry error"?DashboardView.Bad:StateLabel=="Copying"?DashboardView.Good:Paused?DashboardView.Warn:DashboardView.Muted;}}
         // Advisory only (never blocks). Reference lot size is the dashboard's current reference; see SettingsAdvice.
         internal static int AdviceReferenceLots=2;
@@ -2720,6 +3334,8 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public string TargetRemaining { get {return Target>0?Math.Max(0,Target-Pnl).ToString("N2"):Lang.T("Off");} }
         public string LossRemaining { get {return Loss>0?Math.Max(0,Loss+Pnl).ToString("N2"):Lang.T("Off");} }
         public string Preset { get {return Settings.Preset;} }
+        // True when the row still carries the default contract cap and no firm template: a leader order larger than Max is skipped entirely.
+        public bool MaxIsDefault {get{return (Preset==null||Preset.Length==0||Preset=="Custom")&&MaxContracts==1;}}
         public string ConsistencyAdvice {get{return RiskPolicy.ConsistencyAdvice(Settings);}}
         public event PropertyChangedEventHandler PropertyChanged;
         public void Changed() {var h=PropertyChanged;if(h!=null)h(this,new PropertyChangedEventArgs(""));}
@@ -2727,16 +3343,19 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
     public sealed class DashboardView : Grid
     {
         public readonly ObservableCollection<AccountRow> Rows=new ObservableCollection<AccountRow>();
-        public readonly DataGrid AccountGrid, RiskGrid;
-        public readonly TabControl Sections;
-        internal readonly ComboBox LeaderBox;
-        internal readonly TextBox InstrumentBox, LogBox;
-        internal readonly Button StartButton;
-        internal readonly TextBlock StatusText,SessionText,FollowCountText;
+        public DataGrid AccountGrid, RiskGrid;
+        public TabControl Sections;
+        internal ComboBox LeaderBox;
+        internal TextBox InstrumentBox, LogBox;
+        internal Button StartButton, ResumeButton, RefollowButton;
+        internal void ShowRefollow(int n){if(RefollowButton!=null){RefollowButton.Content=n>0?Lang.F("Re-follow closed accounts ({0})",n):Lang.T("Re-follow closed accounts");RefollowButton.IsEnabled=n>0&&SessionAttached&&DashboardSafety.CanExecute("refollow");}}
+        // Shown only while the engine reports a resumable guarded pause (set by the tab every tick).
+        internal void ShowResume(bool canResume){if(ResumeButton!=null){ResumeButton.Visibility=canResume?Visibility.Visible:Visibility.Collapsed;ResumeButton.IsEnabled=canResume&&DashboardSafety.CanExecute("resume");}}
+        internal TextBlock StatusText,SessionText,FollowCountText;
         internal ComboBox LanguageBox;
         // Returns true if the language was applied (the owner refuses while a session is attached).
         internal Func<string,bool> LanguageChanging;
-        internal readonly CheckBox ShowLive;
+        internal CheckBox ShowLive;CheckBox groupBox;
 #if KINFX_SIM_TEST
         internal CheckBox DryRunBox;
 #endif
@@ -2746,9 +3365,55 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         internal Action<AccountRow,bool> FollowRow;
         // Per-account Flat: one account, one click. The tab confirms (names the account and instrument) before anything is sent.
         internal Action<AccountRow> FlatRow;
-        // "Ask before" switches (Risk tab). Ticked = the confirmation window is shown. Unlock and every risk warning are always asked and have no switch.
+        // "Ask before" switches (Settings tab). Ticked = the confirmation window is shown. Unlock and every risk warning are always asked and have no switch.
         internal CheckBox AskStartBox, AskFlatOneBox, AskFlattenBox;
+        // Email alerts (Settings page). The tab loads / saves notify.txt and sends; the view only edits a draft.
+        internal TextBox NotifyToBox;internal readonly Dictionary<string,CheckBox> NotifyKindBoxes=new Dictionary<string,CheckBox>(StringComparer.Ordinal);
+        internal Action<NotifyPrefs.Settings> NotifySave;internal Action<NotifyPrefs.Settings> NotifyTest;internal TextBlock NotifyStatus;
+        internal NotifyPrefs.Settings NotifyDraft()
+        {
+            var s=new NotifyPrefs.Settings{To=NotifyToBox==null?"":NotifyToBox.Text.Trim()};
+            foreach(var kv in NotifyKindBoxes)if(kv.Value.IsChecked==true)s.On.Add(kv.Key);
+            return s;
+        }
+        internal void ShowNotify(NotifyPrefs.Settings s)
+        {
+            if(s==null||NotifyToBox==null)return;NotifyToBox.Text=s.To;
+            foreach(var kv in NotifyKindBoxes)kv.Value.IsChecked=s.On.Contains(kv.Key);
+        }
+        void BuildNotifySection(Panel host)
+        {
+            var box=new Border{Background=Panel,BorderBrush=Line,BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(7),Padding=new Thickness(12,8,12,8),Margin=new Thickness(0,0,0,10),Tag="notifySection"};
+            var body=new StackPanel();body.Children.Add(Text(Lang.T("Email alerts (through NinjaTrader's email share service)"),12,Muted));
+            var row=new WrapPanel{Margin=new Thickness(0,6,0,0)};
+            NotifyToBox=Input("",220);NotifyToBox.Tag="notifyTo";NotifyToBox.ToolTip=Lang.T("Send alerts to this address · empty = off");System.Windows.Automation.AutomationProperties.SetName(NotifyToBox,Lang.T("Alert email address"));
+            row.Children.Add(Labeled(Lang.T("To"),NotifyToBox));
+            foreach(var kind in NotifyPrefs.Kinds)
+            {
+                var cb=new CheckBox{Template=PlainCheckTemplate(),Content=Lang.T(NotifyPrefs.Label(kind)),Foreground=Muted,Margin=new Thickness(0,6,10,0),Tag="notify:"+kind};
+                System.Windows.Automation.AutomationProperties.SetName(cb,Lang.T("Email alert")+": "+Lang.T(NotifyPrefs.Label(kind)));
+                NotifyKindBoxes[kind]=cb;row.Children.Add(cb);
+            }
+            row.Children.Add(TextToolFree(Lang.T("Save"),Lang.T("Save the email alert settings"),"notifySave",()=>{var cb=NotifySave;if(cb!=null)cb(NotifyDraft());}));
+            row.Children.Add(TextToolFree(Lang.T("Send test"),Lang.T("Send one test mail now through NinjaTrader's default email share service"),"notifyTest",()=>{var cb=NotifyTest;if(cb!=null)cb(NotifyDraft());}));
+            body.Children.Add(row);
+            NotifyStatus=Text(Lang.T("Set up an email share service in NinjaTrader: Tools > Options > General > Share services. KINFX stores no password. Alerts never place, change or cancel orders."),11,Muted);NotifyStatus.TextWrapping=TextWrapping.Wrap;NotifyStatus.Margin=new Thickness(0,6,0,0);NotifyStatus.Tag="notifyStatus";
+            body.Children.Add(NotifyStatus);
+            box.Child=body;host.Children.Add(box);
+            ShowNotify(NotifyPrefs.Defaults());
+        }
         internal Action<string,bool> AskChanged;
+        // ==== WP3 log page ====
+        internal DataGrid LogGrid;
+        internal ComboBox LogLevelBox, LogAccountBox;
+        internal TextBox LogSearchBox;
+        internal CheckBox LogPlainBox, LogAutoBox;
+        internal int LogUnseen;
+        internal Action ExportLog;   // tab writes the masked export file (allowed while attached)
+        internal Action ClearQueue;  // tab clears the in-memory queue (Clear log button)
+        readonly ObservableCollection<LogLine> logRows=new ObservableCollection<LogLine>();
+        ICollectionView logView;
+        TabItem logTab;
         // Column visibility. The tab owns the file; the view only applies a set and reports a user change.
         internal Action<HashSet<string>> ColumnsChanged;
         HashSet<string> hiddenColumns=new HashSet<string>(StringComparer.Ordinal);
@@ -2802,11 +3467,14 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         internal ContextMenu ColumnMenuFor(string grid){var g=grid==ColumnPrefs.Copy?AccountGrid:RiskGrid;var hs=g.Columns.Select(c=>c.HeaderStyle).FirstOrDefault(x=>x!=null);if(hs==null)return null;foreach(var st in hs.Setters.OfType<Setter>())if(st.Property==FrameworkElement.ContextMenuProperty)return st.Value as ContextMenu;var bs=hs.BasedOn;while(bs!=null){foreach(var st in bs.Setters.OfType<Setter>())if(st.Property==FrameworkElement.ContextMenuProperty)return st.Value as ContextMenu;bs=bs.BasedOn;}return null;}
         internal CheckBox AskBox(string kind){return kind==ConfirmPrefs.Start?AskStartBox:kind==ConfirmPrefs.FlatOne?AskFlatOneBox:kind==ConfirmPrefs.Flatten?AskFlattenBox:null;}
         readonly ICollectionView view;
-        readonly TextBox search;
-        readonly ComboBox filter;
-        readonly TextBlock summary,selection;TextBlock adviceLine,lockedLine;
+        TextBox search;
+        ComboBox filter;
+        TextBlock summary,selection;TextBlock adviceLine,lockedLine;
+        TextBlock cardCopying,cardLocked,cardUnprotected,cardPnl;
+        StackPanel issuesLines;
+        ComboBox bulkField,bulkValueCombo;TextBox bulkValue;
         readonly bool demo;
-        readonly List<Button> editButtons=new List<Button>(); StackPanel bulkBar;
+        readonly List<Button> editButtons=new List<Button>(); Panel bulkBar;
         bool editable=true;
         public string SearchText {get{return search.Text;}set{search.Text=value;}}
         public int VisibleCount {get{return view.Cast<AccountRow>().Count();}}
@@ -2835,6 +3503,12 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         {
             var b=Button(label,action);b.FontSize=12;b.Height=30;b.MinWidth=0;b.Padding=new Thickness(9,0,9,0);b.Margin=new Thickness(0,0,4,0);b.ToolTip=tip;b.Tag=tag;
             System.Windows.Automation.AutomationProperties.SetName(b,tip);ToolTipService.SetShowOnDisabled(b,true);editButtons.Add(b);return b;
+        }
+        // Text-labelled tool button that is NOT an edit button (stays enabled while a session is attached): log export.
+        Button TextToolFree(string label,string tip,string tag,Action action)
+        {
+            var b=Button(label,action);b.FontSize=12;b.Height=30;b.MinWidth=0;b.Padding=new Thickness(9,0,9,0);b.Margin=new Thickness(0,0,4,0);b.ToolTip=tip;b.Tag=tag;
+            System.Windows.Automation.AutomationProperties.SetName(b,tip);ToolTipService.SetShowOnDisabled(b,true);return b;
         }
         static TextBox Input(string text,double width){return new TextBox{Style=new Style(typeof(TextBox)),MinWidth=0,MinHeight=0,FontSize=13,Text=text,Width=width,Padding=new Thickness(8,5,8,5),Margin=new Thickness(0,0,8,0),Background=Panel,Foreground=Ink,BorderBrush=Line,VerticalContentAlignment=VerticalAlignment.Center};}
         // Flat dark template for the drop-down arrow. WPF's default template paints a white / light-blue fill on hover and when disabled; NinjaTrader's own controls never do.
@@ -2945,6 +3619,18 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             tick.SetValue(FrameworkElement.StyleProperty,style);
             var c=new DataGridTemplateColumn{Header=Lang.T("Flat@Lim"),Width=74,SortMemberPath="FlatOnLimit",CellTemplate=new DataTemplate{VisualTree=tick}};Header(g,c,tip);Key(c,"FlatLim");g.Columns.Add(c);
         }
+        static void AutoRefollowColumn(DataGrid g)
+        {
+            var tick=new FrameworkElementFactory(typeof(CheckBox));tick.SetValue(FrameworkElement.TagProperty,"autoRefollow");tick.SetValue(Control.TemplateProperty,AtmTemplate());
+            string tip=Lang.T("Auto re-follow: after this account's copied exit completes and the leader is flat, tick it again automatically. Only later new entries are copied. Off = re-tick by hand.");
+            tick.SetValue(System.Windows.Automation.AutomationProperties.NameProperty,tip);tick.SetValue(FrameworkElement.ToolTipProperty,tip);
+            tick.SetValue(FrameworkElement.HorizontalAlignmentProperty,HorizontalAlignment.Center);tick.SetValue(FrameworkElement.VerticalAlignmentProperty,VerticalAlignment.Center);
+            tick.SetBinding(ToggleButton.IsCheckedProperty,new Binding("AutoRefollow"){Mode=BindingMode.TwoWay,UpdateSourceTrigger=UpdateSourceTrigger.PropertyChanged});
+            var style=new Style(typeof(CheckBox));style.Setters.Add(new Setter(UIElement.IsEnabledProperty,new Binding("CanFollow")));
+            var locked=new DataTrigger{Binding=new Binding("IsReadOnly"){RelativeSource=new RelativeSource(RelativeSourceMode.FindAncestor,typeof(DataGrid),1)},Value=true};locked.Setters.Add(new Setter(UIElement.IsEnabledProperty,false));style.Triggers.Add(locked);
+            tick.SetValue(FrameworkElement.StyleProperty,style);
+            var c=new DataGridTemplateColumn{Header=Lang.T("Re-follow"),Width=74,SortMemberPath="AutoRefollow",CellTemplate=new DataTemplate{VisualTree=tick}};Header(g,c,tip);Key(c,"AutoRefollow");g.Columns.Add(c);
+        }
         static void AtmColumn(DataGrid g)
         {
             var tick=new FrameworkElementFactory(typeof(CheckBox));tick.SetValue(FrameworkElement.TagProperty,"atm");tick.SetValue(Control.TemplateProperty,AtmTemplate());tick.SetValue(System.Windows.Automation.AutomationProperties.NameProperty,Lang.T("Per-account ATM exit mirroring"));tick.SetValue(FrameworkElement.HorizontalAlignmentProperty,HorizontalAlignment.Center);tick.SetValue(FrameworkElement.VerticalAlignmentProperty,VerticalAlignment.Center);tick.SetValue(FrameworkElement.ToolTipProperty,Lang.T("Per-account ATM exit mirroring, NOT a native ATM clone. OFF ignores non-market SL / TP: follower can be unprotected. Market closes still copy. Frozen while attached."));tick.SetBinding(ToggleButton.IsCheckedProperty,new Binding("CopyAtm"){Mode=BindingMode.TwoWay,UpdateSourceTrigger=UpdateSourceTrigger.PropertyChanged});var style=new Style(typeof(CheckBox));style.Setters.Add(new Setter(UIElement.IsEnabledProperty,new Binding("CanFollow")));var locked=new DataTrigger{Binding=new Binding("IsReadOnly"){RelativeSource=new RelativeSource(RelativeSourceMode.FindAncestor,typeof(DataGrid),1)},Value=true};locked.Setters.Add(new Setter(UIElement.IsEnabledProperty,false));style.Triggers.Add(locked);tick.SetValue(FrameworkElement.StyleProperty,style);var c=new DataGridTemplateColumn{Header=Lang.T("ATM"),Width=56,SortMemberPath="CopyAtm",CellTemplate=new DataTemplate{VisualTree=tick}};Header(g,c,Lang.T("Independent ATM exit mirror · OFF can leave exposure unprotected"));Key(c,"ATM");g.Columns.Add(c);
@@ -2992,17 +3678,38 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         static void ProportionalCopyColumns(DataGrid g)
         {
             // Star allocation across ALL data columns; fixed toggles/status lamps never stretch.
-            // Minimums are the worst-case content widths measured from the real window (Bal "1,250,000.00 USD" ~119 px, State "Rechecking" ~87 px, P/L "-123,456.78" ~97 px).
+            // Minimums are the worst-case content widths measured from the real window (Bal "-$1,250,000.00" ~103 px now that the currency is a symbol, State "Rechecking" ~87 px, P/L "-123,456.78" ~97 px).
             // Extra width goes to the identity columns (Acct, Alias) that actually fill up, not evenly to short numeric columns. Weights are relative star sizes.
-            var minimums=new Dictionary<string,double>{{"Acct",170},{"Alias",95},{"Ratio",60},{"Tgt",75},{"DLL",75},{"Qty",50},{"P/L",100},{"Bal",120},{"State",90}};
+            var minimums=new Dictionary<string,double>{{"Acct",150},{"Alias",95},{"Ratio",60},{"Tgt",75},{"DLL",75},{"Qty",50},{"P/L",100},{"Bal",105},{"State",90}};
             var weights=new Dictionary<string,double>{{"Acct",5},{"Alias",3},{"Ratio",1},{"Tgt",1},{"DLL",1},{"Qty",1},{"P/L",1},{"Bal",1},{"State",1}};
             foreach(var c in g.Columns)
             {
                 double minimum;
-                if(minimums.TryGetValue(ColumnKey(c),out minimum)){c.MinWidth=minimum;c.Width=new DataGridLength(weights[ColumnKey(c)],DataGridLengthUnitType.Star);}
+                if(minimums.TryGetValue(ColumnKey(c),out minimum)){c.MinWidth=minimum;c.Width=new DataGridLength(minimum);}
                 else {double width=c.Width.Value;c.MinWidth=width;c.MaxWidth=width;}
             }
             g.HorizontalScrollBarVisibility=ScrollBarVisibility.Auto;
+            // Widths are computed from the real viewport instead of WPF star sizing: with frozen columns the star pass overshot
+            // by ~10 px, so on real NT at 1160 px the Flat buttons were cut off and a horizontal scrollbar showed.
+            // Refit only when the viewport width or the visible column set changes (column menu hide/show).
+            // Column virtualization off for this table: it has 14 columns that always fit, and with it on a width refit left some cells unrealized.
+            g.EnableColumnVirtualization=false;
+            // Refit when the viewport width or the visible column set changes (ScrollChanged reports both), not on every layout pass.
+            double lastViewport=-1;string lastVisible="";
+            g.AddHandler(ScrollViewer.ScrollChangedEvent,new ScrollChangedEventHandler((s,e)=>
+            {
+                var sv=e.OriginalSource as ScrollViewer;if(sv==null||sv.TemplatedParent!=g)return;
+                double viewport=sv.ViewportWidth;if(viewport<=0)return;
+                var visible=g.Columns.Where(c=>c.Visibility==Visibility.Visible).ToArray();
+                string sig=string.Join("|",visible.Select(ColumnKey));
+                if(Math.Abs(viewport-lastViewport)<0.5&&sig==lastVisible)return;
+                lastViewport=viewport;lastVisible=sig;
+                var flex=visible.Where(c=>minimums.ContainsKey(ColumnKey(c))).ToArray();
+                double fixedWidth=visible.Where(c=>!minimums.ContainsKey(ColumnKey(c))).Sum(c=>c.Width.Value);
+                double extra=Math.Floor(viewport-1-fixedWidth-flex.Sum(c=>minimums[ColumnKey(c)]));
+                double weight=flex.Sum(c=>weights[ColumnKey(c)]);
+                foreach(var c in flex){string k=ColumnKey(c);double w=minimums[k]+(extra>0&&weight>0?Math.Floor(extra*weights[k]/weight):0);if(Math.Abs(c.Width.Value-w)>0.5)c.Width=new DataGridLength(w);}
+            }));
         }
         static void CompactCellButton(FrameworkElementFactory button,double width)
         {
@@ -3016,6 +3723,66 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         static void AddRow(Grid g,UIElement e,int row){Grid.SetRow(e,row);g.Children.Add(e);}
         static StackPanel Labeled(string label,Control control,double size=11)
         {var group=new StackPanel{Orientation=Orientation.Horizontal,Margin=new Thickness(0,0,4,6)};group.Children.Add(Text(label+"  ",size,Muted));group.Children.Add(control);return group;}
+        // Summary card: a Panel box with a muted label over a bright value.
+        static Border CardBox(string tag,string label,TextBlock value)
+        {
+            var stack=new StackPanel();
+            stack.Children.Add(Text(label,11,Muted));
+            value.Margin=new Thickness(0,2,0,0);
+            stack.Children.Add(value);
+            return new Border{Background=Panel,BorderBrush=Line,BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(7),Padding=new Thickness(14,8,14,8),Margin=new Thickness(0,0,10,0),Child=stack,Tag=tag};
+        }
+        // Group header "Firm (count) · P/L sum". Pure display: no collapse state (WPF's CollectionViewGroup has no IsExpanded; see report).
+        sealed class GroupHeaderConverter : System.Windows.Data.IValueConverter
+        {
+            public object Convert(object value,System.Type targetType,object parameter,System.Globalization.CultureInfo culture)
+            {
+                var g=value as System.Windows.Data.CollectionViewGroup;if(g==null)return "";
+                string name=(g.Name as string)??"";
+                double sum=0;string ccy=null;bool mixed=false;
+                foreach(var it in g.Items){var r=it as AccountRow;if(r==null)continue;if(!RiskPolicy.Finite(r.Pnl))continue;sum+=r.Pnl;if(ccy==null)ccy=r.Currency;else if(!string.Equals(ccy,r.Currency,StringComparison.Ordinal))mixed=true;}
+                string pnl=mixed?Lang.T("Mixed CCY"):MonitorSummary.Money(sum,ccy);
+                return name+" ("+g.ItemCount+")"+(pnl.Length>0?" · "+pnl:"");
+            }
+            public object ConvertBack(object value,System.Type targetType,object parameter,System.Globalization.CultureInfo culture){return System.Windows.Data.Binding.DoNothing;}
+        }
+        GroupStyle GroupHeaderStyle()
+        {
+            var gs=new GroupStyle();
+            var border=new FrameworkElementFactory(typeof(Border));
+            border.SetValue(Border.BackgroundProperty,Panel);
+            border.SetValue(Border.BorderBrushProperty,Line);
+            border.SetValue(Border.BorderThicknessProperty,new Thickness(0,0,0,1));
+            border.SetValue(Border.PaddingProperty,new Thickness(9,5,9,5));
+            var tb=new FrameworkElementFactory(typeof(TextBlock));
+            tb.SetBinding(TextBlock.TextProperty,new Binding(){Converter=new GroupHeaderConverter()});
+            tb.SetValue(TextBlock.ForegroundProperty,Accent);
+            tb.SetValue(TextBlock.FontSizeProperty,12.0);
+            border.AppendChild(tb);
+            gs.HeaderTemplate=new DataTemplate{VisualTree=border};
+            return gs;
+        }
+        // Small page-switch link (never an edit button: navigation stays available while attached).
+        Button NavTool(string label,string tag,int tabIndex)
+        {
+            var b=Button(label,()=>Sections.SelectedIndex=tabIndex);b.FontSize=11;b.Height=22;b.MinWidth=0;b.Padding=new Thickness(6,0,6,0);b.Margin=new Thickness(8,0,0,0);b.Foreground=Accent;b.Tag=tag;return b;
+        }
+        // Bulk edit fields, most consequential first (size, then limits, then exit options). Codes are what BulkApply takes.
+        internal static readonly string[] BulkFields={"Ratio","Max","Tgt","DLL","LimitFlat","ATM","Diverge"};
+        internal static int BulkFieldIndex(string code){return Array.IndexOf(BulkFields,code);}
+        static string BulkFieldLabel(string code){return Lang.T(code=="Ratio"?"Ratio":code=="Max"?"Max contracts":code=="Tgt"?"Daily target":code=="DLL"?"Daily loss":code=="LimitFlat"?"Flat at limit":code=="ATM"?"ATM exit mirroring":"On divergence");}
+        static bool BulkIsAmount(string code){return code=="Ratio"||code=="Max"||code=="Tgt"||code=="DLL";}
+        string BulkFieldCode(){int i=bulkField==null?0:bulkField.SelectedIndex;return i>=0&&i<BulkFields.Length?BulkFields[i]:BulkFields[0];}
+        string BulkFieldValue(){string c=BulkFieldCode();if(BulkIsAmount(c))return bulkValue==null?"":bulkValue.Text;if(c=="Diverge")return bulkValueCombo==null?"Notify":(bulkValueCombo.SelectedIndex==0?"Notify":"FlattenOnce");return bulkValueCombo==null?"on":(bulkValueCombo.SelectedIndex==0?"on":"off");}
+        void UpdateBulkValueControl()
+        {
+            if(bulkField==null||bulkValue==null||bulkValueCombo==null)return;
+            string code=BulkFieldCode();bool amount=BulkIsAmount(code);
+            bulkValue.Visibility=amount?Visibility.Visible:Visibility.Collapsed;
+            bulkValueCombo.Visibility=amount?Visibility.Collapsed:Visibility.Visible;
+            if(amount)bulkValue.ToolTip=Lang.T(code=="Ratio"?"Ratio for the highlighted accounts · plain positive number like 1 or 0.5":code=="Max"?"Max contracts for the highlighted accounts · whole number >= 1":"Amount for the highlighted accounts · account currency · 0 = off");
+            if(!amount){bulkValueCombo.ItemsSource=code=="Diverge"?new[]{Lang.T("Notify"),Lang.T("Flatten once")}:new[]{Lang.T("On"),Lang.T("Off")};bulkValueCombo.SelectedIndex=0;}
+        }
         public DashboardView(bool demoMode=false)
         {
             demo=demoMode;Background=Canvas;Margin=new Thickness(16);TextElement.SetFontFamily(this,new FontFamily("Segoe UI Variable Text, Segoe UI"));
@@ -3023,18 +3790,199 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             foreach(Type type in new[]{typeof(Button),typeof(ToggleButton),typeof(CheckBox),typeof(TextBox),typeof(ComboBox),typeof(TabControl),typeof(DataGrid)})
             {var scope=new Style(type);scope.Setters.Add(new Setter(FrameworkElement.MinWidthProperty,0.0));scope.Setters.Add(new Setter(FrameworkElement.MinHeightProperty,0.0));scope.Setters.Add(new Setter(Control.FontSizeProperty,13.0));scope.Setters.Add(new Setter(Control.ForegroundProperty,Ink));Resources[type]=scope;}
             RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
+            BuildHeader();
+            BuildSections();
+            BuildMonitorPage();
+            BuildSettingsPage();
+            BuildLogPage();
+            BuildIssuesPage();
+            BuildFooter();
+            Rows.CollectionChanged+=(s,e)=>{if(e.OldItems!=null)foreach(AccountRow r in e.OldItems)r.FollowRequested-=OnFollowRequested;if(e.NewItems!=null)foreach(AccountRow r in e.NewItems)r.FollowRequested+=OnFollowRequested;};view=CollectionViewSource.GetDefaultView(Rows);view.Filter=Matches;((ListCollectionView)view).CustomSort=new LeaderFirstOrder(Rows,null,ListSortDirection.Ascending);AccountGrid.Sorting+=SortKeepingLeaderFirst;RiskGrid.Sorting+=SortKeepingLeaderFirst;AccountGrid.ItemsSource=view;RiskGrid.ItemsSource=view;AttachColumnMenu(ColumnPrefs.Copy,AccountGrid,columnsBarCopy);AttachColumnMenu(ColumnPrefs.Risk,RiskGrid,columnsBarRisk);
+            PreviewKeyDown+=(s,e)=>{if(e.Key==System.Windows.Input.Key.F&&System.Windows.Input.Keyboard.Modifiers==System.Windows.Input.ModifierKeys.Control){FocusSearch();e.Handled=true;}else if(e.Key==System.Windows.Input.Key.Escape&&search.IsKeyboardFocusWithin){SearchText="";e.Handled=true;}};search.TextChanged+=(s,e)=>{view.Refresh();UpdateCards();};filter.SelectionChanged+=(s,e)=>{view.Refresh();UpdateCards();};groupBox.Checked+=(s,e)=>GroupByAccount=true;groupBox.Unchecked+=(s,e)=>GroupByAccount=false;ShowLive.Checked+=(s,e)=>Send("refresh");ShowLive.Unchecked+=(s,e)=>Send("refresh");AccountGrid.SelectionChanged+=(s,e)=>UpdateCards();RiskGrid.SelectionChanged+=(s,e)=>UpdateCards();Sections.SelectionChanged+=(s,e)=>{if(summary!=null)UpdateCards();};
+            if(demo){for(int i=1;i<=30;i++)Rows.Add(new AccountRow{Name="Demo "+i.ToString("00"),Alias="Eval "+i,Group=i<=10?"Tradeify":i<=20?"Lucid":"Topstep",Role=i==1?"Leader":"Follower",Connection="Synthetic",Enabled=i>1,Currency="USD",Status=i%7==0?"Target hit":i%4==0?"Paused":"Demo only",Paused=i%4==0,Pnl=i%4==0?-120:i*24.5,Settings=new RiskSettings{Alias="Eval "+i,Group=i<=10?"Tradeify":i<=20?"Lucid":"Topstep",Target=1000,Loss=500,Ratio=1,MaxContracts=4,Preset=Lang.T("Demo / not broker data")}});LeaderBox.ItemsSource=new[]{"Demo 01"};LeaderBox.SelectedIndex=0;ShowLive.IsEnabled=false;}UpdateCards();
+        }
+        // Row 0 brand / language / build badge, row 1 session bar (leader, instrument, Start / pause / stop / refresh). Owner: UI v3 header work.
+        // Extension hooks (one per work package, so parallel edits never touch the same lines). Keep each body inside its own package.
+        // ==== WP1 hooks ====
+        void EditableHeader(bool canEdit){if(InstPickButton!=null)InstPickButton.IsEnabled=canEdit;if(InstrumentPopup!=null&&!canEdit)InstrumentPopup.IsOpen=false;}
+        void UpdateHeaderState()   // called from UpdateCards
+        {
+            if(StateBadge!=null)
+            {
+                bool anyPaused=Rows.Any(r=>r.Paused);
+                if(!SessionAttached){StateBadge.Text=Lang.T("Stopped");StateBadge.Foreground=Muted;}
+                else if(anyPaused){StateBadge.Text=Lang.T("Paused");StateBadge.Foreground=Warn;}
+                else{StateBadge.Text=Lang.T("Copying");StateBadge.Foreground=Good;}
+            }
+#if KINFX_SIM_TEST
+            if(DryBadge!=null)DryBadge.Text=(DryRunBox!=null&&DryRunBox.IsChecked==true)?Lang.T("Dry run: on"):Lang.T("Dry run: off");
+#endif
+            string front=FrontForBox();
+            if(FrontNotice!=null){bool stale=front!=null;FrontNotice.Visibility=stale?Visibility.Visible:Visibility.Collapsed;if(stale)FrontNotice.Text=Lang.F("Front contract is now {0}",front);}
+            if(UseFrontTool!=null){bool stale=front!=null;UseFrontTool.Visibility=stale?Visibility.Visible:Visibility.Collapsed;if(stale)UseFrontTool.Content=Lang.F("Use {0}",front);}
+        }
+        // The current front contract for a stale quarterly box, or null when the box already holds the front (or is not quarterly).
+        string FrontForBox()
+        {
+            var text=(InstrumentBox==null?"":InstrumentBox.Text??"").Trim();
+            if(text.Length==0)return null;
+            var now=InstrumentCatalog.Now();
+            var normalized=ContractRoll.Normalize(text,now);
+            if(normalized==null)return null;
+            string root=normalized.Split(' ')[0];
+            string front=ContractRoll.Front(root,now);
+            if(front==null||string.Equals(normalized,front,StringComparison.Ordinal))return null;
+            return front;
+        }
+        // Opens/closes the instrument picker; the list is rebuilt each time it opens so the injected clock / recent roots are respected.
+        void TogglePicker()
+        {
+            if(InstrumentPopup==null)
+            {
+                InstrumentPopup=new Popup{PlacementTarget=InstPickButton,Placement=PlacementMode.Bottom,StaysOpen=false,AllowsTransparency=true};
+                InstrumentList=new Border{Background=Panel,BorderBrush=Line,BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(5),MinWidth=320,MaxHeight=420};
+                // A Popup inherits fonts from its PlacementTarget: the icon button uses Segoe Fluent Icons, which turned every row into boxes on real NT.
+                TextElement.SetFontFamily(InstrumentList,new FontFamily("Segoe UI Variable Text, Segoe UI"));TextElement.SetForeground(InstrumentList,Ink);
+                var items=new StackPanel{Background=Panel};
+                InstrumentList.Child=new ScrollViewer{VerticalScrollBarVisibility=ScrollBarVisibility.Hidden,Background=Panel,Content=items};
+                InstrumentPopup.Child=InstrumentList;
+            }
+            if(InstrumentPopup.IsOpen){InstrumentPopup.IsOpen=false;return;}
+            BuildPickerItems();
+            InstrumentPopup.IsOpen=true;
+        }
+        // Set on every picker TextBlock: on real NT the popup text still drew as boxes with only an inherited font on the list border.
+        static readonly FontFamily PickerFont=new FontFamily("Segoe UI Variable Text, Segoe UI");
+        void BuildPickerItems()
+        {
+            var panel=(StackPanel)((ScrollViewer)InstrumentList.Child).Content;
+            panel.Children.Clear();
+            var recent=RecentRoots!=null?RecentRoots():null;
+            foreach(var entry in InstrumentCatalog.Build(recent??new string[0]))
+            {
+                if(entry.Header){panel.Children.Add(new TextBlock{Text=Lang.T(entry.Description),FontFamily=PickerFont,FontSize=11,Foreground=Muted,Margin=new Thickness(12,7,12,2)});continue;}
+                panel.Children.Add(PickerRow(entry));
+            }
+        }
+        FrameworkElement PickerRow(InstrumentCatalog.Entry entry)
+        {
+            var stack=new StackPanel{Orientation=Orientation.Horizontal};
+            stack.Children.Add(new TextBlock{Text=entry.Root,FontFamily=PickerFont,FontSize=13,Foreground=Ink,FontWeight=FontWeights.SemiBold,VerticalAlignment=VerticalAlignment.Center});
+            stack.Children.Add(new TextBlock{Text="  "+entry.Front+"  ",FontFamily=PickerFont,FontSize=13,Foreground=Accent,VerticalAlignment=VerticalAlignment.Center});
+            stack.Children.Add(new TextBlock{Text=entry.ChooseMonth?Lang.T(entry.Description)+" · "+Lang.T("choose month"):Lang.T(entry.Description),FontFamily=PickerFont,FontSize=12,Foreground=Muted,VerticalAlignment=VerticalAlignment.Center});
+            var b=new Button{Content=stack,Tag=entry.Root,HorizontalContentAlignment=HorizontalAlignment.Left,Background=Panel,BorderBrush=Line,Margin=new Thickness(6,1,6,1),Padding=new Thickness(9,5,9,5),Cursor=System.Windows.Input.Cursors.Hand,MinWidth=0,MinHeight=0};
+            var t=new ControlTemplate(typeof(Button));var border=new FrameworkElementFactory(typeof(Border));border.SetValue(Border.CornerRadiusProperty,new CornerRadius(4));border.SetValue(Border.BackgroundProperty,new TemplateBindingExtension(Control.BackgroundProperty));border.SetValue(Border.BorderBrushProperty,new TemplateBindingExtension(Control.BorderBrushProperty));border.SetValue(Border.BorderThicknessProperty,new Thickness(1));
+            var cp=new FrameworkElementFactory(typeof(ContentPresenter));cp.SetValue(FrameworkElement.HorizontalAlignmentProperty,HorizontalAlignment.Left);cp.SetValue(FrameworkElement.VerticalAlignmentProperty,VerticalAlignment.Center);cp.SetValue(FrameworkElement.MarginProperty,new TemplateBindingExtension(Control.PaddingProperty));border.AppendChild(cp);t.VisualTree=border;b.Template=t;
+            b.MouseEnter+=(s,e)=>b.BorderBrush=Accent;b.MouseLeave+=(s,e)=>b.BorderBrush=Line;
+            b.Click+=(s,e)=>PickInstrument(entry);
+            return b;
+        }
+        void PickInstrument(InstrumentCatalog.Entry entry){InstrumentBox.Text=entry.Front;if(InstrumentPopup!=null)InstrumentPopup.IsOpen=false;UpdateHeaderState();var ev=InstrumentPicked;if(ev!=null)ev();}
+        // "Use {front}" only rewrites the text box (never a command); normalization happens through InstrumentPicked like a pick.
+        void UseFront(){var f=FrontForBox();if(f==null)return;InstrumentBox.Text=f;UpdateHeaderState();var ev=InstrumentPicked;if(ev!=null)ev();}
+        //
+        //
+        //
+        // ==== WP2 hooks ====
+        void EditableMonitor(bool canEdit){}
+        void EditableSettings(bool canEdit){if(bulkField!=null)bulkField.IsEnabled=canEdit;if(bulkValue!=null)bulkValue.IsEnabled=canEdit;if(bulkValueCombo!=null)bulkValueCombo.IsEnabled=canEdit;}
+        void UpdateMonitor()
+        {
+            if(cardCopying==null)return;
+            var followers=Rows.Where(r=>r.Role!="Leader").ToArray();
+            int ticked=followers.Count(r=>r.Enabled);
+            cardCopying.Text=ticked+" / "+followers.Length;
+            cardLocked.Text=LockedCount.ToString(CultureInfo.InvariantCulture);
+            int unprotected=0;foreach(var r in followers)unprotected+=MonitorSummary.UnprotectedLots(r.Latch.Reason);
+            cardUnprotected.Text=unprotected.ToString(CultureInfo.InvariantCulture);
+            string ccy=MonitorSummary.SingleCurrency(followers.Select(r=>r.Currency));
+            double pnl=MonitorSummary.SumFinite(followers.Select(r=>r.Pnl));
+            cardPnl.Text=ccy==null?Lang.T("Mixed CCY"):MonitorSummary.Money(pnl,ccy);
+            if(issuesLines==null)return;
+            // Rebuilt only when the issue set changes (UpdateCards runs every second and on every telemetry message).
+            var sigB=new System.Text.StringBuilder(Lang.Current).Append('|').Append(HeaderNotice);
+            foreach(var r in Rows.Where(x=>x.Role!="Leader").OrderBy(x=>x.Name,StringComparer.Ordinal)){if(r.Latch.Locked)sigB.Append("\nL").Append(r.Name).Append('\t').Append(r.Alias).Append('\t').Append(r.Latch.Reason);if(r.Advice.Length>0)sigB.Append("\nA").Append(r.Name).Append('\t').Append(r.Alias).Append('\t').Append(r.Advice);}
+            string sig=sigB.ToString();if(sig==issuesSignature)return;issuesSignature=sig;
+            issuesLines.Children.Clear();
+            var lines=new List<UIElement>();
+            foreach(var r in Rows.Where(x=>x.Role!="Leader"&&x.Latch.Locked))
+            {
+                var row=new DockPanel();
+                var nb=NavTool(Lang.T("Logs"),"issue:logs",2);DockPanel.SetDock(nb,Dock.Right);row.Children.Add(nb);
+                string reason=Lang.Show(r.Latch.Reason);if(string.IsNullOrEmpty(reason))reason=r.Latch.Reason;if(reason.Length>90)reason=reason.Substring(0,90)+"…";
+                var t=Text((r.Alias.Length>0?r.Alias:r.Name)+": "+reason,12,Bad);t.TextWrapping=TextWrapping.Wrap;row.Children.Add(t);
+                lines.Add(row);
+            }
+            foreach(var r in Rows.Where(x=>x.Role!="Leader"&&x.Advice.Length>0))
+            {
+                var row=new DockPanel();
+                var sb=NavTool(Lang.T("Settings"),"issue:settings",1);DockPanel.SetDock(sb,Dock.Right);row.Children.Add(sb);
+                var t=Text((r.Alias.Length>0?r.Alias:r.Name)+": "+Lang.Show(r.Advice),12,Warn);t.TextWrapping=TextWrapping.Wrap;row.Children.Add(t);
+                lines.Add(row);
+            }
+            if(HeaderNotice.Length>0){var t=Text(Lang.Show(HeaderNotice),12,Warn);t.TextWrapping=TextWrapping.Wrap;lines.Add(t);}
+            foreach(var l in lines){var fe=l as FrameworkElement;if(fe!=null)fe.Margin=new Thickness(0,0,0,6);issuesLines.Children.Add(l);}
+            issuesLines.Visibility=lines.Count==0?Visibility.Collapsed:Visibility.Visible;
+            if(issuesEmpty!=null)issuesEmpty.Visibility=lines.Count==0?Visibility.Visible:Visibility.Collapsed;
+            IssueCount=lines.Count;UpdateIssuesTabHeader();
+        }
+        //
+        //
+        //
+        // ==== WP3 hooks ====
+        void EditableLogs(bool canEdit){/* Log filters, export and clear stay usable while attached. Export is not an edit button; Clear log is an edit button and disables with the rest. */}
+        //
+        //
+        //
+        // Free-text notice another package can raise (WP1 sets it for an untested NinjaTrader version); WP2 shows it on the Monitor page.
+        internal string HeaderNotice="";
+        // ==== WP1 header / instrument picker fields ====
+        internal Button InstPickButton, UseFrontTool;
+        internal TextBlock StateBadge, FrontNotice;
+        internal Popup InstrumentPopup;
+        internal Border InstrumentList;
+        internal Func<string[]> RecentRoots;
+        internal event Action InstrumentPicked;
+#if KINFX_SIM_TEST
+        internal TextBlock DryBadge;
+#endif
+        void BuildHeader()
+        {
             var header=new DockPanel{Margin=new Thickness(0,0,0,14)};StatusText=Text(demo?Lang.T("DEMO · NO TRADES"):DashboardSafety.HeaderShown,11,Warn);DockPanel.SetDock(StatusText,Dock.Right);header.Children.Add(StatusText);LanguageBox=Combo(118);LanguageBox.ToolTip=Lang.T("Interface language");System.Windows.Automation.AutomationProperties.SetName(LanguageBox,Lang.T("Language"));LanguageBox.ItemsSource=Lang.Names;LanguageBox.SelectedIndex=Math.Max(0,Array.IndexOf(Lang.Codes,Lang.Current));LanguageBox.Margin=new Thickness(0,0,14,0);DockPanel.SetDock(LanguageBox,Dock.Right);header.Children.Add(LanguageBox);bool languageGuard=false;LanguageBox.SelectionChanged+=(s,e)=>{if(languageGuard||LanguageBox.SelectedIndex<0)return;string code=Lang.Codes[LanguageBox.SelectedIndex];if(code==Lang.Current)return;var ask=LanguageChanging;if(ask!=null&&!ask(code)){languageGuard=true;LanguageBox.SelectedIndex=Array.IndexOf(Lang.Codes,Lang.Current);languageGuard=false;}};var brand=new StackPanel{Orientation=Orientation.Horizontal};brand.Children.Add(Text("KINFX",20,Accent));brand.Children.Add(new TextBlock{Text=Lang.T("  /  Trade Copier"),FontSize=17,Foreground=Ink,VerticalAlignment=VerticalAlignment.Center});header.Children.Add(brand);AddRow(this,header,0);
-            var session=new WrapPanel{Margin=new Thickness(0,0,0,6)};LeaderBox=Combo(232);LeaderBox.ToolTip=Lang.T("Simulation leader account · no live opt-in");session.Children.Add(Labeled(Lang.T("Lead"),LeaderBox));InstrumentBox=Input("MES 12-26",126);InstrumentBox.ToolTip=Lang.T("Exact instrument");session.Children.Add(Labeled(Lang.T("Inst"),InstrumentBox));
-            FollowCountText=Text(Lang.T("→  0 followers  "),12,Muted);session.Children.Add(FollowCountText);
-            StartButton=Button(Lang.T("▶  Start"),()=>Send("start"),true);StartButton.ToolTip=DashboardSafety.StartTipShown;ToolTipService.SetShowOnDisabled(StartButton,true);StartButton.IsEnabled=DashboardSafety.CanExecute("start")&&!demo;session.Children.Add(StartButton);session.Children.Add(Icon("\uE769",Lang.T("Guarded pause · new entries only"),"pause",()=>Send("pause")));session.Children.Add(Icon("\uE71A",Lang.T("Stop when flat"),"stop",()=>Send("stop")));session.Children.Add(Icon("\uE72C",Lang.T("Refresh accounts"),"refresh",()=>Send("refresh")));AddRow(this,new Border{Background=Panel,BorderBrush=Line,BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(7),Padding=new Thickness(12,8,12,0),Margin=new Thickness(0,0,0,10),Child=session},1);
+            var session=new Grid{Margin=new Thickness(0,0,0,6)};session.ColumnDefinitions.Add(new ColumnDefinition{Width=GridLength.Auto});session.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(1,GridUnitType.Star)});
+            var left=new WrapPanel{VerticalAlignment=VerticalAlignment.Center};LeaderBox=Combo(232);LeaderBox.ToolTip=Lang.T("Simulation leader account · no live opt-in");left.Children.Add(Labeled(Lang.T("Lead"),LeaderBox));InstrumentBox=Input("MES 12-26",126);InstrumentBox.ToolTip=Lang.T("Exact instrument");var instGroup=new StackPanel{Orientation=Orientation.Horizontal,Margin=new Thickness(0,0,4,6)};instGroup.Children.Add(Text(Lang.T("Inst")+"  ",11,Muted));instGroup.Children.Add(InstrumentBox);InstPickButton=Icon("\uE70D",Lang.T("Instrument picker"),"instPick",TogglePicker);instGroup.Children.Add(InstPickButton);left.Children.Add(instGroup);FollowCountText=Text(Lang.T("→  0 followers  "),12,Muted);left.Children.Add(FollowCountText);FrontNotice=Text("",11,Warn);FrontNotice.Visibility=Visibility.Collapsed;FrontNotice.Margin=new Thickness(0,0,8,6);left.Children.Add(FrontNotice);UseFrontTool=TextTool("",Lang.T("Switch the instrument to the current front contract"),"useFront",UseFront);UseFrontTool.Visibility=Visibility.Collapsed;UseFrontTool.Margin=new Thickness(0,0,8,6);left.Children.Add(UseFrontTool);Grid.SetColumn(left,0);session.Children.Add(left);
+            var right=new WrapPanel{HorizontalAlignment=HorizontalAlignment.Right,VerticalAlignment=VerticalAlignment.Center};right.Children.Add(Text(Lang.T("State")+"  ",11,Muted));StateBadge=Text(Lang.T("Stopped"),11,Muted);StateBadge.Tag="stateBadge";StateBadge.FontWeight=FontWeights.SemiBold;StateBadge.Margin=new Thickness(0,0,14,6);right.Children.Add(StateBadge);
+#if KINFX_SIM_TEST
+            DryBadge=Text(Lang.T("Dry run: off"),11,Warn);DryBadge.Tag="dryBadge";DryBadge.Margin=new Thickness(0,0,14,6);right.Children.Add(DryBadge);
+#endif
+            StartButton=Button(Lang.T("▶  Start"),()=>Send("start"),true);StartButton.ToolTip=DashboardSafety.StartTipShown;ToolTipService.SetShowOnDisabled(StartButton,true);StartButton.IsEnabled=DashboardSafety.CanExecute("start")&&!demo;right.Children.Add(StartButton);var pause=Button(Lang.T("Pause new entries"),()=>Send("pause"));pause.Tag="pause";pause.ToolTip=Lang.T("Guarded pause · new entries only");ToolTipService.SetShowOnDisabled(pause,true);right.Children.Add(pause);ResumeButton=Button(Lang.T("Resume new entries"),()=>Send("resume"));ResumeButton.Tag="resume";ResumeButton.ToolTip=Lang.T("Resume new entries after a pause · entries the leader opened while paused are NOT copied");ToolTipService.SetShowOnDisabled(ResumeButton,true);ResumeButton.Visibility=Visibility.Collapsed;right.Children.Add(ResumeButton);right.Children.Add(Icon("\uE71A",Lang.T("Stop when flat"),"stop",()=>Send("stop")));right.Children.Add(Icon("\uE72C",Lang.T("Refresh accounts"),"refresh",()=>Send("refresh")));Grid.SetColumn(right,1);session.Children.Add(right);AddRow(this,new Border{Background=Panel,BorderBrush=Line,BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(7),Padding=new Thickness(12,8,12,0),Margin=new Thickness(0,0,0,10),Child=session},1);
+        }
+        // Row 2: the page container. Pages are added in order: Monitor (0), Settings (1), Logs (2).
+        void BuildSections()
+        {
             Sections=new TabControl{Background=Canvas,Foreground=Ink,BorderBrush=Line,Padding=new Thickness(0,10,0,0),ItemContainerStyle=TabStyle()};AddRow(this,Sections,2);
-            var copy=new Grid();copy.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});copy.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});
+        }
+        // Page 0 (was "Copy"). Owner: UI v3 page 1 work.
+        // Page 0 (Monitor). Owner: UI v3 page 1 work.
+        void BuildMonitorPage()
+        {
+            var copy=new Grid();copy.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});copy.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});copy.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});copy.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
+            var cards=new WrapPanel{Margin=new Thickness(0,0,0,10)};cardCopying=Text("0",18,Ink);cardLocked=Text("0",18,Ink);cardUnprotected=Text("0",18,Ink);cardPnl=Text("0",18,Ink);cards.Children.Add(CardBox("card:copying",Lang.T("Copying"),cardCopying));var lockedCard=CardBox("card:locked",Lang.T("Locked accounts"),cardLocked);lockedCard.Cursor=System.Windows.Input.Cursors.Hand;lockedCard.ToolTip=Lang.T("Open the Issues tab");lockedCard.MouseLeftButtonUp+=(s,e)=>{if(issuesTab!=null)Sections.SelectedItem=issuesTab;};cards.Children.Add(lockedCard);cards.Children.Add(CardBox("card:unprotected",Lang.T("Unprotected lots"),cardUnprotected));cards.Children.Add(CardBox("card:pnl",Lang.T("Today P/L"),cardPnl));AddRow(copy,cards,0);
             var toolbar=new WrapPanel{Margin=new Thickness(0,0,0,9)};
-            search=Input("",185);search.ToolTip=Lang.T("Search account / alias / group / preset · Ctrl+F · Escape clears");toolbar.Children.Add(Labeled("⌕",search,17));filter=Combo(120);filter.ToolTip=Lang.T("Filter displayed account states");filter.ItemsSource=new[]{Lang.T("All"),Lang.T("On"),Lang.T("Paused"),Lang.T("Target")};filter.SelectedIndex=0;toolbar.Children.Add(filter);var ticks=new StackPanel{Orientation=Orientation.Horizontal,Margin=new Thickness(0,0,0,6)};ticks.Children.Add(Icon("\uE73A",Lang.T("Tick all visible followers"),"tickAll",()=>TickVisible(true),true));ticks.Children.Add(Icon("\uE711",Lang.T("Untick all visible followers"),"tickNone",()=>TickVisible(false),true));var unlockAll=TextTool(Lang.T("Unlock all"),Lang.T("Unlock every locked follower that is flat, connected and no longer at a risk limit (one confirmation). The others stay locked with their reason in Logs. Does NOT start copying."),"unlockAll",()=>Send("unlockAll"));unlockAll.Margin=new Thickness(8,0,4,6);ticks.Children.Add(unlockAll);toolbar.Children.Add(ticks);toolbar.Children.Add(new TextBlock{Text=Lang.T("Ratio: edit each account row"),Foreground=Muted,FontSize=12,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(8,0,8,6)});var bulk=new StackPanel{Orientation=Orientation.Horizontal,Margin=new Thickness(0,0,0,6)};bulk.Tag="bulkbar";bulk.Children.Add(Text(Lang.T("Bulk  "),11,Muted));var bulkValue=Input("",78);bulkValue.ToolTip=Lang.T("Amount for the highlighted accounts · account currency · 0 = off");System.Windows.Automation.AutomationProperties.SetName(bulkValue,Lang.T("Bulk amount"));bulk.Children.Add(bulkValue);bulk.Children.Add(TextTool(Lang.T("Tgt"),Lang.T("Set Target on highlighted accounts"),"bulkTgt",()=>BulkClick("Tgt",bulkValue.Text)));bulk.Children.Add(TextTool(Lang.T("DLL"),Lang.T("Set Daily loss on highlighted accounts"),"bulkDll",()=>BulkClick("DLL",bulkValue.Text)));bulk.Children.Add(TextTool(Lang.T("ATM on"),Lang.T("ATM exit-mirroring ON for highlighted accounts"),"bulkAtmOn",()=>BulkClick("ATM","on")));bulk.Children.Add(TextTool(Lang.T("Limit flat on"),Lang.T("When Tgt or DLL is hit: flatten that account once (never retried) for highlighted accounts"),"bulkLimitFlatOn",()=>BulkClick("LimitFlat","on")));bulk.Children.Add(TextTool(Lang.T("Limit flat off"),Lang.T("When Tgt or DLL is hit: only lock and stop copying (default) for highlighted accounts"),"bulkLimitFlatOff",()=>BulkClick("LimitFlat","off")));bulk.Children.Add(TextTool(Lang.T("ATM off"),Lang.T("ATM exit-mirroring OFF for highlighted accounts"),"bulkAtmOff",()=>BulkClick("ATM","off")));bulk.Children.Add(TextTool(Lang.T("Div: notify"),Lang.T("On divergence: only lock, show red and notify (default) for highlighted accounts"),"bulkDivNotify",()=>BulkClick("Diverge","Notify")));bulk.Children.Add(TextTool(Lang.T("Div: flatten 1x"),Lang.T("On divergence: request ONE flatten, never retried (saved only; NOT active in this alpha) for highlighted accounts"),"bulkDivFlat",()=>BulkClick("Diverge","FlattenOnce")));bulk.Children.Insert(1,TextTool(Lang.T("From Leader"),Lang.T("Copy the leader row's Tgt / DLL / ATM to highlighted followers (all visible if none highlighted). One-time copy; edit any row afterwards. Ratio and ticks are not copied."),"bulkLeader",()=>BulkLeaderClick()));bulkBar=bulk;toolbar.Children.Add(bulk);AddRow(copy,toolbar,0);columnsBarCopy=toolbar;
-            AccountGrid=GridTable();TickColumn(AccountGrid);AccountColumn(AccountGrid);Column(AccountGrid,"Alias","Alias",100,false,Lang.T("Optional display alias"));RatioColumn(AccountGrid);Column(AccountGrid,"Tgt","TargetText",78,false,Lang.T("Independent daily local profit target · account CCY / 0 = off"),null,true);Column(AccountGrid,"DLL","LossText",78,false,Lang.T("Independent daily loss limit · positive amount / 0 = off"),null,true);AtmColumn(AccountGrid);Column(AccountGrid,"Qty","Position",55,true,Lang.T("Signed position · + long / − short"),null,true);Column(AccountGrid,"P/L","Pnl",95,true,Lang.T("Observed session P/L in account currency · baseline is not historical daily accounting"),"N2",true);Column(AccountGrid,"Bal","BalanceText",130,true,Lang.T("CashValue in account currency; not NetLiquidation / net equity"),null,true);((DataGridTextColumn)AccountGrid.Columns.Last()).ElementStyle.Setters.Add(new Setter(FrameworkElement.ToolTipProperty,new Binding("BalanceDetail")));((DataGridTextColumn)AccountGrid.Columns.Last()).ElementStyle.Setters.Add(new Setter(System.Windows.Automation.AutomationProperties.NameProperty,new Binding("BalanceDetail")));LightColumn(AccountGrid,"Conn","ConnLight","Connection");StateColumn(AccountGrid);OffColumn(AccountGrid);FlatColumn(AccountGrid);AccountGrid.FrozenColumnCount=2;ProportionalCopyColumns(AccountGrid);AddRow(copy,AccountGrid,1);Sections.Items.Add(new TabItem{Header=Lang.T("Copy"),Content=copy});
-            var risk=new Grid();risk.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});risk.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});risk.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});var tools=new WrapPanel{Margin=new Thickness(0,0,0,10)};
-            var batch=Icon("\uE713",DashboardSafety.CanExecute("batch")?Lang.T("Batch risk / presets"):Lang.T("Batch risk / presets · review hold"),"batch",()=>Send("batch"));batch.IsEnabled=DashboardSafety.CanExecute("batch");tools.Children.Add(batch);tools.Children.Add(Icon("\uE74E",Lang.T("Save settings"),"save",()=>Send("save")));tools.Children.Add(Icon("\uE787",Lang.T("Trading-day boundary / timezone"),"daySettings",()=>Send("daySettings")));tools.Children.Add(Icon("\uE769",Lang.T("Pause highlighted accounts"),"pauseSelected",()=>SetSelectedPause(true)));tools.Children.Add(Icon("\uE768",Lang.T("Resume highlighted accounts · latch unchanged / no auto-arm"),"resumeSelected",()=>SetSelectedPause(false)));var fs=Icon("\uE74D",DashboardSafety.CanExecute("flattenSelected")?Lang.T("Flatten highlighted accounts (market-closes their positions)"):Lang.T("Flatten highlighted accounts · review hold"),"flattenSelected",()=>Send("flattenSelected"));fs.IsEnabled=DashboardSafety.CanExecute("flattenSelected");tools.Children.Add(fs);var fa=Icon("\uE7BA",DashboardSafety.CanExecute("flattenAll")?Lang.T("Flatten ALL displayed accounts (market-closes every position shown)"):Lang.T("Flatten all displayed accounts · review hold"),"flattenAll",()=>Send("flattenAll"));fa.IsEnabled=DashboardSafety.CanExecute("flattenAll");tools.Children.Add(fa);
-            ShowLive=new CheckBox{Template=PlainCheckTemplate(),Content=Lang.T("Live (RO)"),Foreground=Muted,Margin=new Thickness(12,6,16,0),ToolTip=Lang.T("Display live accounts read-only · live copying blocked")};tools.Children.Add(ShowLive);if(DashboardSafety.ListAllAccounts)ShowLive.Visibility=Visibility.Collapsed;var group=new CheckBox{Template=PlainCheckTemplate(),Content=Lang.T("Grp"),Foreground=Muted,Margin=new Thickness(0,6,0,0),ToolTip=Lang.T("Group account rows")};tools.Children.Add(group);
+            search=Input("",185);search.ToolTip=Lang.T("Search account / alias / group / preset · Ctrl+F · Escape clears");toolbar.Children.Add(Labeled("⌕",search,17));filter=Combo(120);filter.ToolTip=Lang.T("Filter displayed account states");filter.ItemsSource=new[]{Lang.T("All"),Lang.T("On"),Lang.T("Paused"),Lang.T("Target")};filter.SelectedIndex=0;toolbar.Children.Add(filter);var ticks=new StackPanel{Orientation=Orientation.Horizontal,Margin=new Thickness(0,0,0,6)};ticks.Children.Add(Icon("\uE73A",Lang.T("Tick all visible followers"),"tickAll",()=>TickVisible(true),true));ticks.Children.Add(Icon("\uE711",Lang.T("Untick all visible followers"),"tickNone",()=>TickVisible(false),true));toolbar.Children.Add(ticks);groupBox=new CheckBox{Template=PlainCheckTemplate(),Content=Lang.T("Group by firm"),Foreground=Muted,Margin=new Thickness(8,6,0,0),ToolTip=Lang.T("Group account rows")};System.Windows.Automation.AutomationProperties.SetName(groupBox,Lang.T("Group by firm"));toolbar.Children.Add(groupBox);AddRow(copy,toolbar,1);columnsBarCopy=toolbar;
+            AccountGrid=GridTable();TickColumn(AccountGrid);AccountColumn(AccountGrid);Column(AccountGrid,"Alias","Alias",100,false,Lang.T("Optional display alias"));RatioColumn(AccountGrid);Column(AccountGrid,"Tgt","TargetText",78,false,Lang.T("Independent daily local profit target · account CCY / 0 = off"),null,true);Column(AccountGrid,"DLL","LossText",78,false,Lang.T("Independent daily loss limit · positive amount / 0 = off"),null,true);AtmColumn(AccountGrid);Column(AccountGrid,"Qty","Position",55,true,Lang.T("Signed position · + long / − short"),null,true);Column(AccountGrid,"P/L","Pnl",95,true,Lang.T("Observed session P/L in account currency · baseline is not historical daily accounting"),"N2",true);Column(AccountGrid,"Bal","BalanceText",130,true,Lang.T("CashValue in account currency; not NetLiquidation / net equity"),null,true);AccountGrid.Columns.Last().SortMemberPath="CashBalance";((DataGridTextColumn)AccountGrid.Columns.Last()).ElementStyle.Setters.Add(new Setter(FrameworkElement.ToolTipProperty,new Binding("BalanceDetail")));((DataGridTextColumn)AccountGrid.Columns.Last()).ElementStyle.Setters.Add(new Setter(System.Windows.Automation.AutomationProperties.NameProperty,new Binding("BalanceDetail")));LightColumn(AccountGrid,"Conn","ConnLight","Connection");StateColumn(AccountGrid);OffColumn(AccountGrid);FlatColumn(AccountGrid);OrderColumns(AccountGrid,CopyColumnOrder);AccountGrid.FrozenColumnCount=2;ProportionalCopyColumns(AccountGrid);AccountGrid.GroupStyle.Add(GroupHeaderStyle());AddRow(copy,AccountGrid,2);
+            // Flatten is an emergency action: NOT an edit button, so it stays usable while a session is attached (as in 121c44e).
+            var actions=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,8,0,0)};var fs=TextToolFree(Lang.T("Flatten selected"),DashboardSafety.CanExecute("flattenSelected")?Lang.T("Flatten highlighted accounts (market-closes their positions)"):Lang.T("Flatten highlighted accounts · review hold"),"flattenSelected",()=>Send("flattenSelected"));fs.Foreground=Bad;fs.IsEnabled=DashboardSafety.CanExecute("flattenSelected");var fa=TextToolFree(Lang.T("Flatten all"),DashboardSafety.CanExecute("flattenAll")?Lang.T("Flatten ALL displayed accounts (market-closes every position shown)"):Lang.T("Flatten all displayed accounts · review hold"),"flattenAll",()=>Send("flattenAll"));fa.Foreground=Bad;fa.IsEnabled=DashboardSafety.CanExecute("flattenAll");RefollowButton=TextToolFree(Lang.T("Re-follow closed accounts"),Lang.T("Tick again every follower that closed after a copied exit and is flat, connected and unlocked. Only LATER new entries are copied; nothing is caught up."),"refollow",()=>Send("refollow"));RefollowButton.IsEnabled=false;actions.Children.Insert(0,RefollowButton);actions.Children.Add(fs);actions.Children.Add(fa);AddRow(copy,actions,3);
+            Sections.Items.Add(new TabItem{Header=Lang.T("Monitor"),Content=copy});
+        }
+        // Page 1 (was "Risk"). Owner: UI v3 page 2 work.
+        // Page 1 (Settings). Owner: UI v3 page 2 work.
+        void BuildSettingsPage()
+        {
+            var risk=new Grid();risk.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});risk.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});risk.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});risk.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
+            var session=new Border{Background=Panel,BorderBrush=Line,BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(7),Padding=new Thickness(12,8,12,8),Margin=new Thickness(0,0,0,10)};var sessionBody=new StackPanel();sessionBody.Children.Add(Text(Lang.T("This session"),12,Muted));var tools=new WrapPanel{Margin=new Thickness(0,6,0,0)};
+            var batch=Icon("\uE713",DashboardSafety.CanExecute("batch")?Lang.T("Batch risk / presets"):Lang.T("Batch risk / presets · review hold"),"batch",()=>Send("batch"));batch.IsEnabled=DashboardSafety.CanExecute("batch");tools.Children.Add(batch);tools.Children.Add(Icon("\uE74E",Lang.T("Save settings"),"save",()=>Send("save")));tools.Children.Add(Icon("\uE787",Lang.T("Trading-day boundary / timezone"),"daySettings",()=>Send("daySettings")));tools.Children.Add(Icon("\uE769",Lang.T("Pause highlighted accounts"),"pauseSelected",()=>SetSelectedPause(true)));tools.Children.Add(Icon("\uE768",Lang.T("Resume highlighted accounts · latch unchanged / no auto-arm"),"resumeSelected",()=>SetSelectedPause(false)));
+            ShowLive=new CheckBox{Template=PlainCheckTemplate(),Content=Lang.T("Live (RO)"),Foreground=Muted,Margin=new Thickness(12,6,16,0),ToolTip=Lang.T("Display live accounts read-only · live copying blocked")};tools.Children.Add(ShowLive);if(DashboardSafety.ListAllAccounts)ShowLive.Visibility=Visibility.Collapsed;
             tools.Children.Add(new TextBlock{Text=Lang.T("Ask before:"),Foreground=Muted,FontSize=12,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(16,6,6,0),ToolTip=Lang.T("Untick to skip that confirmation window. Unlock and risk warnings are always asked.")});
             Func<string,string,string,CheckBox> askSwitch=(kind,label,tip)=>{var cb=new CheckBox{Template=PlainCheckTemplate(),Content=label,Foreground=Muted,IsChecked=true,Margin=new Thickness(0,6,10,0),ToolTip=tip,Tag="ask:"+kind};System.Windows.Automation.AutomationProperties.SetName(cb,Lang.T("Ask before:")+" "+label);cb.Checked+=(s2,e2)=>{var cbk=AskChanged;if(cbk!=null)cbk(kind,true);};cb.Unchecked+=(s2,e2)=>{var cbk=AskChanged;if(cbk!=null)cbk(kind,false);};tools.Children.Add(cb);return cb;};
             AskStartBox=askSwitch(ConfirmPrefs.Start,Lang.T("Start"),Lang.T("Confirm before Start (follower list and ratios)"));
@@ -3043,20 +3991,184 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
 #if KINFX_SIM_TEST
             DryRunBox=new CheckBox{Template=PlainCheckTemplate(),Content=Lang.T("Dry run"),Foreground=Warn,Margin=new Thickness(16,6,0,0),ToolTip=Lang.T("DRY RUN: decide and log every order, cancel and flatten as \"DRY RUN would send ...\" but send NOTHING. Fixed for the whole session: change it only while stopped.")};tools.Children.Add(DryRunBox);
 #endif
-            AddRow(risk,tools,0);columnsBarRisk=tools;
-            RiskGrid=GridTable();Column(RiskGrid,"Acct","Name",155,true,Lang.T("Broker account"));Column(RiskGrid,"Alias","Alias",115,false,Lang.T("Display alias"));Column(RiskGrid,"Grp","Group",90,false,Lang.T("Account group"));Column(RiskGrid,"Tgt","TargetText",105,false,Lang.T("Daily local profit target · 0 = off"),null,true);Column(RiskGrid,"DLL","LossText",105,false,Lang.T("Daily loss limit · positive value / 0 = off"),null,true);FlatOnLimitColumn(RiskGrid);Column(RiskGrid,"Max","MaxText",60,false,Lang.T("Maximum exact-instrument contracts"),null,true);RatioColumn(RiskGrid);Column(RiskGrid,"P/L","Pnl",95,true,Lang.T("Observed session P/L"),"N2",true);Column(RiskGrid,"CCY","Currency",55,true,Lang.T("Account currency"));Column(RiskGrid,"To Tgt","TargetRemaining",80,true,Lang.T("Amount remaining to daily target (read-only, computed from P/L)"),null,true);Column(RiskGrid,"Loss left","LossRemaining",80,true,Lang.T("How much more can be lost before the daily loss limit (read-only, computed from P/L)"),null,true);Column(RiskGrid,"Qty","Position",50,true,Lang.T("Signed position"),null,true);Column(RiskGrid,"Conn","Connection",100,true,Lang.T("Connection status"));Column(RiskGrid,"St","Status",120,true,Lang.T("Copier / risk state"));FullTextTip(RiskGrid,"Status");Column(RiskGrid,"Preset","Preset",110,true,Lang.T("Editable firm template"));FullTextTip(RiskGrid,"Preset");Column(RiskGrid,"Cons","ConsistencyAdvice",110,true,Lang.T("Consistency advisory · not a broker guarantee"));FullTextTip(RiskGrid,"ConsistencyAdvice");
-            var action=new FrameworkElementFactory(typeof(Button));CompactCellButton(action,28);action.SetValue(Control.TemplateProperty,OffTemplate());action.SetValue(ContentControl.ContentProperty,"\uE713");action.SetValue(Control.FontFamilyProperty,new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"));action.SetValue(Control.BackgroundProperty,Panel);action.SetValue(Control.ForegroundProperty,Ink);action.SetValue(Control.BorderBrushProperty,Line);action.SetValue(Control.PaddingProperty,new Thickness(4,1,4,1));action.SetValue(FrameworkElement.ToolTipProperty,Lang.T("Account risk / template / history"));var gearStyle=new Style(typeof(Button));var gearLocked=new DataTrigger{Binding=new Binding("IsReadOnly"){RelativeSource=new RelativeSource(RelativeSourceMode.FindAncestor,typeof(DataGrid),1)},Value=true};gearLocked.Setters.Add(new Setter(UIElement.IsEnabledProperty,false));gearStyle.Triggers.Add(gearLocked);action.SetValue(FrameworkElement.StyleProperty,gearStyle);action.AddHandler(ButtonBase.ClickEvent,new RoutedEventHandler((s,e)=>{if(!editable){e.Handled=true;return;}var r=(s as FrameworkElement).DataContext as AccountRow;if(r!=null&&RowSettings!=null)RowSettings(r);}));RiskGrid.Columns.Add(new DataGridTemplateColumn{Header="⚙",Width=40,CellTemplate=new DataTemplate{VisualTree=action}});AddRow(risk,RiskGrid,1);
-            AddRow(risk,new TextBlock{Text=Lang.T("OFF cancels owned entries, retains exits · Re-follow explicit / only when clean · ATM OFF may be unprotected · Local guards only"),Foreground=Muted,FontSize=11,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,10,0,0)},2);Sections.Items.Add(new TabItem{Header=Lang.T("Risk"),Content=risk});
-            var logPanel=new Grid();logPanel.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});logPanel.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});logPanel.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});AddRow(logPanel,new TextBlock{Text=DashboardSafety.LogNoteShown,Foreground=Warn,FontSize=12,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,10)},0);LogBox=Input("",double.NaN);LogBox.IsReadOnly=true;LogBox.FontFamily=new FontFamily("Consolas");LogBox.FontSize=12;LogBox.Foreground=Brush("#E4E1EC");LogBox.VerticalContentAlignment=VerticalAlignment.Top;LogBox.VerticalScrollBarVisibility=ScrollBarVisibility.Auto;LogBox.HorizontalScrollBarVisibility=ScrollBarVisibility.Auto;var logTools=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,0,0,6)};logTools.Children.Add(TextTool(Lang.T("Clear log"),Lang.T("Clear this log view (does not affect settings, orders or saved latches)"),"logClear",()=>ClearLog()));AddRow(logPanel,logTools,1);AddRow(logPanel,LogBox,2);Sections.Items.Add(new TabItem{Header=Lang.T("Logs"),Content=logPanel});Sections.SelectedIndex=0;
+            sessionBody.Children.Add(tools);columnsBarRisk=tools;session.Child=sessionBody;var top=new StackPanel();top.Children.Add(session);BuildNotifySection(top);AddRow(risk,top,0);
+            var bulkSection=new Border{Background=Panel,BorderBrush=Line,BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(7),Padding=new Thickness(12,8,12,8),Margin=new Thickness(0,0,0,10)};var bulkBody=new StackPanel();bulkBody.Children.Add(Text(Lang.T("Bulk edit (highlighted follower accounts · only while stopped)"),12,Muted));var bulkRow=new WrapPanel{Margin=new Thickness(0,6,0,0)};
+            bulkField=Combo(150);bulkField.Tag="bulkField";bulkField.ToolTip=Lang.T("Which setting to change on highlighted accounts");bulkField.ItemsSource=BulkFields.Select(BulkFieldLabel).ToArray();bulkField.SelectedIndex=0;bulkRow.Children.Add(bulkField);
+            bulkValue=Input("",78);bulkValue.Tag="bulkValue";bulkValue.ToolTip=Lang.T("Amount for the highlighted accounts · account currency · 0 = off");System.Windows.Automation.AutomationProperties.SetName(bulkValue,Lang.T("Bulk amount"));bulkRow.Children.Add(bulkValue);
+            bulkValueCombo=Combo(130);bulkValueCombo.Tag="bulkValueCombo";bulkValueCombo.ToolTip=Lang.T("Value for the highlighted accounts");bulkRow.Children.Add(bulkValueCombo);
+            bulkRow.Children.Add(TextTool(Lang.T("Apply"),Lang.T("Apply the chosen setting to the highlighted follower accounts"),"bulkApply",()=>BulkClick(BulkFieldCode(),BulkFieldValue())));
+            bulkRow.Children.Add(TextTool(Lang.T("From Leader"),Lang.T("Copy the leader row's Tgt / DLL / ATM to highlighted followers (all visible if none highlighted). One-time copy; edit any row afterwards. Ratio and ticks are not copied."),"bulkLeader",()=>BulkLeaderClick()));
+            bulkBar=bulkRow;bulkBar.Tag="bulkbar";bulkField.SelectionChanged+=(s,e)=>UpdateBulkValueControl();UpdateBulkValueControl();bulkBody.Children.Add(bulkRow);bulkSection.Child=bulkBody;AddRow(risk,bulkSection,1);
+            RiskGrid=GridTable();Column(RiskGrid,"Acct","Name",140,true,Lang.T("Broker account"));Column(RiskGrid,"Alias","Alias",100,false,Lang.T("Display alias"));Column(RiskGrid,"Grp","Group",80,false,Lang.T("Account group"));Column(RiskGrid,"Tgt","TargetText",100,false,Lang.T("Daily local profit target · 0 = off"),null,true);Column(RiskGrid,"DLL","LossText",100,false,Lang.T("Daily loss limit · positive value / 0 = off"),null,true);FlatOnLimitColumn(RiskGrid);AutoRefollowColumn(RiskGrid);Column(RiskGrid,"Max","MaxText",60,false,Lang.T("Maximum exact-instrument contracts"),null,true);RiskGrid.Columns.Last().SortMemberPath="MaxContracts";var maxCol=(DataGridTextColumn)RiskGrid.Columns.Last();var maxCellStyle=new Style(typeof(DataGridCell),RiskGrid.CellStyle);var maxDefault=new DataTrigger{Binding=new Binding("MaxIsDefault"),Value=true};maxDefault.Setters.Add(new Setter(Control.BorderBrushProperty,Warn));maxDefault.Setters.Add(new Setter(Control.BorderThicknessProperty,new Thickness(1)));maxDefault.Setters.Add(new Setter(FrameworkElement.ToolTipProperty,Lang.T("Max is still 1: a leader order larger than this is skipped entirely")));maxCellStyle.Triggers.Add(maxDefault);maxCol.CellStyle=maxCellStyle;RatioColumn(RiskGrid);Column(RiskGrid,"P/L","Pnl",95,true,Lang.T("Observed session P/L"),"N2",true);Column(RiskGrid,"CCY","Currency",55,true,Lang.T("Account currency"));Column(RiskGrid,"To Tgt","TargetRemaining",80,true,Lang.T("Amount remaining to daily target (read-only, computed from P/L)"),null,true);Column(RiskGrid,"Loss left","LossRemaining",80,true,Lang.T("How much more can be lost before the daily loss limit (read-only, computed from P/L)"),null,true);Column(RiskGrid,"Qty","Position",50,true,Lang.T("Signed position"),null,true);Column(RiskGrid,"Conn","ConnectionShown",85,true,Lang.T("Connection status"));((DataGridTextColumn)RiskGrid.Columns.Last()).SortMemberPath="Connection";Column(RiskGrid,"St","StatusShown",95,true,Lang.T("Copier / risk state"));((DataGridTextColumn)RiskGrid.Columns.Last()).SortMemberPath="Status";FullTextTip(RiskGrid,"StatusShown");Column(RiskGrid,"Preset","Preset",95,true,Lang.T("Editable firm template"));FullTextTip(RiskGrid,"Preset");Column(RiskGrid,"Cons","ConsistencyAdvice",95,true,Lang.T("Consistency advisory · not a broker guarantee"));FullTextTip(RiskGrid,"ConsistencyAdvice");OrderColumns(RiskGrid,RiskColumnOrder);
+            var action=new FrameworkElementFactory(typeof(Button));CompactCellButton(action,28);action.SetValue(Control.TemplateProperty,OffTemplate());action.SetValue(ContentControl.ContentProperty,"\uE713");action.SetValue(Control.FontFamilyProperty,new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"));action.SetValue(Control.BackgroundProperty,Panel);action.SetValue(Control.ForegroundProperty,Ink);action.SetValue(Control.BorderBrushProperty,Line);action.SetValue(Control.PaddingProperty,new Thickness(4,1,4,1));action.SetValue(FrameworkElement.ToolTipProperty,Lang.T("Account risk / template / history"));var gearStyle=new Style(typeof(Button));var gearLocked=new DataTrigger{Binding=new Binding("IsReadOnly"){RelativeSource=new RelativeSource(RelativeSourceMode.FindAncestor,typeof(DataGrid),1)},Value=true};gearLocked.Setters.Add(new Setter(UIElement.IsEnabledProperty,false));gearStyle.Triggers.Add(gearLocked);action.SetValue(FrameworkElement.StyleProperty,gearStyle);action.AddHandler(ButtonBase.ClickEvent,new RoutedEventHandler((s,e)=>{if(!editable){e.Handled=true;return;}var r=(s as FrameworkElement).DataContext as AccountRow;if(r!=null&&RowSettings!=null)RowSettings(r);}));RiskGrid.Columns.Add(new DataGridTemplateColumn{Header="⚙",Width=40,CellTemplate=new DataTemplate{VisualTree=action}});AddRow(risk,RiskGrid,2);
+            AddRow(risk,new TextBlock{Text=Lang.T("OFF cancels owned entries, retains exits · Re-follow explicit / only when clean · ATM OFF may be unprotected · Local guards only"),Foreground=Muted,FontSize=11,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,10,0,0)},3);Sections.Items.Add(new TabItem{Header=Lang.T("Settings"),Content=risk});
+        }
+        // Page 2 (Logs). Owner: UI v3 page 3 work.
+        void BuildLogPage()
+        {
+            var logPanel=new Grid();logPanel.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});logPanel.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});logPanel.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});
+            AddRow(logPanel,new TextBlock{Text=DashboardSafety.LogNoteShown,Foreground=Warn,FontSize=12,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,10)},0);
+            var logTools=new WrapPanel{Margin=new Thickness(0,0,0,8)};
+            LogLevelBox=Combo(96);LogLevelBox.Tag="logLevel";LogLevelBox.ItemsSource=new[]{Lang.T("All")}.Concat(LogClassifier.Levels.Select(x=>Lang.T(x))).ToArray();LogLevelBox.SelectedIndex=0;LogLevelBox.ToolTip=Lang.T("Show only one severity level");LogLevelBox.SelectionChanged+=(s,e)=>{if(logView!=null)logView.Refresh();};logTools.Children.Add(Labeled(Lang.T("Level"),LogLevelBox));
+            LogAccountBox=Combo(150);LogAccountBox.Tag="logAccount";LogAccountBox.ToolTip=Lang.T("Show only one account");LogAccountBox.DropDownOpened+=(s,e)=>RefreshLogAccounts();LogAccountBox.SelectionChanged+=(s,e)=>{if(logView!=null)logView.Refresh();};RefreshLogAccounts();logTools.Children.Add(Labeled(Lang.T("Account"),LogAccountBox));
+            LogSearchBox=Input("",150);LogSearchBox.Tag="logSearch";LogSearchBox.ToolTip=Lang.T("Search the log text");LogSearchBox.TextChanged+=(s,e)=>{if(logView!=null)logView.Refresh();};logTools.Children.Add(Labeled("⌕",LogSearchBox,17));
+            LogAutoBox=new CheckBox{Template=PlainCheckTemplate(),Content=Lang.T("Auto-scroll"),Foreground=Muted,IsChecked=true,Margin=new Thickness(0,2,10,0),Tag="logAuto"};logTools.Children.Add(LogAutoBox);
+            LogPlainBox=new CheckBox{Template=PlainCheckTemplate(),Content=Lang.T("Plain text"),Foreground=Muted,Margin=new Thickness(0,2,10,0),Tag="logPlain"};logTools.Children.Add(LogPlainBox);
+            logTools.Children.Add(TextToolFree(Lang.T("Export (account names masked)"),Lang.T("Write this log to a file with account names masked"),"logExport",()=>{var cb=ExportLog;if(cb!=null)cb();}));
+            logTools.Children.Add(TextTool(Lang.T("Clear log"),Lang.T("Clear this log view (does not affect settings, orders or saved latches)"),"logClear",()=>{ClearLog();var cb=ClearQueue;if(cb!=null)cb();}));
+            AddRow(logPanel,logTools,1);
+            var body=new Grid();
+            LogGrid=GridTable();LogGrid.IsReadOnly=true;LogGrid.Tag="logGrid";BuildLogColumns();
+            LogBox=Input("",double.NaN);LogBox.IsReadOnly=true;LogBox.FontFamily=new FontFamily("Consolas");LogBox.FontSize=12;LogBox.Foreground=Brush("#E4E1EC");LogBox.VerticalContentAlignment=VerticalAlignment.Top;LogBox.VerticalScrollBarVisibility=ScrollBarVisibility.Auto;LogBox.HorizontalScrollBarVisibility=ScrollBarVisibility.Auto;LogBox.Visibility=Visibility.Collapsed;LogBox.Tag="logPlainBox";
+            body.Children.Add(LogGrid);body.Children.Add(LogBox);
+            LogPlainBox.Checked+=(s,e)=>SetLogView(true);LogPlainBox.Unchecked+=(s,e)=>SetLogView(false);
+            AddRow(logPanel,body,2);
+            logTab=new TabItem{Header=Lang.T("Logs"),Content=logPanel};Sections.Items.Add(logTab);
+            logView=CollectionViewSource.GetDefaultView(logRows);logView.Filter=LogMatches;LogGrid.ItemsSource=logView;
+            Sections.SelectionChanged+=(s,e)=>{if(Sections.SelectedIndex==2){LogUnseen=0;UpdateLogTabHeader();RefreshLogAccounts();}};
+            Sections.SelectedIndex=0;
+        }
+        void BuildLogColumns()
+        {
+            LogGrid.Columns.Add(new DataGridTextColumn{Header=Lang.T("Time"),Binding=new Binding("Time"){Mode=BindingMode.OneWay,StringFormat="HH:mm:ss",ConverterCulture=CultureInfo.InvariantCulture},Width=78,IsReadOnly=true});
+            var lvl=new FrameworkElementFactory(typeof(TextBlock));lvl.SetBinding(TextBlock.TextProperty,new Binding("LevelText"){Mode=BindingMode.OneWay});lvl.SetValue(FrameworkElement.MarginProperty,new Thickness(9,0,9,0));lvl.SetValue(FrameworkElement.VerticalAlignmentProperty,VerticalAlignment.Center);
+            // No local Foreground on the cell: a local value outranks these style triggers and every level would stay Muted.
+            var lvStyle=new Style(typeof(TextBlock));lvStyle.Setters.Add(new Setter(TextBlock.ForegroundProperty,Muted));LogLevelTrigger(lvStyle,"Info",Muted);LogLevelTrigger(lvStyle,"Order",Good);LogLevelTrigger(lvStyle,"Warn",Warn);LogLevelTrigger(lvStyle,"Lock",Bad);LogLevelTrigger(lvStyle,"Error",Bad,true);lvl.SetValue(FrameworkElement.StyleProperty,lvStyle);
+            LogGrid.Columns.Add(new DataGridTemplateColumn{Header=Lang.T("Level"),Width=62,IsReadOnly=true,CellTemplate=new DataTemplate{VisualTree=lvl}});
+            var acct=new DataGridTextColumn{Header=Lang.T("Account"),Binding=new Binding("Account"){Mode=BindingMode.OneWay},Width=150,IsReadOnly=true};acct.ElementStyle=LogTextStyle("Account");LogGrid.Columns.Add(acct);
+            LogGrid.Columns.Add(new DataGridTextColumn{Header=Lang.T("Category"),Binding=new Binding("CategoryText"){Mode=BindingMode.OneWay},Width=92,IsReadOnly=true});
+            var msg=new DataGridTextColumn{Header=Lang.T("Message"),Binding=new Binding("MessageText"){Mode=BindingMode.OneWay},Width=new DataGridLength(1,DataGridLengthUnitType.Star),MinWidth=200,IsReadOnly=true};msg.ElementStyle=LogTextStyle("MessageText");LogGrid.Columns.Add(msg);
+        }
+        static Style LogTextStyle(string tooltipPath)
+        {
+            var s=new Style(typeof(TextBlock));s.Setters.Add(new Setter(TextBlock.TextTrimmingProperty,TextTrimming.CharacterEllipsis));if(!string.IsNullOrEmpty(tooltipPath))s.Setters.Add(new Setter(FrameworkElement.ToolTipProperty,new Binding(tooltipPath){Mode=BindingMode.OneWay}));return s;
+        }
+        static void LogLevelTrigger(Style s,string level,Brush brush,bool bold=false)
+        {
+            var t=new DataTrigger{Binding=new Binding("Level"),Value=level};t.Setters.Add(new Setter(TextBlock.ForegroundProperty,brush));if(bold)t.Setters.Add(new Setter(TextBlock.FontWeightProperty,FontWeights.Bold));s.Triggers.Add(t);
+        }
+        void RefreshLogAccounts()
+        {
+            int keep=LogAccountBox.SelectedIndex;
+            var items=new List<string>{Lang.T("All")};
+            foreach(var r in Rows)items.Add(string.IsNullOrEmpty(r.Alias)?r.Name:r.Alias);
+            LogAccountBox.ItemsSource=items.ToArray();LogAccountBox.SelectedIndex=(keep>=0&&keep<items.Count)?keep:0;
+            if(logView!=null)logView.Refresh();
+        }
+        bool LogMatches(object o)
+        {
+            var l=o as LogLine;if(l==null)return false;
+            int li=LogLevelBox==null?0:LogLevelBox.SelectedIndex;if(li>0&&li<=LogClassifier.Levels.Length&&l.Level!=LogClassifier.Levels[li-1])return false;
+            if(LogAccountBox!=null&&LogAccountBox.SelectedIndex>0){string sel=LogAccountBox.SelectedItem as string;string want=null;if(sel!=null){var row=Rows.FirstOrDefault(r=>r.Name==sel||r.Alias==sel);if(row!=null)want=row.Name;}if(want!=null&&l.Account!=want)return false;}
+            string q=LogSearchBox==null?"":(LogSearchBox.Text??"").Trim();if(q.Length>0&&(l.Text??"").IndexOf(q,StringComparison.OrdinalIgnoreCase)<0)return false;
+            return true;
+        }
+        void SetLogView(bool plain)
+        {
+            if(LogGrid!=null)LogGrid.Visibility=plain?Visibility.Collapsed:Visibility.Visible;
+            if(LogBox!=null)LogBox.Visibility=plain?Visibility.Visible:Visibility.Collapsed;
+            RebuildPlain();
+            if(plain&&LogBox!=null)LogBox.ScrollToEnd();
+        }
+        // Plain text is only kept while the plain view is shown (review: an always-on string copy grew without bound on the UI thread).
+        // It is rebuilt from logRows (capped at 2000) when the view is opened, then appended with AppendText (no full copy per line).
+        bool PlainShown{get{return LogPlainBox!=null&&LogPlainBox.IsChecked==true;}}
+        static string PlainLine(LogLine l){return l.Time.ToString("HH:mm:ss",CultureInfo.InvariantCulture)+"  "+Lang.Show(l.Text);}
+        void AppendLogPlain(LogLine l)
+        {
+            if(LogBox==null||!PlainShown)return;
+            if(LogBox.LineCount>2200){RebuildPlain();return;}
+            LogBox.AppendText((LogBox.Text.Length==0?"":Environment.NewLine)+PlainLine(l));
+        }
+        void RebuildPlain(){if(LogBox==null)return;LogBox.Text=PlainShown?string.Join(Environment.NewLine,logRows.Select(PlainLine)):"";}
+        void UpdateLogTabHeader(){if(logTab!=null)logTab.Header=LogUnseen>0?Lang.T("Logs")+" ("+LogUnseen+")":Lang.T("Logs");}
+        void ScrollLogToEnd()
+        {
+            if(LogGrid!=null&&logRows.Count>0)LogGrid.ScrollIntoView(logRows[logRows.Count-1]);
+            if(LogBox!=null&&LogPlainBox!=null&&LogPlainBox.IsChecked==true)LogBox.ScrollToEnd();
+        }
+        internal void AddLog(LogLine l)
+        {
+            if(l==null)return;
+            while(logRows.Count>=2000)logRows.RemoveAt(0);
+            logRows.Add(l);
+            if((l.Level=="Warn"||l.Level=="Lock"||l.Level=="Error")&&Sections.SelectedIndex!=2)LogUnseen++;
+            UpdateLogTabHeader();AppendLogPlain(l);
+            if(LogAutoBox!=null&&LogAutoBox.IsChecked==true&&Sections.SelectedIndex==2)ScrollLogToEnd();
+        }
+        internal void RebuildLog(IEnumerable<LogLine> lines,string plainText)
+        {
+            logRows.Clear();if(lines!=null)foreach(var l in lines)if(l!=null)logRows.Add(l);
+            if(LogBox!=null){RebuildPlain();LogBox.ScrollToEnd();}
+            UpdateLogTabHeader();
+        }
+        // Display order for the account tables: leader first, then the clicked column (if any), then the original account order.
+        // A full comparer (not SortDescriptions) because WPF's sort is not stable and would shuffle followers with equal keys.
+        sealed class LeaderFirstOrder : System.Collections.IComparer
+        {
+            readonly IList<AccountRow> rows;readonly System.Reflection.PropertyInfo prop;readonly int sign;
+            public LeaderFirstOrder(IList<AccountRow> rows,string path,ListSortDirection dir){this.rows=rows;prop=string.IsNullOrEmpty(path)?null:typeof(AccountRow).GetProperty(path);sign=dir==ListSortDirection.Descending?-1:1;}
+            public int Compare(object x,object y)
+            {
+                var a=x as AccountRow;var b=y as AccountRow;if(a==null||b==null)return 0;
+                int c=a.LeaderRank.CompareTo(b.LeaderRank);if(c!=0)return c;
+                if(prop!=null){c=sign*System.Collections.Comparer.DefaultInvariant.Compare(prop.GetValue(a,null),prop.GetValue(b,null));if(c!=0)return c;}
+                return rows.IndexOf(a).CompareTo(rows.IndexOf(b));
+            }
+        }
+        // Column-header sort that keeps the leader row on top. Replaces DataGrid's default, which clears every SortDescription.
+        void SortKeepingLeaderFirst(object sender,DataGridSortingEventArgs e)
+        {
+            var g=sender as DataGrid;var col=e.Column;if(g==null||col==null||string.IsNullOrEmpty(col.SortMemberPath))return;
+            e.Handled=true;
+            try{g.CommitEdit(DataGridEditingUnit.Row,true);}catch(InvalidOperationException){return;}
+            var dir=col.SortDirection==ListSortDirection.Ascending?ListSortDirection.Descending:ListSortDirection.Ascending;
+            foreach(var grid in new[]{AccountGrid,RiskGrid})foreach(var c in grid.Columns)if(c!=col)c.SortDirection=null;
+            col.SortDirection=dir;
+            ((ListCollectionView)view).CustomSort=new LeaderFirstOrder(Rows,col.SortMemberPath,dir);
+        }
+        // Re-sorts after the leader changes (Role is not a live-sorted property). Skipped while a cell is being edited.
+        public void ResortLeaderFirst()
+        {
+            try{AccountGrid.CommitEdit(DataGridEditingUnit.Row,true);RiskGrid.CommitEdit(DataGridEditingUnit.Row,true);view.Refresh();}
+            catch(InvalidOperationException){}
+        }
+        // Column order by importance (user request). Monitor: who -> is it safe (state, connection) -> exposure (qty, P/L, balance) ->
+        // sizing and limits -> row actions on the far right. Settings: who -> sizing (Ratio, Max) -> limits -> distance to limits -> live values -> notes.
+        internal static readonly string[] CopyColumnOrder={"On","Acct","Alias","State","Conn","Qty","P/L","Bal","Ratio","Tgt","DLL","ATM","Off","Flat"};
+        internal static readonly string[] RiskColumnOrder={"Acct","Alias","Grp","Preset","Ratio","Max","Tgt","DLL","FlatLim","AutoRefollow","To Tgt","Loss left","P/L","Qty","CCY","St","Conn","Cons"};
+        static void OrderColumns(DataGrid g,string[] keys)
+        {
+            int at=0;
+            foreach(var k in keys){var c=g.Columns.FirstOrDefault(x=>ColumnKey(x)==k);if(c==null)continue;int from=g.Columns.IndexOf(c);if(from!=at)g.Columns.Move(from,at);at++;}
+        }
+        // Page 3 (Issues): locks, settings notes and the header notice, with Unlock all. Its own tab so the Monitor table keeps
+        // the full height when many accounts are listed (user request). Appended last so the Monitor/Settings/Logs indexes do not move.
+        TabItem issuesTab;int IssueCount;string issuesSignature;
+        void BuildIssuesPage()
+        {
+            var page=new Grid{Tag="banner"};page.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});page.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});
+            var head=new DockPanel{Margin=new Thickness(0,0,0,10)};
+            var unlock=TextTool(Lang.T("Unlock all"),Lang.T("Unlock every locked follower that is flat, connected and no longer at a risk limit (one confirmation). The others stay locked with their reason in Logs. Does NOT start copying."),"unlockAll",()=>Send("unlockAll"));
+            DockPanel.SetDock(unlock,Dock.Left);head.Children.Add(unlock);
+            issuesEmpty=Text(Lang.T("No locks or notes."),12,Muted);issuesEmpty.Margin=new Thickness(12,0,0,0);head.Children.Add(issuesEmpty);
+            AddRow(page,head,0);
+            issuesLines=new StackPanel{Tag="issues"};
+            var scroll=new ScrollViewer{VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled,Content=issuesLines};
+            AddRow(page,scroll,1);
+            issuesTab=new TabItem{Header=Lang.T("Issues"),Content=page};Sections.Items.Add(issuesTab);
+        }
+        TextBlock issuesEmpty;
+        void UpdateIssuesTabHeader(){if(issuesTab==null)return;issuesTab.Header=IssueCount>0?Lang.T("Issues")+" ("+IssueCount+")":Lang.T("Issues");issuesTab.Foreground=IssueCount>0?Warn:null;}
+        // Row 3 footer: counts, session text, advice and locked lines.
+        void BuildFooter()
+        {
             var footer=new DockPanel{Margin=new Thickness(0,10,0,0)};lockedLine=Text("",12,Bad);lockedLine.FontWeight=FontWeights.SemiBold;lockedLine.Margin=new Thickness(12,0,12,0);DockPanel.SetDock(lockedLine,Dock.Right);footer.Children.Add(lockedLine);adviceLine=Text("",12,Warn);adviceLine.Margin=new Thickness(12,0,12,0);DockPanel.SetDock(adviceLine,Dock.Right);footer.Children.Add(adviceLine);selection=Text("",12,Muted);DockPanel.SetDock(selection,Dock.Right);footer.Children.Add(selection);SessionText=Text(Lang.T("Disarmed"),11,Muted);SessionText.Margin=new Thickness(12,0,12,0);DockPanel.SetDock(SessionText,Dock.Right);footer.Children.Add(SessionText);summary=Text("",12,Muted);footer.Children.Add(summary);AddRow(this,footer,3);
-            Rows.CollectionChanged+=(s,e)=>{if(e.OldItems!=null)foreach(AccountRow r in e.OldItems)r.FollowRequested-=OnFollowRequested;if(e.NewItems!=null)foreach(AccountRow r in e.NewItems)r.FollowRequested+=OnFollowRequested;};view=CollectionViewSource.GetDefaultView(Rows);view.Filter=Matches;AccountGrid.ItemsSource=view;RiskGrid.ItemsSource=view;AttachColumnMenu(ColumnPrefs.Copy,AccountGrid,columnsBarCopy);AttachColumnMenu(ColumnPrefs.Risk,RiskGrid,columnsBarRisk);
-            PreviewKeyDown+=(s,e)=>{if(e.Key==System.Windows.Input.Key.F&&System.Windows.Input.Keyboard.Modifiers==System.Windows.Input.ModifierKeys.Control){FocusSearch();e.Handled=true;}else if(e.Key==System.Windows.Input.Key.Escape&&search.IsKeyboardFocusWithin){SearchText="";e.Handled=true;}};search.TextChanged+=(s,e)=>{view.Refresh();UpdateCards();};filter.SelectionChanged+=(s,e)=>{view.Refresh();UpdateCards();};group.Checked+=(s,e)=>GroupByAccount=true;group.Unchecked+=(s,e)=>GroupByAccount=false;ShowLive.Checked+=(s,e)=>Send("refresh");ShowLive.Unchecked+=(s,e)=>Send("refresh");AccountGrid.SelectionChanged+=(s,e)=>UpdateCards();RiskGrid.SelectionChanged+=(s,e)=>UpdateCards();Sections.SelectionChanged+=(s,e)=>{if(summary!=null)UpdateCards();};
-            if(demo){for(int i=1;i<=30;i++)Rows.Add(new AccountRow{Name="Demo "+i.ToString("00"),Alias="Eval "+i,Group=i<=10?"Tradeify":i<=20?"Lucid":"Topstep",Role=i==1?"Leader":"Follower",Connection="Synthetic",Enabled=i>1,Currency="USD",Status=i%7==0?"Target hit":i%4==0?"Paused":"Demo only",Paused=i%4==0,Pnl=i%4==0?-120:i*24.5,Settings=new RiskSettings{Alias="Eval "+i,Group=i<=10?"Tradeify":i<=20?"Lucid":"Topstep",Target=1000,Loss=500,Ratio=1,MaxContracts=4,Preset=Lang.T("Demo / not broker data")}});LeaderBox.ItemsSource=new[]{"Demo 01"};LeaderBox.SelectedIndex=0;ShowLive.IsEnabled=false;}UpdateCards();
         }
         void OnFollowRequested(AccountRow row,bool enabled){if(!demo&&FollowRow!=null)FollowRow(row,enabled);UpdateCards();}
         bool Matches(object value){var r=value as AccountRow;if(r==null)return false;string q=search.Text.Trim();if(q.Length>0&&!(r.Name+" "+r.Alias+" "+r.Group+" "+r.Preset).ToLowerInvariant().Contains(q.ToLowerInvariant()))return false;int f=filter.SelectedIndex;return f==1?r.Enabled:f==2?r.Paused||r.Latch.Locked:f==3?r.Status=="Target hit":true;}
         void Send(string c){if(demo||!DashboardSafety.CanExecute(c))return;var cmd=Command;if(cmd!=null)cmd(c);}
-        public bool GroupByAccount{get{return view.GroupDescriptions.Count>0;}set{view.GroupDescriptions.Clear();if(value)view.GroupDescriptions.Add(new PropertyGroupDescription("Group"));}}
+        public bool GroupByAccount{get{return view.GroupDescriptions.Count>0;}set{view.GroupDescriptions.Clear();if(value)view.GroupDescriptions.Add(new PropertyGroupDescription("Group"));if(groupBox!=null&&groupBox.IsChecked!=value)groupBox.IsChecked=value;}}
         public bool FocusSearch(){if(!search.IsEnabled)return false;Sections.SelectedIndex=0;search.Focus();search.SelectAll();return true;}
         public void SelectAllAccounts(){search.Clear();filter.SelectedIndex=0;view.Refresh();AccountGrid.SelectAll();}
         public void SelectVisible(){AccountGrid.UnselectAll();foreach(var r in view.Cast<AccountRow>())AccountGrid.SelectedItems.Add(r);}
@@ -3078,14 +4190,16 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             if(!editable)return "Locked while attached or on review hold";
             var targets=SelectedRows().Where(r=>r.CanFollow).ToArray();
             if(targets.Length==0)return "Highlight at least one follower account first";
-            double amount=0;bool atm=false;
-            if(field=="Tgt"||field=="DLL"){if(!BulkEdit.TryParseAmount(text,out amount))return "Enter a plain amount like 1000 (0 = off); no commas, signs or text";}
+            double amount=0;bool atm=false;int max=0;string t0=(text??"").Trim();
+            if(field=="Ratio"){if(!(t0.Length>0&&double.TryParse(t0,NumberStyles.AllowDecimalPoint,CultureInfo.InvariantCulture,out amount)&&RiskPolicy.Finite(amount)&&amount>0))return "Ratio must be a plain positive number like 1 or 0.5: no commas, signs or text";}
+            else if(field=="Max"){if(!(t0.Length>0&&int.TryParse(t0,NumberStyles.None,CultureInfo.InvariantCulture,out max)&&max>=1))return "Max must be a whole number >= 1";}
+            else if(field=="Tgt"||field=="DLL"){if(!BulkEdit.TryParseAmount(text,out amount))return "Enter a plain amount like 1000 (0 = off); no commas, signs or text";}
             else if(field=="ATM"||field=="LimitFlat"){if(text=="on")atm=true;else if(text=="off")atm=false;else return "ATM value must be on or off";}
             else if(field=="Diverge"){if(!DivergenceChoice.IsValid(text))return "On divergence must be Notify or FlattenOnce";}
             else return "Unknown bulk field";
             foreach(var r in targets)
             {
-                if(field=="Tgt")r.Target=amount;else if(field=="DLL")r.Loss=amount;else if(field=="Diverge")r.OnDivergence=text;else if(field=="LimitFlat")r.FlatOnLimit=atm;else r.CopyAtm=atm;
+                if(field=="Ratio")r.Ratio=amount;else if(field=="Max")r.MaxContracts=max;else if(field=="Tgt")r.Target=amount;else if(field=="DLL")r.Loss=amount;else if(field=="Diverge")r.OnDivergence=text;else if(field=="LimitFlat")r.FlatOnLimit=atm;else r.CopyAtm=atm;
                 r.Changed();
             }
             UpdateCards();return null;
@@ -3105,26 +4219,31 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             string div=leader.OnDivergence;bool lf=leader.FlatOnLimit;foreach(var r in targets){r.Target=tgt;r.Loss=dll;r.CopyAtm=atm;r.OnDivergence=div;r.FlatOnLimit=lf;r.Changed();}
             UpdateCards();return null;
         }
-        public void ClearLog(){LogBox.Text="";}
-        public bool BulkBarPresent{get{return bulkBar!=null&&AccountGrid.Parent!=null;}}
+        public void ClearLog(){LogBox.Text="";logRows.Clear();LogUnseen=0;UpdateLogTabHeader();}
+        public bool BulkBarPresent{get{return bulkBar!=null&&RiskGrid.Parent!=null;}}
         internal Action<string> BulkNotice;
         void BulkLeaderClick(){var reason=BulkFromLeader();var n=BulkNotice;if(n!=null)n(reason==null?"Copied leader Tgt / DLL / ATM to followers (one-time); Ratio and ticks unchanged. Edit any row to fine-tune.":"From Leader refused: "+reason);}
-        void BulkClick(string field,string text){var reason=BulkApply(field,text);var n=BulkNotice;if(n!=null)n(reason==null?"Bulk "+field+" applied to highlighted followers; Ratio and ticks unchanged.":"Bulk "+field+" refused: "+reason);}
+        void BulkClick(string field,string text){var reason=BulkApply(field,text);var n=BulkNotice;if(n!=null)n(reason==null?"Bulk "+field+" applied to highlighted followers; follow ticks unchanged.":"Bulk "+field+" refused: "+reason);}
         public void SetSelectedPause(bool paused){foreach(var r in SelectedRows().Where(r=>r.CanFollow)){if(!demo&&PauseRow!=null)PauseRow(r,paused);else{r.Paused=paused;r.Changed();}}UpdateCards();}
         public AccountRow[] SelectedRows(){return (Sections.SelectedIndex==1?RiskGrid:AccountGrid).SelectedItems.Cast<AccountRow>().ToArray();}
-        public void UpdateCards(){if(summary==null)return;int ticked=Rows.Count(r=>r.Enabled&&r.Role!="Leader");FollowCountText.Text=Lang.F("→  {0} followers  ",ticked);var ccy=Rows.Select(r=>r.Currency).Where(s=>!string.IsNullOrEmpty(s)).Distinct().ToArray();summary.Text=Lang.F("{0} TICKED  /  {1} ACCTS     ·     P/L  {2}",ticked,Rows.Count,ccy.Length<=1?Rows.Sum(r=>RiskPolicy.Finite(r.Pnl)?r.Pnl:0).ToString("N2")+" "+ccy.FirstOrDefault():Lang.T("Mixed CCY"));selection.Text=Lang.F("{0} sel / {1} rows",SelectedRows().Length,VisibleCount);if(adviceLine!=null)adviceLine.Text=AdviceText;if(lockedLine!=null)lockedLine.Text=LockedText;}
+        public void UpdateCards(){if(summary==null)return;int ticked=Rows.Count(r=>r.Enabled&&r.Role!="Leader");FollowCountText.Text=Lang.F("→  {0} followers  ",ticked);var ccy=Rows.Select(r=>r.Currency).Where(s=>!string.IsNullOrEmpty(s)).Distinct().ToArray();summary.Text=Lang.F("{0} TICKED  /  {1} ACCTS     ·     P/L  {2}",ticked,Rows.Count,ccy.Length<=1?MonitorSummary.Money(Rows.Sum(r=>RiskPolicy.Finite(r.Pnl)?r.Pnl:0),ccy.FirstOrDefault()):Lang.T("Mixed CCY"));selection.Text=Lang.F("{0} sel / {1} rows",SelectedRows().Length,VisibleCount);if(adviceLine!=null)adviceLine.Text=AdviceText;if(lockedLine!=null)lockedLine.Text=LockedText;UpdateHeaderState();UpdateMonitor();}
         internal bool TrySetSessionState(bool attached,string status,int callbackSession,int currentSession,bool currentAttached){if(callbackSession!=currentSession||attached!=currentAttached)return false;SetSessionState(attached,status);return true;}
-        internal void SetSessionState(bool attached,string status){if(!attached)foreach(var row in Rows)row.InvalidateSessionActivity();SessionText.Text=DashboardSafety.CanExecute("start")?Lang.Show(status):(attached?Lang.T("REVIEW HOLD · unexpected attachment"):Lang.T("Disarmed"));SessionText.ToolTip=Lang.Show(status);Editable(!attached);UpdateCards();}
+        // Last session state shown (true = attached to a copy session). Read by the header badge (WP1).
+        internal bool SessionAttached{get;private set;}
+        internal void SetSessionState(bool attached,string status){SessionAttached=attached;if(!attached)foreach(var row in Rows)row.InvalidateSessionActivity();SessionText.Text=DashboardSafety.CanExecute("start")?Lang.Show(status):(attached?Lang.T("REVIEW HOLD · unexpected attachment"):Lang.T("Disarmed"));SessionText.ToolTip=Lang.Show(status);Editable(!attached);UpdateCards();}
         internal void Editable(bool canEdit){editable=canEdit;LeaderBox.IsEnabled=canEdit;InstrumentBox.IsEnabled=canEdit;ShowLive.IsEnabled=canEdit&&!demo;AccountGrid.IsReadOnly=!canEdit;RiskGrid.IsReadOnly=!canEdit;foreach(var b in editButtons)b.IsEnabled=canEdit;
 #if KINFX_SIM_TEST
             if(DryRunBox!=null)DryRunBox.IsEnabled=canEdit;
 #endif
-            StartButton.IsEnabled=canEdit&&!demo&&DashboardSafety.CanExecute("start");}
+            StartButton.IsEnabled=canEdit&&!demo&&DashboardSafety.CanExecute("start");EditableHeader(canEdit);EditableMonitor(canEdit);EditableSettings(canEdit);EditableLogs(canEdit);}
     }
     public class KINFXTradeCopier : AddOnBase
     {
         readonly Dictionary<Window,Tuple<NTMenuItem,NTMenuItem>> menus=new Dictionary<Window,Tuple<NTMenuItem,NTMenuItem>>();
-        protected override void OnStateChange() {if(State==State.SetDefaults){Name="KINFXTradeCopier";Description="KINFX multi-account simulation copier with local risk Dashboard";}}
+        protected override void OnStateChange() {if(State==State.SetDefaults){Name="KINFXTradeCopier";Description="KINFX multi-account simulation copier with local risk Dashboard";}else if(State==State.Active)Live=this;else if(State==State.Terminated&&ReferenceEquals(Live,this))Live=null;}
+        // The active AddOn instance: email alerts go through its NinjaScript.SendMail (NinjaTrader's default email share service).
+        internal static volatile KINFXTradeCopier Live;
+        internal void Mail(string to,string subject,string body){SendMail(to,subject,body);}
         protected override void OnWindowCreated(Window window)
         {
             if(!(window is ControlCenter))return;var parent=window.FindFirst("ControlCenterMenuItemNew") as NTMenuItem;if(parent==null)return;
@@ -3205,34 +4324,158 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         DashboardView dashboard; // replaced when the language changes (see ChangeLanguage)
         readonly CopierEngine engine;
         readonly DispatcherTimer timer;
-        readonly Queue<string> logs=new Queue<string>();
-        // Stored as "HH:mm:ss" + English message; translated when drawn, so history follows the picked language.
-        const int LogStamp=8;
-        string LogText(){return string.Join(Environment.NewLine,logs.Select(l=>l.Length>LogStamp+2?l.Substring(0,LogStamp+2)+Lang.Show(l.Substring(LogStamp+2)):l));}
-        internal void RedrawLog(){dashboard.LogBox.Text=LogText();dashboard.LogBox.ScrollToEnd();}
+        readonly Queue<LogLine> logs=new Queue<LogLine>();
+        const int LogCap=2000;
+        bool logFileErrorLogged=false;
+        // Plain-text form of the in-memory queue (translated when drawn, so history follows the picked language).
+        string LogText(){var sb=new System.Text.StringBuilder();foreach(var l in logs)sb.Append(l.Time.ToString("HH:mm:ss",CultureInfo.InvariantCulture)).Append("  ").Append(Lang.Show(l.Text)).AppendLine();return sb.ToString();}
+        internal void RedrawLog(){dashboard.RebuildLog(logs,LogText());}
+        // Daily log lines are buffered and written once per timer tick (and on close), not one open/write/close per line on the UI thread.
+        // Each line goes to the file of its own date, so a line logged at 23:59:59 and flushed after midnight stays in that day's file.
+        readonly List<LogLine> dailyPending=new List<LogLine>();
+        void AppendDailyFile(LogLine line)
+        {
+            if(logFileErrorLogged||line==null)return;
+            dailyPending.Add(line);
+            if(dailyPending.Count>=500)FlushDailyFile();
+        }
+        readonly object closeFileLock=new object();
+        void CloseTimeFileLine(string message)
+        {
+            if(logFileErrorLogged)return;
+            try
+            {
+                var line=LogClassifier.Classify(message??"",new string[0]);line.Time=DateTime.Now;
+                string dir=Path.Combine(DirectoryPath,"logs");
+                lock(closeFileLock){Directory.CreateDirectory(dir);foreach(var file in LogClassifier.DailyFiles(new[]{line}))File.AppendAllText(Path.Combine(dir,file.Key),file.Value,new System.Text.UTF8Encoding(false));}
+            }
+            catch{}
+        }
+        void FlushDailyFile()
+        {
+            lock(closeFileLock)FlushDailyFileLocked();
+        }
+        void FlushDailyFileLocked()
+        {
+            if(dailyPending.Count==0)return;
+            var batch=dailyPending.ToArray();dailyPending.Clear();
+            if(logFileErrorLogged)return;
+            try
+            {
+                string dir=Path.Combine(DirectoryPath,"logs");Directory.CreateDirectory(dir);
+                foreach(var file in LogClassifier.DailyFiles(batch))
+                    File.AppendAllText(Path.Combine(dir,file.Key),file.Value,new System.Text.UTF8Encoding(false));
+            }
+            catch(Exception ex)
+            {
+                logFileErrorLogged=true;
+                var err=LogClassifier.Classify("Log file write failed (daily log disabled for this session): "+ex.Message,dashboard.Rows.Select(r=>r.Name));err.Time=DateTime.Now;
+                logs.Enqueue(err);while(logs.Count>LogCap)logs.Dequeue();dashboard.AddLog(err);
+            }
+        }
+        void ExportLogFile()
+        {
+            try
+            {
+                string dir=Path.Combine(DirectoryPath,"logs");Directory.CreateDirectory(dir);
+                string file=Path.Combine(dir,"export-"+DateTime.Now.ToString("yyyyMMdd-HHmmss")+".txt");
+                var names=dashboard.Rows.Select(r=>r.Name).ToArray();
+                var sb=new System.Text.StringBuilder();
+                foreach(var l in logs)sb.Append(l.Time.ToString("yyyy-MM-dd HH:mm:ss")).Append("  ").Append(l.Level).Append("  ").Append(LogExport.Mask(l.Text,names)).AppendLine();
+                File.WriteAllText(file,sb.ToString(),new System.Text.UTF8Encoding(false));
+                Log("Log exported to "+file+" (account names masked).");
+            }
+            catch(Exception ex){Log("Log export failed: "+ex.Message);}
+        }
+        // ---- Email alerts: notify.txt + NinjaTrader's default email share service (no password or SMTP server in KINFX). ----
+        string NotifyPath {get{return Path.Combine(DirectoryPath,"notify.txt");}}
+        NotifyPrefs.Settings notify=NotifyPrefs.Defaults();readonly NotifyPrefs.Limiter notifyLimiter=new NotifyPrefs.Limiter();
+        static NotifyPrefs.Settings LoadNotify(string path){try{if(File.Exists(path))return NotifyPrefs.Parse(File.ReadAllLines(path));}catch{}return NotifyPrefs.Defaults();}
+        void SaveNotify(NotifyPrefs.Settings s)
+        {
+            if(s==null)return;
+            if(s.To.Length>0&&!NotifyPrefs.IsAddress(s.To)){SetNotifyStatus(Lang.T("Not saved: enter one plain email address like name@example.com"),true);return;}
+            try{Directory.CreateDirectory(DirectoryPath);SettingsStore.AtomicWriteLines(NotifyPath,NotifyPrefs.Serialize(s));notify=s;Log(s.Enabled?"Email alerts on: "+string.Join(", ",NotifyPrefs.Kinds.Where(k=>s.On.Contains(k))):"Email alerts off.");SetNotifyStatus(Lang.T(s.Enabled?"Saved. Alerts are on.":"Saved. Alerts are off."),false);}
+            catch(Exception ex){Log("Settings NOT saved: "+ex.Message);SetNotifyStatus(Lang.F("Settings NOT saved: {0}",ex.Message),true);}
+        }
+        void SetNotifyStatus(string text,bool bad){if(dashboard!=null&&dashboard.NotifyStatus!=null){dashboard.NotifyStatus.Text=text;dashboard.NotifyStatus.Foreground=bad?DashboardView.Bad:DashboardView.Muted;}}
+        void TestNotify(NotifyPrefs.Settings s)
+        {
+            if(s==null||!NotifyPrefs.IsAddress(s.To)){SetNotifyStatus(Lang.T("Enter one plain email address like name@example.com first."),true);return;}
+            SendNotifyMail(s.To,"KINFX Trade Copier: test","Test mail from KINFX Trade Copier through NinjaTrader's email share service. No order was sent.",true);
+        }
+        // Called for every recorded log line on the UI thread. Mail is handed to NinjaTrader off the UI thread; a failure is logged once
+        // (as Warn, so it never mails itself) and never affects copying.
+        void NotifyFor(LogLine line)
+        {
+            var mail=NotifyPrefs.Decide(notify,notifyLimiter,line,dashboard.Rows.Select(r=>r.Name),DateTime.Now);
+            if(mail!=null)SendNotifyMail(notify.To,mail.Subject,mail.Body,false);
+        }
+        DateTime notifyFailLoggedAt=DateTime.MinValue;
+        void SendNotifyMail(string to,string subject,string body,bool test)
+        {
+            System.Threading.Tasks.Task.Run(()=>
+            {
+                string err=null;
+                try{var live=KINFXTradeCopier.Live;if(live==null)throw new InvalidOperationException("KINFX AddOn is not active in NinjaTrader");live.Mail(to,subject,body);}
+                catch(Exception ex){err=ex.GetBaseException().Message;}
+                Dispatch(()=>
+                {
+                    if(err==null){if(test){Log("Email test handed to NinjaTrader for "+LogExport.Mask(to,new string[0])+"; check the inbox and NinjaTrader's log.");SetNotifyStatus(Lang.T("Test handed to NinjaTrader. Check your inbox; if nothing arrives, check Tools > Options > General > Share services."),false);}}
+                    else{if(test||DateTime.Now-notifyFailLoggedAt>=TimeSpan.FromMinutes(10)){if(!test)notifyFailLoggedAt=DateTime.Now;Log("Email alert not sent (blocked by NinjaTrader share service): "+err);}if(test)SetNotifyStatus(Lang.T("Email not sent: ")+err,true);}
+                });
+            });
+        }
         readonly Dictionary<string,SavedAccount> saved=new Dictionary<string,SavedAccount>();
         string instanceId=Guid.NewGuid().ToString("N"),zone="Central Standard Time",lastDay="";
         int resetHour=17,persistTicks;
         bool cleaned,loading,settingsCorrupt;
+        // Set while Cleanup runs: Log() then records synchronously (the dispatcher queue is not drained after close), so close-time lines reach the daily file.
+        bool closing;
         string leaderName="";
+        readonly HashSet<string> estimatedLogged=new HashSet<string>(StringComparer.Ordinal);
+        static bool ntVersionLogged;
         public KINFXTradeCopierTab()
         {
             TabName="Dashboard";Lang.Set(LoadLanguage(LanguagePath));askSkipped=LoadAsk(AskPath);dashboard=new DashboardView();Content=dashboard;
             engine=new CopierEngine(Log,OnTelemetry,(attached,status)=>{int session=engine.SessionGeneration;Dispatch(()=>dashboard.TrySetSessionState(attached,status,session,engine.SessionGeneration,engine.Attached));},PersistLatch);
             WireDashboard();
             LoadDefault();Refresh();syncNames=CurrentAccountNames();
-            timer=new DispatcherTimer(TimeSpan.FromSeconds(1),DispatcherPriority.Background,(s,e)=>Tick(),Dispatcher);timer.Start();
+            timer=new DispatcherTimer(TimeSpan.FromSeconds(1),DispatcherPriority.Background,(s,e)=>{Tick();FlushDailyFile();},Dispatcher);timer.Start();
         }
         // Everything that attaches this tab to a DashboardView. Repeated for a rebuilt view after a language change.
         void WireDashboard()
         {
             dashboard.LanguageChanging=ChangeLanguage;dashboard.Command=Command;dashboard.BulkNotice=Log;dashboard.PauseRow=Pause;dashboard.RowSettings=r=>Edit(new[]{r});dashboard.FollowRow=Follow;dashboard.FlatRow=FlatOne;ShowAsk();dashboard.AskChanged=SetAsk;
+            notify=LoadNotify(NotifyPath);dashboard.ShowNotify(notify);dashboard.NotifySave=SaveNotify;dashboard.NotifyTest=TestNotify;
             dashboard.ApplyColumns(LoadColumns(ColumnsPath));dashboard.ColumnsChanged=SaveColumns;
-            dashboard.LeaderBox.SelectionChanged+=(s,e)=>{if(engine.Attached)return;leaderName=dashboard.LeaderBox.SelectedItem as string ?? "";foreach(var row in dashboard.Rows){row.Role=row.Name==leaderName?"Leader":"Follower";if(row.Role=="Leader")row.Enabled=false;row.Changed();}};
+            dashboard.LeaderBox.SelectionChanged+=(s,e)=>{if(engine.Attached)return;leaderName=dashboard.LeaderBox.SelectedItem as string ?? "";foreach(var row in dashboard.Rows){row.Role=row.Name==leaderName?"Leader":"Follower";if(row.Role=="Leader")row.Enabled=false;row.Changed();}dashboard.ResortLeaderFirst();};
             dashboard.AccountGrid.RowEditEnding+=(s,e)=>Dispatch(()=>{foreach(var row in dashboard.Rows){row.Changed();}dashboard.UpdateCards();});
             dashboard.InstrumentBox.LostKeyboardFocus+=(s,e)=>NormalizeInstrumentBox();
             dashboard.InstrumentBox.KeyDown+=(s,e)=>{if(e.Key==System.Windows.Input.Key.Enter){NormalizeInstrumentBox();e.Handled=true;}};
+            WireWp1();WireWp2();WireWp3();
         }
+        // Work-package wiring hooks: each package fills only its own method.
+        void WireWp1()  // WP1 instrument picker / header
+        {
+            dashboard.InstrumentPicked+=()=>{if(engine.Attached)return;RecordRecent(dashboard.InstrumentBox.Text);NormalizeInstrumentBox();dashboard.UpdateCards();};
+            dashboard.RecentRoots=LoadRecent;
+            string actual="";
+            try{var v=NinjaTrader.Core.Globals.ProductVersion;if(v!=null)actual=v.ToString();}catch{}
+            dashboard.HeaderNotice=NtVersion.Notice(actual);
+            if(!string.IsNullOrEmpty(dashboard.HeaderNotice)&&!ntVersionLogged){ntVersionLogged=true;Log(dashboard.HeaderNotice);}
+        }
+        //
+        //
+        //
+        void WireWp2(){}  // WP2 monitor + settings pages (all wiring lives in the view constructor / build methods)
+        //
+        //
+        //
+        void WireWp3(){dashboard.ExportLog=ExportLogFile;dashboard.ClearQueue=()=>logs.Clear();}  // WP3 log page
+        //
+        //
+        //
         // Switching language rebuilds the view (all labels are created once). Rows, ticks, drafts and the log are carried over;
         // nothing reaches the engine, and it is refused while a session is attached so a running copy is never disturbed.
         bool ChangeLanguage(string code)
@@ -3283,7 +4526,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             
             string z=(string)x.Attribute("zone")??"Central Standard Time";TimeZoneInfo.FindSystemTimeZoneById(z);zone=z;
             resetHour=(int?)x.Attribute("resetHour")??17;if(resetHour<0||resetHour>23)throw new InvalidDataException(Lang.T("Reset hour outside 0–23"));
-            lastDay=(string)x.Attribute("lastDay")??"";leaderName=(string)x.Attribute("leader")??"";
+            lastDay=(string)x.Attribute("lastDay")??"";boundaryMode=BoundaryMode.Parse((string)x.Attribute("boundary"));leaderName=(string)x.Attribute("leader")??"";
             // Enabled, pause/arm and live permissions are intentionally NOT persisted.
         }
         void Refresh()
@@ -3312,7 +4555,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         XElement Export()
         {
             foreach(var r in dashboard.Rows)saved[r.Name]=Record(r);
-            var x=SettingsStore.ToXml(saved.Values,dashboard.InstrumentBox.Text.Trim(),zone,resetHour);x.SetAttributeValue("id",instanceId);x.SetAttributeValue("leader",leaderName);x.SetAttributeValue("lastDay",lastDay);return x;
+            var x=SettingsStore.ToXml(saved.Values,dashboard.InstrumentBox.Text.Trim(),zone,resetHour);x.SetAttributeValue("id",instanceId);x.SetAttributeValue("leader",leaderName);x.SetAttributeValue("lastDay",lastDay);x.SetAttributeValue("boundary",boundaryMode);return x;
         }
         void Persist()
         {
@@ -3322,18 +4565,28 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         }
         void Log(string message)
         {
-            Dispatch(()=>{logs.Enqueue(DateTime.Now.ToString("HH:mm:ss")+"  "+message);while(logs.Count>300)logs.Dequeue();RedrawLog();});
+            Action record=()=>
+            {
+                var line=LogClassifier.Classify(message,dashboard.Rows.Select(r=>r.Name));line.Time=DateTime.Now;
+                logs.Enqueue(line);while(logs.Count>LogCap)logs.Dequeue();
+                dashboard.AddLog(line);AppendDailyFile(line);NotifyFor(line);
+            };
+            if(closing&&Dispatcher.CheckAccess()){record();return;}
+            // Engine worker during close (engine.Dispose runs close() on its own thread): the dispatcher queue is not drained any more,
+            // so append the line straight to the daily file. No UI or queue access off the UI thread.
+            if(closing){CloseTimeFileLine(message);return;}
+            Dispatch(record);
         }
         AccountRow[] Selected() {return dashboard.SelectedRows();}
         // Title stays English: automation finds this dialog by it and must not depend on the picked language. Body text is translated.
         bool Confirm(string text) {return MessageBox.Show(Window.GetWindow(this),text,"KINFX confirmation",MessageBoxButton.YesNo,MessageBoxImage.Warning)==MessageBoxResult.Yes;}
-        // A skippable confirmation. When the user turned this kind off (Risk tab, "Ask before") the action goes ahead and the Logs tab says so.
+        // A skippable confirmation. When the user turned this kind off (Settings tab, "Ask before") the action goes ahead and the Logs tab says so.
         // riskWarning=true (an account in scope is not confirmed simulated) always shows the window, whatever was saved.
         bool Confirm(string kind,string text,bool riskWarning)
         {
             askSkipped=LoadAsk(AskPath); // another Dashboard tab may have changed it: the file is the only truth (unreadable file = ask everything)
             if(ConfirmPrefs.MustAsk(kind,askSkipped,riskWarning))return Confirm(text);
-            Log("Confirmation skipped (turned off on the Risk tab): "+ConfirmPrefs.Label(kind));
+            Log("Confirmation skipped (turned off on the Settings tab): "+ConfirmPrefs.Label(kind));
 #if KINFX_SIM_TEST
             if(kind==ConfirmPrefs.Start)Log(dashboard.DryRunBox!=null&&dashboard.DryRunBox.IsChecked==true?"Dry run is ON: nothing will be sent.":"Dry run is OFF: real simulation orders WILL be sent.");
 #endif
@@ -3377,7 +4630,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             {
                 if(!DashboardSafety.CanExecute(c)){Log("REVIEW HOLD: trading and bulk edits disabled. Inspect Dashboard only; use native NT8 for positions.");return;}
                 if(c=="refresh"){Refresh();return;}if(c=="save"){Persist();Log("Settings saved; startup stays disarmed.");return;}
-                if(c=="pause"){engine.GuardedPause();return;}if(c=="stop"){engine.StopFlat();return;}
+                if(c=="pause"){engine.GuardedPause();return;}if(c=="resume"){Resume();return;}if(c=="refollow"){RefollowClosed(false);return;}if(c=="stop"){engine.StopFlat();return;}
                 if(c=="start"){Start();return;}if(c=="flattenSelected"||c=="flattenAll"){Flatten(c=="flattenSelected"?Selected():dashboard.Rows.ToArray(),ConfirmPrefs.KindFor(c));return;}
                 if(c=="pauseSelected"||c=="resumeSelected"){dashboard.SetSelectedPause(c=="pauseSelected");return;}
                 if(engine.Attached){Log("Settings / enabled edits blocked during session. Pause per account or stop when flat first.");return;}
@@ -3390,12 +4643,13 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         }
         void EditTradingDay()
         {
-            var window=new Window {Title=Lang.T("Trading-day settings (local observation)"),Width=500,Height=280,Owner=Window.GetWindow(this),WindowStartupLocation=WindowStartupLocation.CenterOwner,Background=DashboardView.Canvas,Foreground=DashboardView.Ink};
+            var window=new Window {Title=Lang.T("Trading-day settings (local observation)"),Width=500,Height=340,Owner=Window.GetWindow(this),WindowStartupLocation=WindowStartupLocation.CenterOwner,Background=DashboardView.Canvas,Foreground=DashboardView.Ink};
             var panel=new StackPanel {Margin=new Thickness(20)};window.Content=panel;
             panel.Children.Add(new TextBlock {Text=Lang.T("Windows timezone ID (DST aware)"),Margin=new Thickness(0,0,0,8)});var z=new TextBox {Text=zone,Padding=new Thickness(8)};panel.Children.Add(z);
             panel.Children.Add(new TextBlock {Text=Lang.T("Reset boundary hour 0–23 (no automatic latch / baseline reset)"),TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,10,0,8)});var h=new TextBox {Text=resetHour.ToString(),Padding=new Thickness(8)};panel.Children.Add(h);
+            var pauseAt=new CheckBox{Content=Lang.T("Pause new entries at the boundary (off = notice only)"),IsChecked=boundaryMode==BoundaryMode.Pause,Foreground=DashboardView.Ink,Margin=new Thickness(0,12,0,0),Tag="boundaryPause"};panel.Children.Add(pauseAt);
             var apply=new Button {Content=Lang.T("Confirm local day boundary"),Padding=new Thickness(8),Margin=new Thickness(0,14,0,0)};panel.Children.Add(apply);
-            apply.Click+=(s,e)=>{try{TimeZoneInfo.FindSystemTimeZoneById(z.Text.Trim());int hour;if(!int.TryParse(h.Text,out hour)||hour<0||hour>23)throw new ArgumentException(Lang.T("Hour must be 0–23"));zone=z.Text.Trim();resetHour=hour;lastDay=RiskPolicy.TradingDay(DateTime.UtcNow,zone,resetHour);Persist();window.Close();}catch(Exception ex){MessageBox.Show(window,ex.Message,Lang.T("Invalid trading-day setting"));}};window.ShowDialog();
+            apply.Click+=(s,e)=>{try{TimeZoneInfo.FindSystemTimeZoneById(z.Text.Trim());int hour;if(!int.TryParse(h.Text,out hour)||hour<0||hour>23)throw new ArgumentException(Lang.T("Hour must be 0–23"));zone=z.Text.Trim();resetHour=hour;boundaryMode=pauseAt.IsChecked==true?BoundaryMode.Pause:BoundaryMode.Notify;lastDay=RiskPolicy.TradingDay(DateTime.UtcNow,zone,resetHour);Persist();window.Close();}catch(Exception ex){MessageBox.Show(window,ex.Message,Lang.T("Invalid trading-day setting"));}};window.ShowDialog();
         }
         void Start()
         {
@@ -3437,6 +4691,41 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         }
         // Unlock all: one confirmation for every locked follower. Each account is checked with the same rules as the single unlock (RiskPolicy.UnlockBlock);
         // only the ones that pass are unlocked, the rest stay locked and the Logs tab names why. Still disarmed afterwards; nothing is sent.
+        // ---- S1: resume after a pause, trading-day boundary mode, re-follow closed followers ----
+        string boundaryMode=BoundaryMode.Pause;
+        void Resume()
+        {
+            if(!engine.CanResume){Log("Resume refused: entries were stopped by a safety block, not by a pause; Stop when flat, then Start.");return;}
+            if(!ConfirmScope(ConfirmPrefs.Start,Lang.T("Resume NEW entries?\n\nEntries the leader opened while paused are NOT copied (no catch-up); only later new entries are. Locked or unticked followers stay as they are."),new Account[0]))
+            {Log("Resume cancelled; still paused.");return;}
+            engine.ResumeEntries();
+        }
+        // auto=true: Tick() pass for opted-in followers; no dialog, one log line per account.
+        // Auto re-follow: one attempt per close, never spent while entries are off (see AutoRefollowGate).
+        readonly AutoRefollowGate autoRefollow=new AutoRefollowGate();
+        void RefollowClosed(bool auto)
+        {
+            if(!engine.Attached)return;
+            var leader=dashboard.Rows.FirstOrDefault(r=>r.Role=="Leader");int leaderPos=leader==null?0:leader.Position;
+            var followers=dashboard.Rows.Where(r=>r.Role!="Leader").ToArray();
+            AccountRow[] rows;
+            if(auto)
+            {
+                var eligible=followers.Where(r=>Refollow.Auto(r.AutoRefollow,r.UserFlattened,r.ExitClosed,r.Enabled||r.FollowPending,r.Latch.Locked,r.Paused,r.Connection=="Connected",r.Position,leaderPos)).Select(r=>r.Name);
+                var take=new HashSet<string>(autoRefollow.Take(engine.SessionGeneration,engine.EntriesArmed,eligible,followers.Where(r=>r.ExitClosed).Select(r=>r.Name)),StringComparer.Ordinal);
+                rows=followers.Where(r=>take.Contains(r.Name)).ToArray();
+                if(rows.Length==0)return;
+            }
+            else
+            {
+                rows=followers.Where(r=>Refollow.Eligible(r.ExitClosed,r.Enabled||r.FollowPending,r.Latch.Locked,r.Paused,r.Connection=="Connected",r.Position)).ToArray();
+                if(rows.Length==0){Log("Re-follow: no closed account is flat, connected and unlocked.");return;}
+                if(!ConfirmScope(ConfirmPrefs.Start,Lang.F("Tick {0} closed account(s) again?\n{1}\n\nOnly LATER new entries are copied; nothing is caught up. Each account is checked again (flat, connected, unlocked).",rows.Length,string.Join("\n",rows.Select(r=>r.Alias.Length>0?r.Alias+" ("+r.Name+")":r.Name))),rows.Select(r=>r.Account).Where(a=>a!=null).ToArray()))
+                {Log("Re-follow cancelled; nothing changed.");return;}
+            }
+            foreach(var r in rows){r.Enabled=true;Log((auto?"Auto re-follow: ":"Re-follow: ")+r.Name+" — only later new entries are copied.");}
+            dashboard.UpdateCards();
+        }
         void UnlockAll()
         {
             var locked=dashboard.Rows.Where(r=>r.Role!="Leader"&&r.Latch.Locked).ToArray();
@@ -3497,6 +4786,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             if(rows.Length==0){Log("No accounts in flatten scope.");return;}var inst=Instrument.GetInstrument(InstrumentText(),false);if(inst==null){Log("Flatten: exact instrument unknown.");return;}
             var targets=rows.Where(r=>r.Account!=null).Select(r=>r.Account).Distinct().ToArray();
             if(!ConfirmScope(kind,Lang.F("{0}{1}FLATTEN exactly {2} account(s), only {3}.\n{4}\nNew copies will be blocked BEFORE flatten requests. This cancels working orders and closes positions on that instrument. Retry/error remains visible.",DryRunPrefix(),kind==ConfirmPrefs.FlatOne?Lang.T("FLAT ONE ACCOUNT. "):"",targets.Length,inst.FullName,string.Join("\n",targets.Select(a=>a.Name))),targets))return;
+            foreach(var r in rows)if(r.Account!=null)r.UserFlattened=true;
             engine.Flatten(targets,inst);
         }
         void OnTelemetry(AccountTelemetry t)
@@ -3543,7 +4833,35 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             string exact=ContractRoll.Normalize(typed,DateTime.Now);
             if(exact==null){if(!string.IsNullOrWhiteSpace(typed)&&Instrument.GetInstrument(typed.Trim(),false)==null)Log("Instrument \""+typed.Trim()+"\" not recognised. Examples: MNQ, ES 12-26, NQZ6.");return;}
             if(exact!=typed.Trim()){dashboard.InstrumentBox.Text=exact;}
+            string root=exact.Split(' ')[0];
+            if(InstrumentCatalog.IsEstimated(root,DateTime.Now)&&!estimatedLogged.Contains(root)){estimatedLogged.Add(root);Log(Lang.F("Contract roll date estimated for {0}; check NinjaTrader's Instrument Manager.",root));}
             if(Instrument.GetInstrument(exact,false)==null)Log("Instrument "+exact+" is not available in this NinjaTrader (check the contract month / Instrument Manager).");
+        }
+        // Recent instrument roots (last 5, most recent first) for the picker. Persisted inside DirectoryPath.
+        string RecentPath{get{return Path.Combine(DirectoryPath,"instruments-recent.txt");}}
+        string[] LoadRecent()
+        {
+            try{if(File.Exists(RecentPath))return File.ReadAllLines(RecentPath);}catch{}
+            return new string[0];
+        }
+        void RecordRecent(string instrumentText)
+        {
+            var root=(instrumentText??"").Trim().Split(' ')[0].Trim().ToUpperInvariant();
+            if(!InstrumentCatalog.IsKnown(root))return;
+            try
+            {
+                Directory.CreateDirectory(DirectoryPath);
+                var list=new List<string>{root};
+                foreach(var line in LoadRecent())
+                {
+                    var r=(line??"").Trim().ToUpperInvariant();
+                    if(r.Length==0||!InstrumentCatalog.IsKnown(r)||r==root||list.Contains(r))continue;
+                    list.Add(r);
+                    if(list.Count>=5)break;
+                }
+                SettingsStore.AtomicWriteLines(RecentPath,list.ToArray());
+            }
+            catch(Exception ex){Log("Settings NOT saved: "+ex.Message);}
         }
         string[] syncNames=new string[0];string syncNoticeKey="";
         // Names of the accounts the dashboard WOULD list right now (same filter as Refresh). Read-only: touches no account state.
@@ -3584,13 +4902,16 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                     {
                         var a=r.Account;r.Position=qtyInst==null?0:CopierEngine.Position(a,qtyInst);r.Realized=a.Get(AccountItem.RealizedProfitLoss,a.Denomination);r.Unrealized=a.Get(AccountItem.UnrealizedProfitLoss,a.Denomination);r.Equity=a.Get(AccountItem.NetLiquidation,a.Denomination);r.Sod=a.Get(AccountItem.SodLiquidatingValue,a.Denomination);r.Pnl=r.Realized+r.Unrealized-(r.Settings.BaselineSet?r.Settings.Baseline:0);r.Connection=a.Connection==null?"Disconnected":a.Connection.Status.ToString();r.Changed();
                     }
-                    catch(Exception ex){r.Status="Telemetry error";Log(r.Name+": "+ex.Message);}
+                    catch(Exception ex){r.Status="Telemetry error";r.Changed();Log(r.Name+": "+ex.Message);}
                 }
                 dashboard.UpdateCards();
             }
             if(engine.Attached && ++persistTicks>=30){persistTicks=0;Persist();}
+            dashboard.ShowResume(engine.CanResume);
+            if(engine.Attached){try{RefollowClosed(true);}catch(Exception ex){Log("Auto re-follow error: "+ex.Message);}}
+            {var lr=dashboard.Rows.FirstOrDefault(r=>r.Role=="Leader");int lp=lr==null?0:lr.Position;dashboard.ShowRefollow(engine.Attached?dashboard.Rows.Count(r=>r.Role!="Leader"&&Refollow.Eligible(r.ExitClosed,r.Enabled||r.FollowPending,r.Latch.Locked,r.Paused,r.Connection=="Connected",r.Position)):0);}
             string day=RiskPolicy.TradingDay(DateTime.UtcNow,zone,resetHour);
-            if(lastDay.Length==0){lastDay=day;return;}if(day!=lastDay){lastDay=day;engine.GuardedPause();Log("Trading-day boundary "+zone+" "+resetHour+":00 (DST aware). New entries paused. Baseline / latch NOT auto-reset. Confirm new baseline and unlock while flat.");Persist();}
+            if(lastDay.Length==0){lastDay=day;return;}if(day!=lastDay){lastDay=day;if(boundaryMode==BoundaryMode.Notify)Log("Trading-day boundary "+zone+" "+resetHour+":00 (DST aware). Notice only: entries NOT paused. Baseline / latch NOT auto-reset.");else{engine.GuardedPause();Log("Trading-day boundary "+zone+" "+resetHour+":00 (DST aware). New entries paused. Baseline / latch NOT auto-reset. Confirm new baseline and unlock while flat.");}Persist();}
         }
         public bool CanClose() {try{return engine.CanClose();}catch{return false;}}
         protected override string GetHeaderPart(string variable) {return "Dashboard";}
@@ -3603,7 +4924,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 dashboard.Rows.Clear();Refresh();}
             catch(Exception ex){settingsCorrupt=true;Log("Restore failed — Start blocked: "+ex.Message);}
         }
-        public override void Cleanup() {if(cleaned)return;timer.Stop();Persist();engine.Dispose();cleaned=true;base.Cleanup();}
+        public override void Cleanup() {if(cleaned)return;timer.Stop();closing=true;Persist();engine.Dispose();FlushDailyFile();cleaned=true;base.Cleanup();}
     }
     public class KINFXTradeCopierWindowFactory : INTTabFactory
     {

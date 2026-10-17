@@ -286,11 +286,11 @@
     "demo",
     "prop"
    ],
-   "evidence": "Real NT 2026-10-14: 1 Simulator leader + 11 prop-firm sim followers (5 Lucid, 6 Tradeify) on MNQ, Market + Limit + Stop, TP/SL OCO. Leader fill to follower Submit: all 11 within 6 ms of each other; follower fills 0.9-1.2 s after the leader fill (sim provider). Not measured: 20-30 accounts, multi-monitor DPI. Real NT 2026-10-15, source bfc8a2531acf: 10 prop-firm sim followers (4 Lucid, 6 Tradeify) MNQ Buy 1 / Sell 1 round trip, every follower exactly 2 orders (entry + exit), all filled, 0 open positions / orders afterwards.",
-   "ach_en": "10-30 accounts on real NT",
-   "ach_zh": "真實 NT 的 10–30 個帳戶測試",
-   "ach_ja": "実機 NT で 10–30 口座",
-   "ach_ko": "실제 NT에서 10–30 계좌"
+   "evidence": "Real NT 2026-10-14: 1 Simulator leader + 11 prop-firm sim followers (5 Lucid, 6 Tradeify) on MNQ, Market + Limit + Stop, TP/SL OCO. Leader fill to follower Submit: all 11 within 6 ms of each other; follower fills 0.9-1.2 s after the leader fill (sim provider). Not measured: 20-30 accounts, multi-monitor DPI. Real NT 2026-10-15, source bfc8a2531acf: 10 prop-firm sim followers (4 Lucid, 6 Tradeify) MNQ Buy 1 / Sell 1 round trip, every follower exactly 2 orders (entry + exit), all filled, 0 open positions / orders afterwards. 2026-10-17: label narrowed to what was run (10-11 followers); the level stays 3 for the measured scope, 20-30 accounts remain listed as not proved (README limits).",
+   "ach_en": "10-11 accounts on real NT (20-30 not yet)",
+   "ach_zh": "真實 NT 測試 10–11 個帳戶（20–30 個尚未測試）",
+   "ach_ja": "実機 NT で 10–11 口座（20–30 は未実施）",
+   "ach_ko": "실제 NT에서 10–11 계좌（20–30은 아직）"
   },
   {
    "id": "ui",

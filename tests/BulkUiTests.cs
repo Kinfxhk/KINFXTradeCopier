@@ -5,10 +5,10 @@ using System.Windows.Controls;
 using NinjaTrader.NinjaScript.AddOns.Kinfx;
 // Synthetic DEMO only: no accounts, no engine, no orders. Exercises the bulk-edit bar on the real DashboardView.
 public static class BulkUiTests {
- static void Layout(FrameworkElement e){e.Measure(new Size(1500,950));e.Arrange(new Rect(0,0,1500,950));e.UpdateLayout();System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(System.Windows.Threading.DispatcherPriority.ContextIdle,new Action(()=>{}));e.UpdateLayout();}
- static void Check(bool ok,string m){if(!ok)throw new Exception(m);}
- static DashboardView Fresh(){var v=new DashboardView(true);v.Editable(true);Layout(v);return v;}
- static void Select(DashboardView v,params int[] idx){v.AccountGrid.UnselectAll();foreach(int i in idx)v.AccountGrid.SelectedItems.Add(v.Rows[i]);}
+ internal static void Layout(FrameworkElement e){e.Measure(new Size(1500,950));e.Arrange(new Rect(0,0,1500,950));e.UpdateLayout();System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(System.Windows.Threading.DispatcherPriority.ContextIdle,new Action(()=>{}));e.UpdateLayout();}
+ internal static void Check(bool ok,string m){if(!ok)throw new Exception(m);}
+ internal static DashboardView Fresh(){var v=new DashboardView(true);v.Editable(true);Layout(v);return v;}
+ internal static void Select(DashboardView v,params int[] idx){v.AccountGrid.UnselectAll();foreach(int i in idx)v.AccountGrid.SelectedItems.Add(v.Rows[i]);}
  static void RiskDialogInvalidDraftSurvivesPresetLoad() {
   var initial=new RiskSettings{Floor=100};var dialog=new RiskSettingsDialog(initial,"MES",1);
   try {
@@ -58,7 +58,7 @@ public static class BulkUiTests {
  }
  // Pixel-level check: render a control on a dark host and measure the average luminance of its own area. Template triggers (hover / disabled) are only visible this way.
  // Render the WHOLE real dashboard (this is what R.exe proved renders correctly off-screen) and measure only the pixels covered by `el`.
- static double Luma(FrameworkElement el){
+ internal static double Luma(FrameworkElement el){
   var root=el;while(root.Parent as FrameworkElement!=null)root=(FrameworkElement)root.Parent;
   var host=root as DashboardView;if(host==null)throw new Exception("control is not inside a DashboardView");
   Layout(host);var origin=el.TransformToAncestor(host).Transform(new Point(0,0));
@@ -70,7 +70,7 @@ public static class BulkUiTests {
    for(int y=by;y<by+8;y+=2)for(int x=bx;x<bx+8;x+=2){int i=(y*W+x)*4;sum+=0.2126*px[i+2]+0.7152*px[i+1]+0.0722*px[i];n++;}
    double avg=sum/n;if(avg>best)best=avg;}
   return best;}
- static T FindDescendant<T>(DependencyObject root) where T:DependencyObject{
+ internal static T FindDescendant<T>(DependencyObject root) where T:DependencyObject{
   int n=System.Windows.Media.VisualTreeHelper.GetChildrenCount(root);
   for(int i=0;i<n;i++){var c=System.Windows.Media.VisualTreeHelper.GetChild(root,i);var t=c as T;if(t!=null)return t;var d=FindDescendant<T>(c);if(d!=null)return d;}
   return null;}
@@ -79,7 +79,7 @@ public static class BulkUiTests {
   var key=typeof(UIElement).GetField("IsMouseOverPropertyKey",System.Reflection.BindingFlags.Static|System.Reflection.BindingFlags.NonPublic);
   Check(key!=null,"IsMouseOverPropertyKey reachable");
   var k=(DependencyPropertyKey)key.GetValue(null);toggle.SetValue(k,true);double l=Luma(measured);toggle.ClearValue(k);return l;}
- static int WhitePx(FrameworkElement el){
+ internal static int WhitePx(FrameworkElement el){
   var host=el;while(host.Parent as FrameworkElement!=null)host=(FrameworkElement)host.Parent;var dv=host as DashboardView;if(dv==null)throw new Exception("not inside a DashboardView");
   Layout(dv);var o=el.TransformToAncestor(dv).Transform(new Point(0,0));int W=1500,H=950;
   var rtb=new System.Windows.Media.Imaging.RenderTargetBitmap(W,H,96,96,System.Windows.Media.PixelFormats.Pbgra32);rtb.Render(dv);var px=new byte[W*H*4];rtb.CopyPixels(px,W*4,0);
@@ -91,7 +91,7 @@ public static class BulkUiTests {
   var v=Fresh();v.Sections.SelectedIndex=0;Layout(v);
   Func<string,double,string,double> textW=(txt,size,fam)=>{var t=new System.Windows.Media.Typeface(new System.Windows.Media.FontFamily(fam),FontStyles.Normal,FontWeights.Normal,FontStretches.Normal);return new System.Windows.Media.FormattedText(txt,System.Globalization.CultureInfo.InvariantCulture,FlowDirection.LeftToRight,t,size,System.Windows.Media.Brushes.White).WidthIncludingTrailingWhitespace;};
   var worst=new System.Collections.Generic.Dictionary<string,double>{
-   {"Bal",textW("1,250,000.00 USD",13,"Segoe UI")+18},          // BalanceText cell, 9px margins
+   {"Bal",textW("-$1,250,000.00",13,"Segoe UI")+18},          // BalanceText cell, 9px margins
    {"State",textW("Rechecking",13,"Segoe UI")+22},               // longest StateLabel + lamp/padding
    {"P/L",textW("-123,456.78",13,"Consolas")+18}};
   foreach(var c in v.AccountGrid.Columns){
@@ -219,7 +219,7 @@ public static class BulkUiTests {
   Check(!v.StartButton.IsEnabled,"Start stays held regardless of advice");
   Check(v.Rows[0].Advice=="","leader row never gets follower advice");
  }
- static System.Collections.Generic.IEnumerable<T> Visual<T>(DependencyObject d) where T:DependencyObject{for(int i=0;i<System.Windows.Media.VisualTreeHelper.GetChildrenCount(d);i++){var c=System.Windows.Media.VisualTreeHelper.GetChild(d,i);if(c is T)yield return (T)c;foreach(var n in Visual<T>(c))yield return n;}}
+ internal static System.Collections.Generic.IEnumerable<T> Visual<T>(DependencyObject d) where T:DependencyObject{for(int i=0;i<System.Windows.Media.VisualTreeHelper.GetChildrenCount(d);i++){var c=System.Windows.Media.VisualTreeHelper.GetChild(d,i);if(c is T)yield return (T)c;foreach(var n in Visual<T>(c))yield return n;}}
  // Account name hidden by default (applied by the tab from columns.txt defaults), Alias identifies the row: tooltip = full account name.
  static void AccountNameHiddenByDefaultAliasCarriesTheName(){
   var v=Fresh();v.ApplyColumns(ColumnPrefs.Parse(null));Layout(v);
@@ -278,13 +278,13 @@ public static class BulkUiTests {
   Check(!v.StartButton.IsEnabled,"Start stays held");
  }
  // Tgt / DLL are text columns: a TextBlock until the cell enters edit mode. Use the grid's real edit path.
- static TextBox CellBox(DashboardView v,string header,AccountRow row){
+ internal static TextBox CellBox(DashboardView v,string header,AccountRow row){
   var col=v.AccountGrid.Columns.Single(c=>(string)c.Header==header);v.AccountGrid.ScrollIntoView(row,col);Layout(v);
   v.AccountGrid.SelectedItem=row;v.AccountGrid.CurrentCell=new DataGridCellInfo(row,col);
   if(!v.AccountGrid.BeginEdit()){throw new Exception("grid refused to enter edit mode for "+header);}Layout(v);
   var cell=col.GetCellContent(row);var tb=cell as TextBox??(cell==null?null:Visual<TextBox>(cell).FirstOrDefault());
   if(tb==null)throw new Exception("no TextBox after BeginEdit in "+header+" cell ("+(cell==null?"null":cell.GetType().Name)+")");return tb;}
- static void TypeBad(TextBox tb,string text){tb.Focus();tb.Text=text;var be=tb.GetBindingExpression(TextBox.TextProperty);if(be!=null)be.UpdateSource();}
+ internal static void TypeBad(TextBox tb,string text){tb.Focus();tb.Text=text;var be=tb.GetBindingExpression(TextBox.TextProperty);if(be!=null)be.UpdateSource();}
  // A malformed hand-typed Target must survive a broad refresh and must block commit; it must never silently turn into the old value.
  static void BadTargetDraftSurvivesRefreshAndBlocksCommit(){
   var v=Fresh();var row=v.Rows[1];var tb=CellBox(v,"Tgt",row);
@@ -329,7 +329,7 @@ public static class BulkUiTests {
  }
  // Issue #5: the SAME draft rules for Ratio (positive finite) and Max (whole number >= 1). Typed junk is kept visible, blocks commit,
  // and the accepted value stays the last valid one.
- static TextBox CellBoxIn(DataGrid g,string header,AccountRow row){
+ internal static TextBox CellBoxIn(DataGrid g,string header,AccountRow row){
   var col=g.Columns.First(c=>(c.Header as string)==header);g.SelectedItem=row;g.CurrentCell=new DataGridCellInfo(row,col);
   if(!g.BeginEdit())throw new Exception("grid refused to enter edit mode for "+header);Layout(Fresh0);
   var cell=col.GetCellContent(row);return cell as TextBox??(cell==null?null:Visual<TextBox>(cell).FirstOrDefault());}
@@ -384,17 +384,17 @@ public static class BulkUiTests {
   row.Latch.Locked=false;row.Latch.Reason="";row.Changed();v.UpdateCards();
   Check(v.LockedCount==0&&v.LockedText=="","footer clears when the latch is gone");
  }
- // Unlock all: one button on the Copy tab, only while stopped (edit button), sends exactly one "unlockAll" command; the demo view never sends.
+ // Unlock all: one button on the Issues tab (moved off Monitor so the table keeps its height), only while stopped (edit button), sends exactly one "unlockAll" command; the demo view never sends.
  static Button UnlockAllButton(DashboardView v){return Visual<Button>(v).FirstOrDefault(b=>(b.Tag as string)=="unlockAll");}
  static void UnlockAllButtonIsOnCopyTabAndOnlyWhileStopped(){
-  var v=new DashboardView(false);v.Editable(true);v.Sections.SelectedIndex=0;Layout(v);
+  var v=new DashboardView(false);v.Editable(true);v.Sections.SelectedIndex=3;Layout(v);
   var b=UnlockAllButton(v);Check(b!=null,"Unlock all button exists");Check(b.ActualWidth>20&&b.IsEnabled,"laid out and enabled while stopped");
   Check((b.Content as string)==Lang.T("Unlock all"),"label is the translated Unlock all");
   var sent=new System.Collections.Generic.List<string>();v.Command=c=>sent.Add(c);
   b.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
   Check(sent.Count==1&&sent[0]=="unlockAll","one click = exactly one unlockAll command; got ["+string.Join(",",sent)+"]");
   v.Editable(false);Check(!b.IsEnabled,"disabled while a session is attached");
-  var d=Fresh();var db=UnlockAllButton(d);Check(db!=null,"demo view has the button too");var ds=new System.Collections.Generic.List<string>();d.Command=c=>ds.Add(c);
+  var d=Fresh();d.Sections.SelectedIndex=3;Layout(d);var db=UnlockAllButton(d);Check(db!=null,"demo view has the button too");var ds=new System.Collections.Generic.List<string>();d.Command=c=>ds.Add(c);
   db.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));Check(ds.Count==0,"demo view never sends a command");
   Check(!v.StartButton.IsEnabled||DashboardSafety.CanExecute("start"),"Start unchanged by the button");
  }
@@ -489,7 +489,7 @@ public static class BulkUiTests {
     Func<string,DataGridColumn> col=key=>v.RiskGrid.Columns.First(c=>DashboardView.ColumnKey(c)==key);
     Check(col("Tgt").Width.Value>=100&&col("DLL").Width.Value>=100,code+": Tgt / DLL at least 100 px");
     foreach(var k in new[]{"St","Preset","Cons"})Check(col(k).Width.Value<=120,code+": "+k+" at most 120 px ("+col(k).Width.Value+")");
-    foreach(var k in new[]{"St","Preset"}){var b=((DataGridTextColumn)col(k)).Binding as System.Windows.Data.Binding;Check(b!=null&&(b.Path.Path=="Status"||b.Path.Path=="Preset"),code+": "+k+" binds a property, not a label: "+(b==null?"null":b.Path.Path));}
+    foreach(var k in new[]{"St","Preset"}){var b=((DataGridTextColumn)col(k)).Binding as System.Windows.Data.Binding;Check(b!=null&&(b.Path.Path=="StatusShown"||b.Path.Path=="Preset"),code+": "+k+" binds a property, not a label: "+(b==null?"null":b.Path.Path));}
     foreach(var k in new[]{"St","Preset","Cons"}){var st=((DataGridTextColumn)col(k)).ElementStyle;Check(st.Setters.OfType<Setter>().Any(x=>x.Property==FrameworkElement.ToolTipProperty),code+": "+k+" has a full-text tooltip");}
    }
   }finally{Lang.Set(keep);}
@@ -506,7 +506,7 @@ public static class BulkUiTests {
   Check(v.BulkApply("LimitFlat","maybe")!=null,"bad value refused");
  }
  // Column visibility (user request 2026-10-14: the Risk tab felt crowded). Display only.
- static DataGridColumn Col(DataGrid g,string key){return g.Columns.First(c=>DashboardView.ColumnKey(c)==key);}
+ internal static DataGridColumn Col(DataGrid g,string key){return g.Columns.First(c=>DashboardView.ColumnKey(c)==key);}
  static void ColumnsCanBeHiddenButSafetyColumnsNever(){
   var v=Fresh();
   System.Collections.Generic.HashSet<string> saved=null;v.ColumnsChanged=h=>saved=h;
@@ -556,12 +556,14 @@ public static class BulkUiTests {
   try{
    AppDomain.CurrentDomain.AssemblyResolve+=(s,e)=>{string n=e.Name.Split(',')[0];if(n.EndsWith(".resources"))return null;var loaded=AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a=>a.GetName().Name==n);if(loaded!=null)return loaded;string p=System.IO.Path.Combine("C:/Program Files/NinjaTrader 8/bin",n+".dll");return System.IO.File.Exists(p)?System.Reflection.Assembly.LoadFrom(p):null;};
    var all=new Action[]{UnlockAllButtonIsOnCopyTabAndOnlyWhileStopped,PnlIsGreenForProfitRedForLossMutedForZero,AccountNameHiddenByDefaultAliasCarriesTheName,ColumnsCanBeHiddenButSafetyColumnsNever,DeltaColumnsHaveReadableNames,FlatAtLimitIsPerRowDefaultOffAndBulkScoped,RiskColumnsWidthAndBindingsInEveryLanguage,AskBeforeSwitchesDefaultOnAndReportKind,CopyColumnsFitWorstCaseContentAndWasteNothing,EveryVisibleHeaderAndTabIsTranslatedExceptKeptAbbreviations,StateFilterWorksInEveryLanguage,LanguagesRenderTranslatedHeadersAndKeepEnglishKeys,LanguagesNeverTruncateOrShowMojibake,LanguageSwitchKeepsRowsAndRefusesOnlyBadInput,PlainCheckBoxesStayDark,ComboAndInputStayDarkWhenDisabledOrHovered,TargetAndLossApplyToSelectedOnly,ZeroTurnsLimitOff,RatioStaysIndependent,InvalidInputChangesNothing,NoSelectionIsRefused,LeaderIsNotEdited,AtmToggleBulk,LockedWhenNotEditable,NeverTouchesFollowOrTrading,BarIsOnCopyTabAndKeepsHolds,FromLeaderCopiesToHighlighted,FromLeaderWithoutHighlightHitsAllVisibleFollowers,FromLeaderRespectsSearchFilter,FromLeaderKeepsRatioTickAndOtherFields,ManualEditAfterwardsSticksAndNoLiveLink,FromLeaderRefusedWhenLockedOrNoLeader,FromLeaderNeverTouchesFollowOrTrading,AdviceShownPerRowAndCounted,AdviceUpdatesAfterBulkApply,AdviceNeverBlocksOrChangesSettings,RatioCellFitsCommonValuesAt1160,LogsReadableAndTopAligned,LogClearWorksAndIsEditableIndependent,BadTargetDraftSurvivesRefreshAndBlocksCommit,BadLossDraftSurvivesRefreshAndBlocksCommit,BadTargetDraftSurvivesRecyclingAndStillBlocksCommit,TargetAndLossSetterRejectInvalidNumbers,LockedAccountIsRedWithReasonAndCountedInFooter,LockedCountIgnoresLeaderAndNeverBlocksUi,BadRatioDraftSurvivesRefreshAndBlocksCommit,UnprotectedReasonReachesRowAndDetail,MaxContractsRejectsInvalidAndKeepsDraft,DivergenceChoiceIsPerAccountDefaultsToNotify,DivergenceBulkAndFromLeaderAndNeverTrades,FlattenOnceShowsAWarningNote,FlatColumnExistsAndEveryFollowerRowHasItsOwnButton,FlatButtonOnLeaderRowIsDisabled,FlatButtonRequestsExactlyThatRowAndNothingElse,FlatAndOffAreDifferentControlsWithDifferentGlyphsAndTips,FlatButtonFitsItsCellAtNarrowWidth,FlatCanFlatFollowsSimAndLeaderRules,FlatOnARealViewForwardsExactlyTheClickedRowOnce};
+   // Work-package fixtures (tests/UiTestsWp1.cs ...): each optional class exposes public static Action[] Cases(). Missing classes are skipped.
+   var extra=new System.Collections.Generic.List<Action>(all);foreach(var tn in new[]{"UiTestsWp1","UiTestsWp2","UiTestsWp3"}){var ty=typeof(BulkUiTests).Assembly.GetType(tn);if(ty==null)continue;var m=ty.GetMethod("Cases");if(m!=null)extra.AddRange((Action[])m.Invoke(null,null));}all=extra.ToArray();
    int failed=0;foreach(var a in all){try{a();Console.WriteLine("PASS "+a.Method.Name);}catch(Exception ex){failed++;Console.WriteLine("FAIL "+a.Method.Name+" :: "+ex.Message);}}
    return failed==0?0:1;
   }catch(Exception ex){Console.WriteLine("HARNESS "+ex);return 2;}
  }
 // Appended to BulkUiTests.cs (WPF suite). Renders the REAL DashboardView in each language.
- static System.Collections.Generic.List<string> Texts(DependencyObject root){
+ internal static System.Collections.Generic.List<string> Texts(DependencyObject root){
   var list=new System.Collections.Generic.List<string>();
   Action<DependencyObject> walk=null;walk=d=>{
    var tb=d as TextBlock;if(tb!=null&&!string.IsNullOrEmpty(tb.Text))list.Add(tb.Text);
@@ -569,7 +571,7 @@ public static class BulkUiTests {
    int n=System.Windows.Media.VisualTreeHelper.GetChildrenCount(d);for(int i=0;i<n;i++)walk(System.Windows.Media.VisualTreeHelper.GetChild(d,i));};
   walk(root);return list;
  }
- static bool Truncated(FrameworkElement e){
+ internal static bool Truncated(FrameworkElement e){
   var tb=e as TextBlock;if(tb==null||tb.ActualWidth<1)return false;
   var t=new System.Windows.Media.Typeface(tb.FontFamily,tb.FontStyle,tb.FontWeight,tb.FontStretch);
   var ft=new System.Windows.Media.FormattedText(tb.Text,System.Globalization.CultureInfo.CurrentUICulture,FlowDirection.LeftToRight,t,tb.FontSize,System.Windows.Media.Brushes.Black);
