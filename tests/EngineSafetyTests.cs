@@ -1780,6 +1780,46 @@ class EngineSafetyTests {
    Check(!e.EntriesArmed,"entries stop when the leader is gone");
    Reco(l);l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Drain(e);e.Poll();Drain(e);
    Check(a.Submits==0&&b.Submits==0,"a leader order after the reconnect is not copied: the sessions stay locked until the user restarts");}}
+ // Real NT 2026-10-21: leader disconnected while every follower was flat with nothing working. The followers locked (correct), but Stop when
+ // flat stayed refused until each one was flattened by hand, because the lock also marked its execution evidence unresolved. A FLAT, quiet
+ // follower holds no evidence: Stop must detach after the position-lag grace, and the lock must stay until an explicit unlock.
+ static void LeaderDisconnectWhileAllFlatAllowsStopAndKeepsLocks(){var l=Acc("ldflat lead");var a=Acc("ldflat a");var b=Acc("ldflat b");var locked=new List<string>();
+  using(var e=new CopierEngine(s=>{},t=>{},(att,s)=>{},(n,r)=>{lock(locked)locked.Add(n);})){
+   e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10,Target=100},new RiskLatch()),Tuple.Create(b,new RiskSettings{MaxContracts=10,Target=100},new RiskLatch())});Wait(()=>e.EntriesArmed,"arm");
+   Disc(l);e.Poll();Drain(e);Wait(()=>{lock(locked)return locked.Count==2;},"both followers latched");
+   Reco(l);Thread.Sleep(3300);e.Poll();Drain(e);
+   e.StopFlat();Drain(e);
+   Check(!e.Attached,"flat, quiet followers after a leader disconnect must not block Stop when flat");
+   Check(a.Submits==0&&b.Submits==0&&a.Flattens==0&&b.Flattens==0,"nothing was sent to make Stop possible");
+   lock(locked)Check(locked.Count==2,"the leader-disconnect locks stay (only an explicit unlock clears them)");}}
+ // Counterpart: a follower still HOLDING a copied position when the leader drops keeps the session attached (no silent detach).
+ static void LeaderDisconnectWhileHoldingStillBlocksStop(){var l=Acc("ldhold lead");var a=Acc("ldhold a");
+  using(var e=Arm(l,a)){
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Wait(()=>a.Submits==1,"entry");Fill(a,2);Drain(e);
+   Disc(l);e.Poll();Drain(e);Reco(l);Thread.Sleep(3300);e.Poll();Drain(e);
+   e.StopFlat();Drain(e);
+   Check(e.Attached,"a follower with an open copied position must keep Stop refused");}}
+ // Counterpart: a copied entry still WORKING (not filled) when the leader drops keeps Stop refused until it is terminal.
+ static void LeaderDisconnectWithWorkingEntryStillBlocksStop(){var l=Acc("ldwork lead");var a=Acc("ldwork a");
+  using(var e=Arm(l,a)){
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy));Wait(()=>a.Submits==1,"entry");
+   a.AsyncCancel=true;var o=a.Orders[0];o.OrderState=NinjaTrader.Cbi.OrderState.Working;a.Emit(o);Drain(e);
+   Disc(l);e.Poll();Drain(e);Reco(l);Thread.Sleep(3300);e.Poll();Drain(e);
+   e.StopFlat();Drain(e);
+   Check(e.Attached,"a working copied entry must keep Stop refused after a leader disconnect");}}
+ // Review of the fix above: leader and follower share a connection and both drop. The follower's cached Positions / Orders cannot prove it
+ // flat, so Stop must stay refused while it is disconnected.
+ static void SharedConnectionDropKeepsStopRefused(){var l=Acc("ldshare lead");var a=Acc("ldshare a");
+  using(var e=Arm(l,a)){
+   Disc(l);Disc(a);e.Poll();Drain(e);Thread.Sleep(3300);e.Poll();Drain(e);
+   e.StopFlat();Drain(e);
+   Check(e.Attached,"a follower that is itself disconnected must not be detached on cached provider state");}}
+ // Review of the fix above: if the leader-disconnect lock cannot be written to disk, Stop must stay refused (the lock is not durable).
+ static void LeaderDisconnectLockNotDurableKeepsStopRefused(){var l=Acc("ldpers lead");var a=Acc("ldpers a");
+  using(var e=Arm(l,a,null,(n,r)=>{throw new System.IO.IOException("synthetic latch write failed");})){
+   Disc(l);e.Poll();Drain(e);Reco(l);Thread.Sleep(3300);e.Poll();Drain(e);
+   e.StopFlat();Drain(e);
+   Check(e.Attached,"a lock that could not be persisted must keep Stop refused");}}
  static void FollowerDisconnectLocksOnlyThatFollowerAndMissedOrdersAreNeverCaughtUp(){var l=Acc("fdisc lead");var a=Acc("fdisc a");var b=Acc("fdisc b");var locked=new List<string>();
   using(var e=new CopierEngine(s=>{},t=>{},(att,s)=>{},(n,r)=>{lock(locked)locked.Add(n);})){
    e.Start(l,inst,new[]{Tuple.Create(a,new RiskSettings{MaxContracts=10,Target=100},new RiskLatch()),Tuple.Create(b,new RiskSettings{MaxContracts=10,Target=100},new RiskLatch())});Wait(()=>e.EntriesArmed,"arm");

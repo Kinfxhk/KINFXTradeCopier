@@ -2611,7 +2611,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 !(s.Action==OrderAction.Buy||s.Action==OrderAction.SellShort||s.Action==OrderAction.Sell||s.Action==OrderAction.BuyToCover) ||
                 !(s.Type==OrderType.Market||s.Type==OrderType.Limit||s.Type==OrderType.StopMarket||s.Type==OrderType.StopLimit||s.Type==OrderType.MIT))
             { BlockEntries(); foreach(var f in followers)Lock(f,"Invalid / unsupported leader order — entries blocked"); return; }
-            if(!Connected(leader)) { entries=false;pauseOnly=false; foreach(var f in followers) Lock(f,"Leader disconnected — no catch-up"); return; }
+            if(!Connected(leader)) { entries=false;pauseOnly=false; foreach(var f in followers) Lock(f,"Leader disconnected — no catch-up",!Connected(f.Account)); return; }
             List<CopyLink> copies;
             if(!links.TryGetValue(s.Id,out copies))
             {
@@ -3217,11 +3217,13 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             foreach(var link in links.Values.SelectMany(x=>x).Where(x=>x.Follower==f && x.Exit && x.Order!=null && !x.Cancelled && !Order.IsTerminalState(x.Order.OrderState)).ToArray())
             {try{Change(link,"Protection resize error: ");}catch(Exception ex){Lock(f,"Protection resize error: "+ex.Message);}}
         }
-        void Lock(EngineAccount f,string reason)
+        // evidence=false (leader disconnect, follower still connected): authorization lock without an open-evidence hold. Exposure still blocks
+        // Stop through CanClose (Clean) and ReconcileCloseEvidence; a disconnected follower or a non-durable lock still holds the session.
+        // Real NT 2026-10-21: a flat session could not Stop after a leader disconnect.
+        void Lock(EngineAccount f,string reason,bool evidence=true)
         {
-            f.EvidenceUnresolved=true; ledgerUnresolved=true;
-            f.EvidenceReason=reason;
-            if(!f.Latch.Locked) { f.Latch.Locked=true; f.Latch.Reason=reason; PersistLock(f); log(f.Account.Name+" LOCK: "+f.Latch.Reason+". Coverage not established; manual reconciliation may be required."); }
+            if(evidence){ f.EvidenceUnresolved=true; ledgerUnresolved=true; f.EvidenceReason=reason; }
+            if(!f.Latch.Locked) { f.Latch.Locked=true; f.Latch.Reason=reason; PersistLock(f); if(persistenceFailed.Contains(f))ledgerUnresolved=true; log(f.Account.Name+" LOCK: "+f.Latch.Reason+". Coverage not established; manual reconciliation may be required."); }
             f.Following=false; CancelEntries(f);
             Publish(f);
         }
@@ -3324,7 +3326,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public void Poll()
         {
             if(Interlocked.Exchange(ref pollPending,1)!=0)return;
-            if(!worker.Post(()=>{ try { if(attached) { if(!Connected(leader)){entries=false;pauseOnly=false;foreach(var f in followers)Lock(f,"Leader disconnected — no catch-up");} foreach(var f in followers)try {CheckRisk(f);MaintainProtection(f);}catch(Exception ex){Lock(f,"Telemetry error: "+ex.Message);} } } finally {Interlocked.Exchange(ref pollPending,0);} }))Interlocked.Exchange(ref pollPending,0); // refused by a stopped mailbox: do not leave the flag stuck
+            if(!worker.Post(()=>{ try { if(attached) { if(!Connected(leader)){entries=false;pauseOnly=false;foreach(var f in followers)Lock(f,"Leader disconnected — no catch-up",!Connected(f.Account));} foreach(var f in followers)try {CheckRisk(f);MaintainProtection(f);}catch(Exception ex){Lock(f,"Telemetry error: "+ex.Message);} } } finally {Interlocked.Exchange(ref pollPending,0);} }))Interlocked.Exchange(ref pollPending,0); // refused by a stopped mailbox: do not leave the flag stuck
         }
         void CancelEntries(EngineAccount f)
         {
