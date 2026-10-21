@@ -77,7 +77,7 @@ One window, four tabs: **Monitor** (watch while copying), **Settings** (change w
 
 ### Import the NinjaTrader zip (recommended)
 
-1. Download `KINFXTradeCopier-SIMTEST.zip` from the [v0.3.0-simtest-alpha](https://github.com/Kinfxhk/KINFXTradeCopier/releases/tag/v0.3.0-simtest-alpha) release (exported by NinjaTrader 8 itself; **do not unzip it**; the release notes give its SHA-256). It is the interface shown on this page.
+1. Download `KINFXTradeCopier-SIMTEST.zip` from the [v0.3.1-simtest-alpha](https://github.com/Kinfxhk/KINFXTradeCopier/releases/tag/v0.3.1-simtest-alpha) release (exported by NinjaTrader 8 itself; **do not unzip it**; the release notes give its SHA-256). It is the interface shown on this page.
 2. NinjaTrader: *Control Center > Tools > Import > NinjaScript Add-On...*, pick the zip.
 3. Answer **Yes** to the "trusted source" question; if it says the file already exists, **Yes** replaces an older copy of this add-on only.
 4. Restart NinjaTrader when asked, then open *New > KINFX Trade Copier*.
@@ -186,7 +186,7 @@ Historical checklist evidence, not acceptance of the current candidate. The curr
 Real tests so far: 1 simulator leader, up to 11 **simulated** prop-firm evaluation accounts (5 Lucid, 6 Tradeify), MNQ, Market + Limit + Stop, TP/SL OCO. No funded or live account was ever used. Each tick and its limits: [`docs/PROGRESS.json`](docs/PROGRESS.json). Score = weighted: ✅ 100%, 🟡 50%, design only 10%. Snapshot 2026-10-15, source `8a8deb196fa8`.
 <!-- PROGRESS:END -->
 
-The ticks and percentages are a **weighted historical checklist**, **not a release-readiness percentage**. The latest real-NinjaTrader trading run (2026-10-15 evening) used source `8a8deb196fa8` (SIM TEST build, the one in the older v0.2.0 zip); it is test evidence, not acceptance. The current source's interface was checked page by page on real NinjaTrader in all four languages on 2026-10-17, and the v0.3.0 zip's file compiled and opened there (Start not pressed, no order sent); Resume new entries, Re-follow and email alerts have offline tests only. [Tick evidence and limits](docs/PROGRESS.json) · [Real NT test log](docs/VM-PROGRESS.md) · [Offline results and safety blockers](docs/DEVELOPERS.md)
+The ticks and percentages are a **weighted historical checklist**, **not a release-readiness percentage**. The latest real-NinjaTrader trading run (2026-10-21) used the same file as the v0.3.1 zip (SIM TEST build, NinjaTrader 8.1.8.4, Sim101 leader, two simulated followers, 1 MNQ per order); it is test evidence, not acceptance. Email alerts and the trading-day boundary "notice only" mode have offline tests only. [Tick evidence and limits](docs/PROGRESS.json) · [Real NT test log](docs/VM-PROGRESS.md) · [Offline results and safety blockers](docs/DEVELOPERS.md)
 
 ## Know the limits
 

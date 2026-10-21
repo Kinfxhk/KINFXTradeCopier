@@ -77,7 +77,7 @@ NinjaTrader 8에서 리더 계좌 하나의 거래를 여러 팔로워 계좌(De
 
 ### NinjaTrader zip 가져오기(권장)
 
-1. [v0.3.0-simtest-alpha](https://github.com/Kinfxhk/KINFXTradeCopier/releases/tag/v0.3.0-simtest-alpha)에서 `KINFXTradeCopier-SIMTEST.zip`을 내려받습니다(NinjaTrader 8이 직접 내보낸 파일. **압축을 풀지 마십시오**. SHA-256은 릴리스 노트에 있습니다). 이 페이지의 화면과 같은 내용입니다.
+1. [v0.3.1-simtest-alpha](https://github.com/Kinfxhk/KINFXTradeCopier/releases/tag/v0.3.1-simtest-alpha)에서 `KINFXTradeCopier-SIMTEST.zip`을 내려받습니다(NinjaTrader 8이 직접 내보낸 파일. **압축을 풀지 마십시오**. SHA-256은 릴리스 노트에 있습니다). 이 페이지의 화면과 같은 내용입니다.
 2. NinjaTrader: *Control Center > Tools > Import > NinjaScript Add-On...*에서 zip을 고릅니다.
 3. 신뢰할 수 있는 출처인지 물으면 **Yes**. 파일이 이미 있다고 하면 **Yes**는 이 애드온의 이전 버전만 바꿉니다.
 4. 요청하면 NinjaTrader를 다시 시작하고 *New > KINFX Trade Copier*를 엽니다.
@@ -186,7 +186,7 @@ Prop firm    ██████████████████████�
 지금까지의 실제 테스트: 시뮬레이터 리더 1개, 최대 11개의 **시뮬레이션** Prop Firm 평가 계좌(Lucid 5개, Tradeify 6개), MNQ, 시장가＋지정가＋역지정가, TP/SL OCO. funded 또는 실계좌는 사용한 적이 없습니다. 각 항목과 제한: [`docs/PROGRESS.json`](docs/PROGRESS.json). 배점은 가중치: ✅ 100%, 🟡 50%, 설계만 10%. 스냅샷 2026-10-15, 소스 `8a8deb196fa8`.
 <!-- PROGRESS:END -->
 
-체크와 백분율은 **가중된 과거 체크리스트**이며, **릴리스 준비 비율이 아닙니다**. 최근 실제 NinjaTrader 거래 테스트(2026-10-15 저녁)는 소스 `8a8deb196fa8`(SIM TEST 빌드, 이전 v0.2.0 zip과 같음)이며, 테스트 증거이지 수용이 아닙니다. 현재 소스의 화면은 2026-10-17에 실제 NinjaTrader에서 4개 언어 모두 페이지별로 확인했고, v0.3.0 zip의 파일도 실제 NinjaTrader에서 컴파일해 열었습니다(시작은 누르지 않았고 주문은 보내지 않았습니다). 신규 진입 재개, 다시 팔로우, 이메일 알림은 오프라인 테스트만 했습니다. [항목별 증거와 제한](docs/PROGRESS.json) · [실제 NT 테스트 기록](docs/VM-PROGRESS.md) · [오프라인 결과와 안전 차단](docs/DEVELOPERS.md)
+체크와 백분율은 **가중된 과거 체크리스트**이며, **릴리스 준비 비율이 아닙니다**. 최근 실제 NinjaTrader 거래 테스트(2026-10-21)는 v0.3.1 zip과 같은 파일(SIM TEST 빌드, NinjaTrader 8.1.8.4, Sim101 리더, 모의 팔로워 2개, 주문당 MNQ 1계약)로 했으며, 테스트 증거이지 수용이 아닙니다. 이메일 알림과 거래일 경계의 '알림만' 모드는 오프라인 테스트만 했습니다. [항목별 증거와 제한](docs/PROGRESS.json) · [실제 NT 테스트 기록](docs/VM-PROGRESS.md) · [오프라인 결과와 안전 차단](docs/DEVELOPERS.md)
 
 ## 제한
 
