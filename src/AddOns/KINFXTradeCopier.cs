@@ -2194,6 +2194,8 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public int FlatOffset;
         // Set when a leader exit was dropped as "nothing to close". A fill of an entry that arrives LATER means the account now holds lots that no copied exit covers.
         public bool ExitDroppedNothingToClose;
+        // Sequence of that dropped exit: only an entry copied BEFORE it can be the uncovered late fill; an entry copied after it is a new trade.
+        public int ExitDroppedAtSequence;
         public double HighWater;
         public readonly Dictionary<string,ExitGroup> ExitGroups=new Dictionary<string,ExitGroup>();
         public long CapturedCallbacks, AppliedCallbacks;
@@ -2988,7 +2990,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 // Only retain delayed protection if THIS copier has an entry link; never adopt an unrelated later position.
                 if(link.Exit && (!f.ExitCompleted||link.Group!=null&&!link.Group.Completed) && (HasPendingEntryWork(f)||OwnedPosition(f)!=0) && links.Values.SelectMany(x=>x).Any(x=>x.Follower==f&&!x.Exit&&x.Order!=null&&(!x.Cancelled||x.ObservedFilled>0)))
                 { if(DateTime.UtcNow-link.WaitingSince>TimeSpan.FromSeconds(10)){link.Waiting=false;Lock(f,"Exit could not obtain closable exposure within 10s — review protection");}else link.Waiting=true;return; }
-                link.Waiting=false; if(link.Exit){f.ExitDroppedNothingToClose=true;log(f.Account.Name+": leader exit ignored, nothing to close");if(f.DryRunRetired>0)log(f.Account.Name+": dry run: no position was ever opened");} else log(f.Account.Name+": entry skipped, projected cap / floor quantity"); return;
+                link.Waiting=false; if(link.Exit){f.ExitDroppedNothingToClose=true;f.ExitDroppedAtSequence=link.EntrySequence;log(f.Account.Name+": leader exit ignored, nothing to close");if(f.DryRunRetired>0)log(f.Account.Name+": dry run: no position was ever opened");} else log(f.Account.Name+": entry skipped, projected cap / floor quantity"); return;
             }
             var s=link.Latest;
             if(!(s.Type==OrderType.Market||s.Type==OrderType.Limit||s.Type==OrderType.StopMarket||s.Type==OrderType.StopLimit||s.Type==OrderType.MIT)) { Lock(f,"Unsupported order type"); link.Waiting=false; return; }
@@ -3175,7 +3177,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                         bool protectedElsewhere=links.Values.SelectMany(v=>v).Any(x=>x.Follower==f&&x.Exit&&x!=link&&x.Order!=null&&!Order.IsTerminalState(x.Order.OrderState)&&!x.Cancelled);
                         if(OwnedPosition(f)!=0&&!protectedElsewhere&&!f.Flattening)Lock(f,"Protective exit terminal with uncovered exposure — manual review required"+(UnprotectedLots(f)>0?" — "+UnprotectedText(f):""));
                     }
-                    if(!link.Exit&&snapshot.Filled>prior&&f.ExitDroppedNothingToClose&&!f.Flattening&&!f.Latch.Locked)Lock(f,"Entry fill arrived AFTER the leader exit was ignored as 'nothing to close' — no copied exit covers it; manual recovery required; coverage not established"+(UnprotectedLots(f)>0?" — "+UnprotectedText(f):""));
+                    if(!link.Exit&&snapshot.Filled>prior&&f.ExitDroppedNothingToClose&&link.EntrySequence<f.ExitDroppedAtSequence&&!f.Flattening&&!f.Latch.Locked)Lock(f,"Entry fill arrived AFTER the leader exit was ignored as 'nothing to close' — no copied exit covers it; manual recovery required; coverage not established"+(UnprotectedLots(f)>0?" — "+UnprotectedText(f):""));
                     if(!link.Exit&&snapshot.Filled>prior&&f.ExitCompleted){f.LateEntryCoverageWarning=true;Lock(f,LateEntryReason+(UnprotectedLots(f)>0?" — "+UnprotectedText(f):""));}
                 }
                 if(link!=null&&link.Group!=null&&(eventState==OrderState.Cancelled||eventState==OrderState.Rejected))
