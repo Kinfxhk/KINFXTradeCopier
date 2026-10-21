@@ -236,7 +236,10 @@ public static class UiTestsWp2 {
     try{
       foreach(var code in Lang.Codes){
         Lang.Set(code);
-        var v=BulkUiTests.Fresh();v.Sections.SelectedIndex=0;
+        // Two layouts must fit: the default columns (Acct hidden, as real NT starts) and Acct shown with Drift hidden (the pre-Drift guarantee).
+        // Acct + Drift together need ~70 px more than 1160 and get a scrollbar; the Columns menu hides either one.
+        foreach(var shownAcct in new[]{false,true}){
+        var v=BulkUiTests.Fresh();var cols0=ColumnPrefs.Defaults();if(shownAcct){cols0.Remove("copy:Acct");cols0.Add("copy:Drift");}v.ApplyColumns(cols0);v.Sections.SelectedIndex=0;
         var host=new Border{Child=v};host.Measure(new Size(1160,840));host.Arrange(new Rect(0,0,1160,840));host.UpdateLayout();
         System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(System.Windows.Threading.DispatcherPriority.ContextIdle,new Action(()=>{}));host.UpdateLayout();
         var sv=BulkUiTests.Visual<ScrollViewer>(v.AccountGrid).FirstOrDefault();
@@ -244,10 +247,10 @@ public static class UiTestsWp2 {
         double cols=v.AccountGrid.Columns.Where(c=>c.Visibility==Visibility.Visible).Sum(c=>c.ActualWidth);
         // Review 3: also prove the spare width is handed out (identity columns wider than their minimum), not left empty on the right.
         var acct=v.AccountGrid.Columns.First(c=>DashboardView.ColumnKey(c)=="Acct");var alias=v.AccountGrid.Columns.First(c=>DashboardView.ColumnKey(c)=="Alias");
-        BulkUiTests.Check(acct.ActualWidth>acct.MinWidth+5&&alias.ActualWidth>alias.MinWidth+5,code+": spare width goes to Acct / Alias ("+Math.Round(acct.ActualWidth)+"/"+acct.MinWidth+", "+Math.Round(alias.ActualWidth)+"/"+alias.MinWidth+")");
-        BulkUiTests.Check(sv.ViewportWidth-sv.ExtentWidth<30,code+": no more than 30 px left empty at the right ("+Math.Round(sv.ViewportWidth-sv.ExtentWidth)+")");
-        BulkUiTests.Check(sv.ExtentWidth<=sv.ViewportWidth+0.5,code+": monitor table needs a horizontal scrollbar (extent "+Math.Round(sv.ExtentWidth)+" > viewport "+Math.Round(sv.ViewportWidth)+", columns "+Math.Round(cols)+")");
-      }
+        BulkUiTests.Check((!shownAcct||acct.ActualWidth>acct.MinWidth+5)&&alias.ActualWidth>alias.MinWidth+5,code+(shownAcct?" acct":" default")+": spare width goes to Acct / Alias ("+Math.Round(acct.ActualWidth)+"/"+acct.MinWidth+", "+Math.Round(alias.ActualWidth)+"/"+alias.MinWidth+")");
+        BulkUiTests.Check(sv.ViewportWidth-sv.ExtentWidth<30,code+(shownAcct?" acct":" default")+": no more than 30 px left empty at the right ("+Math.Round(sv.ViewportWidth-sv.ExtentWidth)+")");
+        BulkUiTests.Check(sv.ExtentWidth<=sv.ViewportWidth+0.5,code+(shownAcct?" acct":" default")+": monitor table needs a horizontal scrollbar (extent "+Math.Round(sv.ExtentWidth)+" > viewport "+Math.Round(sv.ViewportWidth)+", columns "+Math.Round(cols)+")");
+      }}
     } finally { Lang.Set(was); }
   }
 

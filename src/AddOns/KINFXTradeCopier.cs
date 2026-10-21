@@ -609,7 +609,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public const string Copy="copy", Risk="risk";
         static readonly Dictionary<string,string[]> hideable=new Dictionary<string,string[]>(StringComparer.Ordinal)
         {
-            {Copy,new[]{"Acct","Alias","Tgt","DLL","P/L","Bal"}},
+            {Copy,new[]{"Acct","Alias","Tgt","DLL","P/L","Bal","Drift"}},
             {Risk,new[]{"Acct","Alias","Grp","FlatLim","Max","P/L","CCY","To Tgt","Loss left","Preset","Cons"}},
         };
         // Hidden until the user shows them (user request 2026-10-15: the account name takes too much room; the Alias identifies the account,
@@ -1119,6 +1119,298 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             string result = text;
             foreach (var n in order.OrderByDescending(x => x.Length)) result = result.Replace(n, "ACCOUNT-" + number[n]);
             return result;
+        }
+    }
+    // Read-only avg/qty drift. Display and notification only: this type never submits, changes, cancels or flattens.
+    public enum PositionConsistencyStatus
+    {
+        WaitingReports,
+        QtyMatch,
+        QtyDiverge,
+        PriceDiverge,
+        Unavailable
+    }
+    public sealed class PositionSnap
+    {
+        public string Instrument="";
+        public int SignedQuantity;
+        public bool HasAveragePrice;
+        public double AveragePrice;
+        public bool Connected=true;
+        public bool ContractsVerified=true;
+        public long EvidenceVersion;
+        public DateTime EvidenceUtc;
+        public DateTime ReadUtc;
+        public double Ratio=1;
+        public int MaxContracts=int.MaxValue;
+    }
+    public struct EvidenceMark
+    {
+        public long Version;
+        public DateTime EvidenceUtc;
+        public bool Tracked;
+        public int Quantity;
+        public bool HasAverage;
+        public double Average;
+    }
+    public sealed class PositionConsistencyResult
+    {
+        public PositionConsistencyStatus Status;
+        public int? QtyDelta;
+        public int? ExpectedQuantity;
+        public int? PriceDeltaTicks;
+        public int? AdverseTicks;
+        public string Badge="\u2014";
+        public string Reason=PositionConsistency.ReasonNotComparable;
+    }
+    public static class PositionConsistency
+    {
+        public static readonly TimeSpan ReportGrace=TimeSpan.FromSeconds(3);
+        public const string Dash="\u2014";
+        public const string NotAvailable="n/a";
+        public const string Disclaimer="Same side/qty does not mean same fill price. Badge only — no auto trade.";
+        public const string ReasonWaiting="Waiting for position reports";
+        public const string ReasonQtyMatch="Quantity matches";
+        public const string ReasonQtyDiverge="Quantity diverges";
+        public const string ReasonPrice="Average fill diverges";
+        public const string ReasonNotComparable="Unavailable: not comparable";
+        public const string ReasonContract="Unavailable: platform contract missing";
+        public const string ReasonDisconnected="Unavailable: disconnected";
+        public const string ReasonInstrument="Unavailable: instrument mismatch";
+        public const string ReasonStale="Unavailable: stale report";
+        public const string ReasonLeaderFlat="Unavailable: leader flat";
+        public const string ReasonAvgMissing="Unavailable: average price missing";
+        public const string ReasonTick="Unavailable: tick size invalid";
+        public const string ReasonScale="Unavailable: scale settings invalid";
+        public const string ReasonLeaderBaseline="Leader row is the comparison baseline";
+        public const string TipExpected="Expected quantity {0} · actual delta {1}";
+        public const string TipPrice="Average-price delta {0} ticks · adverse {1} ticks";
+        public const string Notice="Avg drift {0}: {1} (display only — no order)";
+        public const string WarnLabel="Warn if avg differs by more than";
+        public const string WarnSuffix="ticks (display only)";
+        public const string WarnTip="Warn if avg differs by more than N ticks (display only)";
+        public const string PrefIgnored="Display preference ignored; avg warn ticks reset to the default. Badge only — no order.";
+        public const string WarnInvalid="Avg warn ticks must be a whole number from 0 to 100 (display only)";
+        public const string DisplayFailed="Position consistency display failed: {0}";
+        public const string NotSaved="Avg warn ticks NOT saved (used for this session only): {0}";
+        public const string ColumnHeader="Drift";
+        public static bool ContractsReady(bool averagePriceIsPublicDouble,bool tickSizeIsPublicDouble)
+        {
+            return averagePriceIsPublicDouble&&tickSizeIsPublicDouble;
+        }
+        public static Exception Unexpected(PositionConsistencyStatus status)
+        {
+            switch(status)
+            {
+                case PositionConsistencyStatus.WaitingReports:
+                case PositionConsistencyStatus.QtyMatch:
+                case PositionConsistencyStatus.QtyDiverge:
+                case PositionConsistencyStatus.PriceDiverge:
+                case PositionConsistencyStatus.Unavailable:
+                    return new InvalidOperationException("position consistency status fell through");
+                default:
+                    return new InvalidOperationException("unhandled position consistency status");
+            }
+        }
+        public static EvidenceMark Note(EvidenceMark previous,int signedQty,bool hasAverage,double average,DateTime nowUtc)
+        {
+            bool changed=!previous.Tracked||signedQty!=previous.Quantity||hasAverage!=previous.HasAverage||(hasAverage&&average!=previous.Average);
+            if(!changed)return previous;
+            return new EvidenceMark{Version=previous.Version+1,EvidenceUtc=nowUtc,Tracked=true,Quantity=signedQty,HasAverage=hasAverage,Average=hasAverage?average:0};
+        }
+        // shortcut: scales the leader's whole position, while the engine floors each order and skips an order over Max, so several small
+        // fractional-Ratio entries or one over-Max entry can show a qty gap the engine intended; upgrade by comparing against the engine's own copy ledger.
+        public static int ExpectedSignedQuantity(int leaderSigned,double ratio,int maxContracts)
+        {
+            int sign=Math.Sign(leaderSigned);
+            if(sign==0||leaderSigned==int.MinValue||maxContracts<1||!RiskPolicy.Finite(ratio)||ratio<=0)return 0;
+            int abs=RiskPolicy.Quantity(Math.Abs(leaderSigned),ratio);
+            if(abs>maxContracts)abs=maxContracts;
+            return sign*abs;
+        }
+        public static PositionConsistencyResult Evaluate(PositionSnap leader,PositionSnap follower,double tickSize,int thresholdTicks)
+        {
+            return Evaluate(leader,follower,tickSize,thresholdTicks,DateTime.UtcNow,ReportGrace);
+        }
+        public static PositionConsistencyResult Evaluate(PositionSnap leader,PositionSnap follower,double tickSize,int thresholdTicks,DateTime nowUtc,TimeSpan grace)
+        {
+            if(leader==null||follower==null)return Finish(PositionConsistencyStatus.Unavailable,ReasonNotComparable,Dash);
+            if(!leader.ContractsVerified||!follower.ContractsVerified)return Finish(PositionConsistencyStatus.Unavailable,ReasonContract,NotAvailable);
+            if(thresholdTicks<0||grace<TimeSpan.Zero)return Finish(PositionConsistencyStatus.Unavailable,ReasonNotComparable,Dash);
+            if(!leader.Connected||!follower.Connected)return Finish(PositionConsistencyStatus.Unavailable,ReasonDisconnected,Dash);
+            if(string.IsNullOrWhiteSpace(leader.Instrument)||string.IsNullOrWhiteSpace(follower.Instrument)||!string.Equals(leader.Instrument,follower.Instrument,StringComparison.Ordinal))
+                return Finish(PositionConsistencyStatus.Unavailable,ReasonInstrument,Dash);
+            if(!Fresh(leader,nowUtc,grace)||!Fresh(follower,nowUtc,grace))return Finish(PositionConsistencyStatus.Unavailable,ReasonStale,Dash);
+            if(Awaiting(leader,follower,nowUtc,grace))return Finish(PositionConsistencyStatus.WaitingReports,ReasonWaiting,"wait");
+            if(leader.SignedQuantity==0||leader.SignedQuantity==int.MinValue)return Finish(PositionConsistencyStatus.Unavailable,ReasonLeaderFlat,Dash);
+            if(!ScaleOk(follower))return Finish(PositionConsistencyStatus.Unavailable,ReasonScale,Dash);
+            int expected=ExpectedSignedQuantity(leader.SignedQuantity,follower.Ratio,follower.MaxContracts);
+            long deltaLong=(long)follower.SignedQuantity-expected;
+            if(deltaLong>int.MaxValue||deltaLong<int.MinValue)return Finish(PositionConsistencyStatus.Unavailable,ReasonNotComparable,Dash);
+            int qtyDelta=(int)deltaLong;
+            bool qtyOk=qtyDelta==0;
+            int? ticks=null,adverse=null;
+            bool priceOk=TryPrice(leader,follower,tickSize,out ticks,out adverse);
+            if(!qtyOk)
+            {
+                string badge=FormatQty(qtyDelta);
+                if(priceOk)badge+=" \u00B7 "+FormatAvg(ticks.Value,adverse.Value);
+                return Finish(PositionConsistencyStatus.QtyDiverge,ReasonQtyDiverge,badge,qtyDelta,expected,priceOk?ticks:null,priceOk?adverse:null);
+            }
+            if(expected==0)return Finish(PositionConsistencyStatus.QtyMatch,ReasonQtyMatch,"qty 0",0,0);
+            if(!leader.HasAveragePrice||!follower.HasAveragePrice)return Finish(PositionConsistencyStatus.Unavailable,ReasonAvgMissing,Dash);
+            if(!priceOk)return Finish(PositionConsistencyStatus.Unavailable,ReasonTick,Dash);
+            int absTicks=Math.Abs(ticks.Value);
+            bool warn=absTicks>thresholdTicks;
+            return Finish(warn?PositionConsistencyStatus.PriceDiverge:PositionConsistencyStatus.QtyMatch,warn?ReasonPrice:ReasonQtyMatch,FormatAvg(ticks.Value,adverse.Value),0,expected,ticks,adverse);
+        }
+        public static PositionConsistencyResult LeaderBaseline()
+        {
+            return Finish(PositionConsistencyStatus.Unavailable,ReasonLeaderBaseline,Dash);
+        }
+        public static PositionConsistencyResult NotComparable()
+        {
+            return Finish(PositionConsistencyStatus.Unavailable,ReasonNotComparable,Dash);
+        }
+        public static string FormatTip(PositionConsistencyResult result)
+        {
+            if(result==null)result=Finish(PositionConsistencyStatus.Unavailable,ReasonNotComparable,Dash);
+            var sb=new System.Text.StringBuilder();
+            sb.Append(result.Badge).Append(" · ").Append(Lang.T(result.Reason));
+            if(result.ExpectedQuantity.HasValue&&result.QtyDelta.HasValue)
+                sb.Append('\n').Append(Lang.F(TipExpected,result.ExpectedQuantity.Value,Signed(result.QtyDelta.Value)));
+            if(result.PriceDeltaTicks.HasValue&&result.AdverseTicks.HasValue)
+                sb.Append('\n').Append(Lang.F(TipPrice,Signed(result.PriceDeltaTicks.Value),Signed(result.AdverseTicks.Value)));
+            sb.Append('\n').Append(Lang.T(Disclaimer));
+            return sb.ToString();
+        }
+        static bool ScaleOk(PositionSnap follower)
+        {
+            return follower.MaxContracts>0&&RiskPolicy.Finite(follower.Ratio)&&follower.Ratio>0;
+        }
+        static bool Fresh(PositionSnap snap,DateTime nowUtc,TimeSpan grace)
+        {
+            if(snap.ReadUtc==DateTime.MinValue)return false;
+            if(snap.ReadUtc>nowUtc)return true;
+            return nowUtc-snap.ReadUtc<=grace;
+        }
+        static bool Awaiting(PositionSnap leader,PositionSnap follower,DateTime nowUtc,TimeSpan grace)
+        {
+            // EvidenceMark.Version counts changes on that account alone. Grace follows the leader evidence time.
+            if(!WithinReportGrace(leader,nowUtc,grace))return false;
+            if(leader.SignedQuantity!=0&&leader.SignedQuantity!=int.MinValue&&!ScaleOk(follower))return false;
+            int expected=leader.SignedQuantity==0||leader.SignedQuantity==int.MinValue?0:ExpectedSignedQuantity(leader.SignedQuantity,follower.Ratio,follower.MaxContracts);
+            return follower.SignedQuantity!=expected;
+        }
+        static bool WithinReportGrace(PositionSnap leader,DateTime nowUtc,TimeSpan grace)
+        {
+            if(leader.EvidenceUtc==DateTime.MinValue)return false;
+            if(leader.EvidenceUtc>nowUtc)return true;
+            return nowUtc-leader.EvidenceUtc<=grace;
+        }
+        static bool TryPrice(PositionSnap leader,PositionSnap follower,double tickSize,out int? ticks,out int? adverse)
+        {
+            ticks=null;adverse=null;
+            if(follower.SignedQuantity==0||!leader.HasAveragePrice||!follower.HasAveragePrice)return false;
+            int raw;
+            if(!TryTickDelta(leader.AveragePrice,follower.AveragePrice,tickSize,out raw))return false;
+            int sign=Math.Sign(leader.SignedQuantity);
+            ticks=raw;adverse=sign<0?-raw:raw;return true;
+        }
+        static bool TryTickDelta(double leaderAvg,double followerAvg,double tickSize,out int ticks)
+        {
+            ticks=0;
+            if(!RiskPolicy.Finite(leaderAvg)||!RiskPolicy.Finite(followerAvg)||!RiskPolicy.Finite(tickSize)||tickSize<=0)return false;
+            if(leaderAvg<=0||followerAvg<=0)return false;
+            double raw=(followerAvg-leaderAvg)/tickSize;
+            if(!RiskPolicy.Finite(raw)||Math.Abs(raw)>1000000d)return false;
+            double nearest=Math.Round(raw,0,MidpointRounding.AwayFromZero);
+            if(!RiskPolicy.Finite(nearest)||Math.Abs(nearest)>1000000d)return false;
+            ticks=(int)nearest;return true;
+        }
+        static string FormatQty(int delta)
+        {
+            if(delta>0)return "qty+"+delta.ToString(CultureInfo.InvariantCulture);
+            return "qty"+delta.ToString(CultureInfo.InvariantCulture);
+        }
+        static string FormatAvg(int ticks,int adverse)
+        {
+            string body=ticks>0?"avg +"+ticks.ToString(CultureInfo.InvariantCulture)+"t":ticks<0?"avg \u2212"+Math.Abs(ticks).ToString(CultureInfo.InvariantCulture)+"t":"avg 0t";
+            if(adverse>0)body+=" adverse";
+            return body;
+        }
+        static string Signed(int value)
+        {
+            return value>0?"+"+value.ToString(CultureInfo.InvariantCulture):value.ToString(CultureInfo.InvariantCulture);
+        }
+        static PositionConsistencyResult Finish(PositionConsistencyStatus status,string reason,string badge,int? qtyDelta=null,int? expected=null,int? ticks=null,int? adverse=null)
+        {
+            switch(status)
+            {
+                case PositionConsistencyStatus.WaitingReports:
+                case PositionConsistencyStatus.QtyMatch:
+                case PositionConsistencyStatus.QtyDiverge:
+                case PositionConsistencyStatus.PriceDiverge:
+                case PositionConsistencyStatus.Unavailable:
+                    break;
+                default:
+                    throw Unexpected(status);
+            }
+            return new PositionConsistencyResult{Status=status,Reason=reason,Badge=badge,QtyDelta=qtyDelta,ExpectedQuantity=expected,PriceDeltaTicks=ticks,AdverseTicks=adverse};
+        }
+    }
+    public static class DisplayPrefs
+    {
+        public const int DefaultAvgWarnTicks=1;
+        public const int MaxAvgWarnTicks=100;
+        public static bool TryParseTicks(string text,out int ticks)
+        {
+            ticks=DefaultAvgWarnTicks;
+            string raw=(text??"").Trim();
+            if(raw.Length==0||raw.Length>3)return false;
+            if(raw[0]=='0'&&raw.Length>1)return false;
+            for(int i=0;i<raw.Length;i++)if(raw[i]<'0'||raw[i]>'9')return false;
+            int n;
+            if(!int.TryParse(raw,NumberStyles.None,CultureInfo.InvariantCulture,out n))return false;
+            if(n<0||n>MaxAvgWarnTicks)return false;
+            ticks=n;return true;
+        }
+        public static bool TryReadAvgWarnTicks(string json,out int ticks)
+        {
+            ticks=DefaultAvgWarnTicks;
+            if(string.IsNullOrEmpty(json))return false;
+            if(json[0]=='\uFEFF')json=json.Substring(1);
+            var sb=new System.Text.StringBuilder();
+            for(int i=0;i<json.Length;i++)
+            {
+                char c=json[i];
+                if(c==' '||c=='\t'||c=='\r'||c=='\n')continue;
+                sb.Append(c);
+            }
+            string s=sb.ToString();
+            const string prefix="{\"avgWarnTicks\":";
+            if(!s.StartsWith(prefix,StringComparison.Ordinal)||!s.EndsWith("}",StringComparison.Ordinal))return false;
+            return TryParseTicks(s.Substring(prefix.Length,s.Length-prefix.Length-1),out ticks);
+        }
+        public static string ToJson(int ticks)
+        {
+            int n;
+            if(!TryParseTicks(ticks.ToString(CultureInfo.InvariantCulture),out n))throw new ArgumentOutOfRangeException("ticks");
+            return "{\"avgWarnTicks\":"+n.ToString(CultureInfo.InvariantCulture)+"}";
+        }
+        public static void SaveAvgWarnTicks(string path,int ticks)
+        {
+            if(string.IsNullOrEmpty(path))throw new ArgumentException("path");
+            string json=ToJson(ticks);
+            string dir=Path.GetDirectoryName(path);
+            if(!string.IsNullOrEmpty(dir))Directory.CreateDirectory(dir);
+            string temp=path+"."+Guid.NewGuid().ToString("N")+".tmp";
+            try
+            {
+                File.WriteAllText(temp,json);
+                if(File.Exists(path))File.Replace(temp,path,null);else File.Move(temp,path);
+            }
+            finally { if(File.Exists(temp))File.Delete(temp); }
         }
     }
 // BEGIN LANG TABLE (generated by scripts/gen_lang.py from i18n/strings.json; do not edit by hand)
@@ -1643,6 +1935,34 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
             t["Issues"] = new[] { "問題", "問題", "문제" };
             t["No locks or notes."] = new[] { "沒有鎖定或設定提示。", "ロックや設定の注意はありません。", "잠금이나 설정 알림이 없습니다." };
             t["Open the Issues tab"] = new[] { "開啟「問題」分頁", "「問題」タブを開く", "'문제' 탭 열기" };
+            t["Same side/qty does not mean same fill price. Badge only — no auto trade."] = new[] { "相同方向／數量不代表相同成交價。僅為標示 — 不會自動交易。", "同じ方向／数量でも、同じ約定価格とは限りません。表示のみ — 自動売買はありません。", "같은 방향/수량이라고 같은 체결가는 아닙니다. 표시 전용 — 자동 매매 없음." };
+            t["Waiting for position reports"] = new[] { "等待持倉回報", "建玉レポートを待っています", "포지션 보고를 기다리는 중" };
+            t["Quantity matches"] = new[] { "數量一致", "数量は一致", "수량 일치" };
+            t["Quantity diverges"] = new[] { "數量偏離", "数量が乖離", "수량 불일치" };
+            t["Average fill diverges"] = new[] { "成交均價偏差", "平均約定価格が乖離", "평균 체결가 불일치" };
+            t["Unavailable: not comparable"] = new[] { "不可用：無法比較", "利用不可：比較できません", "사용 불가: 비교할 수 없음" };
+            t["Unavailable: platform contract missing"] = new[] { "不可用：平台未提供均價或 tick 契約", "利用不可：プラットフォームに平均価格またはティック契約がありません", "사용 불가: 플랫폼에 평균가 또는 틱 계약이 없음" };
+            t["Unavailable: disconnected"] = new[] { "不可用：已斷線", "利用不可：切断されています", "사용 불가: 연결 끊김" };
+            t["Unavailable: instrument mismatch"] = new[] { "不可用：合約不符", "利用不可：銘柄が一致しません", "사용 불가: 종목 불일치" };
+            t["Unavailable: stale report"] = new[] { "不可用：回報已過期", "利用不可：レポートの期限が切れています", "사용 불가: 보고가 만료됨" };
+            t["Unavailable: leader flat"] = new[] { "不可用：主帳戶無持倉", "利用不可：リーダーに建玉がありません", "사용 불가: 리더 포지션 없음" };
+            t["Unavailable: average price missing"] = new[] { "不可用：缺少均價", "利用不可：平均価格がありません", "사용 불가: 평균가 없음" };
+            t["Unavailable: tick size invalid"] = new[] { "不可用：tick 大小無效", "利用不可：ティックサイズが無効です", "사용 불가: 틱 크기가 잘못됨" };
+            t["Unavailable: scale settings invalid"] = new[] { "不可用：比例設定無效", "利用不可：比率設定が無効です", "사용 불가: 비율 설정이 잘못됨" };
+            t["Leader row is the comparison baseline"] = new[] { "主帳戶列是比較基準", "リーダー行は比較の基準です", "리더 행은 비교 기준입니다" };
+            t["Expected quantity {0} · actual delta {1}"] = new[] { "預期數量 {0} · 實際差額 {1}", "想定数量 {0} · 実際の差 {1}", "예상 수량 {0} · 실제 차이 {1}" };
+            t["Average-price delta {0} ticks · adverse {1} ticks"] = new[] { "均價差 {0} ticks · 不利滑價 {1} ticks", "平均価格差 {0} ティック · 不利な滑り {1} ティック", "평균가 차이 {0}틱 · 불리한 슬리피지 {1}틱" };
+            t["Avg drift {0}: {1} (display only — no order)"] = new[] { "均價偏差 {0}：{1}（僅顯示 — 不會下單）", "平均価格の乖離 {0}: {1}（表示のみ — 注文しません）", "평균가 괴리 {0}: {1} (표시 전용 — 주문 없음)" };
+            t["Warn if avg differs by more than"] = new[] { "若均價相差超過", "平均価格の差が次を超えたら警告", "평균가 차이가 다음을 넘으면 경고" };
+            t["ticks (display only)"] = new[] { "個 ticks（僅顯示）", "ティック（表示のみ）", "틱 (표시 전용)" };
+            t["Warn if avg differs by more than N ticks (display only)"] = new[] { "若均價相差超過 N 個 ticks 則警告（僅顯示）", "平均価格が N ティックを超えて異なる場合に警告（表示のみ）", "평균가가 N틱을 넘어 다르면 경고 (표시 전용)" };
+            t["Display preference ignored; avg warn ticks reset to the default. Badge only — no order."] = new[] { "顯示偏好已忽略；均價警告 ticks 已回復預設。僅為標示 — 不會下單。", "表示設定を無視しました。平均価格の警告ティックは既定に戻しました。表示のみ — 注文しません。", "표시 설정을 무시했습니다. 평균가 경고 틱을 기본값으로 되돌렸습니다. 표시 전용 — 주문 없음." };
+            t["Avg warn ticks must be a whole number from 0 to 100 (display only)"] = new[] { "均價警告 ticks 必須是 0 到 100 的整數（僅顯示）", "平均価格の警告ティックは 0 から 100 の整数にしてください（表示のみ）", "평균가 경고 틱은 0에서 100 사이의 정수여야 합니다 (표시 전용)" };
+            t["Position consistency display failed: {0}"] = new[] { "持倉一致性顯示失敗：{0}", "建玉の整合表示に失敗しました：{0}", "포지션 정합 표시 실패: {0}" };
+            t["Drift"] = new[] { "偏差", "乖離", "괴리" };
+            t["wait"] = new[] { "等待", "待機", "대기" };
+            t["n/a"] = new[] { "不適用", "該当なし", "해당 없음" };
+            t["Avg warn ticks NOT saved (used for this session only): {0}"] = new[] { "均價警告 ticks 未儲存（僅本次工作階段使用）：{0}", "平均価格の警告ティックは保存されていません（このセッションのみ使用）：{0}", "평균가 경고 틱이 저장되지 않음 (이번 세션에만 사용): {0}" };
             t["Micro Nasdaq-100"] = new[] { "微型納斯達克100", "マイクロ Nasdaq-100", "마이크로 나스닥100" };
             t["Nasdaq-100"] = new[] { "納斯達克100", "Nasdaq-100", "나스닥100" };
             t["Micro S&P 500"] = new[] { "微型標普500", "マイクロ S&P 500", "마이크로 S&P 500" };
@@ -1874,6 +2194,8 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
         public int FlatOffset;
         // Set when a leader exit was dropped as "nothing to close". A fill of an entry that arrives LATER means the account now holds lots that no copied exit covers.
         public bool ExitDroppedNothingToClose;
+        // Sequence of that dropped exit: only an entry copied BEFORE it can be the uncovered late fill; an entry copied after it is a new trade.
+        public int ExitDroppedAtSequence;
         public double HighWater;
         public readonly Dictionary<string,ExitGroup> ExitGroups=new Dictionary<string,ExitGroup>();
         public long CapturedCallbacks, AppliedCallbacks;
@@ -2668,7 +2990,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                 // Only retain delayed protection if THIS copier has an entry link; never adopt an unrelated later position.
                 if(link.Exit && (!f.ExitCompleted||link.Group!=null&&!link.Group.Completed) && (HasPendingEntryWork(f)||OwnedPosition(f)!=0) && links.Values.SelectMany(x=>x).Any(x=>x.Follower==f&&!x.Exit&&x.Order!=null&&(!x.Cancelled||x.ObservedFilled>0)))
                 { if(DateTime.UtcNow-link.WaitingSince>TimeSpan.FromSeconds(10)){link.Waiting=false;Lock(f,"Exit could not obtain closable exposure within 10s — review protection");}else link.Waiting=true;return; }
-                link.Waiting=false; if(link.Exit){f.ExitDroppedNothingToClose=true;log(f.Account.Name+": leader exit ignored, nothing to close");if(f.DryRunRetired>0)log(f.Account.Name+": dry run: no position was ever opened");} else log(f.Account.Name+": entry skipped, projected cap / floor quantity"); return;
+                link.Waiting=false; if(link.Exit){f.ExitDroppedNothingToClose=true;f.ExitDroppedAtSequence=link.EntrySequence;log(f.Account.Name+": leader exit ignored, nothing to close");if(f.DryRunRetired>0)log(f.Account.Name+": dry run: no position was ever opened");} else log(f.Account.Name+": entry skipped, projected cap / floor quantity"); return;
             }
             var s=link.Latest;
             if(!(s.Type==OrderType.Market||s.Type==OrderType.Limit||s.Type==OrderType.StopMarket||s.Type==OrderType.StopLimit||s.Type==OrderType.MIT)) { Lock(f,"Unsupported order type"); link.Waiting=false; return; }
@@ -2855,7 +3177,7 @@ namespace NinjaTrader.NinjaScript.AddOns.Kinfx
                         bool protectedElsewhere=links.Values.SelectMany(v=>v).Any(x=>x.Follower==f&&x.Exit&&x!=link&&x.Order!=null&&!Order.IsTerminalState(x.Order.OrderState)&&!x.Cancelled);
                         if(OwnedPosition(f)!=0&&!protectedElsewhere&&!f.Flattening)Lock(f,"Protective exit terminal with uncovered exposure — manual review required"+(UnprotectedLots(f)>0?" — "+UnprotectedText(f):""));
                     }
-                    if(!link.Exit&&snapshot.Filled>prior&&f.ExitDroppedNothingToClose&&!f.Flattening&&!f.Latch.Locked)Lock(f,"Entry fill arrived AFTER the leader exit was ignored as 'nothing to close' — no copied exit covers it; manual recovery required; coverage not established"+(UnprotectedLots(f)>0?" — "+UnprotectedText(f):""));
+                    if(!link.Exit&&snapshot.Filled>prior&&f.ExitDroppedNothingToClose&&link.EntrySequence<f.ExitDroppedAtSequence&&!f.Flattening&&!f.Latch.Locked)Lock(f,"Entry fill arrived AFTER the leader exit was ignored as 'nothing to close' — no copied exit covers it; manual recovery required; coverage not established"+(UnprotectedLots(f)>0?" — "+UnprotectedText(f):""));
                     if(!link.Exit&&snapshot.Filled>prior&&f.ExitCompleted){f.LateEntryCoverageWarning=true;Lock(f,LateEntryReason+(UnprotectedLots(f)>0?" — "+UnprotectedText(f):""));}
                 }
                 if(link!=null&&link.Group!=null&&(eventState==OrderState.Cancelled||eventState==OrderState.Rejected))
@@ -3251,6 +3573,47 @@ stateChanged(attached,"GUARDED PAUSE — no new entries; existing lifecycle + ne
         public double Unrealized { get; set; }
         public double Sod { get; set; }
         public int Position { get; set; }
+        EvidenceMark evidence;
+        PositionConsistencyStatus consistencyKind=PositionConsistencyStatus.Unavailable;
+        PositionConsistencyResult consistencyResult;
+        public string ConsistencyBadge { get { return consistencyResult==null?PositionConsistency.Dash:consistencyResult.Badge; } }
+        // Shown text: "wait" / "n/a" translated; qty±N, avg ±Nt and adverse stay as documented tokens (unknown keys fall back to English).
+        public string ConsistencyBadgeShown { get { return Lang.T(ConsistencyBadge); } }
+        public string ConsistencyStatus { get { return consistencyKind.ToString(); } }
+        public string ConsistencyTip { get { return PositionConsistency.FormatTip(consistencyResult); } }
+        public Brush ConsistencyInk
+        {
+            get
+            {
+                switch(consistencyKind)
+                {
+                    case PositionConsistencyStatus.QtyDiverge: return DashboardView.Bad;
+                    case PositionConsistencyStatus.PriceDiverge: return DashboardView.Warn;
+                    case PositionConsistencyStatus.WaitingReports: return DashboardView.Warn;
+                    case PositionConsistencyStatus.QtyMatch: return DashboardView.Good;
+                    case PositionConsistencyStatus.Unavailable: return DashboardView.Muted;
+                    default: throw PositionConsistency.Unexpected(consistencyKind);
+                }
+            }
+        }
+        internal PositionSnap ObservedSnap;
+        internal PositionSnap Observe(string instrument,bool connected,bool contractsVerified,bool readSucceeded,int signedQty,bool hasAverage,double average,DateTime nowUtc)
+        {
+            var snap=new PositionSnap{Instrument=instrument??"",Connected=connected,ContractsVerified=contractsVerified,Ratio=Settings==null?double.NaN:Settings.Ratio,MaxContracts=Settings==null?0:Settings.MaxContracts,SignedQuantity=signedQty};
+            if(readSucceeded&&contractsVerified)
+            {
+                evidence=PositionConsistency.Note(evidence,signedQty,hasAverage,average,nowUtc);
+                snap.ReadUtc=nowUtc;snap.HasAveragePrice=hasAverage;snap.AveragePrice=hasAverage?average:0;
+            }
+            snap.EvidenceVersion=evidence.Version;snap.EvidenceUtc=evidence.EvidenceUtc;
+            ObservedSnap=snap;return snap;
+        }
+        internal void ApplyConsistency(PositionConsistencyResult result)
+        {
+            var next=result??PositionConsistency.NotComparable();
+            if(consistencyResult!=null&&consistencyKind==next.Status&&consistencyResult.Badge==next.Badge&&consistencyResult.Reason==next.Reason&&consistencyResult.QtyDelta==next.QtyDelta&&consistencyResult.PriceDeltaTicks==next.PriceDeltaTicks&&consistencyResult.AdverseTicks==next.AdverseTicks&&consistencyResult.ExpectedQuantity==next.ExpectedQuantity)return;
+            consistencyResult=next;consistencyKind=next.Status;Changed();
+        }
         public bool Paused { get; set; }
         bool enabled;
         public bool DisablePending {get;set;}
@@ -3465,6 +3828,10 @@ stateChanged(attached,"GUARDED PAUSE — no new entries; existing lifecycle + ne
             bar.Children.Add(b);
         }
         internal ContextMenu ColumnMenuFor(string grid){var g=grid==ColumnPrefs.Copy?AccountGrid:RiskGrid;var hs=g.Columns.Select(c=>c.HeaderStyle).FirstOrDefault(x=>x!=null);if(hs==null)return null;foreach(var st in hs.Setters.OfType<Setter>())if(st.Property==FrameworkElement.ContextMenuProperty)return st.Value as ContextMenu;var bs=hs.BasedOn;while(bs!=null){foreach(var st in bs.Setters.OfType<Setter>())if(st.Property==FrameworkElement.ContextMenuProperty)return st.Value as ContextMenu;bs=bs.BasedOn;}return null;}
+        internal Action<int> AvgWarnChanged;
+        internal TextBox AvgWarnBox;
+        public int AvgWarnTicks { get; private set; } = DisplayPrefs.DefaultAvgWarnTicks;
+        public void SetAvgWarnTicks(int ticks){int n;if(!DisplayPrefs.TryParseTicks(ticks.ToString(CultureInfo.InvariantCulture),out n))return;AvgWarnTicks=n;if(AvgWarnBox!=null)AvgWarnBox.Text=n.ToString(CultureInfo.InvariantCulture);}
         internal CheckBox AskBox(string kind){return kind==ConfirmPrefs.Start?AskStartBox:kind==ConfirmPrefs.FlatOne?AskFlatOneBox:kind==ConfirmPrefs.Flatten?AskFlattenBox:null;}
         readonly ICollectionView view;
         TextBox search;
@@ -3655,6 +4022,41 @@ stateChanged(attached,"GUARDED PAUSE — no new entries; existing lifecycle + ne
             button.AddHandler(ButtonBase.ClickEvent,new RoutedEventHandler((s,e)=>{e.Handled=true;if(demo)return;var r=(s as FrameworkElement).DataContext as AccountRow;var cb=FlatRow;if(r!=null&&r.CanFlat&&cb!=null)cb(r);}));
             var c=new DataGridTemplateColumn{Header=Lang.T("Flat"),Width=52,IsReadOnly=true,CellTemplate=new DataTemplate{VisualTree=button}};
             Header(g,c,Lang.T("Flatten ONE account (confirmation names it). Not the same as OFF: OFF keeps the position, Flat closes it."));Key(c,"Flat");g.Columns.Add(c);
+        }
+        static void DriftColumn(DataGrid g)
+        {
+            var text=new FrameworkElementFactory(typeof(TextBlock));
+            text.SetValue(FrameworkElement.MarginProperty,new Thickness(9,0,9,0));text.SetValue(FrameworkElement.VerticalAlignmentProperty,VerticalAlignment.Center);
+            text.SetValue(TextBlock.FontFamilyProperty,new FontFamily("Consolas"));text.SetValue(TextBlock.FontSizeProperty,12.0);text.SetValue(TextBlock.TextTrimmingProperty,TextTrimming.CharacterEllipsis);
+            text.SetBinding(TextBlock.TextProperty,new Binding("ConsistencyBadgeShown"){Mode=BindingMode.OneWay});
+            text.SetBinding(TextBlock.ForegroundProperty,new Binding("ConsistencyInk"){Mode=BindingMode.OneWay});
+            text.SetBinding(FrameworkElement.ToolTipProperty,new Binding("ConsistencyTip"){Mode=BindingMode.OneWay});
+            text.SetBinding(System.Windows.Automation.AutomationProperties.NameProperty,new Binding("ConsistencyTip"){Mode=BindingMode.OneWay});
+            var c=new DataGridTemplateColumn{Header=Lang.T(PositionConsistency.ColumnHeader),Width=130,IsReadOnly=true,SortMemberPath="ConsistencyBadge",CellTemplate=new DataTemplate{VisualTree=text}};
+            Header(g,c,Lang.T(PositionConsistency.Disclaimer));Key(c,"Drift");g.Columns.Add(c);
+        }
+        StackPanel AvgWarnControl()
+        {
+            var panel=new StackPanel{Orientation=Orientation.Horizontal,Margin=new Thickness(8,0,8,6)};
+            panel.Children.Add(Text(Lang.T(PositionConsistency.WarnLabel)+"  ",11,Muted));
+            AvgWarnBox=Input(AvgWarnTicks.ToString(CultureInfo.InvariantCulture),46);
+            AvgWarnBox.ToolTip=Lang.T(PositionConsistency.WarnTip);AvgWarnBox.Tag="avgWarn";
+            System.Windows.Automation.AutomationProperties.SetName(AvgWarnBox,Lang.T(PositionConsistency.WarnTip));
+            AvgWarnBox.LostKeyboardFocus+=(s,e)=>CommitAvgWarn();
+            AvgWarnBox.KeyDown+=(s,e)=>{if(e.Key==System.Windows.Input.Key.Enter){CommitAvgWarn();e.Handled=true;}};
+            panel.Children.Add(AvgWarnBox);panel.Children.Add(Text("  "+Lang.T(PositionConsistency.WarnSuffix),11,Muted));return panel;
+        }
+        internal void CommitAvgWarn()
+        {
+            if(AvgWarnBox==null)return;
+            int n;
+            if(!DisplayPrefs.TryParseTicks(AvgWarnBox.Text,out n))
+            {
+                AvgWarnBox.Text=AvgWarnTicks.ToString(CultureInfo.InvariantCulture);
+                var note=BulkNotice;if(note!=null)note(PositionConsistency.WarnInvalid);return;
+            }
+            if(n==AvgWarnTicks)return;
+            AvgWarnTicks=n;var changed=AvgWarnChanged;if(changed!=null)changed(n);
         }
         static ControlTemplate FlatTemplate()
         {
@@ -3970,7 +4372,7 @@ stateChanged(attached,"GUARDED PAUSE — no new entries; existing lifecycle + ne
             var cards=new WrapPanel{Margin=new Thickness(0,0,0,10)};cardCopying=Text("0",18,Ink);cardLocked=Text("0",18,Ink);cardUnprotected=Text("0",18,Ink);cardPnl=Text("0",18,Ink);cards.Children.Add(CardBox("card:copying",Lang.T("Copying"),cardCopying));var lockedCard=CardBox("card:locked",Lang.T("Locked accounts"),cardLocked);lockedCard.Cursor=System.Windows.Input.Cursors.Hand;lockedCard.ToolTip=Lang.T("Open the Issues tab");lockedCard.MouseLeftButtonUp+=(s,e)=>{if(issuesTab!=null)Sections.SelectedItem=issuesTab;};cards.Children.Add(lockedCard);cards.Children.Add(CardBox("card:unprotected",Lang.T("Unprotected lots"),cardUnprotected));cards.Children.Add(CardBox("card:pnl",Lang.T("Today P/L"),cardPnl));AddRow(copy,cards,0);
             var toolbar=new WrapPanel{Margin=new Thickness(0,0,0,9)};
             search=Input("",185);search.ToolTip=Lang.T("Search account / alias / group / preset · Ctrl+F · Escape clears");toolbar.Children.Add(Labeled("⌕",search,17));filter=Combo(120);filter.ToolTip=Lang.T("Filter displayed account states");filter.ItemsSource=new[]{Lang.T("All"),Lang.T("On"),Lang.T("Paused"),Lang.T("Target")};filter.SelectedIndex=0;toolbar.Children.Add(filter);var ticks=new StackPanel{Orientation=Orientation.Horizontal,Margin=new Thickness(0,0,0,6)};ticks.Children.Add(Icon("\uE73A",Lang.T("Tick all visible followers"),"tickAll",()=>TickVisible(true),true));ticks.Children.Add(Icon("\uE711",Lang.T("Untick all visible followers"),"tickNone",()=>TickVisible(false),true));toolbar.Children.Add(ticks);groupBox=new CheckBox{Template=PlainCheckTemplate(),Content=Lang.T("Group by firm"),Foreground=Muted,Margin=new Thickness(8,6,0,0),ToolTip=Lang.T("Group account rows")};System.Windows.Automation.AutomationProperties.SetName(groupBox,Lang.T("Group by firm"));toolbar.Children.Add(groupBox);AddRow(copy,toolbar,1);columnsBarCopy=toolbar;
-            AccountGrid=GridTable();TickColumn(AccountGrid);AccountColumn(AccountGrid);Column(AccountGrid,"Alias","Alias",100,false,Lang.T("Optional display alias"));RatioColumn(AccountGrid);Column(AccountGrid,"Tgt","TargetText",78,false,Lang.T("Independent daily local profit target · account CCY / 0 = off"),null,true);Column(AccountGrid,"DLL","LossText",78,false,Lang.T("Independent daily loss limit · positive amount / 0 = off"),null,true);AtmColumn(AccountGrid);Column(AccountGrid,"Qty","Position",55,true,Lang.T("Signed position · + long / − short"),null,true);Column(AccountGrid,"P/L","Pnl",95,true,Lang.T("Observed session P/L in account currency · baseline is not historical daily accounting"),"N2",true);Column(AccountGrid,"Bal","BalanceText",130,true,Lang.T("CashValue in account currency; not NetLiquidation / net equity"),null,true);AccountGrid.Columns.Last().SortMemberPath="CashBalance";((DataGridTextColumn)AccountGrid.Columns.Last()).ElementStyle.Setters.Add(new Setter(FrameworkElement.ToolTipProperty,new Binding("BalanceDetail")));((DataGridTextColumn)AccountGrid.Columns.Last()).ElementStyle.Setters.Add(new Setter(System.Windows.Automation.AutomationProperties.NameProperty,new Binding("BalanceDetail")));LightColumn(AccountGrid,"Conn","ConnLight","Connection");StateColumn(AccountGrid);OffColumn(AccountGrid);FlatColumn(AccountGrid);OrderColumns(AccountGrid,CopyColumnOrder);AccountGrid.FrozenColumnCount=2;ProportionalCopyColumns(AccountGrid);AccountGrid.GroupStyle.Add(GroupHeaderStyle());AddRow(copy,AccountGrid,2);
+            AccountGrid=GridTable();TickColumn(AccountGrid);AccountColumn(AccountGrid);Column(AccountGrid,"Alias","Alias",100,false,Lang.T("Optional display alias"));RatioColumn(AccountGrid);Column(AccountGrid,"Tgt","TargetText",78,false,Lang.T("Independent daily local profit target · account CCY / 0 = off"),null,true);Column(AccountGrid,"DLL","LossText",78,false,Lang.T("Independent daily loss limit · positive amount / 0 = off"),null,true);AtmColumn(AccountGrid);Column(AccountGrid,"Qty","Position",55,true,Lang.T("Signed position · + long / − short"),null,true);DriftColumn(AccountGrid);Column(AccountGrid,"P/L","Pnl",95,true,Lang.T("Observed session P/L in account currency · baseline is not historical daily accounting"),"N2",true);Column(AccountGrid,"Bal","BalanceText",130,true,Lang.T("CashValue in account currency; not NetLiquidation / net equity"),null,true);AccountGrid.Columns.Last().SortMemberPath="CashBalance";((DataGridTextColumn)AccountGrid.Columns.Last()).ElementStyle.Setters.Add(new Setter(FrameworkElement.ToolTipProperty,new Binding("BalanceDetail")));((DataGridTextColumn)AccountGrid.Columns.Last()).ElementStyle.Setters.Add(new Setter(System.Windows.Automation.AutomationProperties.NameProperty,new Binding("BalanceDetail")));LightColumn(AccountGrid,"Conn","ConnLight","Connection");StateColumn(AccountGrid);OffColumn(AccountGrid);FlatColumn(AccountGrid);OrderColumns(AccountGrid,CopyColumnOrder);AccountGrid.FrozenColumnCount=2;ProportionalCopyColumns(AccountGrid);AccountGrid.GroupStyle.Add(GroupHeaderStyle());AddRow(copy,AccountGrid,2);
             // Flatten is an emergency action: NOT an edit button, so it stays usable while a session is attached (as in 121c44e).
             var actions=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(0,8,0,0)};var fs=TextToolFree(Lang.T("Flatten selected"),DashboardSafety.CanExecute("flattenSelected")?Lang.T("Flatten highlighted accounts (market-closes their positions)"):Lang.T("Flatten highlighted accounts · review hold"),"flattenSelected",()=>Send("flattenSelected"));fs.Foreground=Bad;fs.IsEnabled=DashboardSafety.CanExecute("flattenSelected");var fa=TextToolFree(Lang.T("Flatten all"),DashboardSafety.CanExecute("flattenAll")?Lang.T("Flatten ALL displayed accounts (market-closes every position shown)"):Lang.T("Flatten all displayed accounts · review hold"),"flattenAll",()=>Send("flattenAll"));fa.Foreground=Bad;fa.IsEnabled=DashboardSafety.CanExecute("flattenAll");RefollowButton=TextToolFree(Lang.T("Re-follow closed accounts"),Lang.T("Tick again every follower that closed after a copied exit and is flat, connected and unlocked. Only LATER new entries are copied; nothing is caught up."),"refollow",()=>Send("refollow"));RefollowButton.IsEnabled=false;actions.Children.Insert(0,RefollowButton);actions.Children.Add(fs);actions.Children.Add(fa);AddRow(copy,actions,3);
             Sections.Items.Add(new TabItem{Header=Lang.T("Monitor"),Content=copy});
@@ -3991,6 +4393,7 @@ stateChanged(attached,"GUARDED PAUSE — no new entries; existing lifecycle + ne
 #if KINFX_SIM_TEST
             DryRunBox=new CheckBox{Template=PlainCheckTemplate(),Content=Lang.T("Dry run"),Foreground=Warn,Margin=new Thickness(16,6,0,0),ToolTip=Lang.T("DRY RUN: decide and log every order, cancel and flatten as \"DRY RUN would send ...\" but send NOTHING. Fixed for the whole session: change it only while stopped.")};tools.Children.Add(DryRunBox);
 #endif
+            tools.Children.Add(AvgWarnControl());
             sessionBody.Children.Add(tools);columnsBarRisk=tools;session.Child=sessionBody;var top=new StackPanel();top.Children.Add(session);BuildNotifySection(top);AddRow(risk,top,0);
             var bulkSection=new Border{Background=Panel,BorderBrush=Line,BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(7),Padding=new Thickness(12,8,12,8),Margin=new Thickness(0,0,0,10)};var bulkBody=new StackPanel();bulkBody.Children.Add(Text(Lang.T("Bulk edit (highlighted follower accounts · only while stopped)"),12,Muted));var bulkRow=new WrapPanel{Margin=new Thickness(0,6,0,0)};
             bulkField=Combo(150);bulkField.Tag="bulkField";bulkField.ToolTip=Lang.T("Which setting to change on highlighted accounts");bulkField.ItemsSource=BulkFields.Select(BulkFieldLabel).ToArray();bulkField.SelectedIndex=0;bulkRow.Children.Add(bulkField);
@@ -4135,7 +4538,7 @@ stateChanged(attached,"GUARDED PAUSE — no new entries; existing lifecycle + ne
         }
         // Column order by importance (user request). Monitor: who -> is it safe (state, connection) -> exposure (qty, P/L, balance) ->
         // sizing and limits -> row actions on the far right. Settings: who -> sizing (Ratio, Max) -> limits -> distance to limits -> live values -> notes.
-        internal static readonly string[] CopyColumnOrder={"On","Acct","Alias","State","Conn","Qty","P/L","Bal","Ratio","Tgt","DLL","ATM","Off","Flat"};
+        internal static readonly string[] CopyColumnOrder={"On","Acct","Alias","State","Conn","Qty","Drift","P/L","Bal","Ratio","Tgt","DLL","ATM","Off","Flat"};
         internal static readonly string[] RiskColumnOrder={"Acct","Alias","Grp","Preset","Ratio","Max","Tgt","DLL","FlatLim","AutoRefollow","To Tgt","Loss left","P/L","Qty","CCY","St","Conn","Cons"};
         static void OrderColumns(DataGrid g,string[] keys)
         {
@@ -4319,6 +4722,63 @@ stateChanged(attached,"GUARDED PAUSE — no new entries; existing lifecycle + ne
             catch(Exception ex){MessageBox.Show(this,ex.Message,Lang.T("Invalid settings"),MessageBoxButton.OK,MessageBoxImage.Warning);}
         }
     }
+    // Reflect NT8 Position.AveragePrice and MasterInstrument.TickSize before any consistency read. Missing contract → Unavailable, never a zero.
+    static class PlatformPositionContract
+    {
+        static bool probed,ready;
+        static System.Reflection.PropertyInfo averagePrice,tickSize;
+        public static bool Ready { get { return Probe(); } }
+        public static bool Probe()
+        {
+            if(probed)return ready;
+            probed=true;ready=false;
+            try
+            {
+                var avg=typeof(Position).GetProperty("AveragePrice",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.Public);
+                var tick=typeof(MasterInstrument).GetProperty("TickSize",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.Public);
+                ready=PositionConsistency.ContractsReady(IsDoubleReader(avg),IsDoubleReader(tick));
+                if(ready){averagePrice=avg;tickSize=tick;}
+            }
+            catch{ready=false;}
+            return ready;
+        }
+        static bool IsDoubleReader(System.Reflection.PropertyInfo property)
+        {
+            return property!=null&&property.CanRead&&property.PropertyType==typeof(double)&&property.GetIndexParameters().Length==0;
+        }
+        public static bool TryTickSize(Instrument instrument,out double tick)
+        {
+            tick=0;
+            if(!Probe()||instrument==null||instrument.MasterInstrument==null||tickSize==null)return false;
+            object value;
+            try{value=tickSize.GetValue(instrument.MasterInstrument,null);}catch{return false;}
+            if(!(value is double))return false;
+            double n=(double)value;
+            if(!RiskPolicy.Finite(n)||n<=0)return false;
+            tick=n;return true;
+        }
+        public static bool TryRead(Account account,Instrument instrument,out int signedQty,out double average,out bool hasAverage)
+        {
+            signedQty=0;average=0;hasAverage=false;
+            if(!Probe()||averagePrice==null||account==null||instrument==null)return false;
+            Position position;object value;
+            lock(account.Positions)
+            {
+                position=account.Positions.FirstOrDefault(x=>x.Instrument!=null&&x.Instrument.FullName==instrument.FullName);
+                if(position==null)return true;
+                signedQty=position.Quantity*(position.MarketPosition==MarketPosition.Long?1:position.MarketPosition==MarketPosition.Short?-1:0);
+                if(signedQty==0)return true;
+                // Same lock as the quantity, so a fill between the two reads cannot pair a new average with an old quantity.
+                try{value=averagePrice.GetValue(position,null);}catch{return true;}
+            }
+            if(value is double)
+            {
+                double n=(double)value;
+                if(RiskPolicy.Finite(n)&&n>0){average=n;hasAverage=true;}
+            }
+            return true;
+        }
+    }
     public class KINFXTradeCopierTab : NTTabPage
     {
         DashboardView dashboard; // replaced when the language changes (see ChangeLanguage)
@@ -4428,7 +4888,7 @@ stateChanged(attached,"GUARDED PAUSE — no new entries; existing lifecycle + ne
         }
         readonly Dictionary<string,SavedAccount> saved=new Dictionary<string,SavedAccount>();
         string instanceId=Guid.NewGuid().ToString("N"),zone="Central Standard Time",lastDay="";
-        int resetHour=17,persistTicks;
+        int resetHour=17,persistTicks,avgWarnTicks=DisplayPrefs.DefaultAvgWarnTicks;
         bool cleaned,loading,settingsCorrupt;
         // Set while Cleanup runs: Log() then records synchronously (the dispatcher queue is not drained after close), so close-time lines reach the daily file.
         bool closing;
@@ -4439,6 +4899,7 @@ stateChanged(attached,"GUARDED PAUSE — no new entries; existing lifecycle + ne
         {
             TabName="Dashboard";Lang.Set(LoadLanguage(LanguagePath));askSkipped=LoadAsk(AskPath);dashboard=new DashboardView();Content=dashboard;
             engine=new CopierEngine(Log,OnTelemetry,(attached,status)=>{int session=engine.SessionGeneration;Dispatch(()=>dashboard.TrySetSessionState(attached,status,session,engine.SessionGeneration,engine.Attached));},PersistLatch);
+            avgWarnTicks=LoadAvgWarnTicks();dashboard.SetAvgWarnTicks(avgWarnTicks);
             WireDashboard();
             LoadDefault();Refresh();syncNames=CurrentAccountNames();
             timer=new DispatcherTimer(TimeSpan.FromSeconds(1),DispatcherPriority.Background,(s,e)=>{Tick();FlushDailyFile();},Dispatcher);timer.Start();
@@ -4449,6 +4910,7 @@ stateChanged(attached,"GUARDED PAUSE — no new entries; existing lifecycle + ne
             dashboard.LanguageChanging=ChangeLanguage;dashboard.Command=Command;dashboard.BulkNotice=Log;dashboard.PauseRow=Pause;dashboard.RowSettings=r=>Edit(new[]{r});dashboard.FollowRow=Follow;dashboard.FlatRow=FlatOne;ShowAsk();dashboard.AskChanged=SetAsk;
             notify=LoadNotify(NotifyPath);dashboard.ShowNotify(notify);dashboard.NotifySave=SaveNotify;dashboard.NotifyTest=TestNotify;
             dashboard.ApplyColumns(LoadColumns(ColumnsPath));dashboard.ColumnsChanged=SaveColumns;
+            dashboard.AvgWarnChanged=ticks=>{avgWarnTicks=ticks;try{DisplayPrefs.SaveAvgWarnTicks(DisplayPrefsPath,ticks);}catch(Exception ex){Log(string.Format(CultureInfo.InvariantCulture,PositionConsistency.NotSaved,ex.Message));}RefreshPositionConsistencySafe();};
             dashboard.LeaderBox.SelectionChanged+=(s,e)=>{if(engine.Attached)return;leaderName=dashboard.LeaderBox.SelectedItem as string ?? "";foreach(var row in dashboard.Rows){row.Role=row.Name==leaderName?"Leader":"Follower";if(row.Role=="Leader")row.Enabled=false;row.Changed();}dashboard.ResortLeaderFirst();};
             dashboard.AccountGrid.RowEditEnding+=(s,e)=>Dispatch(()=>{foreach(var row in dashboard.Rows){row.Changed();}dashboard.UpdateCards();});
             dashboard.InstrumentBox.LostKeyboardFocus+=(s,e)=>NormalizeInstrumentBox();
@@ -4486,7 +4948,7 @@ stateChanged(attached,"GUARDED PAUSE — no new entries; existing lifecycle + ne
             Persist();SaveLanguage(code);Lang.Set(code);
             string instrument=dashboard.InstrumentBox.Text;int tab=dashboard.Sections.SelectedIndex;
             dashboard=new DashboardView();Content=dashboard;WireDashboard();
-            dashboard.InstrumentBox.Text=instrument;
+            dashboard.InstrumentBox.Text=instrument;dashboard.SetAvgWarnTicks(avgWarnTicks);
             loading=false;Refresh();syncNames=CurrentAccountNames();
             dashboard.Sections.SelectedIndex=Math.Max(0,Math.Min(tab,dashboard.Sections.Items.Count-1));
             RedrawLog();dashboard.UpdateCards();
@@ -4496,6 +4958,19 @@ stateChanged(attached,"GUARDED PAUSE — no new entries; existing lifecycle + ne
         void Dispatch(Action action) {if(!cleaned)Dispatcher.BeginInvoke(action);}
         string DirectoryPath {get {return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),"NinjaTrader 8","templates","KINFXTradeCopier");}}
         string LanguagePath {get{return Path.Combine(DirectoryPath,"language.txt");}}
+        string DisplayPrefsPath {get{return Path.Combine(DirectoryPath,"display.json");}}
+        int LoadAvgWarnTicks()
+        {
+            try
+            {
+                if(!File.Exists(DisplayPrefsPath))return DisplayPrefs.DefaultAvgWarnTicks;
+                int n;
+                if(DisplayPrefs.TryReadAvgWarnTicks(File.ReadAllText(DisplayPrefsPath),out n))return n;
+                Log(PositionConsistency.PrefIgnored);
+            }
+            catch{Log(PositionConsistency.PrefIgnored);}
+            return DisplayPrefs.DefaultAvgWarnTicks;
+        }
         // Saved choice wins; otherwise follow the Windows UI language (zh-* / ja / ko, anything else English). A missing or bad file never blocks anything.
         static string LoadLanguage(string path){try{if(File.Exists(path)){string c=File.ReadAllText(path).Trim().ToLowerInvariant();if(Lang.IsValid(c))return c;}}catch{}return Lang.Detect(System.Globalization.CultureInfo.InstalledUICulture.Name,System.Globalization.CultureInfo.CurrentCulture.Name,System.Globalization.CultureInfo.CurrentUICulture.Name);}
         void SaveLanguage(string code){try{Directory.CreateDirectory(DirectoryPath);File.WriteAllText(LanguagePath,code);}catch(Exception ex){Log("Settings NOT saved: "+ex.Message);}}
@@ -4544,6 +5019,7 @@ stateChanged(attached,"GUARDED PAUSE — no new entries; existing lifecycle + ne
                     dashboard.Rows.Add(new AccountRow {Account=a,Name=a.Name,Role=a.Name==leaderName?"Leader":"Follower",Currency=a.Denomination.ToString(),Connection=a.Connection==null?"Disconnected":a.Connection.Status.ToString(),Status=stored!=null&&stored.Latch.Locked?stored.Latch.Reason:"Disarmed",Settings=WithAlias(stored==null?NewSettingsFor(a):stored.Settings.Clone(),a.Name),Latch=stored==null?new RiskLatch():new RiskLatch {Locked=stored.Latch.Locked,Reason=stored.Latch.Reason}});
                 }
                 string keep=leaderName;dashboard.LeaderBox.ItemsSource=accounts.Where(CopierEngine.Listable).Select(a=>a.Name).ToArray();if(!string.IsNullOrEmpty(keep)&&accounts.Any(a=>a.Name==keep))dashboard.LeaderBox.SelectedItem=keep;else if(dashboard.LeaderBox.Items.Count>0)dashboard.LeaderBox.SelectedItem=DashboardChoices.DefaultLeader(dashboard.LeaderBox.Items.Cast<string>());
+                RefreshPositionConsistencySafe();
                 dashboard.UpdateCards();
             }
             catch(Exception ex){Log("Refresh error: "+ex.Message);}finally{loading=false;}
@@ -4885,6 +5361,47 @@ stateChanged(attached,"GUARDED PAUSE — no new entries; existing lifecycle + ne
             if(action==AccountSyncAction.Reload){Refresh();syncNames=CurrentAccountNames();syncNoticeKey="";Log("Account list updated: "+(diff.Added.Length>0?"+"+string.Join(", +",diff.Added)+" ":"")+(diff.Removed.Length>0?"-"+string.Join(", -",diff.Removed):"").Trim());return;}
             if(syncNoticeKey!=key){syncNoticeKey=key;Log(action==AccountSyncAction.Notify?"Account list changed ("+(diff.Added.Length>0?"+"+string.Join(", +",diff.Added)+" ":"")+(diff.Removed.Length>0?"-"+string.Join(", -",diff.Removed):"").Trim()+") — not applied while copying. Stop when flat, then the list refreshes.":"Account list changed — will refresh when you finish editing.");}
         }
+        string lastDriftError="";
+        void RefreshPositionConsistencySafe()
+        {
+            try{RefreshPositionConsistency();lastDriftError="";}
+            catch(Exception ex){if(ex.Message!=lastDriftError){lastDriftError=ex.Message;Log(string.Format(CultureInfo.InvariantCulture,PositionConsistency.DisplayFailed,ex.Message));}}
+        }
+        void RefreshPositionConsistency()
+        {
+            DateTime now=DateTime.UtcNow;
+            bool contracts=PlatformPositionContract.Ready;
+            Instrument inst=null;
+            try{inst=Instrument.GetInstrument(InstrumentText(),false);}catch{inst=null;}
+            double tick=0;
+            bool tickOk=contracts&&inst!=null&&PlatformPositionContract.TryTickSize(inst,out tick);
+            string instrumentName=inst==null?"":inst.FullName??"";
+            AccountRow leader=null;
+            foreach(var row in dashboard.Rows)
+            {
+                if(row.Role=="Leader")leader=row;
+                bool connected=row.Connection=="Connected"||row.Connection=="Synthetic";
+                int qty=row.Position;double avg=0;bool hasAvg=false,readOk=false;
+                if(contracts&&row.Account!=null&&inst!=null)
+                {
+                    int platformQty;
+                    readOk=PlatformPositionContract.TryRead(row.Account,inst,out platformQty,out avg,out hasAvg);
+                    if(readOk)qty=platformQty;
+                }
+                row.Observe(instrumentName,connected,contracts,readOk,qty,hasAvg,avg,now);
+            }
+            foreach(var row in dashboard.Rows)
+            {
+                string previous=row.ConsistencyStatus;
+                PositionConsistencyResult result;
+                if(row.Role=="Leader")result=PositionConsistency.LeaderBaseline();
+                else if(leader==null||leader.ObservedSnap==null||row.ObservedSnap==null)result=PositionConsistency.NotComparable();
+                else result=PositionConsistency.Evaluate(leader.ObservedSnap,row.ObservedSnap,tickOk?tick:0,avgWarnTicks,now,PositionConsistency.ReportGrace);
+                row.ApplyConsistency(result);
+                if(row.Role!="Leader"&&result.Status==PositionConsistencyStatus.PriceDiverge&&previous!=PositionConsistencyStatus.PriceDiverge.ToString())
+                    Log(string.Format(CultureInfo.InvariantCulture,PositionConsistency.Notice,row.Name,result.Badge));
+            }
+        }
         void Tick()
         {
             try{SyncAccounts();}catch(Exception ex){Log("Account sync error: "+ex.Message);}
@@ -4904,6 +5421,7 @@ stateChanged(attached,"GUARDED PAUSE — no new entries; existing lifecycle + ne
                     }
                     catch(Exception ex){r.Status="Telemetry error";r.Changed();Log(r.Name+": "+ex.Message);}
                 }
+                RefreshPositionConsistencySafe();
                 dashboard.UpdateCards();
             }
             if(engine.Attached && ++persistTicks>=30){persistTicks=0;Persist();}
