@@ -186,7 +186,7 @@ Prop firm    ██████████████████████�
 歷史真實測試：1 個模擬 Leader、最多 11 個**模擬** Prop Firm 評估帳戶（Lucid 5 個、Tradeify 6 個）、MNQ、市價＋限價＋停損單、TP/SL OCO。從未使用 funded 或實盤帳戶。各項詳情與限制：[`docs/PROGRESS.json`](docs/PROGRESS.json)。計分按權重：✅ 100%、🟡 50%、只有設計 10%。快照 2026-10-15，源碼 `8a8deb196fa8`。
 <!-- PROGRESS:END -->
 
-勾號及分數是**加權歷史檢查清單**，**並非發佈就緒百分比**。最近一次真實 NinjaTrader 交易測試（2026-10-21）使用 v0.3.2 zip 內的同一檔案（SIM TEST 版，NinjaTrader 8.1.8.4，Sim101 主帳戶、兩個模擬跟單帳戶、每次 1 口 MNQ），屬測試證據，不是驗收；電郵提醒及交易日分界「只作提示」模式只有離線測試。[各項證據與限制](docs/PROGRESS.json) · [真實 NT 測試記錄](docs/VM-PROGRESS.md) · [離線結果與安全阻礙](docs/DEVELOPERS.zh-HK.md)
+勾號及分數是**加權歷史檢查清單**，**並非發佈就緒百分比**。最近一次真實 NinjaTrader 交易測試（2026-10-21，SIM TEST 版，NinjaTrader 8.1.8.4，只用模擬帳戶，每次 1 口 MNQ）：v0.3.2 zip 內的同一檔案測過主帳戶斷線（Lucid 主帳戶、Sim101 跟單）；其餘項目用 v0.3.1 檔案測試（Sim101 主帳戶、2 至 3 個跟單帳戶），兩版只差斷線鎖定一處引擎修正；以上均屬測試證據，不是驗收；電郵提醒及交易日分界「只作提示」模式只有離線測試。[各項證據與限制](docs/PROGRESS.json) · [真實 NT 測試記錄](docs/VM-PROGRESS.md) · [離線結果與安全阻礙](docs/DEVELOPERS.zh-HK.md)
 
 ## 使用限制
 
