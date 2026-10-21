@@ -77,7 +77,7 @@ NinjaTrader 8 で、1 つのリーダー口座の取引を複数のフォロワ�
 
 ### NinjaTrader の zip をインポート（推奨）
 
-1. [v0.3.0-simtest-alpha](https://github.com/Kinfxhk/KINFXTradeCopier/releases/tag/v0.3.0-simtest-alpha) から `KINFXTradeCopier-SIMTEST.zip` をダウンロードします（NinjaTrader 8 自身が書き出したもの。**解凍しません**。SHA-256 はリリースノートにあります）。このページの画面と同じ内容です。
+1. [v0.3.1-simtest-alpha](https://github.com/Kinfxhk/KINFXTradeCopier/releases/tag/v0.3.1-simtest-alpha) から `KINFXTradeCopier-SIMTEST.zip` をダウンロードします（NinjaTrader 8 自身が書き出したもの。**解凍しません**。SHA-256 はリリースノートにあります）。このページの画面と同じ内容です。
 2. NinjaTrader：*Control Center > Tools > Import > NinjaScript Add-On...* で zip を選びます。
 3. 信頼できる提供元かを聞かれたら **Yes**。ファイルが既にあると言われたら、**Yes** はこのアドオンの旧版だけを置き換えます。
 4. 求められたら NinjaTrader を再起動し、*New > KINFX Trade Copier* を開きます。
@@ -186,7 +186,7 @@ Prop firm    ██████████████████████�
 これまでの実機テスト：シミュレーターのリーダー 1、最大 11 の**シミュレーション** Prop Firm 評価口座（Lucid 5、Tradeify 6）、MNQ、成行＋指値＋逆指値、TP/SL OCO。funded またはライブ口座は一度も使用していません。各項目と制限：[`docs/PROGRESS.json`](docs/PROGRESS.json)。配点は加重：✅ 100%、🟡 50%、設計のみ 10%。スナップショット 2026-10-15、ソース `8a8deb196fa8`。
 <!-- PROGRESS:END -->
 
-チェックと百分率は**加重した過去のチェックリスト**であり、**リリース準備の割合ではありません**。直近の実機 NinjaTrader での取引テスト（2026-10-15 夜）はソース `8a8deb196fa8`（SIM TEST ビルド、旧 v0.2.0 zip と同じ）で、テスト証拠であり受入ではありません。現在のソースの画面は 2026-10-17 に実機 NinjaTrader で 4 言語すべてをページごとに確認し、v0.3.0 zip のファイルも実機でコンパイルして開きました（開始は押さず、注文は送っていません）。新規エントリーの再開、再フォロー、メール通知はオフラインテストのみです。[各項目の証拠と制限](docs/PROGRESS.json) · [実機 NT テスト記録](docs/VM-PROGRESS.md) · [オフライン結果と安全上の障害](docs/DEVELOPERS.md)
+チェックと百分率は**加重した過去のチェックリスト**であり、**リリース準備の割合ではありません**。直近の実機 NinjaTrader での取引テスト（2026-10-21）は v0.3.1 zip と同じファイル（SIM TEST ビルド、NinjaTrader 8.1.8.4、Sim101 リーダー、模擬フォロワー 2 口座、1 回 1 枚の MNQ）で行い、テスト証拠であり受入ではありません。メール通知と取引日の境界の「通知のみ」モードはオフラインテストのみです。[各項目の証拠と制限](docs/PROGRESS.json) · [実機 NT テスト記録](docs/VM-PROGRESS.md) · [オフライン結果と安全上の障害](docs/DEVELOPERS.md)
 
 ## 制限
 
