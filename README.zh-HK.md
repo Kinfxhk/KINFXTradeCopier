@@ -77,7 +77,7 @@
 
 ### 匯入 NinjaTrader zip（建議）
 
-1. 從 [v0.3.1-simtest-alpha](https://github.com/Kinfxhk/KINFXTradeCopier/releases/tag/v0.3.1-simtest-alpha) 發佈頁下載 `KINFXTradeCopier-SIMTEST.zip`（由 NinjaTrader 8 本身匯出，**毋須解壓**；發佈說明列出 SHA-256）。內容與本頁介面相同。
+1. 從 [v0.3.2-simtest-alpha](https://github.com/Kinfxhk/KINFXTradeCopier/releases/tag/v0.3.2-simtest-alpha) 發佈頁下載 `KINFXTradeCopier-SIMTEST.zip`（由 NinjaTrader 8 本身匯出，**毋須解壓**；發佈說明列出 SHA-256）。內容與本頁介面相同。
 2. NinjaTrader：*Control Center > Tools > Import > NinjaScript Add-On...*，選取該 zip。
 3. 詢問是否信任來源時按 **Yes**；若提示檔案已存在，按 **Yes** 只會取代本外掛的舊版本。
 4. 按提示重新啟動 NinjaTrader，然後開啟 *New > KINFX Trade Copier*。
@@ -186,12 +186,12 @@ Prop firm    ██████████████████████�
 歷史真實測試：1 個模擬 Leader、最多 11 個**模擬** Prop Firm 評估帳戶（Lucid 5 個、Tradeify 6 個）、MNQ、市價＋限價＋停損單、TP/SL OCO。從未使用 funded 或實盤帳戶。各項詳情與限制：[`docs/PROGRESS.json`](docs/PROGRESS.json)。計分按權重：✅ 100%、🟡 50%、只有設計 10%。快照 2026-10-15，源碼 `8a8deb196fa8`。
 <!-- PROGRESS:END -->
 
-勾號及分數是**加權歷史檢查清單**，**並非發佈就緒百分比**。最近一次真實 NinjaTrader 交易測試（2026-10-21）使用 v0.3.1 zip 內的同一檔案（SIM TEST 版，NinjaTrader 8.1.8.4，Sim101 主帳戶、兩個模擬跟單帳戶、每次 1 口 MNQ），屬測試證據，不是驗收；電郵提醒及交易日分界「只作提示」模式只有離線測試。[各項證據與限制](docs/PROGRESS.json) · [真實 NT 測試記錄](docs/VM-PROGRESS.md) · [離線結果與安全阻礙](docs/DEVELOPERS.zh-HK.md)
+勾號及分數是**加權歷史檢查清單**，**並非發佈就緒百分比**。最近一次真實 NinjaTrader 交易測試（2026-10-21）使用 v0.3.2 zip 內的同一檔案（SIM TEST 版，NinjaTrader 8.1.8.4，Sim101 主帳戶、兩個模擬跟單帳戶、每次 1 口 MNQ），屬測試證據，不是驗收；電郵提醒及交易日分界「只作提示」模式只有離線測試。[各項證據與限制](docs/PROGRESS.json) · [真實 NT 測試記錄](docs/VM-PROGRESS.md) · [離線結果與安全阻礙](docs/DEVELOPERS.zh-HK.md)
 
 ## 使用限制
 
 - 本項目是**源碼 alpha**，不是已驗收的交易版本。**尚未證明：**20–30 個帳戶、真實部分成交、ATM 啟動失敗、provider 呼叫停滯、Flatten 被拒及重啟恢復。離線編譯／測試不能證明以上行為。
-- **2026-10-21 已在真實 NinjaTrader 8.1.8.4 驗證**（SIM TEST 版，Sim101 主帳戶、兩個模擬跟單帳戶、每次 1 口 MNQ）：暫停期間的進場不會補跟、恢復新進場、自動及手動重新跟隨、偏差欄、淡倉開平、限價單取消、單一帳戶平倉、全部解鎖、無持倉時停止；另以 3 個跟單帳戶跟單及按「全部平倉」，以及以 Lucid 帳戶作主帳戶並中斷其連線：跟單帳戶在 1 秒內鎖定，重新連線後仍保持鎖定，須平倉確認及解鎖後才可停止。
+- **2026-10-21 已在真實 NinjaTrader 8.1.8.4 驗證**（SIM TEST 版，Sim101 主帳戶、兩個模擬跟單帳戶、每次 1 口 MNQ）：暫停期間的進場不會補跟、恢復新進場、自動及手動重新跟隨、偏差欄、淡倉開平、限價單取消、單一帳戶平倉、全部解鎖、無持倉時停止；另以 3 個跟單帳戶跟單及按「全部平倉」，以及以 Lucid 帳戶作主帳戶並中斷其連線：跟單帳戶在 1 秒內鎖定，重新連線後仍保持鎖定，此問題已於 v0.3.2 修正：跟單帳戶無持倉時可直接按「無持倉時停止」，鎖定保留至手動解鎖（已在真實 NinjaTrader 驗證）。
 - **只有離線測試：**交易日分界「只作提示」模式及電郵提醒。
 - 上限預設為 1，計算的是該帳戶在該商品的總手數（現有持倉＋掛單中的進場＋新一筆）。超過上限時，新一筆會**整筆略過**，不會縮減至上限手數；加碼單亦一樣。設定分頁會以邊框提示仍為 1 的上限。
 - **已鎖定**的帳戶須在原生 NinjaTrader 調查並核對。解鎖**不等於**核對不確定的引擎記錄、隱藏的已接受請求或拋出例外的 Flatten。仍缺少可驗證已平倉的恢復關卡（[#9](https://github.com/Kinfxhk/KINFXTradeCopier/issues/9)，已知 FAIL `ExplicitManualFlatReconciliationAvailable`）。copier 不會重試 Flatten，亦不會在斷線後補單。

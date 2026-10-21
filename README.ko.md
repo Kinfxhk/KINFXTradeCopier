@@ -77,7 +77,7 @@ NinjaTrader 8에서 리더 계좌 하나의 거래를 여러 팔로워 계좌(De
 
 ### NinjaTrader zip 가져오기(권장)
 
-1. [v0.3.1-simtest-alpha](https://github.com/Kinfxhk/KINFXTradeCopier/releases/tag/v0.3.1-simtest-alpha)에서 `KINFXTradeCopier-SIMTEST.zip`을 내려받습니다(NinjaTrader 8이 직접 내보낸 파일. **압축을 풀지 마십시오**. SHA-256은 릴리스 노트에 있습니다). 이 페이지의 화면과 같은 내용입니다.
+1. [v0.3.2-simtest-alpha](https://github.com/Kinfxhk/KINFXTradeCopier/releases/tag/v0.3.2-simtest-alpha)에서 `KINFXTradeCopier-SIMTEST.zip`을 내려받습니다(NinjaTrader 8이 직접 내보낸 파일. **압축을 풀지 마십시오**. SHA-256은 릴리스 노트에 있습니다). 이 페이지의 화면과 같은 내용입니다.
 2. NinjaTrader: *Control Center > Tools > Import > NinjaScript Add-On...*에서 zip을 고릅니다.
 3. 신뢰할 수 있는 출처인지 물으면 **Yes**. 파일이 이미 있다고 하면 **Yes**는 이 애드온의 이전 버전만 바꿉니다.
 4. 요청하면 NinjaTrader를 다시 시작하고 *New > KINFX Trade Copier*를 엽니다.
@@ -186,12 +186,12 @@ Prop firm    ██████████████████████�
 지금까지의 실제 테스트: 시뮬레이터 리더 1개, 최대 11개의 **시뮬레이션** Prop Firm 평가 계좌(Lucid 5개, Tradeify 6개), MNQ, 시장가＋지정가＋역지정가, TP/SL OCO. funded 또는 실계좌는 사용한 적이 없습니다. 각 항목과 제한: [`docs/PROGRESS.json`](docs/PROGRESS.json). 배점은 가중치: ✅ 100%, 🟡 50%, 설계만 10%. 스냅샷 2026-10-15, 소스 `8a8deb196fa8`.
 <!-- PROGRESS:END -->
 
-체크와 백분율은 **가중된 과거 체크리스트**이며, **릴리스 준비 비율이 아닙니다**. 최근 실제 NinjaTrader 거래 테스트(2026-10-21)는 v0.3.1 zip과 같은 파일(SIM TEST 빌드, NinjaTrader 8.1.8.4, Sim101 리더, 모의 팔로워 2개, 주문당 MNQ 1계약)로 했으며, 테스트 증거이지 수용이 아닙니다. 이메일 알림과 거래일 경계의 '알림만' 모드는 오프라인 테스트만 했습니다. [항목별 증거와 제한](docs/PROGRESS.json) · [실제 NT 테스트 기록](docs/VM-PROGRESS.md) · [오프라인 결과와 안전 차단](docs/DEVELOPERS.md)
+체크와 백분율은 **가중된 과거 체크리스트**이며, **릴리스 준비 비율이 아닙니다**. 최근 실제 NinjaTrader 거래 테스트(2026-10-21)는 v0.3.2 zip과 같은 파일(SIM TEST 빌드, NinjaTrader 8.1.8.4, Sim101 리더, 모의 팔로워 2개, 주문당 MNQ 1계약)로 했으며, 테스트 증거이지 수용이 아닙니다. 이메일 알림과 거래일 경계의 '알림만' 모드는 오프라인 테스트만 했습니다. [항목별 증거와 제한](docs/PROGRESS.json) · [실제 NT 테스트 기록](docs/VM-PROGRESS.md) · [오프라인 결과와 안전 차단](docs/DEVELOPERS.md)
 
 ## 제한
 
 - **소스 alpha**이며, 수용된 거래 빌드가 아닙니다. **아직 증명되지 않았습니다:** 20–30 계좌, 실제 부분 체결, ATM 시작 실패, 정체된 provider 호출, 거부된 Flatten, 재시작 복구. 오프라인 컴파일／테스트는 이를 증명하지 않습니다.
-- **2026-10-21 실제 NinjaTrader 8.1.8.4에서 확인** (SIM TEST 빌드, Sim101 리더, 모의 팔로워 2개, 주문당 MNQ 1계약): 일시정지 중 진입은 따라잡지 않음, 신규 진입 재개, 자동·수동 다시 팔로우, 괴리 열, 매도 진입과 환매, 지정가 취소, 계좌별 청산, 모두 잠금 해제, 포지션 없을 때 중지. 또한 팔로워 3개와 '모두 청산', 리더 연결 끊김(Lucid 계좌를 리더로 하고 연결을 끊음): 팔로워는 1초 안에 잠겼고, 다시 연결된 뒤에도 잠긴 채였으며, 중지하려면 청산 확인과 잠금 해제가 먼저 필요했습니다.
+- **2026-10-21 실제 NinjaTrader 8.1.8.4에서 확인** (SIM TEST 빌드, Sim101 리더, 모의 팔로워 2개, 주문당 MNQ 1계약): 일시정지 중 진입은 따라잡지 않음, 신규 진입 재개, 자동·수동 다시 팔로우, 괴리 열, 매도 진입과 환매, 지정가 취소, 계좌별 청산, 모두 잠금 해제, 포지션 없을 때 중지. 또한 팔로워 3개와 '모두 청산', 리더 연결 끊김(Lucid 계좌를 리더로 하고 연결을 끊음): 팔로워는 1초 안에 잠겼고, 다시 연결된 뒤에도 잠긴 채였으며, 중지하려면 청산 확인과 잠금 해제가 먼저 필요했습니다. v0.3.2에서 수정: 모든 팔로워에 포지션이 없으면 '포지션 없을 때 중지'가 바로 되고, 잠금은 수동 해제할 때까지 남습니다(실제 NinjaTrader에서 확인).
 - **오프라인 테스트만:** 거래일 경계의 '알림만' 모드, 이메일 알림.
 - 최대의 기본값은 1이며, 그 종목에서 계좌의 합계(포지션＋미체결 진입＋새 주문)로 셉니다. 넘으면 새 주문은 **통째로 건너뛰며**, 최대 수량으로 줄여서 보내지 않습니다. 추가 주문도 같습니다. 설정 탭은 1로 남은 최대를 테두리로 표시합니다.
 - **잠김** 계좌는 NinjaTrader 기본 화면에서 조사하고 대조해야 합니다. 잠금 해제는 불확실한 엔진 기록, 숨은 수락된 요청, 예외를 던진 Flatten의 **대조가 아닙니다**. 검증된 무포지션 복구 관문은 아직 없습니다([#9](https://github.com/Kinfxhk/KINFXTradeCopier/issues/9), 알려진 FAIL `ExplicitManualFlatReconciliationAvailable`). copier는 Flatten을 재시도하지 않으며, 연결이 끊긴 뒤 누락분을 메우지 않습니다.
