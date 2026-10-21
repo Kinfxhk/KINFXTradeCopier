@@ -2271,6 +2271,16 @@ class EngineSafetyTests {
    Check(latest!=null&&latest.Locked,"a late entry fill AFTER an exit was ignored leaves a position with no exit: the account must lock (fail closed)");
    Check(latest.Reason.Contains("UNPROTECTED"),"the lock text says how many lots have no exit; got: "+latest.Reason);
    Check(a.Submits==1,"the copier never creates the missing exit itself");}}
+ // Real NT 2026-10-21 (Sim101 -> Lucid): a flat follower ignored a leader exit as "nothing to close"; the leader's NEXT entry was copied and its fill
+ // locked the follower as if it were a late fill of an older entry. Only entries sent before the ignored exit may lock.
+ static void IgnoredExitThenNewEntryFillDoesNotLock(){var l=Acc("ign new lead");var a=Acc("ign new a");AccountTelemetry latest=null;
+  using(var e=Arm(l,a,t=>latest=t)){
+   l.Positions.Add(new NinjaTrader.Cbi.Position{Instrument=inst,Quantity=2,MarketPosition=NinjaTrader.Cbi.MarketPosition.Long});
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Sell,"",2));Drain(e);
+   Check(a.Submits==0,"fixture: the follower is flat, so the leader exit is ignored");
+   l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",2));Wait(()=>a.Submits==1,"the next leader entry is copied");
+   Fill(a,2);Drain(e);
+   Check(latest==null||!latest.Locked,"a fill of an entry copied AFTER the ignored exit must not lock; got: "+(latest==null?"":latest.Reason));}}
  static void ExitIgnoredAfterOffThenLateEntryFillLocks(){var l=Acc("rvB lead");var a=Acc("rvB a");AccountTelemetry latest=null;
   using(var e=Arm(l,a,t=>latest=t)){
    l.Emit(LeaderOrder(l,NinjaTrader.Cbi.OrderAction.Buy,"",2));Wait(()=>a.Submits==1,"entry");

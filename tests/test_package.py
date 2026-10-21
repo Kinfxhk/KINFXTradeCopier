@@ -239,7 +239,7 @@ class PublicPackage(unittest.TestCase):
         # zip is the v0.3.0 release of this interface (2026-10-17), lists the settings files the source really writes and explains email alerts.
         src = (ROOT / 'src' / 'AddOns' / 'KINFXTradeCopier.cs').read_text(encoding='utf-8-sig')
         files = ('sim-allow.txt', 'last-workspace.xml', 'risk-latches.xml', 'columns.txt', 'confirm-prefs.txt',
-                 'notify.txt', 'language.txt', 'instruments-recent.txt')
+                 'notify.txt', 'language.txt', 'instruments-recent.txt', 'display.json')
         for f in files:
             self.assertTrue('"%s"' % f in src, 'source no longer writes ' + f)
         for code in ('"logs"', '"kinfx-"', 'TimeSpan.FromMinutes(10)', 'PerHour=20'):
