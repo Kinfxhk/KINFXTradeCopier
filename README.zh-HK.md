@@ -1,5 +1,8 @@
 # KINFX Trade Copier
 
+
+**[☕ Buy Me a Coffee](https://buymeacoffee.com/kinfxhk)** · [GitHub Sponsors](https://github.com/sponsors/Kinfxhk)
+
 在 NinjaTrader 8 中，將一個主帳戶的交易同步複製至多個跟單帳戶（Demo 帳戶及 Prop Firm **模擬**／考核帳戶）。免費、開源（MIT），屬早期**源碼 alpha**。
 
 **中文** · [English](README.en.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
