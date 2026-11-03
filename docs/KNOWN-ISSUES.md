@@ -140,4 +140,4 @@ No controlled acceptance with **two or more actual NT demo accounts** is establi
 
 Do not unlock trading by editing a define or removing a hold. A later simulator design needs explicit authorization, reviewed exact source and measurable abort/reconciliation criteria. Live operation is outside this alpha's acceptance.
 
-**廣東話摘要：** 最重要未解決嘅係保護單縮量、分組 OCO 完成、mailbox／Dispose／HOL，同整合後嘅 settings／journal 驗收。Oracle／harness／policy FAIL 唔可以一律當產品 bug；scratch GREEN 亦唔代表已合併。可以先協作發佈，但唔可以宣稱可交易。
+**摘要：** 最重要而未解決的是保護單縮量、分組 OCO 完成、mailbox／Dispose／HOL，以及整合後的 settings／journal 驗收。Oracle／harness／policy FAIL 不可以一律當作產品 bug；scratch GREEN 亦不代表已經合併。可以先以協作方式發佈，但不可以宣稱可交易。

@@ -51,4 +51,4 @@ Before any later authorized account run:
 
 Native follower ATM, broader instrument/provider support, richer telemetry and commercial-feature comparisons can be discussed after safety foundations. Add a documented contract and acceptance slice before each feature. No feature-count parity promise, live-release date or autonomous trading certification is offered.
 
-**廣東話摘要：** M0 先公開安全封住嘅源碼、文件同測試，邀請大家一齊做；M1 合作修 P0 同驗整合；M2 先設計、再另行批准真正 Sim 驗收。唔等功能齊晒先開源，亦唔因為大量 PASS 就解封交易。
+**摘要：** M0 先公開已安全封鎖的源碼、文件及測試，邀請大家一起參與；M1 合作修正 P0 並驗收整合；M2 先完成設計，再另行批准真正的 Sim 驗收。不會等功能齊全才開源，亦不會因為大量 PASS 就解除交易封鎖。

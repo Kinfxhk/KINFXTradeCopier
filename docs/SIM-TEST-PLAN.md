@@ -1,9 +1,9 @@
-# Two-account Sim acceptance: test PLAN (not authorization) / 雙帳戶模擬驗收：測試計劃（唔係授權）
+# Two-account Sim acceptance: test PLAN (not authorization) / 雙帳戶模擬驗收：測試計劃（不是授權）
 
 **STATUS: PLAN ONLY. DO NOT RUN.** Start and Flatten are blocked for every real NinjaTrader account in this repository, including Simulator and Playback, and **this document does not lift that block.** Running this plan needs a separate, reviewed, simulation-only opt-in build that does not exist yet. See [#7](https://github.com/Kinfxhk/KINFXTradeCopier/issues/7) and [SAFETY-HOLD](SAFETY-HOLD.md). Do not edit the hold to follow this plan.
-**狀態：只係計劃，唔好跑。** 本 repo 對所有真 NinjaTrader 帳戶（包括 Sim／Playback）嘅 Start／Flatten 全部封鎖，**呢份文件唔會解除封鎖**。要跑呢份計劃，需要另一個經覆核、只限模擬、明確選用嘅 build，而家未存在。
+**狀態：只是計劃，不要執行。** 本 repo 對所有真實 NinjaTrader 帳戶（包括 Sim／Playback）的 Start／Flatten 全部封鎖，**這份文件不會解除封鎖**。要執行這份計劃，需要另一個經覆核、只限模擬、明確選用的 build，目前尚未存在。
 
-Why it exists: so that when such a build exists, the first real test answers the questions offline tests cannot, instead of repeating what the fake already proved. 目的：將來有咗該 build，第一次真測試去回答離線測試答唔到嘅問題。
+Why it exists: so that when such a build exists, the first real test answers the questions offline tests cannot, instead of repeating what the fake already proved. 目的：將來有了該 build，第一次真實測試應回答離線測試無法回答的問題。
 
 ## 0. What offline tests already cover, and what they cannot
 
@@ -88,11 +88,11 @@ A clean run of S0 to S11 on Sim means only: **those steps worked on that day, wi
 
 ## 中文摘要
 
-1. **呢份係計劃，唔係授權。** Start／Flatten 全封鎖，要等一個經覆核、只限模擬嘅 build，加埋維護者喺本 repo 書面明確授權，先可以跑。**唔好為咗跟呢份計劃去改 hold、加 define 或拆封鎖**（詳見 [SAFETY-HOLD](SAFETY-HOLD.md)、[#7](https://github.com/Kinfxhk/KINFXTradeCopier/issues/7)）。
-2. 需要至少**兩個獨立 Sim 帳戶**（一個 Leader、一個 Follower），同一個 NinjaTrader；一個帳戶證明唔到跟單。**硬性要求：** 該 NinjaTrader 入面**根本冇連住任何真倉或 Prop 帳戶**（唔係「我唔去揀佢」，而係要移除或另開 Windows 用戶）；要自己喺 NinjaTrader 親自確認每個帳戶都係純模擬（本文件冇講係邊個畫面，因為冇對住真 NinjaTrader 核實過；唔肯定就當佢係真倉，唔好用）；兩個帳戶開始前都要平倉、冇掛單。
-3. 只用 1 手、一隻合約、Ratio 1。要有人**全程睇住 NinjaTrader 自己嘅 Orders／Positions 分頁**，嗰度先係真相，唔係本軟件嘅狀態。
-4. **任何意外就停**，唔好重試，唔好再撳 Start／Flatten／解鎖；用 NinjaTrader 自己嘅控制手動取消同平倉，**先記低見到乜**。等待時間要**開始前寫低**（建議：單出現 5 秒、確認 10 秒），超時即係中止，唔係「再等多陣」。每次完結或中止，都要喺 NinjaTrader 取消所有掛單同平倉，確認兩邊都係平倉先關閉本軟件。
-5. 步驟 S0 至 S12 逐步做，每步只改一樣嘢，每步要有預期結果、通過準則同要錄嘅證據。S12 係**可選、只係觀察**：持倉時嘗試關閉 copier，預期被拒絕，記低訊息，**唔好強行關閉**（唔好殺 NinjaTrader、唔好拔網絡），因為重啟恢復未做，呢份計劃唔測。S10 斷線後預期鎖定（有代碼同離線 fake 測試）；**真 provider 重連之後會點冇測過，要記錄，唔好當作已知**；如果 NinjaTrader 做唔到單斷一個帳戶（會連 Leader 一齊斷），就**跳過 S10**。S6 如果 Follower 兩張單冇連成 OCO，**即刻停**、手動取消同平倉，跳過 S8。S8 如果目標價冇成交就**中止**，唔好為咗「令佢成功」而手動平倉；手動平倉只可以用嚟**結束**今次測試。**關閉被拒係正確嘅，唔好繞過。**
-6. 要明確回答：每戶線程嗰個設計喺真 NinjaTrader 有冇出事、真實延遲、Position 會唔會跑喺成交前面、斷線重連點樣（真 provider）、持倉時嘗試關閉會見到乜訊息。
-7. 分享證據前要遮蓋帳戶名、ID、餘額同檔案路徑，用 LEADER／F1／F2 代替。
-8. 乾淨跑完只代表「嗰日、嗰兩個 Sim 帳戶、1 手」成功，**唔代表**真倉或 Prop 安全，亦唔會解除封鎖。有失敗就先寫一個失敗測試，再修。
+1. **這份是計劃，不是授權。** Start／Flatten 全部封鎖，須等待一個經覆核、只限模擬的 build，加上維護者在本 repo 的書面明確授權，才可以執行。**不要為了跟隨這份計劃而修改 hold、加入 define 或拆除封鎖**（詳見 [SAFETY-HOLD](SAFETY-HOLD.md)、[#7](https://github.com/Kinfxhk/KINFXTradeCopier/issues/7)）。
+2. 需要至少**兩個獨立 Sim 帳戶**（一個 Leader、一個 Follower），同一個 NinjaTrader；一個帳戶證明不了跟單。**硬性要求：** 該 NinjaTrader 內**根本沒有連接任何真實倉或 Prop 帳戶**（不是「我不去選擇它」，而是要移除或另開 Windows 用戶）；須親自在 NinjaTrader 確認每個帳戶都是純模擬（本文件沒有說明是哪個畫面，因為沒有對着真實 NinjaTrader 核實過；不能確定就把它當作真實倉，不要使用）；兩個帳戶開始前都要平倉、沒有掛單。
+3. 只用 1 手、一隻合約、Ratio 1。須有人**全程查看 NinjaTrader 本身的 Orders／Positions 分頁**，那裡才是真相，不是本軟件的狀態。
+4. **任何意外即停止**，不要重試，不要再按 Start／Flatten／解鎖；用 NinjaTrader 本身的控制手動取消及平倉，**先記下所見**。等待時間須**在開始前寫下**（建議：訂單出現 5 秒、確認 10 秒），超時即是中止，不是「再等多一會兒」。每次完結或中止，都要在 NinjaTrader 取消所有掛單及平倉，確認兩邊都已平倉才關閉本軟件。
+5. 步驟 S0 至 S12 逐步進行，每步只改一項，每步要有預期結果、通過準則及要記錄的證據。S12 是**可選、只作觀察**：持倉時嘗試關閉 copier，預期被拒絕，記下訊息，**不要強行關閉**（不要強制結束 NinjaTrader、不要拔除網絡），因為重啟恢復尚未完成，這份計劃不測此項。S10 斷線後預期鎖定（有代碼及離線 fake 測試）；**真實 provider 重連之後會怎樣並沒有測過，要記錄，不要當作已知**；如果 NinjaTrader 無法單獨斷開一個帳戶（會連 Leader 一起斷開），就**跳過 S10**。S6 如果 Follower 兩張單沒有連成 OCO，**立即停止**、手動取消及平倉，跳過 S8。S8 如果目標價沒有成交就**中止**，不要為了「使它成功」而手動平倉；手動平倉只可以用來**結束**今次測試。**關閉被拒絕是正確的，不要繞過。**
+6. 要明確回答：每戶線程的設計在真實 NinjaTrader 有沒有出現問題、真實延遲、Position 會不會超前於成交、斷線後重連的實際情況（真實 provider），以及持倉時嘗試關閉會看到什麼訊息。
+7. 分享證據前要遮蓋帳戶名稱、ID、餘額及檔案路徑，用 LEADER／F1／F2 代替。
+8. 一次無異常的完整執行只代表「當天、那兩個 Sim 帳戶、1 手」成功，**不代表**真實倉或 Prop 安全，亦不會解除封鎖。有失敗就先寫一個失敗測試，再修正。

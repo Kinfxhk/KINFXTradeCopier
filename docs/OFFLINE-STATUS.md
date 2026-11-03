@@ -2,11 +2,11 @@
 
 Source `28bc4bb3bc47` (2026-10-13; also reproduced on the Windows VM) · engine runner 207 PASS / 0 FAIL · dashboard UI 45 PASS · pure 32/32 · independent 24 PASS / 1 known FAIL ([#6](https://github.com/Kinfxhk/KINFXTradeCopier/issues/6), shelved) · Python 459 OK · full AddOn compile-only OK. Completion estimate and what is still only offline: see the progress bar in the [README](../README.md).
 
-Everything in the tables below is **offline, synthetic**: fake accounts. The default build still blocks Start and Flatten for every real account. Separate **real NinjaTrader Simulator / prop-firm Sim** results from the opt-in SIM TEST build are in [VM-PROGRESS](VM-PROGRESS.md). Nothing here is prop-firm or live acceptance. 以下全部係離線合成測試；從未向 NinjaTrader 落過單；真帳戶嘅 Start／Flatten 全部封鎖。
+Everything in the tables below is **offline, synthetic**: fake accounts. The default build still blocks Start and Flatten for every real account. Separate **real NinjaTrader Simulator / prop-firm Sim** results from the opt-in SIM TEST build are in [VM-PROGRESS](VM-PROGRESS.md). Nothing here is prop-firm or live acceptance. 以下全部是離線合成測試；從未向 NinjaTrader 下過單；真實帳戶的 Start／Flatten 全部封鎖。
 
 ## Done offline / 離線已完成
 
-| Area / 範圍 | What changed / 改咗乜 | Issue | Honest limit / 限制 |
+| Area / 範圍 | What changed / 改了什麼 | Issue | Honest limit / 限制 |
 |---|---|---|---|
 | UI | Three tabs, per-account Ratio / Tgt / DLL / ATM / OFF, bulk edit, From Leader, per-account divergence setting, red LOCKED footer | — | Synthetic Demo only; real window focus, IME, paste, per-monitor DPI untested |
 | Typed numbers / 輸入數值 | Ratio, Max, Target, DLL keep typed text, show an error, block commit; Max rejects 0 and negatives | [#5](https://github.com/Kinfxhk/KINFXTradeCopier/issues/5) | Risk-dialog fields only checked on Apply; high-precision XML round-trip open |
@@ -22,7 +22,7 @@ Four defects were found by independent review or by my own sweep in my own first
 
 ## Needs a real environment / 一定要真環境
 
-None of these can be answered offline. 呢啲離線無法回答。
+None of these can be answered offline. 以下各項無法以離線方式回答。
 
 1. **Two real NinjaTrader Sim or Playback accounts**, leader to follower, real provider callbacks ([#7](https://github.com/Kinfxhk/KINFXTradeCopier/issues/7)). A step-by-step **plan** exists in [SIM-TEST-PLAN](SIM-TEST-PLAN.md); it is a plan only and does not lift the block. Start and Flatten are blocked; unblocking is a separate reviewed decision, not part of this alpha.
 2. **Thread rules for provider calls** (the per-account dispatch above). If NinjaTrader requires these calls on one thread, the design must change.
@@ -40,6 +40,6 @@ None of these can be answered offline. 呢啲離線無法回答。
 | Adopt an existing position on a just-connected follower [#11](https://github.com/Kinfxhk/KINFXTradeCopier/issues/11) | Not started. Depends on who owns the exit. |
 | Placing the missing exit automatically | Rejected for now: without provider evidence it could double-cover and reverse an account. |
 
-## How to help / 點樣幫手
+## How to help / 如何幫忙
 
-Run `python -B -m unittest discover -s tests -p 'test_*.py'`, read [TEST-MATRIX](TEST-MATRIX.md), pick an open Issue, and send a failing test first. The property sweep in `tests/EngineSafetyTests.cs` is a cheap place to add the combination you think is missing. 先寫一個會失敗嘅測試，再改。
+Run `python -B -m unittest discover -s tests -p 'test_*.py'`, read [TEST-MATRIX](TEST-MATRIX.md), pick an open Issue, and send a failing test first. The property sweep in `tests/EngineSafetyTests.cs` is a cheap place to add the combination you think is missing. 先寫一個會失敗的測試，再修改。
