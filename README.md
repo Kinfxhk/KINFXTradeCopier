@@ -4,6 +4,9 @@
 
 **中文** · [English](README.en.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
+**[☕ Buy Me a Coffee](https://buymeacoffee.com/kinfxhk)** · [GitHub Sponsors](https://github.com/sponsors/Kinfxhk)
+
+
 > ⚠️ **預設版已停用交易。Funded／實盤帳戶：禁止使用。** 本項目是源碼 alpha，**目前源碼尚未驗收**。主動選用的 SIM TEST 版會向 Simulator／Playback 及您確認為模擬的帳戶發送訂單，但此能力不是安全驗收。
 
 ## 風險與免責聲明
