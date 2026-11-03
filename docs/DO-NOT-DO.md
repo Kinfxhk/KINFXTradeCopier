@@ -64,18 +64,18 @@ If a Flatten request throws, the provider may still have accepted it. The engine
 
 Whether the engine copes with a real provider's reconnects, late fills and slippage is **untested**. See `docs/TEST-MATRIX.md` and `docs/KNOWN-ISSUES.md`. Absence from this page does not mean something is safe.
 
-## 廣東話摘要
+## 摘要
 
-呢個係 alpha，所有真實帳戶交易都封鎖。以下情況**軟件無法自己恢復，亦冇已驗證嘅恢復流程**，所以一定唔好做：
+這是 alpha，所有真實帳戶的交易都已封鎖。以下情況**軟件無法自行恢復，亦沒有已驗證的恢復流程**，所以一定不要做：
 
-- 跟單期間**喺 follower 手動落單、改單、平倉或加倉**。
-- **Leader 一下子反手**、改 leader 嘅單類型／OCO。
-- **同一帳戶又做 leader 又做 follower**，或者開兩個跟單視窗。
-- **強制關閉 NinjaTrader、拔網線、斷電**（重啟恢復未驗證，#6）。
-- **連續按 Flatten，或者 Flatten 後即刻重新跟**。
-- **帳戶已有倉位或掛單就想開始跟單**（唔支援，#11）。
-- **為咗繼續而解鎖被鎖帳戶**：要先自己確認帳戶已平倉、冇掛單。
+- 跟單期間**在 follower 手動下單、改單、平倉或加倉**。
+- **Leader 一步反向**，以及更改 leader 的訂單類型／OCO。
+- **同一帳戶同時擔任 leader 與 follower**，或者開啟兩個跟單視窗。
+- **強制關閉 NinjaTrader、拔除網線、斷電**（重啟恢復尚未驗證，#6）。
+- **連續按下 Flatten，或者在 Flatten 後立即重新跟隨**。
+- **在帳戶已有倉位或掛單時開始跟單**（不支援，#11）。
+- **為了繼續而解鎖被鎖帳戶**：須先自行確認帳戶已平倉、沒有掛單。
 
-設定方面：Tgt／DLL 填 0 = 關閉，唔係「無限制都 OK」；Ratio 太細會變 0 手；ATM 係鏡射 leader 出場單，唔係 NT 原生 ATM，關咗 ATM 嘅帳戶仍會跟 leader 市價平倉；餘額係 CashValue，唔係淨值。
+設定方面：Tgt／DLL 填 0 = 關閉，不是「無限制都可以」；Ratio 太小會變成 0 手；ATM 是鏡射 leader 的出場單，不是 NT 原生 ATM，已關閉 ATM 的帳戶仍會跟隨 leader 市價平倉；餘額是 CashValue，不是淨值。
 
-出事時：睇 NinjaTrader 自己嘅 Positions／Orders，用 NT 或券商工具處理，唔好靠呢個程式。
+出事時：查看 NinjaTrader 本身的 Positions／Orders，以 NT 或券商工具處理，不要依賴本程式。

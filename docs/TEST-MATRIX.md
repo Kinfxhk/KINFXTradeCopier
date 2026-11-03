@@ -63,4 +63,4 @@ These are acceptance **designs**, not instructions to run accounts now. P0 safet
 
 State the test ID, exact source/test SHA-256, command, environment, fake/reference boundary, expected invariant, actual result and retained failure classification. Add a minimal **synthetic** reproducer and negative control. Record whether any code was merged separately from candidate results. Redact paths and account identities; omit raw trading logs, credentials, vendor HTML and proprietary binaries. A known-defect assertion which verifies bad behavior and exits zero is a defect probe, not acceptance.
 
-**廣東話摘要：** 而家可以公開源碼協作，但唔係交易版。舊 baseline、scratch 修補、純 SPEC 同真正 NT／provider 驗收要分開；大量 PASS 唔等於覆蓋率。真實 demo 帳戶、shutdown、DPI 同整合後全分支驗收仍未完成，Start／Flatten 繼續封住。
+**摘要：** 現在可以公開源碼協作，但不是交易版。舊 baseline、scratch 修補、純 SPEC 與真正的 NT／provider 驗收必須分開；大量 PASS 不等於覆蓋率。真實 demo 帳戶、shutdown、DPI 及整合後全分支驗收仍未完成，Start／Flatten 繼續封鎖。

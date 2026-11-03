@@ -75,7 +75,7 @@ Machine-readable counts, result hashes and WPF case names: [BASELINE-2026-10-14.
 
 At this early snapshot the SIM TEST build had compiled and loaded, and no order had yet been sent. That statement is historical; later transaction evidence is recorded below.
 
-## Verified in NinjaTrader (no orders) / 已驗證（未落單）
+## Verified in NinjaTrader (no orders) / 已驗證（未下單）
 - SIM TEST source compiles in NinjaScript Editor: no compile errors in the NT log.
 - Dashboard opens; all four tabs (Dashboard / Copy / Risk / Logs) open without freezing NinjaTrader; Refresh and the bulk buttons raise no errors (pressed with nothing selected, so no settings changed).
 - Header, Start tooltip and Logs note follow the build (SIM text in the SIM build, REVIEW HOLD text in the default build).
